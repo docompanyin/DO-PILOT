@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Send, Mail, Phone, MapPin } from 'lucide-react';
 import { MagneticButton } from './MagneticButton';
 import { useSiteData } from '../context/DataContext';
