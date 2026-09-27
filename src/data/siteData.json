@@ -19,8 +19,8 @@
       "whats": false,
       "next": true
     },
-    "videoUrl": "no video",
-    "videoOpacity": 0,
+    "videoUrl": "https://res.cloudinary.com/ufo0zltq/video/upload/v1786901892/DO_VIDEO_SMALL_ihfkzf.mp4",
+    "videoOpacity": 80,
     "description": "We design, engineer, and deploy high-performance web applications, cross-platform mobile apps, and custom site-builder infrastructure for forward-thinking enterprises.",
     "pillars": [
       "Transparent Pricing",
@@ -401,19 +401,35 @@
         "name": "Vivek P S",
         "role": "Lead Developer",
         "specialty": "Full Stack Development",
-        "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786175720/IMG_20260808_132435.jpg_m9ihn0.jpg",
+        "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786902975/file_00000000c2ec8211af44d00366af7b77_fiw5bz.png",
         "tag": "Full Stack Development"
+      },
+      {
+        "id": "item-1789719289572",
+        "name": "Ajmal Sha S",
+        "role": "Professional Mentor & Advisor",
+        "specialty": "Advisory & Consulting",
+        "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1789721662/Picsart_26-09-18_14-21-06-352_marbir.jpg",
+        "tag": "Mentor & Advisor"
+      },
+      {
+        "id": "item-1789725699446",
+        "name": "Krishnadev S",
+        "role": "UI/UX Designer",
+        "specialty": "User Experience Design",
+        "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1789725829/Picsart_26-09-18_15-24-05-440.jpg_keijlo.jpg",
+        "tag": "UI/UX Design"
       }
     ]
   },
   "testimonials": {
     "eyebrow": "// TESTIMONIALS",
-    "title": "What founders and technical leaders say.",
+    "title": "What People Say About Us",
     "items": [
       {
         "id": "test-2",
-        "quote": "\"They developed a clean and user-friendly medicine reminder application for my college project. The app was delivered on time, worked exactly as expected, and demonstrated excellent attention to detail. I truly appreciate his professionalism and technical skills.\"",
-        "author": "Ajmal Sha S",
+        "quote": "\"They developed a clean and user-friendly weather application for my college project. The app was delivered on time, worked exactly as expected, and demonstrated excellent attention to detail. I truly appreciate his professionalism and technical skills.\"",
+        "author": "Jinsmon Varghese",
         "role": "College Student",
         "company": "MG University",
         "image": ""
@@ -556,5 +572,5 @@
     ]
   },
   "messages": [],
-  "version": 1786197641472
+  "version": 1790008830443
 }
