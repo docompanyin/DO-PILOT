@@ -367,12 +367,30 @@
     "linkedin": "",
     "twitter": "",
     "socialLinks": {
-      "github": { "url": "", "enabled": true },
-      "twitter": { "url": "", "enabled": true },
-      "linkedin": { "url": "", "enabled": true },
-      "instagram": { "url": "", "enabled": true },
-      "facebook": { "url": "", "enabled": true },
-      "whatsapp": { "url": "", "enabled": true }
+      "github": {
+        "url": "",
+        "enabled": true
+      },
+      "twitter": {
+        "url": "",
+        "enabled": true
+      },
+      "linkedin": {
+        "url": "",
+        "enabled": true
+      },
+      "instagram": {
+        "url": "",
+        "enabled": true
+      },
+      "facebook": {
+        "url": "",
+        "enabled": true
+      },
+      "whatsapp": {
+        "url": "",
+        "enabled": true
+      }
     },
     "contributionNote": "Active Code Contributions: Daily"
   },
@@ -402,7 +420,13 @@
         "role": "Lead Developer",
         "specialty": "Full Stack Development",
         "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786902975/file_00000000c2ec8211af44d00366af7b77_fiw5bz.png",
-        "tag": "Full Stack Development"
+        "tag": "Full Stack Development",
+        "socialLinks": {
+          "github": {
+            "enabled": true,
+            "url": "https://github.com/VivekOrginal"
+          }
+        }
       },
       {
         "id": "item-1789719289572",
@@ -572,5 +596,5 @@
     ]
   },
   "messages": [],
-  "version": 1790008830443
+  "version": 1790516458031
 }
