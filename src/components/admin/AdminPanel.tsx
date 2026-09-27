@@ -629,6 +629,7 @@ export const AdminPanel: React.FC = () => {
             <span>CTA & Footer</span>
           </button>
 
+          {/* INBOX TAB HIDDEN - messages stored in localStorage only (not synced across devices)
           <button
             onClick={() => setActiveTab('messages')}
             className={`w-full text-left px-4 py-3.5 rounded-2xl font-mono text-xs flex items-center justify-between transition-all cursor-pointer ${
@@ -645,6 +646,7 @@ export const AdminPanel: React.FC = () => {
               </span>
             )}
           </button>
+          */}
 
           <button
             onClick={() => setActiveTab('cloudinary')}

@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Send, CheckCircle2, Mail, Phone, MapPin } from 'lucide-react';
+import { Send, Mail, Phone, MapPin } from 'lucide-react';
 import { MagneticButton } from './MagneticButton';
 import { useSiteData } from '../context/DataContext';
 import { MatrixTitle } from './MatrixTitle';
 
 export const CTABanner: React.FC = () => {
-  const { data, addMessage } = useSiteData();
+  const { data } = useSiteData();
   const { cta, footer } = data;
 
-  const [formSubmitted, setFormSubmitted] = useState(false);
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', service: '', message: '' });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -17,20 +16,8 @@ export const CTABanner: React.FC = () => {
     if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) return;
     if (formData.phone && formData.phone.length !== 10) return;
 
-    // Save to admin inbox with all details
-    const fullMessage = `Phone: ${formData.phone || 'N/A'}
-Project Type: ${formData.service || 'N/A'}
-
-${formData.message}`;
-    addMessage({
-      name: formData.name,
-      email: formData.email,
-      subject: `Project Request: ${formData.service || 'General Inquiry'}`,
-      message: fullMessage
-    });
-
-    // Redirect to WhatsApp with formatted message
-    const whatsappNumber = (footer.socialLinks?.whatsapp?.url || '').replace(/[^0-9]/g, '') || '918787878787';
+    // Redirect to WhatsApp using CTA phone number
+    const whatsappNumber = (cta.phone || '').replace(/[^0-9]/g, '') || '918787878787';
     const waText = encodeURIComponent(
 `*New Project Inquiry*
 
@@ -43,12 +30,7 @@ ${formData.message}`;
 ${formData.message}`
     );
     window.open(`https://wa.me/${whatsappNumber}?text=${waText}`, '_blank');
-
-    setFormSubmitted(true);
-    setTimeout(() => {
-      setFormSubmitted(false);
-      setFormData({ name: '', email: '', phone: '', service: '', message: '' });
-    }, 5000);
+    setFormData({ name: '', email: '', phone: '', service: '', message: '' });
   };
 
   return (
@@ -87,22 +69,7 @@ ${formData.message}`
             </div>
 
             <div className="lg:col-span-6">
-              {formSubmitted ? (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="p-8 rounded-2xl bg-panel-light border border-primary/40 text-center flex flex-col items-center gap-4"
-                >
-                  <CheckCircle2 className="w-16 h-16 text-primary animate-bounce" />
-                  <h3 className="font-jakarta font-black text-2xl text-paper">
-                    Project Request Received!
-                  </h3>
-                  <p className="text-slate text-sm">
-                    Thank you! Our lead technical architect will review your details and respond within 24 business hours.
-                  </p>
-                </motion.div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-4 bg-black/60 p-6 sm:p-8 rounded-2xl border border-white/10">
+              <form onSubmit={handleSubmit} className="space-y-4 bg-black/60 p-6 sm:p-8 rounded-2xl border border-white/10">
                   <div>
                     <label className="block font-mono text-xs text-slate mb-1">YOUR NAME</label>
                     <input
@@ -181,7 +148,6 @@ ${formData.message}`
                     </MagneticButton>
                   </div>
                 </form>
-              )}
             </div>
           </div>
         </div>
