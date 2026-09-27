@@ -10,23 +10,44 @@ export const CTABanner: React.FC = () => {
   const { cta, footer } = data;
 
   const [formSubmitted, setFormSubmitted] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', service: '', message: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', service: '', message: '' });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) return;
+    if (formData.phone && formData.phone.length !== 10) return;
 
+    // Save to admin inbox with all details
+    const fullMessage = `Phone: ${formData.phone || 'N/A'}
+Project Type: ${formData.service || 'N/A'}
+
+${formData.message}`;
     addMessage({
       name: formData.name,
       email: formData.email,
       subject: `Project Request: ${formData.service || 'General Inquiry'}`,
-      message: formData.message
+      message: fullMessage
     });
+
+    // Redirect to WhatsApp with formatted message
+    const whatsappNumber = (footer.socialLinks?.whatsapp?.url || '').replace(/[^0-9]/g, '') || '918787878787';
+    const waText = encodeURIComponent(
+`*New Project Inquiry*
+
+*Name:* ${formData.name}
+*Email:* ${formData.email}
+*Phone:* ${formData.phone || 'N/A'}
+*Project Type:* ${formData.service || 'N/A'}
+
+*Details:*
+${formData.message}`
+    );
+    window.open(`https://wa.me/${whatsappNumber}?text=${waText}`, '_blank');
 
     setFormSubmitted(true);
     setTimeout(() => {
       setFormSubmitted(false);
-      setFormData({ name: '', email: '', service: '', message: '' });
+      setFormData({ name: '', email: '', phone: '', service: '', message: '' });
     }, 5000);
   };
 
@@ -104,6 +125,25 @@ export const CTABanner: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       className="w-full px-4 py-3 rounded-xl bg-panel border border-white/10 text-paper placeholder-slate/50 font-sans text-sm focus:outline-none focus:border-primary transition-colors"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block font-mono text-xs text-slate mb-1">PHONE NUMBER</label>
+                    <input
+                      type="tel"
+                      placeholder="e.g. 9876543210"
+                      value={formData.phone}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        setFormData({ ...formData, phone: val });
+                      }}
+                      maxLength={10}
+                      pattern="[0-9]{10}"
+                      className="w-full px-4 py-3 rounded-xl bg-panel border border-white/10 text-paper placeholder-slate/50 font-sans text-sm focus:outline-none focus:border-primary transition-colors"
+                    />
+                    {formData.phone.length > 0 && formData.phone.length < 10 && (
+                      <p className="font-mono text-[10px] text-red-400 mt-1">Must be exactly 10 digits</p>
+                    )}
                   </div>
 
                   <div>

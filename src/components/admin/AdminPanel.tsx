@@ -3278,7 +3278,7 @@ export const AdminPanel: React.FC = () => {
                         </div>
                       )}
 
-                      <p className="bg-black/80 border border-white/10 rounded-xl p-3.5 font-sans text-xs text-slate leading-relaxed">
+                      <p className="bg-black/80 border border-white/10 rounded-xl p-3.5 font-sans text-xs text-slate leading-relaxed whitespace-pre-wrap">
                         {msg.message}
                       </p>
                     </div>
