@@ -116,6 +116,7 @@ export interface FounderData {
   linkedin?: string;
   twitter?: string;
   contributionNote?: string;
+  socialLinks?: SocialLinksData;
 }
 
 export interface MentorItem {
@@ -125,6 +126,7 @@ export interface MentorItem {
   specialty: string;
   image: string;
   tag: string;
+  socialLinks?: SocialLinksData;
 }
 
 export interface MentorsData {
@@ -168,6 +170,20 @@ export interface FooterCapability {
   label: string;
 }
 
+export interface SocialLinkItem {
+  url: string;
+  enabled: boolean;
+}
+
+export interface SocialLinksData {
+  github?: SocialLinkItem;
+  twitter?: SocialLinkItem;
+  linkedin?: SocialLinkItem;
+  instagram?: SocialLinkItem;
+  facebook?: SocialLinkItem;
+  whatsapp?: SocialLinkItem;
+}
+
 export interface FooterData {
   companyName?: string;
   companyLogo?: string;
@@ -179,6 +195,7 @@ export interface FooterData {
   github?: string;
   linkedin?: string;
   twitter?: string;
+  socialLinks?: SocialLinksData;
   navLinks?: FooterNavLink[];
   capabilities?: FooterCapability[];
 }

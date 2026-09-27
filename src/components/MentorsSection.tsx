@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useSiteData } from '../context/DataContext';
+import { GithubIcon, TwitterIcon, LinkedinIcon, InstagramIcon, FacebookIcon } from './SocialIcons';
 
 export const MentorsSection: React.FC = () => {
   const { data } = useSiteData();
@@ -23,6 +24,16 @@ export const MentorsSection: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
           {mentors.items.map((mentor, idx) => {
             const hasImage = mentor.image && !failedImages[mentor.id];
+
+            const links = mentor.socialLinks;
+            const socialItems = [
+              { key: 'github', label: 'GitHub', icon: GithubIcon, url: links?.github?.url, enabled: links?.github?.enabled ?? false },
+              { key: 'twitter', label: 'Twitter / X', icon: TwitterIcon, url: links?.twitter?.url, enabled: links?.twitter?.enabled ?? false },
+              { key: 'linkedin', label: 'LinkedIn', icon: LinkedinIcon, url: links?.linkedin?.url, enabled: links?.linkedin?.enabled ?? false },
+              { key: 'instagram', label: 'Instagram', icon: InstagramIcon, url: links?.instagram?.url, enabled: links?.instagram?.enabled ?? false },
+              { key: 'facebook', label: 'Facebook', icon: FacebookIcon, url: links?.facebook?.url, enabled: links?.facebook?.enabled ?? false },
+            ].filter(item => item.enabled && item.url && item.url.trim() !== '');
+
             return (
               <motion.div
                 key={mentor.id || idx}
@@ -59,19 +70,36 @@ export const MentorsSection: React.FC = () => {
                     </div>
                   )}
 
-                <h3 className="font-jakarta font-black text-xl text-paper group-hover:text-primary transition-colors">
-                  {mentor.name}
-                </h3>
-                <p className="font-mono text-xs text-primary/80 mt-1 mb-3">
-                  {mentor.role}
-                </p>
-                <p className="text-slate text-xs leading-relaxed">
-                  Specialty: <span className="text-paper font-semibold">{mentor.specialty}</span>
-                </p>
-              </div>
-            </motion.div>
-          );
-        })}
+                  <h3 className="font-jakarta font-black text-xl text-paper group-hover:text-primary transition-colors">
+                    {mentor.name}
+                  </h3>
+                  <p className="font-mono text-xs text-primary/80 mt-1 mb-3">
+                    {mentor.role}
+                  </p>
+                  <p className="text-slate text-xs leading-relaxed mb-4">
+                    Specialty: <span className="text-paper font-semibold">{mentor.specialty}</span>
+                  </p>
+                </div>
+
+                {socialItems.length > 0 && (
+                  <div className="pt-4 border-t border-white/10 flex items-center gap-2.5">
+                    {socialItems.map(({ key, label, icon: Icon, url }) => (
+                      <a
+                        key={key}
+                        href={url!}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2 rounded-lg bg-black/60 border border-white/10 text-slate hover:text-primary hover:border-primary/50 transition-colors"
+                        aria-label={label}
+                      >
+                        <Icon className="w-4 h-4" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     </section>

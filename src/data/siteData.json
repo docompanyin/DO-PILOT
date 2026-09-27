@@ -366,6 +366,14 @@
     "github": "",
     "linkedin": "",
     "twitter": "",
+    "socialLinks": {
+      "github": { "url": "", "enabled": true },
+      "twitter": { "url": "", "enabled": true },
+      "linkedin": { "url": "", "enabled": true },
+      "instagram": { "url": "", "enabled": true },
+      "facebook": { "url": "", "enabled": true },
+      "whatsapp": { "url": "", "enabled": true }
+    },
     "contributionNote": "Active Code Contributions: Daily"
   },
   "mentors": {
@@ -434,6 +442,32 @@
     "github": null,
     "linkedin": null,
     "twitter": null,
+    "socialLinks": {
+      "github": {
+        "url": "https://github.com",
+        "enabled": true
+      },
+      "twitter": {
+        "url": "https://twitter.com",
+        "enabled": true
+      },
+      "linkedin": {
+        "url": "https://linkedin.com",
+        "enabled": true
+      },
+      "instagram": {
+        "url": "https://instagram.com",
+        "enabled": true
+      },
+      "facebook": {
+        "url": "https://facebook.com",
+        "enabled": true
+      },
+      "whatsapp": {
+        "url": "https://wa.me/918787878787",
+        "enabled": true
+      }
+    },
     "navLinks": [
       {
         "id": "nav-1",

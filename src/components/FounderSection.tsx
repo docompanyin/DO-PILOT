@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Terminal, Sparkles } from 'lucide-react';
-import { GithubIcon, TwitterIcon, LinkedinIcon } from './SocialIcons';
+import { GithubIcon, TwitterIcon, LinkedinIcon, InstagramIcon, FacebookIcon, WhatsappIcon } from './SocialIcons';
 import { useSiteData } from '../context/DataContext';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -139,35 +139,34 @@ export const FounderSection: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-4 pt-6 border-t border-white/10">
-              <div className="flex items-center gap-3">
-                <a
-                  href={founder.github}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-10 h-10 rounded-xl bg-black border border-white/10 flex items-center justify-center text-slate hover:text-primary hover:border-primary/50 transition-colors"
-                  aria-label="GitHub"
-                >
-                  <GithubIcon className="w-5 h-5" />
-                </a>
-                <a
-                  href={founder.linkedin}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-10 h-10 rounded-xl bg-black border border-white/10 flex items-center justify-center text-slate hover:text-primary hover:border-primary/50 transition-colors"
-                  aria-label="LinkedIn"
-                >
-                  <LinkedinIcon className="w-5 h-5" />
-                </a>
-                <a
-                  href={founder.twitter}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-10 h-10 rounded-xl bg-black border border-white/10 flex items-center justify-center text-slate hover:text-primary hover:border-primary/50 transition-colors"
-                  aria-label="Twitter"
-                >
-                  <TwitterIcon className="w-5 h-5" />
-                </a>
-              </div>
+              {(() => {
+                const links = founder.socialLinks;
+                const items = [
+                  { key: 'github', label: 'GitHub', icon: GithubIcon, url: links?.github?.url ?? founder.github, enabled: links?.github?.enabled ?? !!founder.github },
+                  { key: 'twitter', label: 'Twitter / X', icon: TwitterIcon, url: links?.twitter?.url ?? founder.twitter, enabled: links?.twitter?.enabled ?? !!founder.twitter },
+                  { key: 'linkedin', label: 'LinkedIn', icon: LinkedinIcon, url: links?.linkedin?.url ?? founder.linkedin, enabled: links?.linkedin?.enabled ?? !!founder.linkedin },
+                  { key: 'instagram', label: 'Instagram', icon: InstagramIcon, url: links?.instagram?.url, enabled: links?.instagram?.enabled ?? false },
+                  { key: 'facebook', label: 'Facebook', icon: FacebookIcon, url: links?.facebook?.url, enabled: links?.facebook?.enabled ?? false },
+                  { key: 'whatsapp', label: 'WhatsApp', icon: WhatsappIcon, url: links?.whatsapp?.url, enabled: links?.whatsapp?.enabled ?? false },
+                ].filter(item => item.enabled && item.url && item.url.trim() !== '');
+
+                return (
+                  <div className="flex items-center gap-3">
+                    {items.map(({ key, label, icon: Icon, url }) => (
+                      <a
+                        key={key}
+                        href={url!}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-10 h-10 rounded-xl bg-black border border-white/10 flex items-center justify-center text-slate hover:text-primary hover:border-primary/50 transition-colors"
+                        aria-label={label}
+                      >
+                        <Icon className="w-5 h-5" />
+                      </a>
+                    ))}
+                  </div>
+                );
+              })()}
 
               <div className="font-mono text-xs text-slate">
                 {founder.contributionNote}

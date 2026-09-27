@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUp } from 'lucide-react';
-import { GithubIcon, TwitterIcon, LinkedinIcon } from './SocialIcons';
+import { GithubIcon, TwitterIcon, LinkedinIcon, InstagramIcon, FacebookIcon, WhatsappIcon } from './SocialIcons';
 import { useSiteData } from '../context/DataContext';
 import { useAdminAuth } from '../context/AdminAuthContext';
 
@@ -106,35 +106,36 @@ export const Footer: React.FC = () => {
             <p className="font-sans text-sm text-slate leading-relaxed max-w-sm">
               {footer.description}
             </p>
-            <div className="pt-2 flex items-center gap-3">
-              <a
-                href={footer.github}
-                target="_blank"
-                rel="noreferrer"
-                className="p-2.5 rounded-xl bg-panel border border-white/10 text-slate hover:text-primary hover:border-primary/50 transition-colors"
-                aria-label="GitHub"
-              >
-                <GithubIcon className="w-4 h-4" />
-              </a>
-              <a
-                href={footer.linkedin}
-                target="_blank"
-                rel="noreferrer"
-                className="p-2.5 rounded-xl bg-panel border border-white/10 text-slate hover:text-primary hover:border-primary/50 transition-colors"
-                aria-label="LinkedIn"
-              >
-                <LinkedinIcon className="w-4 h-4" />
-              </a>
-              <a
-                href={footer.twitter}
-                target="_blank"
-                rel="noreferrer"
-                className="p-2.5 rounded-xl bg-panel border border-white/10 text-slate hover:text-primary hover:border-primary/50 transition-colors"
-                aria-label="Twitter"
-              >
-                <TwitterIcon className="w-4 h-4" />
-              </a>
-            </div>
+            {(() => {
+              const links = footer.socialLinks;
+              const items = [
+                { key: 'github', label: 'GitHub', icon: GithubIcon, url: links?.github?.url ?? footer.github, enabled: links?.github?.enabled ?? !!footer.github },
+                { key: 'twitter', label: 'Twitter / X', icon: TwitterIcon, url: links?.twitter?.url ?? footer.twitter, enabled: links?.twitter?.enabled ?? !!footer.twitter },
+                { key: 'linkedin', label: 'LinkedIn', icon: LinkedinIcon, url: links?.linkedin?.url ?? footer.linkedin, enabled: links?.linkedin?.enabled ?? !!footer.linkedin },
+                { key: 'instagram', label: 'Instagram', icon: InstagramIcon, url: links?.instagram?.url, enabled: links?.instagram?.enabled ?? false },
+                { key: 'facebook', label: 'Facebook', icon: FacebookIcon, url: links?.facebook?.url, enabled: links?.facebook?.enabled ?? false },
+                { key: 'whatsapp', label: 'WhatsApp', icon: WhatsappIcon, url: links?.whatsapp?.url, enabled: links?.whatsapp?.enabled ?? false },
+              ].filter(item => item.enabled && item.url && item.url.trim() !== '');
+
+              if (items.length === 0) return null;
+
+              return (
+                <div className="pt-2 flex flex-wrap items-center gap-3">
+                  {items.map(({ key, label, icon: Icon, url }) => (
+                    <a
+                      key={key}
+                      href={url!}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-2.5 rounded-xl bg-panel border border-white/10 text-slate hover:text-primary hover:border-primary/50 transition-colors"
+                      aria-label={label}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </a>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           <div>

@@ -8,6 +8,7 @@ import {
 import { useSiteData } from '../../context/DataContext';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { getCloudinaryConfig } from '../../utils/cloudinary';
+import { GithubIcon, TwitterIcon, LinkedinIcon, InstagramIcon, FacebookIcon, WhatsappIcon } from '../SocialIcons';
 
 export const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
@@ -272,7 +273,27 @@ export const AdminPanel: React.FC = () => {
   const handleSaveFounder = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+
+    const githubUrl = formData.get('founder_github_url') as string;
+    const githubEnabled = formData.get('founder_github_enabled') === 'on';
+
+    const twitterUrl = formData.get('founder_twitter_url') as string;
+    const twitterEnabled = formData.get('founder_twitter_enabled') === 'on';
+
+    const linkedinUrl = formData.get('founder_linkedin_url') as string;
+    const linkedinEnabled = formData.get('founder_linkedin_enabled') === 'on';
+
+    const instagramUrl = formData.get('founder_instagram_url') as string;
+    const instagramEnabled = formData.get('founder_instagram_enabled') === 'on';
+
+    const facebookUrl = formData.get('founder_facebook_url') as string;
+    const facebookEnabled = formData.get('founder_facebook_enabled') === 'on';
+
+    const whatsappUrl = formData.get('founder_whatsapp_url') as string;
+    const whatsappEnabled = formData.get('founder_whatsapp_enabled') === 'on';
+
     updateSection('founder', {
+      ...data.founder,
       eyebrow: formData.get('eyebrow') as string,
       headline: formData.get('headline') as string,
       name: formData.get('name') as string,
@@ -281,12 +302,20 @@ export const AdminPanel: React.FC = () => {
       quote: formData.get('quote') as string,
       bio: formData.get('bio') as string,
       image: founderImage || (formData.get('image') as string),
-      github: formData.get('github') as string,
-      linkedin: formData.get('linkedin') as string,
-      twitter: formData.get('twitter') as string,
+      github: githubUrl || (formData.get('github') as string),
+      linkedin: linkedinUrl || (formData.get('linkedin') as string),
+      twitter: twitterUrl || (formData.get('twitter') as string),
       contributionNote: formData.get('contributionNote') as string,
+      socialLinks: {
+        github: { url: githubUrl, enabled: githubEnabled },
+        twitter: { url: twitterUrl, enabled: twitterEnabled },
+        linkedin: { url: linkedinUrl, enabled: linkedinEnabled },
+        instagram: { url: instagramUrl, enabled: instagramEnabled },
+        facebook: { url: facebookUrl, enabled: facebookEnabled },
+        whatsapp: { url: whatsappUrl, enabled: whatsappEnabled },
+      }
     });
-    addAuditLog('UPDATE_FOUNDER', 'Founder section content updated.');
+    addAuditLog('UPDATE_FOUNDER', 'Founder section content and social links updated.');
     showToast('Founder Section updated successfully!');
   };
 
@@ -301,7 +330,27 @@ export const AdminPanel: React.FC = () => {
       phone: formData.get('ctaPhone') as string,
       buttonText: formData.get('ctaButtonText') as string,
     });
+
+    const githubUrl = formData.get('social_github_url') as string;
+    const githubEnabled = formData.get('social_github_enabled') === 'on';
+
+    const twitterUrl = formData.get('social_twitter_url') as string;
+    const twitterEnabled = formData.get('social_twitter_enabled') === 'on';
+
+    const linkedinUrl = formData.get('social_linkedin_url') as string;
+    const linkedinEnabled = formData.get('social_linkedin_enabled') === 'on';
+
+    const instagramUrl = formData.get('social_instagram_url') as string;
+    const instagramEnabled = formData.get('social_instagram_enabled') === 'on';
+
+    const facebookUrl = formData.get('social_facebook_url') as string;
+    const facebookEnabled = formData.get('social_facebook_enabled') === 'on';
+
+    const whatsappUrl = formData.get('social_whatsapp_url') as string;
+    const whatsappEnabled = formData.get('social_whatsapp_enabled') === 'on';
+
     updateSection('footer', {
+      ...data.footer,
       companyName: formData.get('companyName') as string,
       companyLogo: formData.get('companyLogo') as string,
       description: formData.get('footerDesc') as string,
@@ -309,11 +358,19 @@ export const AdminPanel: React.FC = () => {
       addressLine2: formData.get('addressLine2') as string,
       email: formData.get('footerEmail') as string,
       copyrightText: formData.get('copyrightText') as string,
-      github: formData.get('github') as string,
-      linkedin: formData.get('linkedin') as string,
-      twitter: formData.get('twitter') as string,
+      github: githubUrl || (data.footer.github || ''),
+      linkedin: linkedinUrl || (data.footer.linkedin || ''),
+      twitter: twitterUrl || (data.footer.twitter || ''),
+      socialLinks: {
+        github: { url: githubUrl, enabled: githubEnabled },
+        twitter: { url: twitterUrl, enabled: twitterEnabled },
+        linkedin: { url: linkedinUrl, enabled: linkedinEnabled },
+        instagram: { url: instagramUrl, enabled: instagramEnabled },
+        facebook: { url: facebookUrl, enabled: facebookEnabled },
+        whatsapp: { url: whatsappUrl, enabled: whatsappEnabled },
+      }
     });
-    addAuditLog('UPDATE_CTA_FOOTER', 'CTA Banner & Footer updated.');
+    addAuditLog('UPDATE_CTA_FOOTER', 'CTA Banner & Footer social links updated.');
     showToast('CTA & Footer updated successfully!');
   };
 
@@ -1389,33 +1446,169 @@ export const AdminPanel: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <hr className="border-white/10 my-4" />
+                <div className="space-y-3">
                   <div>
-                    <label className="block font-mono text-xs text-slate mb-1">GitHub URL</label>
-                    <input
-                      type="text"
-                      name="github"
-                      defaultValue={data.founder.github}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
+                    <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// FOUNDER SOCIAL MEDIA LINKS</h3>
+                    <p className="font-sans text-xs text-slate mt-0.5">Toggle checkboxes to enable or disable social media icons on the Founder card.</p>
                   </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">LinkedIn URL</label>
-                    <input
-                      type="text"
-                      name="linkedin"
-                      defaultValue={data.founder.linkedin}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Twitter/X URL</label>
-                    <input
-                      type="text"
-                      name="twitter"
-                      defaultValue={data.founder.twitter}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    {/* GitHub */}
+                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
+                          <GithubIcon className="w-4 h-4 text-primary" />
+                          <span>GitHub</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
+                          <input
+                            type="checkbox"
+                            name="founder_github_enabled"
+                            defaultChecked={data.founder.socialLinks?.github?.enabled ?? true}
+                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                          />
+                          <span>Show on Founder Card</span>
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        name="founder_github_url"
+                        defaultValue={data.founder.socialLinks?.github?.url ?? data.founder.github ?? ''}
+                        placeholder="https://github.com/foundername"
+                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                      />
+                    </div>
+
+                    {/* Twitter / X */}
+                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
+                          <TwitterIcon className="w-4 h-4 text-primary" />
+                          <span>Twitter / X</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
+                          <input
+                            type="checkbox"
+                            name="founder_twitter_enabled"
+                            defaultChecked={data.founder.socialLinks?.twitter?.enabled ?? true}
+                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                          />
+                          <span>Show on Founder Card</span>
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        name="founder_twitter_url"
+                        defaultValue={data.founder.socialLinks?.twitter?.url ?? data.founder.twitter ?? ''}
+                        placeholder="https://x.com/foundername"
+                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                      />
+                    </div>
+
+                    {/* LinkedIn */}
+                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
+                          <LinkedinIcon className="w-4 h-4 text-primary" />
+                          <span>LinkedIn</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
+                          <input
+                            type="checkbox"
+                            name="founder_linkedin_enabled"
+                            defaultChecked={data.founder.socialLinks?.linkedin?.enabled ?? true}
+                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                          />
+                          <span>Show on Founder Card</span>
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        name="founder_linkedin_url"
+                        defaultValue={data.founder.socialLinks?.linkedin?.url ?? data.founder.linkedin ?? ''}
+                        placeholder="https://linkedin.com/in/foundername"
+                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                      />
+                    </div>
+
+                    {/* Instagram */}
+                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
+                          <InstagramIcon className="w-4 h-4 text-primary" />
+                          <span>Instagram</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
+                          <input
+                            type="checkbox"
+                            name="founder_instagram_enabled"
+                            defaultChecked={data.founder.socialLinks?.instagram?.enabled ?? true}
+                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                          />
+                          <span>Show on Founder Card</span>
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        name="founder_instagram_url"
+                        defaultValue={data.founder.socialLinks?.instagram?.url ?? ''}
+                        placeholder="https://instagram.com/foundername"
+                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                      />
+                    </div>
+
+                    {/* Facebook */}
+                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
+                          <FacebookIcon className="w-4 h-4 text-primary" />
+                          <span>Facebook</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
+                          <input
+                            type="checkbox"
+                            name="founder_facebook_enabled"
+                            defaultChecked={data.founder.socialLinks?.facebook?.enabled ?? true}
+                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                          />
+                          <span>Show on Founder Card</span>
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        name="founder_facebook_url"
+                        defaultValue={data.founder.socialLinks?.facebook?.url ?? ''}
+                        placeholder="https://facebook.com/foundername"
+                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                      />
+                    </div>
+
+                    {/* WhatsApp */}
+                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
+                          <WhatsappIcon className="w-4 h-4 text-primary" />
+                          <span>WhatsApp</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
+                          <input
+                            type="checkbox"
+                            name="founder_whatsapp_enabled"
+                            defaultChecked={data.founder.socialLinks?.whatsapp?.enabled ?? true}
+                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                          />
+                          <span>Show on Founder Card</span>
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        name="founder_whatsapp_url"
+                        defaultValue={data.founder.socialLinks?.whatsapp?.url ?? ''}
+                        placeholder="https://wa.me/918787878787"
+                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1611,6 +1804,224 @@ export const AdminPanel: React.FC = () => {
                             />
                           </div>
                         )}
+                      </div>
+                    </div>
+
+                    {/* Social Media Links for Team Member */}
+                    <div className="space-y-3 pt-3 border-t border-white/10 font-sans text-xs">
+                      <label className="block font-mono text-[10px] text-primary font-bold uppercase tracking-wider">
+                        // SOCIAL MEDIA LINKS
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {/* GitHub */}
+                        <div className="bg-black/80 border border-white/10 rounded-lg p-2.5 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-[11px] font-bold text-paper flex items-center gap-1.5">
+                              <GithubIcon className="w-3.5 h-3.5 text-primary" />
+                              GitHub
+                            </span>
+                            <label className="flex items-center gap-1.5 text-[10px] font-mono text-slate cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={mentor.socialLinks?.github?.enabled ?? false}
+                                onChange={(e) => {
+                                  const currentSocial = mentor.socialLinks || {};
+                                  updateArrayItem('mentors', 'items', mentor.id, {
+                                    socialLinks: {
+                                      ...currentSocial,
+                                      github: { url: currentSocial.github?.url || '', enabled: e.target.checked }
+                                    }
+                                  });
+                                }}
+                                className="rounded border-white/20 bg-black text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
+                              />
+                              <span>Show</span>
+                            </label>
+                          </div>
+                          <input
+                            type="text"
+                            value={mentor.socialLinks?.github?.url || ''}
+                            onChange={(e) => {
+                              const currentSocial = mentor.socialLinks || {};
+                              updateArrayItem('mentors', 'items', mentor.id, {
+                                socialLinks: {
+                                  ...currentSocial,
+                                  github: { enabled: currentSocial.github?.enabled ?? true, url: e.target.value }
+                                }
+                              });
+                            }}
+                            placeholder="https://github.com/username"
+                            className="w-full bg-black border border-white/15 rounded px-2.5 py-1.5 text-paper focus:border-primary focus:outline-none font-mono text-[11px]"
+                          />
+                        </div>
+
+                        {/* Twitter / X */}
+                        <div className="bg-black/80 border border-white/10 rounded-lg p-2.5 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-[11px] font-bold text-paper flex items-center gap-1.5">
+                              <TwitterIcon className="w-3.5 h-3.5 text-primary" />
+                              Twitter / X
+                            </span>
+                            <label className="flex items-center gap-1.5 text-[10px] font-mono text-slate cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={mentor.socialLinks?.twitter?.enabled ?? false}
+                                onChange={(e) => {
+                                  const currentSocial = mentor.socialLinks || {};
+                                  updateArrayItem('mentors', 'items', mentor.id, {
+                                    socialLinks: {
+                                      ...currentSocial,
+                                      twitter: { url: currentSocial.twitter?.url || '', enabled: e.target.checked }
+                                    }
+                                  });
+                                }}
+                                className="rounded border-white/20 bg-black text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
+                              />
+                              <span>Show</span>
+                            </label>
+                          </div>
+                          <input
+                            type="text"
+                            value={mentor.socialLinks?.twitter?.url || ''}
+                            onChange={(e) => {
+                              const currentSocial = mentor.socialLinks || {};
+                              updateArrayItem('mentors', 'items', mentor.id, {
+                                socialLinks: {
+                                  ...currentSocial,
+                                  twitter: { enabled: currentSocial.twitter?.enabled ?? true, url: e.target.value }
+                                }
+                              });
+                            }}
+                            placeholder="https://x.com/username"
+                            className="w-full bg-black border border-white/15 rounded px-2.5 py-1.5 text-paper focus:border-primary focus:outline-none font-mono text-[11px]"
+                          />
+                        </div>
+
+                        {/* LinkedIn */}
+                        <div className="bg-black/80 border border-white/10 rounded-lg p-2.5 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-[11px] font-bold text-paper flex items-center gap-1.5">
+                              <LinkedinIcon className="w-3.5 h-3.5 text-primary" />
+                              LinkedIn
+                            </span>
+                            <label className="flex items-center gap-1.5 text-[10px] font-mono text-slate cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={mentor.socialLinks?.linkedin?.enabled ?? false}
+                                onChange={(e) => {
+                                  const currentSocial = mentor.socialLinks || {};
+                                  updateArrayItem('mentors', 'items', mentor.id, {
+                                    socialLinks: {
+                                      ...currentSocial,
+                                      linkedin: { url: currentSocial.linkedin?.url || '', enabled: e.target.checked }
+                                    }
+                                  });
+                                }}
+                                className="rounded border-white/20 bg-black text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
+                              />
+                              <span>Show</span>
+                            </label>
+                          </div>
+                          <input
+                            type="text"
+                            value={mentor.socialLinks?.linkedin?.url || ''}
+                            onChange={(e) => {
+                              const currentSocial = mentor.socialLinks || {};
+                              updateArrayItem('mentors', 'items', mentor.id, {
+                                socialLinks: {
+                                  ...currentSocial,
+                                  linkedin: { enabled: currentSocial.linkedin?.enabled ?? true, url: e.target.value }
+                                }
+                              });
+                            }}
+                            placeholder="https://linkedin.com/in/username"
+                            className="w-full bg-black border border-white/15 rounded px-2.5 py-1.5 text-paper focus:border-primary focus:outline-none font-mono text-[11px]"
+                          />
+                        </div>
+
+                        {/* Instagram */}
+                        <div className="bg-black/80 border border-white/10 rounded-lg p-2.5 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-[11px] font-bold text-paper flex items-center gap-1.5">
+                              <InstagramIcon className="w-3.5 h-3.5 text-primary" />
+                              Instagram
+                            </span>
+                            <label className="flex items-center gap-1.5 text-[10px] font-mono text-slate cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={mentor.socialLinks?.instagram?.enabled ?? false}
+                                onChange={(e) => {
+                                  const currentSocial = mentor.socialLinks || {};
+                                  updateArrayItem('mentors', 'items', mentor.id, {
+                                    socialLinks: {
+                                      ...currentSocial,
+                                      instagram: { url: currentSocial.instagram?.url || '', enabled: e.target.checked }
+                                    }
+                                  });
+                                }}
+                                className="rounded border-white/20 bg-black text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
+                              />
+                              <span>Show</span>
+                            </label>
+                          </div>
+                          <input
+                            type="text"
+                            value={mentor.socialLinks?.instagram?.url || ''}
+                            onChange={(e) => {
+                              const currentSocial = mentor.socialLinks || {};
+                              updateArrayItem('mentors', 'items', mentor.id, {
+                                socialLinks: {
+                                  ...currentSocial,
+                                  instagram: { enabled: currentSocial.instagram?.enabled ?? true, url: e.target.value }
+                                }
+                              });
+                            }}
+                            placeholder="https://instagram.com/username"
+                            className="w-full bg-black border border-white/15 rounded px-2.5 py-1.5 text-paper focus:border-primary focus:outline-none font-mono text-[11px]"
+                          />
+                        </div>
+
+                        {/* Facebook */}
+                        <div className="bg-black/80 border border-white/10 rounded-lg p-2.5 space-y-1.5 sm:col-span-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-[11px] font-bold text-paper flex items-center gap-1.5">
+                              <FacebookIcon className="w-3.5 h-3.5 text-primary" />
+                              Facebook
+                            </span>
+                            <label className="flex items-center gap-1.5 text-[10px] font-mono text-slate cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={mentor.socialLinks?.facebook?.enabled ?? false}
+                                onChange={(e) => {
+                                  const currentSocial = mentor.socialLinks || {};
+                                  updateArrayItem('mentors', 'items', mentor.id, {
+                                    socialLinks: {
+                                      ...currentSocial,
+                                      facebook: { url: currentSocial.facebook?.url || '', enabled: e.target.checked }
+                                    }
+                                  });
+                                }}
+                                className="rounded border-white/20 bg-black text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
+                              />
+                              <span>Show</span>
+                            </label>
+                          </div>
+                          <input
+                            type="text"
+                            value={mentor.socialLinks?.facebook?.url || ''}
+                            onChange={(e) => {
+                              const currentSocial = mentor.socialLinks || {};
+                              updateArrayItem('mentors', 'items', mentor.id, {
+                                socialLinks: {
+                                  ...currentSocial,
+                                  facebook: { enabled: currentSocial.facebook?.enabled ?? true, url: e.target.value }
+                                }
+                              });
+                            }}
+                            placeholder="https://facebook.com/username"
+                            className="w-full bg-black border border-white/15 rounded px-2.5 py-1.5 text-paper focus:border-primary focus:outline-none font-mono text-[11px]"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2498,6 +2909,172 @@ export const AdminPanel: React.FC = () => {
                     defaultValue={data.footer.copyrightText}
                     className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
                   />
+                </div>
+
+                <hr className="border-white/10 my-4" />
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// COMPANY SOCIAL MEDIA LINKS</h3>
+                    <p className="font-sans text-xs text-slate mt-0.5">Toggle checkboxes to enable or disable social media icons in the footer.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    {/* GitHub */}
+                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
+                          <GithubIcon className="w-4 h-4 text-primary" />
+                          <span>GitHub</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
+                          <input
+                            type="checkbox"
+                            name="social_github_enabled"
+                            defaultChecked={data.footer.socialLinks?.github?.enabled ?? true}
+                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                          />
+                          <span>Show in Footer</span>
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        name="social_github_url"
+                        defaultValue={data.footer.socialLinks?.github?.url ?? data.footer.github ?? 'https://github.com'}
+                        placeholder="https://github.com/yourcompany"
+                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                      />
+                    </div>
+
+                    {/* Twitter / X */}
+                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
+                          <TwitterIcon className="w-4 h-4 text-primary" />
+                          <span>Twitter / X</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
+                          <input
+                            type="checkbox"
+                            name="social_twitter_enabled"
+                            defaultChecked={data.footer.socialLinks?.twitter?.enabled ?? true}
+                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                          />
+                          <span>Show in Footer</span>
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        name="social_twitter_url"
+                        defaultValue={data.footer.socialLinks?.twitter?.url ?? data.footer.twitter ?? 'https://x.com'}
+                        placeholder="https://x.com/yourcompany"
+                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                      />
+                    </div>
+
+                    {/* LinkedIn */}
+                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
+                          <LinkedinIcon className="w-4 h-4 text-primary" />
+                          <span>LinkedIn</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
+                          <input
+                            type="checkbox"
+                            name="social_linkedin_enabled"
+                            defaultChecked={data.footer.socialLinks?.linkedin?.enabled ?? true}
+                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                          />
+                          <span>Show in Footer</span>
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        name="social_linkedin_url"
+                        defaultValue={data.footer.socialLinks?.linkedin?.url ?? data.footer.linkedin ?? 'https://linkedin.com'}
+                        placeholder="https://linkedin.com/company/yourcompany"
+                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                      />
+                    </div>
+
+                    {/* Instagram */}
+                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
+                          <InstagramIcon className="w-4 h-4 text-primary" />
+                          <span>Instagram</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
+                          <input
+                            type="checkbox"
+                            name="social_instagram_enabled"
+                            defaultChecked={data.footer.socialLinks?.instagram?.enabled ?? true}
+                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                          />
+                          <span>Show in Footer</span>
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        name="social_instagram_url"
+                        defaultValue={data.footer.socialLinks?.instagram?.url ?? 'https://instagram.com'}
+                        placeholder="https://instagram.com/yourcompany"
+                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                      />
+                    </div>
+
+                    {/* Facebook */}
+                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
+                          <FacebookIcon className="w-4 h-4 text-primary" />
+                          <span>Facebook</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
+                          <input
+                            type="checkbox"
+                            name="social_facebook_enabled"
+                            defaultChecked={data.footer.socialLinks?.facebook?.enabled ?? true}
+                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                          />
+                          <span>Show in Footer</span>
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        name="social_facebook_url"
+                        defaultValue={data.footer.socialLinks?.facebook?.url ?? 'https://facebook.com'}
+                        placeholder="https://facebook.com/yourcompany"
+                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                      />
+                    </div>
+
+                    {/* WhatsApp */}
+                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
+                          <WhatsappIcon className="w-4 h-4 text-primary" />
+                          <span>WhatsApp</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
+                          <input
+                            type="checkbox"
+                            name="social_whatsapp_enabled"
+                            defaultChecked={data.footer.socialLinks?.whatsapp?.enabled ?? true}
+                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                          />
+                          <span>Show in Footer</span>
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        name="social_whatsapp_url"
+                        defaultValue={data.footer.socialLinks?.whatsapp?.url ?? 'https://wa.me/918787878787'}
+                        placeholder="https://wa.me/918787878787"
+                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <button
