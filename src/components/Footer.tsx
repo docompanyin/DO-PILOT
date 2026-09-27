@@ -189,7 +189,7 @@ export const Footer: React.FC = () => {
             <address className="not-italic font-sans text-sm space-y-2 text-slate">
               <p>{footer.addressLine1}</p>
               <p>{footer.addressLine2}</p>
-              <p className="pt-2 text-primary font-mono text-xs font-bold">{footer.email}</p>
+              <a href={`mailto:${footer.email}`} className="pt-2 text-primary font-mono text-xs font-bold hover:underline">{footer.email}</a>
             </address>
           </div>
         </div>
