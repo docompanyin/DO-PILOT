@@ -479,9 +479,9 @@
     "addressLine2": "San Francisco, CA 94104",
     "email": "build@docompany.dev",
     "copyrightText": "© 2026 DO Company Inc. All rights reserved.",
-    "github": null,
-    "linkedin": null,
-    "twitter": null,
+    "github": "https://github.com",
+    "linkedin": "https://linkedin.com",
+    "twitter": "https://twitter.com",
     "socialLinks": {
       "github": {
         "url": "https://github.com",
@@ -595,6 +595,16 @@
       }
     ]
   },
-  "messages": [],
-  "version": 1790516458031
+  "messages": [
+    {
+      "id": "msg-1790521578396",
+      "name": "Bimal Jayakumar",
+      "email": "bimaljayakumar18@gmail.com",
+      "subject": "Project Request: Web",
+      "message": "Phone: 7784738384\nProject Type: Web\n\nwmedkwndkendk",
+      "date": "9/27/2026, 8:36:18 PM",
+      "read": false
+    }
+  ],
+  "version": 1790521769084
 }
