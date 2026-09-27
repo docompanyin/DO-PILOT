@@ -17,17 +17,16 @@ export const CTABanner: React.FC = () => {
 
     // Redirect to WhatsApp using CTA phone number
     const whatsappNumber = (cta.phone || '').replace(/[^0-9]/g, '') || '918787878787';
-    const waText = encodeURIComponent(
-`*New Project Inquiry*
+    const waText = encodeURIComponent(`Hello DO Company! 👋
 
-*Name:* ${formData.name}
-*Email:* ${formData.email}
-*Phone:* ${formData.phone || 'N/A'}
-*Project Type:* ${formData.service || 'N/A'}
+I'd like to discuss a project with you.
 
-*Details:*
-${formData.message}`
-    );
+Name: ${formData.name}
+Email: ${formData.email}
+Phone: ${formData.phone || 'N/A'}
+Project Type: ${formData.service || 'N/A'}
+
+Details: ${formData.message}`);
     window.open(`https://wa.me/${whatsappNumber}?text=${waText}`, '_blank');
     setFormData({ name: '', email: '', phone: '', service: '', message: '' });
   };
