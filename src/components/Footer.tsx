@@ -121,7 +121,7 @@ export const Footer: React.FC = () => {
   ];
 
   return (
-    <footer className="relative bg-black text-slate border-t border-white/10 pt-16 pb-12 select-none overflow-hidden">
+    <footer className="relative bg-black text-slate border-t border-white/10 pt-12 sm:pt-16 pb-10 sm:pb-12 select-none overflow-hidden">
       {/* Background Glowing Particles Video Overlay */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
         <video
@@ -140,7 +140,7 @@ export const Footer: React.FC = () => {
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Main Footer Columns: Mathematically Aligned 12-Column Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-12 gap-8 lg:gap-6 xl:gap-8 pb-12 border-b border-white/10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-12 gap-7 sm:gap-8 lg:gap-6 xl:gap-8 pb-10 sm:pb-12 border-b border-white/10">
           
           {/* 1. Brand Column (3/12 cols) */}
           <div className="sm:col-span-2 md:col-span-3 lg:col-span-3 space-y-4">
@@ -327,20 +327,20 @@ export const Footer: React.FC = () => {
 
         </div>
 
-        {/* Bottom Bar: Pure Symmetrical Alignment */}
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 font-mono text-xs text-slate">
+        {/* Bottom Bar: Symmetrical Responsive Alignment */}
+        <div className="pt-6 sm:pt-8 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 font-mono text-[11px] sm:text-xs text-slate">
           {/* Secret Trigger for Admin Login preserved */}
           <div
             onClick={handleCopyrightClick}
-            className="cursor-default select-none hover:text-slate/80 text-center sm:text-left"
+            className="cursor-default select-none hover:text-slate/80 text-center sm:text-left break-words px-2 sm:px-0"
           >
             <span>© {new Date().getFullYear()} {companyName}. {copyrightText}</span>
           </div>
 
-          {/* Symmetrical Back to top button */}
+          {/* Back to top button */}
           <button
             onClick={scrollToTop}
-            className="flex items-center gap-1.5 text-paper hover:text-primary transition-colors focus:outline-none cursor-pointer shrink-0"
+            className="flex items-center gap-1.5 text-paper hover:text-primary transition-colors focus:outline-none cursor-pointer shrink-0 min-h-[36px] px-3 py-1"
             aria-label="Back to top"
           >
             <span>Back to top</span>

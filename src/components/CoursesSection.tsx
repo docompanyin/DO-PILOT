@@ -99,8 +99,8 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
         </div>
 
         {/* Details Section Below Image */}
-        <div className="p-5">
-          <h3 className="font-jakarta text-[15px] sm:text-base font-extrabold text-paper group-hover:text-primary transition-colors truncate">
+        <div className="p-4 sm:p-5">
+          <h3 className="font-jakarta text-[15px] sm:text-base font-extrabold text-paper group-hover:text-primary transition-colors line-clamp-2 leading-snug">
             {course.title}
           </h3>
 
@@ -109,7 +109,7 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
           </p>
 
           {/* Small Tag Pills */}
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="mt-2.5 sm:mt-3 flex flex-wrap gap-1 sm:gap-1.5">
             {course.tags.map((tag, tIdx) => (
               <span
                 key={tIdx}
@@ -123,7 +123,7 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
       </div>
 
       {/* Bottom Card Footer */}
-      <div className="px-5 pb-5 pt-2 flex items-center justify-between border-t border-white/5 relative z-10">
+      <div className="px-4 pb-4 sm:px-5 sm:pb-5 pt-2 flex items-center justify-between border-t border-white/5 relative z-10">
         <span className="font-mono text-[11px] text-slate/70">
           {course.level}
         </span>
@@ -133,7 +133,7 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
             e.stopPropagation();
             onEnrollCourse(course);
           }}
-          className="px-4 py-1.5 rounded-full bg-primary text-ink font-jakarta font-extrabold text-xs hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all flex items-center gap-1 cursor-pointer"
+          className="px-4 py-2 rounded-full bg-primary text-ink font-jakarta font-extrabold text-xs hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all flex items-center gap-1 cursor-pointer min-h-[36px]"
         >
           <span>Enroll</span>
           <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
@@ -296,36 +296,36 @@ export const CoursesSection: React.FC<CoursesSectionProps> = ({ onEnroll }) => {
     : courses.filter(c => c.category === activeFilter);
 
   return (
-    <section id="courses" className="py-24 sm:py-32 bg-black relative border-t border-white/10 select-none">
+    <section id="courses" className="py-16 sm:py-24 lg:py-32 bg-black relative border-t border-white/10 select-none">
       {/* Background ambient glow */}
-      <div className="absolute top-1/3 right-10 w-[500px] h-[500px] bg-primary/10 blur-[150px] rounded-full pointer-events-none" />
+      <div className="absolute top-1/3 right-10 w-[280px] sm:w-[500px] h-[280px] sm:h-[500px] bg-primary/10 blur-[100px] sm:blur-[150px] rounded-full pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Section Header */}
-        <div className="flex flex-col items-center text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-panel border border-white/15 mb-4 shadow-sm">
+        <div className="flex flex-col items-center text-center max-w-3xl mx-auto mb-8 sm:mb-12">
+          <div className="inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-full bg-panel border border-white/15 mb-3.5 sm:mb-4 shadow-sm">
             <BookOpen className="w-3.5 h-3.5 text-primary" />
-            <span className="font-mono text-xs text-primary font-bold tracking-widest uppercase">
+            <span className="font-mono text-[10px] sm:text-xs text-primary font-bold tracking-widest uppercase">
               {badgeText}
             </span>
           </div>
 
-          <h2 className="font-jakarta text-3xl sm:text-5xl font-black text-paper tracking-tight">
+          <h2 className="font-jakarta text-2xl sm:text-4xl lg:text-5xl font-black text-paper tracking-tight">
             {title}
           </h2>
 
-          <p className="mt-4 text-slate text-base sm:text-lg leading-relaxed font-normal">
+          <p className="mt-3 sm:mt-4 text-slate text-sm sm:text-base md:text-lg leading-relaxed font-normal">
             {description}
           </p>
 
-          {/* Fluid Filter Tab Pills with sliding background (Option 4) */}
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mt-8 p-1.5 rounded-full bg-panel border border-white/10">
+          {/* Fluid Filter Tab Pills with sliding background */}
+          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2.5 mt-6 sm:mt-8 p-1.5 rounded-2xl sm:rounded-full bg-panel border border-white/10 max-w-full">
             {filterTabs.map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setActiveFilter(tab.key)}
-                className={`relative px-5 py-2 rounded-full font-jakarta text-xs font-bold transition-colors cursor-pointer ${
+                className={`relative px-3.5 sm:px-5 py-2 rounded-full font-jakarta text-[11px] sm:text-xs font-bold transition-colors cursor-pointer min-h-[36px] sm:min-h-[38px] flex items-center justify-center ${
                   activeFilter === tab.key ? 'text-ink' : 'text-slate hover:text-paper'
                 }`}
               >
@@ -336,16 +336,16 @@ export const CoursesSection: React.FC<CoursesSectionProps> = ({ onEnroll }) => {
                     transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   />
                 )}
-                <span className="relative z-10">{tab.label}</span>
+                <span className="relative z-10 whitespace-nowrap">{tab.label}</span>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Fluid Animated Course Grid (Option 4) with Spotlight Follower (Option 2) */}
+        {/* Fluid Animated Course Grid */}
         <motion.div
           layout
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
         >
           <AnimatePresence mode="popLayout">
             {filteredCourses.map((course) => (

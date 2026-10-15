@@ -319,7 +319,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, sel
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-xl overflow-y-auto">
           {/* Backdrop Click Dismiss */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -335,7 +335,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, sel
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 16 }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="w-full max-w-[460px] bg-[#0c0d0f] border border-white/10 rounded-3xl p-6 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] relative z-10"
+            className="w-full max-w-[460px] max-h-[92vh] overflow-y-auto bg-[#0c0d0f] border border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] relative z-10 my-auto"
           >
             {/* Subtle Neon Corner Glow */}
             <div className="absolute top-0 right-0 w-48 h-48 bg-primary/10 rounded-full blur-3xl pointer-events-none" />

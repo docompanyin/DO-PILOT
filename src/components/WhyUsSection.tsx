@@ -82,32 +82,32 @@ export const WhyUsSection: React.FC = () => {
   ];
 
   return (
-    <section id="why-us" className="py-24 sm:py-32 bg-black relative border-t border-white/10 select-none">
+    <section id="why-us" className="py-16 sm:py-24 lg:py-32 bg-black relative border-t border-white/10 select-none">
       {/* Background glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-primary/10 blur-[130px] rounded-full pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[600px] h-[250px] sm:h-[400px] bg-primary/10 blur-[90px] sm:blur-[130px] rounded-full pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Section Header */}
-        <div className="flex flex-col items-center text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-panel border border-white/15 mb-4 shadow-sm">
+        <div className="flex flex-col items-center text-center max-w-3xl mx-auto mb-10 sm:mb-16">
+          <div className="inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-full bg-panel border border-white/15 mb-3.5 sm:mb-4 shadow-sm">
             <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-            <span className="font-mono text-xs text-primary font-bold tracking-widest uppercase">
+            <span className="font-mono text-[10px] sm:text-xs text-primary font-bold tracking-widest uppercase">
               {badgeText}
             </span>
           </div>
 
-          <h2 className="font-jakarta text-3xl sm:text-5xl font-black text-paper tracking-tight">
+          <h2 className="font-jakarta text-2xl sm:text-4xl lg:text-5xl font-black text-paper tracking-tight">
             {title}
           </h2>
 
-          <p className="mt-4 text-slate text-base sm:text-lg leading-relaxed font-normal">
+          <p className="mt-3 sm:mt-4 text-slate text-sm sm:text-base md:text-lg leading-relaxed font-normal">
             {description}
           </p>
         </div>
 
         {/* 4 Feature Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-12 sm:mb-16">
           {features.map((item, idx) => {
             const Icon = getFeatureIcon((item as any).iconName || (item as any).icon);
             return (
@@ -117,24 +117,24 @@ export const WhyUsSection: React.FC = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: idx * 0.1 }}
-                className="group relative rounded-2xl bg-panel border border-white/10 p-6 hover:border-primary/50 transition-all duration-300 hover:shadow-2xl hover:shadow-primary/10 flex flex-col justify-between"
+                className="group relative rounded-2xl bg-panel border border-white/10 p-5 sm:p-6 hover:border-primary/50 transition-all duration-300 hover:shadow-2xl hover:shadow-primary/10 flex flex-col justify-between"
               >
                 <div>
-                  <div className="w-12 h-12 rounded-xl bg-panel-light border border-white/15 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 group-hover:border-primary/40">
-                    <Icon className="w-6 h-6 text-primary" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-panel-light border border-white/15 flex items-center justify-center mb-4 sm:mb-6 group-hover:scale-110 transition-transform duration-300 group-hover:border-primary/40">
+                    <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                   </div>
 
-                  <h3 className="font-jakarta text-lg font-bold text-paper mb-2.5">
+                  <h3 className="font-jakarta text-base sm:text-lg font-bold text-paper mb-2">
                     {item.title}
                   </h3>
 
-                  <p className="text-slate text-sm leading-relaxed font-normal">
+                  <p className="text-slate text-xs sm:text-sm leading-relaxed font-normal">
                     {item.description}
                   </p>
                 </div>
 
-                <div className="pt-6 mt-6 border-t border-white/10 flex items-center justify-between">
-                  <span className="font-mono text-[11px] font-semibold text-primary">
+                <div className="pt-4 sm:pt-6 mt-4 sm:mt-6 border-t border-white/10 flex items-center justify-between">
+                  <span className="font-mono text-[10px] sm:text-[11px] font-semibold text-primary">
                     {item.highlight}
                   </span>
                   <ArrowRight className="w-3.5 h-3.5 text-slate group-hover:text-primary group-hover:translate-x-1 transition-all" />
@@ -145,17 +145,49 @@ export const WhyUsSection: React.FC = () => {
         </div>
 
         {/* Comparison Showcase: Traditional vs DO PILOT */}
-        <div className="rounded-3xl bg-panel border border-white/15 p-6 sm:p-10 shadow-2xl overflow-hidden relative">
-          <div className="text-center sm:text-left mb-8">
-            <h3 className="font-jakarta text-2xl font-black text-paper">
+        <div className="rounded-2xl sm:rounded-3xl bg-panel border border-white/15 p-5 sm:p-8 lg:p-10 shadow-2xl overflow-hidden relative">
+          <div className="text-center sm:text-left mb-6 sm:mb-8">
+            <h3 className="font-jakarta text-xl sm:text-2xl font-black text-paper">
               {comparisonsTitle}
             </h3>
-            <p className="text-slate text-sm mt-1">
+            <p className="text-slate text-xs sm:text-sm mt-1">
               {comparisonsSubtitle}
             </p>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile Comparison Cards (Shown on small screens for comfortable touch reading) */}
+          <div className="md:hidden space-y-3">
+            {comparisons.map((row, index) => (
+              <div key={index} className="p-4 rounded-xl bg-black/40 border border-white/10 space-y-2.5">
+                <div className="font-jakarta font-bold text-sm text-paper">
+                  {row.feature}
+                </div>
+                <div className="grid grid-cols-1 gap-2 text-xs">
+                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-red-500/[0.04] border border-red-500/15 text-slate">
+                    <X className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] uppercase font-mono text-red-400/90 block font-semibold mb-0.5">
+                        {whyUs?.tableHeaderTraditional || 'Regular Online Courses'}
+                      </span>
+                      <span className="text-slate-300 leading-snug">{row.traditional}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-primary/[0.05] border border-primary/20 text-paper">
+                    <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] uppercase font-mono text-primary block font-semibold mb-0.5">
+                        {whyUs?.tableHeaderDoPilot || 'DO PILOT Platform'}
+                      </span>
+                      <span className="text-paper font-medium leading-snug">{row.doPilot}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop & Tablet Comparison Table (Hidden on small mobile) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-sm border-collapse min-w-[600px]">
               <thead>
                 <tr className="border-b border-white/10 text-xs font-mono uppercase text-slate">

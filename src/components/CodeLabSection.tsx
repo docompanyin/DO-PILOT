@@ -168,9 +168,9 @@ export const CodeLabSection: React.FC = () => {
   const lineNumbers = Array.from({ length: Math.max(lineCount, 12) }, (_, i) => i + 1);
 
   return (
-    <section id="code-lab" className="py-20 sm:py-28 bg-black relative border-t border-white/10 select-none overflow-hidden">
+    <section id="code-lab" className="py-16 sm:py-24 lg:py-28 bg-black relative border-t border-white/10 select-none overflow-hidden">
       {/* Background subtle ambient glow */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-primary/10 blur-[150px] rounded-full pointer-events-none" />
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[700px] h-[250px] sm:h-[350px] bg-primary/10 blur-[100px] sm:blur-[150px] rounded-full pointer-events-none" />
 
       {/* Grid Pattern overlay */}
       <div 
@@ -184,19 +184,19 @@ export const CodeLabSection: React.FC = () => {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Section Header */}
-        <div className="flex flex-col items-center text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-panel border border-white/15 mb-4 shadow-sm">
+        <div className="flex flex-col items-center text-center max-w-3xl mx-auto mb-8 sm:mb-12">
+          <div className="inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-full bg-panel border border-white/15 mb-3.5 sm:mb-4 shadow-sm">
             <Terminal className="w-3.5 h-3.5 text-primary" />
-            <span className="font-mono text-xs text-primary font-bold tracking-widest uppercase">
+            <span className="font-mono text-[10px] sm:text-xs text-primary font-bold tracking-widest uppercase">
               {codeLabData?.badgeText || 'CODE LAB'}
             </span>
           </div>
 
-          <h2 className="font-jakarta text-3xl sm:text-5xl font-black text-paper tracking-tight">
+          <h2 className="font-jakarta text-2xl sm:text-4xl lg:text-5xl font-black text-paper tracking-tight">
             {codeLabData?.title || 'Run Python Programs Instantly'}
           </h2>
 
-          <p className="mt-4 text-slate text-base sm:text-lg leading-relaxed font-normal">
+          <p className="mt-3 sm:mt-4 text-slate text-sm sm:text-base md:text-lg leading-relaxed font-normal">
             {codeLabData?.description || 'Write, test, and execute Python 3.12 code directly in your browser.'}
           </p>
         </div>
@@ -205,29 +205,29 @@ export const CodeLabSection: React.FC = () => {
         <div className="rounded-2xl border border-white/15 bg-panel/90 backdrop-blur-2xl shadow-[0_25px_70px_rgba(0,0,0,0.9)] overflow-hidden">
           
           {/* Workbench Top Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-3.5 bg-black/60 border-b border-white/10">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 px-3 sm:px-6 py-2.5 sm:py-3.5 bg-black/60 border-b border-white/10">
             
             {/* Left: Window Dots & Active Tab */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-[#ff5f56]/80 inline-block" />
-                <span className="w-3 h-3 rounded-full bg-[#ffbd2e]/80 inline-block" />
-                <span className="w-3 h-3 rounded-full bg-[#27c93f]/80 inline-block" />
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="flex items-center gap-1 sm:gap-1.5">
+                <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#ff5f56]/80 inline-block" />
+                <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#ffbd2e]/80 inline-block" />
+                <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#27c93f]/80 inline-block" />
               </div>
-              <div className="h-4 w-[1px] bg-white/10 mx-1 hidden sm:block" />
-              <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-panel-light border border-white/10 text-xs font-mono text-paper font-semibold">
-                <Code2 className="w-3.5 h-3.5 text-primary" />
+              <div className="h-4 w-[1px] bg-white/10 mx-0.5 sm:mx-1" />
+              <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-lg bg-panel-light border border-white/10 text-[11px] sm:text-xs font-mono text-paper font-semibold">
+                <Code2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary" />
                 <span>main.py</span>
-                <span className="text-[10px] text-slate font-normal">Python 3.12</span>
+                <span className="text-[10px] text-slate font-normal hidden min-[400px]:inline">Python 3.12</span>
               </div>
             </div>
 
             {/* Right: Action Buttons & Run Button */}
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 sm:gap-3">
               
               <button
                 onClick={handleCopyCode}
-                className="px-3 py-1.5 rounded-lg bg-panel border border-white/10 text-xs font-mono text-slate hover:text-paper hover:border-white/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-panel border border-white/10 text-[11px] sm:text-xs font-mono text-slate hover:text-paper hover:border-white/20 transition-all flex items-center gap-1.5 cursor-pointer min-h-[34px] sm:min-h-[36px]"
                 title="Copy code to clipboard"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-primary" /> : <Copy className="w-3.5 h-3.5" />}
@@ -236,7 +236,7 @@ export const CodeLabSection: React.FC = () => {
 
               <button
                 onClick={handleResetCode}
-                className="px-3 py-1.5 rounded-lg bg-panel border border-white/10 text-xs font-mono text-slate hover:text-paper hover:border-white/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-panel border border-white/10 text-[11px] sm:text-xs font-mono text-slate hover:text-paper hover:border-white/20 transition-all flex items-center gap-1.5 cursor-pointer min-h-[34px] sm:min-h-[36px]"
                 title="Reset code to starter program"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -247,7 +247,7 @@ export const CodeLabSection: React.FC = () => {
               <button
                 onClick={handleRun}
                 disabled={isRunning}
-                className="px-5 py-2 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs tracking-wider uppercase hover:bg-white hover:shadow-[0_0_25px_rgba(0,255,157,0.5)] active:scale-95 transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(0,255,157,0.3)]"
+                className="px-3.5 sm:px-5 py-1.5 sm:py-2 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs tracking-wider uppercase hover:bg-white hover:shadow-[0_0_25px_rgba(0,255,157,0.5)] active:scale-95 transition-all duration-200 flex items-center gap-1.5 sm:gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(0,255,157,0.3)] min-h-[34px] sm:min-h-[38px] shrink-0"
               >
                 {isRunning ? (
                   <>
@@ -266,41 +266,41 @@ export const CodeLabSection: React.FC = () => {
           </div>
 
           {/* Split Panes: Editor (Left) & Terminal Output (Right) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 min-h-[440px]">
+          <div className="grid grid-cols-1 lg:grid-cols-12 min-h-[340px] lg:min-h-[440px]">
             
             {/* Left Pane: Code Editor (7 cols) */}
             <div className="lg:col-span-7 flex flex-col bg-panel/40 border-b lg:border-b-0 lg:border-r border-white/10">
               <div className="flex-1 relative flex font-mono text-xs sm:text-sm">
                 
                 {/* Line numbers gutter */}
-                <div className="py-4 px-2 sm:px-3 text-right text-slate/35 select-none bg-black/30 border-r border-white/5 font-mono text-xs leading-6 min-w-[2.75rem]">
+                <div className="py-3 sm:py-4 px-1.5 sm:px-3 text-right text-slate/35 select-none bg-black/30 border-r border-white/5 font-mono text-[11px] sm:text-xs leading-6 min-w-[2.25rem] sm:min-w-[2.75rem]">
                   {lineNumbers.map((num) => (
                     <div key={num}>{num}</div>
                   ))}
                 </div>
 
                 {/* Textarea */}
-                <div className="flex-1 relative">
+                <div className="flex-1 relative min-w-0">
                   <textarea
                     ref={textareaRef}
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                     onKeyDown={handleKeyDown}
                     spellCheck={false}
-                    className="w-full h-full min-h-[360px] p-4 bg-transparent text-[#e6edf3] font-mono text-xs sm:text-sm leading-6 resize-none focus:outline-none placeholder-slate/40 selection:bg-primary/30 selection:text-white"
+                    className="w-full h-full min-h-[220px] sm:min-h-[360px] p-3 sm:p-4 bg-transparent text-[#e6edf3] font-mono text-xs sm:text-sm leading-6 resize-none focus:outline-none placeholder-slate/40 selection:bg-primary/30 selection:text-white"
                     placeholder='print("Hello, World!")'
                   />
                 </div>
               </div>
 
               {/* Editor bottom status bar */}
-              <div className="px-4 py-2 bg-black/60 border-t border-white/5 flex items-center justify-between text-[11px] font-mono text-slate">
-                <div className="flex items-center gap-3">
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-black/60 border-t border-white/5 flex items-center justify-between text-[10px] sm:text-[11px] font-mono text-slate">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <span>Lines: {lineCount}</span>
                   <span>UTF-8</span>
                   <span className="text-primary hidden sm:inline">Python 3.12</span>
                 </div>
-                <div className="text-slate/60 text-[10px]">
+                <div className="text-slate/60 text-[9px] sm:text-[10px] truncate">
                   Tab = 4 spaces • Ctrl + Enter to run
                 </div>
               </div>
@@ -310,15 +310,15 @@ export const CodeLabSection: React.FC = () => {
             <div className="lg:col-span-5 flex flex-col bg-black/75 min-w-0">
               
               {/* Terminal Titlebar */}
-              <div className="flex items-center justify-between px-4 py-2.5 bg-black/90 border-b border-white/10 text-xs font-mono">
+              <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 bg-black/90 border-b border-white/10 text-xs font-mono">
                 <div className="flex items-center gap-2 text-slate">
                   <Terminal className="w-3.5 h-3.5 text-primary" />
-                  <span className="font-bold text-paper tracking-wider uppercase text-[11px]">Console Output</span>
+                  <span className="font-bold text-paper tracking-wider uppercase text-[10px] sm:text-[11px]">Console Output</span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   {execTime !== null && (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-panel border border-white/10 text-primary font-mono">
+                    <span className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded bg-panel border border-white/10 text-primary font-mono">
                       ⚡ {execTime}ms
                     </span>
                   )}
@@ -328,7 +328,7 @@ export const CodeLabSection: React.FC = () => {
                       setErrorMsg(null);
                       setExecTime(null);
                     }}
-                    className="text-[10px] text-slate hover:text-paper transition-colors cursor-pointer px-2 py-0.5 rounded hover:bg-white/5"
+                    className="text-[10px] text-slate hover:text-paper transition-colors cursor-pointer px-1.5 sm:px-2 py-0.5 rounded hover:bg-white/5"
                   >
                     Clear
                   </button>
@@ -337,15 +337,15 @@ export const CodeLabSection: React.FC = () => {
 
               {/* Dynamic Interactive Input Box (ONLY shown when program requires input()) */}
               {inputSession && (
-                <div className="p-3.5 bg-[#0a1510] border-b border-primary/40 flex flex-col gap-2.5">
+                <div className="p-2.5 sm:p-3.5 bg-[#0a1510] border-b border-primary/40 flex flex-col gap-2">
                   <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="flex items-center gap-2 text-primary font-bold">
-                      <span className="w-2.5 h-2.5 rounded-full bg-primary animate-ping" />
-                      <span>{inputSession.prompts[inputSession.currentIndex]}</span>
+                    <span className="flex items-center gap-2 text-primary font-bold text-[11px] sm:text-xs truncate mr-2">
+                      <span className="w-2 h-2 rounded-full bg-primary animate-ping shrink-0" />
+                      <span className="truncate">{inputSession.prompts[inputSession.currentIndex]}</span>
                     </span>
                     {inputSession.prompts.length > 1 && (
-                      <span className="text-[11px] text-slate font-mono">
-                        Input {inputSession.currentIndex + 1} of {inputSession.prompts.length}
+                      <span className="text-[10px] sm:text-[11px] text-slate font-mono shrink-0">
+                        {inputSession.currentIndex + 1}/{inputSession.prompts.length}
                       </span>
                     )}
                   </div>
@@ -362,14 +362,14 @@ export const CodeLabSection: React.FC = () => {
                         }
                       }}
                       placeholder="Type your answer and press Enter..."
-                      className="flex-1 bg-black/90 border border-primary/50 focus:border-primary focus:ring-1 focus:ring-primary rounded-lg px-3.5 py-2 text-xs font-mono text-paper placeholder-slate/50 outline-none transition-all shadow-inner"
+                      className="flex-1 min-w-0 bg-black/90 border border-primary/50 focus:border-primary focus:ring-1 focus:ring-primary rounded-lg px-3 py-1.5 sm:py-2 text-xs font-mono text-paper placeholder-slate/50 outline-none transition-all shadow-inner"
                       autoFocus
                     />
                     <button
                       onClick={handleInputSubmit}
-                      className="px-4 py-2 rounded-lg bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shrink-0 shadow-md shadow-primary/20"
+                      className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shrink-0 shadow-md shadow-primary/20 min-h-[34px]"
                     >
-                      {inputSession.currentIndex + 1 < inputSession.prompts.length ? 'Next ↵' : 'Run Program ↵'}
+                      {inputSession.currentIndex + 1 < inputSession.prompts.length ? 'Next ↵' : 'Run ↵'}
                     </button>
                   </div>
                 </div>
@@ -378,7 +378,7 @@ export const CodeLabSection: React.FC = () => {
               {/* Terminal Screen Body */}
               <div 
                 ref={terminalContainerRef}
-                className="flex-1 p-4 font-mono text-xs sm:text-[13px] leading-relaxed overflow-y-auto max-h-[440px] min-h-[320px] text-paper select-text w-full min-w-0"
+                className="flex-1 p-3 sm:p-4 font-mono text-xs sm:text-[13px] leading-relaxed overflow-y-auto max-h-[340px] sm:max-h-[440px] min-h-[180px] sm:min-h-[320px] text-paper select-text w-full min-w-0"
               >
                 {/* Standard Output */}
                 {output && (
@@ -389,7 +389,7 @@ export const CodeLabSection: React.FC = () => {
 
                 {/* Error diagnostics box */}
                 {errorMsg && (
-                  <div className="mt-4 p-3.5 rounded-xl bg-red-950/40 border border-red-500/40 text-red-200 font-mono text-xs">
+                  <div className="mt-3 sm:mt-4 p-3 sm:p-3.5 rounded-xl bg-red-950/40 border border-red-500/40 text-red-200 font-mono text-xs">
                     <div className="flex items-center gap-2 text-red-400 font-bold mb-1.5">
                       <AlertCircle className="w-4 h-4 shrink-0" />
                       <span>Traceback / Runtime Error:</span>
@@ -416,12 +416,12 @@ export const CodeLabSection: React.FC = () => {
               </div>
 
               {/* Terminal Status Footer */}
-              <div className="px-4 py-2 bg-black/90 border-t border-white/10 flex items-center justify-between text-[11px] font-mono">
-                <div className="flex items-center gap-2 text-slate">
-                  <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-secondary animate-ping' : 'bg-primary'}`} />
-                  <span className="text-slate/80">{statusText}</span>
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-black/90 border-t border-white/10 flex items-center justify-between text-[10px] sm:text-[11px] font-mono">
+                <div className="flex items-center gap-1.5 sm:gap-2 text-slate truncate min-w-0 pr-2">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${isRunning ? 'bg-secondary animate-ping' : 'bg-primary'}`} />
+                  <span className="text-slate/80 truncate">{statusText}</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-slate/60 text-[10px]">
+                <div className="flex items-center gap-1 sm:gap-1.5 text-slate/60 text-[9px] sm:text-[10px] shrink-0">
                   <Cpu className="w-3 h-3 text-primary" />
                   <span>Cloud CPython</span>
                 </div>
