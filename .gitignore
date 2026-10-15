@@ -43,3 +43,7 @@ test.js
 
 # Large media
 screen-capture (13).webm
+
+# Scratch & cache
+scratch/
+__pycache__/

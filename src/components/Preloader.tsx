@@ -9,7 +9,7 @@ interface PreloaderProps {
 export const Preloader: React.FC<PreloaderProps> = ({ onComplete }) => {
   const { data } = useSiteData();
   const companyLogo = data?.footer?.companyLogo;
-  const companyName = data?.footer?.companyName || 'DO Company';
+  const companyName = data?.footer?.companyName || 'DO PILOT';
 
   const [progress, setProgress] = useState(0);
   const [isDone, setIsDone] = useState(false);

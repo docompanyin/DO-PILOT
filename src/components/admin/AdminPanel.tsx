@@ -1,29 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Layout, User, Briefcase, Wrench, Layers, MessageSquare, Shield, ExternalLink,
-  LogOut, Save, Plus, Trash2, CheckCircle, CheckCircle2, RefreshCw, Download, Upload, Eye, EyeOff, ShieldAlert, ShieldCheck,
-  Cloud, Rocket, ChevronUp, ChevronDown
+  Layout, ShieldCheck, BookOpen, Star, Terminal, Video, ExternalLink,
+  Cloud, Shield, Rocket, Save, Plus, Trash2, CheckCircle2,
+  RefreshCw, Download, Upload, Eye, EyeOff, LogOut,
+  Mail, Users, FileSpreadsheet, FileText, Search,
+  Trophy, Award, AlertCircle, ArrowUpDown, Phone, GraduationCap,
+  X, AlertTriangle, Grid, List, Copy, Check, Calendar,
+  MessageSquare, MessageCircle
 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 import { useSiteData } from '../../context/DataContext';
 import { useAdminAuth } from '../../context/AdminAuthContext';
-import { getCloudinaryConfig } from '../../utils/cloudinary';
-import { GithubIcon, TwitterIcon, LinkedinIcon, InstagramIcon, FacebookIcon, WhatsappIcon } from '../SocialIcons';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import {
+  StudentHelpMessage,
+  getStudentHelpMessages,
+  updateStudentHelpMessageStatus,
+  updateStudentHelpMessageNotes,
+  deleteStudentHelpMessage,
+  clearResolvedStudentHelpMessages
+} from '../../utils/studentHelpService';
+import { getUserInitials } from '../../utils/userInitials';
 
 export const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
   const {
     data,
     updateSection,
-    addArrayItem,
-    updateArrayItem,
-    deleteArrayItem,
-    moveArrayItem,
-    deleteMessage,
     resetToDefaults,
     setAsPermanentDefaults,
     resetToFactoryDefaults,
-    hasPermanentDefaults,
     importDataJSON,
     deployToLive
   } = useSiteData();
@@ -43,72 +50,157 @@ export const AdminPanel: React.FC = () => {
 
   const adminEmails = getAdminEmails();
 
-  type AdminTab =
-    | 'hero'
-    | 'navbar'
-    | 'founder'
-    | 'mentors'
-    | 'projects'
-    | 'services'
-    | 'process'
-    | 'testimonials'
-    | 'cta'
-    | 'messages'
-    | 'security'
-    | 'cloudinary';
+  type AdminWorkspace = 'website' | 'students' | 'studentHelp';
 
-  const [activeTab, setActiveTabState] = useState<AdminTab>(() => {
+  const [adminWorkspace, setAdminWorkspace] = useState<AdminWorkspace>(() => {
     try {
-      const saved = sessionStorage.getItem('admin_active_tab');
-      if (saved) return saved as AdminTab;
+      const savedWs = sessionStorage.getItem('dopilot_admin_workspace');
+      if (savedWs === 'students' || savedWs === 'website' || savedWs === 'studentHelp') return savedWs as AdminWorkspace;
+      const savedSec = sessionStorage.getItem('dopilot_admin_active_section');
+      if (savedSec === 'students') return 'students';
+      if (savedSec === 'studentHelp') return 'studentHelp';
+    } catch (e) {}
+    return 'website';
+  });
+
+  const switchWorkspace = (ws: AdminWorkspace) => {
+    setAdminWorkspace(ws);
+    try {
+      sessionStorage.setItem('dopilot_admin_workspace', ws);
+    } catch (e) {}
+  };
+
+  // Student Help & Direct Contact Tickets State
+  const [helpMessages, setHelpMessages] = useState<StudentHelpMessage[]>(() => getStudentHelpMessages());
+  const [helpSearch, setHelpSearch] = useState('');
+  const [helpStatusFilter, setHelpStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'resolved'>('all');
+  const [helpCourseFilter, setHelpCourseFilter] = useState<string>('all');
+  const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
+  const [editingNotesText, setEditingNotesText] = useState('');
+
+  useEffect(() => {
+    const handleHelpUpdate = () => {
+      setHelpMessages(getStudentHelpMessages());
+    };
+    window.addEventListener('dopilot_student_help_update', handleHelpUpdate);
+    window.addEventListener('storage', handleHelpUpdate);
+    return () => {
+      window.removeEventListener('dopilot_student_help_update', handleHelpUpdate);
+      window.removeEventListener('storage', handleHelpUpdate);
+    };
+  }, []);
+
+  const pendingHelpCount = helpMessages.filter(m => m.status === 'pending').length;
+
+  // Support Contact Numbers (Call & WhatsApp) Configuration State
+  const initialSupportChannels = (() => {
+    try {
+      const raw = localStorage.getItem('dopilot_support_channels_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed) return parsed;
+      }
+    } catch (e) {}
+    return null;
+  })();
+
+  const [supportPhoneInput, setSupportPhoneInput] = useState<string>(
+    initialSupportChannels?.phone || data.cta?.phone || data.footer?.phone || '+91 97787 07336'
+  );
+  const [supportWhatsAppInput, setSupportWhatsAppInput] = useState<string>(
+    initialSupportChannels?.whatsapp || data.footer?.whatsapp || initialSupportChannels?.phone || data.cta?.phone || data.footer?.phone || '+91 97787 07336'
+  );
+  const [isSavingSupportNumbers, setIsSavingSupportNumbers] = useState(false);
+
+  useEffect(() => {
+    if (!initialSupportChannels) {
+      if (data.footer?.phone && !supportPhoneInput) setSupportPhoneInput(data.footer.phone);
+      if (data.footer?.whatsapp && !supportWhatsAppInput) setSupportWhatsAppInput(data.footer.whatsapp);
+    }
+  }, [data.footer]);
+
+  const handleSaveSupportChannels = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingSupportNumbers(true);
+
+    const updatedChannels = {
+      phone: supportPhoneInput.trim(),
+      whatsapp: supportWhatsAppInput.trim()
+    };
+
+    try {
+      localStorage.setItem('dopilot_support_channels_v1', JSON.stringify(updatedChannels));
+      window.dispatchEvent(new CustomEvent('dopilot_support_channels_updated'));
+    } catch (e) {}
+
+    if (data.footer) {
+      updateSection('footer', {
+        ...data.footer,
+        phone: supportPhoneInput.trim(),
+        whatsapp: supportWhatsAppInput.trim(),
+        socialLinks: {
+          ...(data.footer?.socialLinks || {}),
+          whatsapp: {
+            url: `https://wa.me/${supportWhatsAppInput.trim().replace(/[^0-9]/g, '')}`,
+            enabled: true
+          }
+        }
+      });
+    }
+
+    if (data.cta) {
+      updateSection('cta', {
+        ...data.cta,
+        phone: supportPhoneInput.trim()
+      });
+    }
+
+    addAuditLog('UPDATE_SUPPORT_CHANNELS', `Support channels updated to Phone: ${supportPhoneInput}, WhatsApp: ${supportWhatsAppInput}`);
+
+    setTimeout(() => {
+      setIsSavingSupportNumbers(false);
+      showToast('Support Phone & WhatsApp numbers saved successfully!');
+    }, 250);
+  };
+
+  const [studentViewFormat, setStudentViewFormat] = useState<'cards' | 'table'>('table');
+  const [studentExportSearch, setStudentExportSearch] = useState('');
+  const [copiedCellId, setCopiedCellId] = useState<string | null>(null);
+
+  type SectionId =
+    | 'hero'
+    | 'whyUs'
+    | 'courses'
+    | 'reviews'
+    | 'codeLab'
+    | 'liveClass'
+    | 'footer'
+    | 'cloudinary'
+    | 'security'
+    | 'studentExport';
+
+  const [activeSection, setActiveSectionState] = useState<SectionId>(() => {
+    try {
+      const saved = sessionStorage.getItem('dopilot_admin_active_section');
+      if (saved && saved !== 'students') return saved as SectionId;
     } catch (e) {}
     return 'hero';
   });
-
-  const setActiveTab = (tab: AdminTab) => {
-    setActiveTabState(tab);
-    try {
-      sessionStorage.setItem('admin_active_tab', tab);
-    } catch (e) {}
-  };
 
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [jsonInput, setJsonInput] = useState('');
   const [isDeploying, setIsDeploying] = useState(false);
 
-  const handleDeployToLive = async () => {
-    const confirmed = window.confirm("Deploy all saved changes to the live site for all users?");
-    if (!confirmed) return;
-
-    setIsDeploying(true);
-    const success = await deployToLive();
-    setIsDeploying(false);
-
-    if (success) {
-      showToast('Deployed! Live for all users in ~2-3 minutes.', false);
-    } else {
-      showToast('Deploy failed. Check VITE_GITHUB_TOKEN in Vercel environment variables.', false);
-    }
-  };
-
+  // Cloudinary State
   const [cloudinaryCloudName, setCloudinaryCloudName] = useState(data.cloudinary?.cloudName || '');
   const [cloudinaryUploadPreset, setCloudinaryUploadPreset] = useState(data.cloudinary?.uploadPreset || '');
 
-  // Founder & Hero State
-  const [founderImage, setFounderImage] = useState(data.founder.image || '');
-  const [heroVideoUrl, setHeroVideoUrl] = useState(data.hero.videoUrl || '/hero-background.mp4');
-  const [heroVideoOpacity, setHeroVideoOpacity] = useState(data.hero.videoOpacity ?? 20);
-  const [servicesVideoOpacity, setServicesVideoOpacity] = useState(data.services.videoOpacity ?? 25);
-
   useEffect(() => {
-    if (data.founder.image !== undefined) setFounderImage(data.founder.image);
-    if (data.hero.videoUrl) setHeroVideoUrl(data.hero.videoUrl);
-    if (data.hero.videoOpacity !== undefined) setHeroVideoOpacity(data.hero.videoOpacity);
     if (data.cloudinary?.cloudName !== undefined) setCloudinaryCloudName(data.cloudinary.cloudName);
     if (data.cloudinary?.uploadPreset !== undefined) setCloudinaryUploadPreset(data.cloudinary.uploadPreset);
-  }, [data.founder.image, data.hero.videoUrl, data.hero.videoOpacity, data.cloudinary]);
+  }, [data.cloudinary]);
 
-  // Credentials State
+  // Security Credentials State
   const [currentPassword, setCurrentPassword] = useState('');
   const [newUsername, setNewUsername] = useState(getAdminUsername());
   const [primaryEmail, setPrimaryEmail] = useState(adminEmails.primaryEmail);
@@ -122,6 +214,691 @@ export const AdminPanel: React.FC = () => {
   const [emailOtpCode, setEmailOtpCode] = useState('');
   const [emailOtpNotice, setEmailOtpNotice] = useState<string | null>(null);
   const [emailOtpError, setEmailOtpError] = useState<string | null>(null);
+
+  // --- Student Management & Learning Analytics State ---
+  interface StudentSectionProgress {
+    partNum: number;
+    title: string;
+    totalTasks: number;
+    solvedTasks: number;
+    status: 'passed' | 'failed' | 'in_progress' | 'not_started';
+  }
+
+  interface StudentWrongAttempt {
+    taskTitle: string;
+    section: string;
+    failedAt: string;
+    detail: string;
+  }
+
+  interface StudentAdminRecord {
+    id: string;
+    name: string;
+    email: string;
+    avatar: string;
+    phone?: string;
+    whereDidYouFindUs?: string;
+    collegeOrCompany?: string;
+    learningGoal?: string;
+    hasCompletedDetails: boolean;
+    enrolledCourses: string[];
+    joinedLiveClass?: boolean;
+    createdAt: string;
+    points: number;
+    solvedTasksCount: number;
+    testsAttemptedCount: number;
+    testsPassedCount: number;
+    testsFailedCount: number;
+    hasCertificate: boolean;
+    certificateId?: string;
+    certificateIssuedDate?: string;
+    wrongAttempts: StudentWrongAttempt[];
+    sectionProgress: StudentSectionProgress[];
+    courseProgressStatus: 'completed' | 'in_progress' | 'enrolled_not_started' | 'registered_only';
+  }
+
+  const DEFAULT_STUDENT_ROSTER: StudentAdminRecord[] = [
+    {
+      id: 'demo-std-1',
+      name: 'Rahul Verma',
+      email: 'rahul.verma@techsprint.io',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces',
+      phone: '9845012345',
+      whereDidYouFindUs: 'LinkedIn',
+      collegeOrCompany: 'TechSprint Solutions',
+      learningGoal: 'Land a Software Engineer / Dev Job',
+      hasCompletedDetails: true,
+      enrolledCourses: ['Complete Python Course', 'Complete Java Course'],
+      joinedLiveClass: true,
+      createdAt: new Date(Date.now() - 14 * 86400000).toISOString(),
+      points: 24,
+      solvedTasksCount: 24,
+      testsAttemptedCount: 24,
+      testsPassedCount: 24,
+      testsFailedCount: 0,
+      hasCertificate: true,
+      certificateId: 'CERT-DO-PY-9281',
+      certificateIssuedDate: new Date(Date.now() - 2 * 86400000).toLocaleDateString(),
+      wrongAttempts: [],
+      sectionProgress: [
+        { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 3, solvedTasks: 3, status: 'passed' },
+        { partNum: 2, title: 'Part 2: Variables & Data Types', totalTasks: 3, solvedTasks: 3, status: 'passed' },
+        { partNum: 3, title: 'Part 3: Operators & Booleans', totalTasks: 3, solvedTasks: 3, status: 'passed' },
+        { partNum: 4, title: 'Part 4: Conditionals & Branching', totalTasks: 3, solvedTasks: 3, status: 'passed' },
+        { partNum: 5, title: 'Part 5: Loops & While / For', totalTasks: 3, solvedTasks: 3, status: 'passed' },
+        { partNum: 6, title: 'Part 6: Functions & Arguments', totalTasks: 3, solvedTasks: 3, status: 'passed' },
+        { partNum: 7, title: 'Part 7: Lists & Dictionaries', totalTasks: 3, solvedTasks: 3, status: 'passed' },
+        { partNum: 8, title: 'Part 8: Object-Oriented Classes', totalTasks: 3, solvedTasks: 3, status: 'passed' }
+      ],
+      courseProgressStatus: 'completed'
+    },
+    {
+      id: 'demo-std-2',
+      name: 'Priya Patel',
+      email: 'priya.patel@gmail.com',
+      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&crop=faces',
+      phone: '9876543210',
+      whereDidYouFindUs: 'Instagram',
+      collegeOrCompany: 'SRM Institute of Science & Technology',
+      learningGoal: 'Master Python & Build AI Projects',
+      hasCompletedDetails: true,
+      enrolledCourses: ['Complete Python Course'],
+      joinedLiveClass: true,
+      createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
+      points: 12,
+      solvedTasksCount: 12,
+      testsAttemptedCount: 15,
+      testsPassedCount: 12,
+      testsFailedCount: 3,
+      hasCertificate: false,
+      wrongAttempts: [
+        { taskTitle: 'Equality Operator Test', section: 'Part 3: Operators', failedAt: '2 days ago', detail: 'Selected single "=" assignment instead of comparison "=="' },
+        { taskTitle: 'Nested If-Else Indentation', section: 'Part 4: Conditionals', failedAt: 'Yesterday', detail: 'IndentationError: unexpected indent in nested elif block' },
+        { taskTitle: 'While Loop Termination', section: 'Part 5: Loops', failedAt: '4 hours ago', detail: 'Omitted counter variable update, resulting in infinite loop' }
+      ],
+      sectionProgress: [
+        { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 3, solvedTasks: 3, status: 'passed' },
+        { partNum: 2, title: 'Part 2: Variables & Data Types', totalTasks: 3, solvedTasks: 3, status: 'passed' },
+        { partNum: 3, title: 'Part 3: Operators & Booleans', totalTasks: 3, solvedTasks: 2, status: 'in_progress' },
+        { partNum: 4, title: 'Part 4: Conditionals & Branching', totalTasks: 3, solvedTasks: 2, status: 'in_progress' },
+        { partNum: 5, title: 'Part 5: Loops & While / For', totalTasks: 3, solvedTasks: 2, status: 'in_progress' }
+      ],
+      courseProgressStatus: 'in_progress'
+    },
+    {
+      id: 'demo-std-3',
+      name: 'Ananya Iyer',
+      email: 'ananya.iyer99@gmail.com',
+      avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=120&h=120&fit=crop&crop=faces',
+      phone: '9812345678',
+      whereDidYouFindUs: 'YouTube',
+      collegeOrCompany: 'Anna University',
+      learningGoal: 'College Curriculum & Academic Edge',
+      hasCompletedDetails: true,
+      enrolledCourses: ['Complete Python Course'],
+      joinedLiveClass: false,
+      createdAt: new Date(Date.now() - 4 * 86400000).toISOString(),
+      points: 2,
+      solvedTasksCount: 2,
+      testsAttemptedCount: 6,
+      testsPassedCount: 2,
+      testsFailedCount: 4,
+      hasCertificate: false,
+      wrongAttempts: [
+        { taskTitle: 'Quotes in Print Function', section: 'Part 1: Setup', failedAt: '3 days ago', detail: 'SyntaxError: String literal missing closing quote' },
+        { taskTitle: 'Variable Naming Conventions', section: 'Part 1: Variables', failedAt: '3 days ago', detail: 'Variable names cannot begin with numerals (e.g. 2name)' },
+        { taskTitle: 'String and Integer Concatenation', section: 'Part 2: Data Types', failedAt: '2 days ago', detail: 'TypeError: Must convert integer to string with str() before concatenation' },
+        { taskTitle: 'Floor Division vs Float', section: 'Part 2: Data Types', failedAt: 'Yesterday', detail: 'Selected "/" (float output) instead of "//" (integer floor)' }
+      ],
+      sectionProgress: [
+        { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 3, solvedTasks: 2, status: 'failed' },
+        { partNum: 2, title: 'Part 2: Variables & Data Types', totalTasks: 3, solvedTasks: 0, status: 'failed' }
+      ],
+      courseProgressStatus: 'in_progress'
+    },
+    {
+      id: 'demo-std-4',
+      name: 'Karthik Raja',
+      email: 'karthik.raja@outlook.com',
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop&crop=faces',
+      phone: '9940123987',
+      whereDidYouFindUs: 'Campus / College Event',
+      collegeOrCompany: 'PSG College of Technology',
+      learningGoal: 'Career Switch into Tech',
+      hasCompletedDetails: true,
+      enrolledCourses: ['Complete Python Course'],
+      joinedLiveClass: false,
+      createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+      points: 0,
+      solvedTasksCount: 0,
+      testsAttemptedCount: 0,
+      testsPassedCount: 0,
+      testsFailedCount: 0,
+      hasCertificate: false,
+      wrongAttempts: [],
+      sectionProgress: [],
+      courseProgressStatus: 'enrolled_not_started'
+    },
+    {
+      id: 'demo-std-5',
+      name: 'Suresh Kumar',
+      email: 'suresh.k@gmail.com',
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop&crop=faces',
+      whereDidYouFindUs: 'Google Search',
+      hasCompletedDetails: false,
+      enrolledCourses: [],
+      joinedLiveClass: false,
+      createdAt: new Date(Date.now() - 1 * 86400000).toISOString(),
+      points: 0,
+      solvedTasksCount: 0,
+      testsAttemptedCount: 0,
+      testsPassedCount: 0,
+      testsFailedCount: 0,
+      hasCertificate: false,
+      wrongAttempts: [],
+      sectionProgress: [],
+      courseProgressStatus: 'registered_only'
+    }
+  ];
+
+  const [students, setStudents] = useState<StudentAdminRecord[]>(DEFAULT_STUDENT_ROSTER);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [studentFilter, setStudentFilter] = useState<'all' | 'started' | 'completed' | 'top_points' | 'low_marks' | 'registered_only'>('all');
+  const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>('all');
+  type StudentDateFilterPreset = 'all' | 'today' | '7days' | '30days' | '90days' | '1year' | 'custom';
+  const [studentDatePreset, setStudentDatePreset] = useState<StudentDateFilterPreset>('all');
+  const [studentStartDate, setStudentStartDate] = useState<string>('');
+  const [studentEndDate, setStudentEndDate] = useState<string>('');
+  const [studentSort, setStudentSort] = useState<'points_desc' | 'points_asc' | 'date_desc' | 'name_asc'>('points_desc');
+  const [selectedStudentForReport, setSelectedStudentForReport] = useState<StudentAdminRecord | null>(null);
+
+  const fetchStudents = async () => {
+    setIsLoadingStudents(true);
+    try {
+      let cloudStudents: StudentAdminRecord[] = [];
+      if (isSupabaseConfigured()) {
+        const { data: profiles } = await supabase
+          .from('student_profiles')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        const { data: progressList } = await supabase
+          .from('student_progress')
+          .select('*');
+
+        const progressMap = (progressList || []).reduce((acc: any, row: any) => {
+          if (row.user_email) acc[row.user_email.toLowerCase()] = row;
+          return acc;
+        }, {});
+
+        if (profiles && profiles.length > 0) {
+          cloudStudents = profiles.map((p: any) => {
+            const prog = progressMap[p.email?.toLowerCase()] || {};
+            const points = Number(prog.points) || 0;
+            const solvedTasks = prog.solved_tasks || {};
+            const solvedCount = Object.keys(solvedTasks).length;
+            const wrongAttempts = Array.isArray(prog.wrong_attempts) ? prog.wrong_attempts : [];
+            const testsFailedCount = wrongAttempts.length;
+            const testsPassedCount = solvedCount;
+            const testsAttemptedCount = testsPassedCount + testsFailedCount;
+            const hasCertificate = Boolean(prog.certificate_issued || points >= 20);
+            const certificateId = prog.certificate_id || (hasCertificate ? `CERT-DO-PY-${p.id.slice(-4).toUpperCase()}` : undefined);
+
+            let status: 'completed' | 'in_progress' | 'enrolled_not_started' | 'registered_only';
+            if (points >= 20) {
+              status = 'completed';
+            } else if (points > 0 || solvedCount > 0) {
+              status = 'in_progress';
+            } else if (p.has_completed_details) {
+              status = 'enrolled_not_started';
+            } else {
+              status = 'registered_only';
+            }
+
+            // Calculate section progress
+            const sectionProgress: StudentSectionProgress[] = [];
+            for (let part = 1; part <= 8; part++) {
+              const solvedInPart = Object.keys(solvedTasks).filter(k => k.includes(`part${part}`) || (part === 1 && !k.includes('part'))).length;
+              const wrongInPart = wrongAttempts.filter((w: any) => w.section?.includes(`Part ${part}`) || w.section?.includes(`part${part}`)).length;
+              let partStatus: 'passed' | 'failed' | 'in_progress' | 'not_started' = 'not_started';
+              if (solvedInPart >= 3) {
+                partStatus = 'passed';
+              } else if (solvedInPart > 0) {
+                partStatus = 'in_progress';
+              } else if (wrongInPart > 0) {
+                partStatus = 'failed';
+              }
+              sectionProgress.push({
+                partNum: part,
+                title: `Part ${part}: Python Module`,
+                totalTasks: 3,
+                solvedTasks: Math.min(3, solvedInPart),
+                status: partStatus
+              });
+            }
+
+            return {
+              id: p.id,
+              name: p.name || 'Student',
+              email: p.email,
+              avatar: p.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name || 'Student')}&background=00ff9d&color=000000&bold=true`,
+              phone: p.phone,
+              whereDidYouFindUs: p.where_did_you_find_us,
+              collegeOrCompany: p.college_or_company,
+              learningGoal: p.learning_goal,
+              hasCompletedDetails: Boolean(p.has_completed_details),
+              enrolledCourses: (Array.isArray(p.enrolled_courses) ? p.enrolled_courses : ['Complete Python Course']).map((c: string) => c.replace(/Programming/gi, 'Course')),
+              joinedLiveClass: Boolean(p.joined_live_class),
+              createdAt: p.created_at || new Date().toISOString(),
+              points,
+              solvedTasksCount: solvedCount,
+              testsAttemptedCount,
+              testsPassedCount,
+              testsFailedCount,
+              hasCertificate,
+              certificateId,
+              certificateIssuedDate: hasCertificate ? new Date(p.created_at || Date.now()).toLocaleDateString() : undefined,
+              wrongAttempts,
+              sectionProgress,
+              courseProgressStatus: status
+            };
+          });
+        }
+      }
+
+      // Check active local user session
+      try {
+        const localUserRaw = localStorage.getItem('dopilot_student_session_v1');
+        if (localUserRaw) {
+          const lu = JSON.parse(localUserRaw);
+          if (lu && lu.email && !cloudStudents.some((c) => c.email.toLowerCase() === lu.email.toLowerCase())) {
+            let localPoints = 0;
+            let localSolvedCount = 0;
+            try {
+              const localPtsRaw = localStorage.getItem(`dopilot_user_${lu.email.replace(/[^a-zA-Z0-9]/g, '_')}_points`) || localStorage.getItem('dopilot_course_points_v3');
+              if (localPtsRaw) {
+                const parsedPts = JSON.parse(localPtsRaw);
+                localPoints = Number(parsedPts.points) || 0;
+                localSolvedCount = Object.keys(parsedPts.solvedTasks || {}).length;
+              }
+            } catch (e) {}
+
+            let localStatus: 'completed' | 'in_progress' | 'enrolled_not_started' | 'registered_only' = 'registered_only';
+            if (localPoints >= 20) localStatus = 'completed';
+            else if (localPoints > 0) localStatus = 'in_progress';
+            else if (lu.hasCompletedDetails) localStatus = 'enrolled_not_started';
+
+            cloudStudents.unshift({
+              id: lu.id || 'local-std',
+              name: lu.name || 'Active Student',
+              email: lu.email,
+              avatar: lu.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(lu.name || 'Student')}&background=00ff9d&color=000000&bold=true`,
+              phone: lu.phone,
+              whereDidYouFindUs: lu.whereDidYouFindUs,
+              collegeOrCompany: lu.collegeOrCompany,
+              learningGoal: lu.learningGoal,
+              hasCompletedDetails: Boolean(lu.hasCompletedDetails),
+              enrolledCourses: (lu.enrolledCourses || ['Complete Python Course']).map((c: string) => c.replace(/Programming/gi, 'Course')),
+              joinedLiveClass: Boolean(lu.joinedLiveClass),
+              createdAt: lu.createdAt || new Date().toISOString(),
+              points: localPoints,
+              solvedTasksCount: localSolvedCount,
+              testsAttemptedCount: localSolvedCount,
+              testsPassedCount: localSolvedCount,
+              testsFailedCount: 0,
+              hasCertificate: localPoints >= 20,
+              certificateId: localPoints >= 20 ? 'CERT-DO-PY-USER' : undefined,
+              wrongAttempts: [],
+              sectionProgress: [
+                { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 3, solvedTasks: Math.min(3, localPoints), status: localPoints >= 3 ? 'passed' : 'in_progress' }
+              ],
+              courseProgressStatus: localStatus
+            });
+          }
+        }
+      } catch (e) {}
+
+      const cloudEmails = new Set(cloudStudents.map((s) => s.email.toLowerCase()));
+      const fallbackDemos = DEFAULT_STUDENT_ROSTER.filter((d) => !cloudEmails.has(d.email.toLowerCase()));
+      setStudents([...cloudStudents, ...fallbackDemos]);
+    } catch (err) {
+      console.warn("Failed to fetch students:", err);
+      setStudents(DEFAULT_STUDENT_ROSTER);
+    } finally {
+      setIsLoadingStudents(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStudents();
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedStudentForReport(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (selectedStudentForReport) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [selectedStudentForReport]);
+
+  // Protect Dashboard
+  useEffect(() => {
+    if (!isLoggedIn) {
+      navigate('/', { replace: true });
+    }
+  }, [isLoggedIn, navigate]);
+
+  if (!isLoggedIn) {
+    return null;
+  }
+
+  const setActiveSection = (id: SectionId) => {
+    setActiveSectionState(id);
+    try {
+      sessionStorage.setItem('dopilot_admin_active_section', id);
+    } catch (e) {}
+  };
+
+  const showToast = (msg: string, autoReload = false) => {
+    setToastMsg(msg);
+    if (autoReload) {
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } else {
+      setTimeout(() => setToastMsg(null), 3500);
+    }
+  };
+
+  const handleDeployToLive = async () => {
+    const confirmed = window.confirm("Deploy all saved changes to the live site for all users?");
+    if (!confirmed) return;
+
+    setIsDeploying(true);
+    const success = await deployToLive();
+    setIsDeploying(false);
+
+    if (success) {
+      showToast('Deployed! Live on Vercel for all users in ~2-3 minutes.', false);
+    } else {
+      showToast('Deploy failed. Check VITE_GITHUB_TOKEN in Vercel environment variables.', false);
+    }
+  };
+
+  // Save Handlers
+  const handleSaveHero = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const headlinePrefix = (formData.get('headlinePrefix') as string) || 'Master Real Tech Skills with';
+    const highlightWord = (formData.get('highlightWord') as string) || 'DO PILOT';
+
+    await updateSection('hero', {
+      ...data.hero,
+      headlinePrefix,
+      highlightWord,
+      title: `${headlinePrefix} ${highlightWord}`,
+      eyebrow: (formData.get('eyebrow') as string) || '',
+      headlineWord1: headlinePrefix,
+      headlineWord2: highlightWord,
+      videoUrl: '',
+      videoOpacity: 0,
+      description: (formData.get('description') as string) || 'Practical, project-based courses and live classes taught by industry engineers. Learn Python, Java courses, and real-world skills to launch your tech career.',
+      pillars: [
+        (formData.get('pillar1') as string) || '100% Practical Projects',
+        (formData.get('pillar2') as string) || 'Live Interactive Classes',
+        (formData.get('pillar3') as string) || '1-on-1 Mentor Support',
+      ],
+      primaryCtaText: (formData.get('primaryCtaText') as string) || 'Explore Courses',
+      primaryCtaLink: (formData.get('primaryCtaLink') as string) || '#courses',
+      secondaryCtaText: (formData.get('secondaryCtaText') as string) || 'Join Next Live Class',
+      secondaryCtaLink: (formData.get('secondaryCtaLink') as string) || '#live-class',
+      scrollCueText: (formData.get('scrollCueText') as string) || 'Explore DO PILOT',
+      note: '',
+    });
+    addAuditLog('UPDATE_HERO', 'Hero section updated.');
+    showToast('Hero section saved successfully!');
+  };
+
+  const handleSaveWhyUs = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const currentFeatures = data.whyUs?.features || [];
+    const features = currentFeatures.map((feat, idx) => ({
+      ...feat,
+      iconName: (formData.get(`featIcon_${idx}`) as string) || feat.iconName || 'Code',
+      title: (formData.get(`featTitle_${idx}`) as string) || feat.title,
+      description: (formData.get(`featDesc_${idx}`) as string) || feat.description,
+      highlight: (formData.get(`featHighlight_${idx}`) as string) || feat.highlight,
+    }));
+
+    const currentComparisons = data.whyUs?.comparisons || [];
+    const comparisons = currentComparisons.map((comp, idx) => ({
+      feature: (formData.get(`compFeature_${idx}`) as string) || comp.feature,
+      traditional: (formData.get(`compTrad_${idx}`) as string) || comp.traditional,
+      doPilot: (formData.get(`compDo_${idx}`) as string) || comp.doPilot,
+    }));
+
+    updateSection('whyUs', {
+      badgeText: (formData.get('whyUsBadge') as string) || 'WHY CHOOSE US',
+      title: (formData.get('whyUsTitle') as string) || 'Why DO PILOT?',
+      description: (formData.get('whyUsDesc') as string) || '',
+      comparisonsTitle: (formData.get('compTitle') as string) || 'How DO PILOT Compares',
+      comparisonsSubtitle: (formData.get('compSubtitle') as string) || '',
+      tableHeaderFeature: (formData.get('tableHeaderFeature') as string) || 'Feature',
+      tableHeaderTraditional: (formData.get('tableHeaderTraditional') as string) || 'Regular Online Courses',
+      tableHeaderDoPilot: (formData.get('tableHeaderDoPilot') as string) || 'DO PILOT Platform',
+      features,
+      comparisons,
+    });
+    addAuditLog('UPDATE_WHY_US', 'Why Choose Us section updated.');
+    showToast('Why Choose Us section saved successfully!');
+  };
+
+  const handleSaveCoursesSection = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const currentCourses = data.coursesSection?.courses || [];
+    const courses = currentCourses.map((c, idx) => ({
+      ...c,
+      title: ((formData.get(`courseTitle_${idx}`) as string) || c.title).replace(/Programming/gi, 'Course'),
+      category: (formData.get(`courseCategory_${idx}`) as string) || c.category,
+      badge: (formData.get(`courseBadge_${idx}`) as string) || c.badge,
+      duration: (formData.get(`courseDuration_${idx}`) as string) || c.duration,
+      level: (formData.get(`courseLevel_${idx}`) as string) || c.level,
+      image: (formData.get(`courseImage_${idx}`) as string) || c.image,
+      description: (formData.get(`courseDesc_${idx}`) as string) || c.description,
+      tags: ((formData.get(`courseTags_${idx}`) as string) || '')
+        .split(',')
+        .map(t => t.trim())
+        .filter(Boolean),
+    }));
+
+    updateSection('coursesSection', {
+      badgeText: (formData.get('coursesBadge') as string) || 'SKILL PATHS',
+      title: (formData.get('coursesTitle') as string) || 'Our Courses',
+      description: (formData.get('coursesDesc') as string) || '',
+      courses,
+    });
+    addAuditLog('UPDATE_COURSES', 'Courses updated.');
+    showToast('Courses section saved successfully!');
+  };
+
+  const handleAddCourse = () => {
+    const current = [...(data.coursesSection?.courses || [])];
+    const newCourse = {
+      id: `course-${Date.now()}`,
+      category: 'python',
+      badge: 'New Course',
+      badgeColor: 'bg-primary/20 text-primary border-primary/30',
+      image: 'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=800&auto=format&fit=crop&q=80',
+      title: 'New DO PILOT Course',
+      description: 'Hands-on, project-based curriculum designed for engineers.',
+      duration: '8 Weeks',
+      level: 'All Levels',
+      tags: ['Python', 'Project'],
+    };
+    updateSection('coursesSection', {
+      ...data.coursesSection,
+      courses: [...current, newCourse],
+    });
+    showToast('New course added.');
+  };
+
+  const handleDeleteCourse = (idx: number) => {
+    const current = (data.coursesSection?.courses || []).filter((_, i) => i !== idx);
+    updateSection('coursesSection', {
+      ...data.coursesSection,
+      courses: current,
+    });
+    showToast('Course removed.');
+  };
+
+  const handleSaveReviewsSection = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const currentReviews = data.reviewsSection?.reviews || [];
+    const reviews = currentReviews.map((r, idx) => ({
+      ...r,
+      name: (formData.get(`revName_${idx}`) as string) || r.name,
+      role: (formData.get(`revRole_${idx}`) as string) || r.role,
+      avatar: (formData.get(`revAvatar_${idx}`) as string) || r.avatar,
+      course: (formData.get(`revCourse_${idx}`) as string) || r.course,
+      rating: parseInt((formData.get(`revRating_${idx}`) as string) || '5', 10),
+      comment: (formData.get(`revComment_${idx}`) as string) || r.comment,
+    }));
+
+    updateSection('reviewsSection', {
+      badgeText: (formData.get('reviewsBadge') as string) || 'STUDENT STORIES',
+      title: (formData.get('reviewsTitle') as string) || 'Student Reviews',
+      description: (formData.get('reviewsDesc') as string) || '',
+      reviews,
+    });
+    addAuditLog('UPDATE_REVIEWS', 'Student reviews updated.');
+    showToast('Student reviews saved successfully!');
+  };
+
+  const handleAddReview = () => {
+    const current = [...(data.reviewsSection?.reviews || [])];
+    const newRev = {
+      id: Date.now(),
+      name: 'New Student',
+      role: 'Software Engineer',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces',
+      course: 'Complete Python Course',
+      rating: 5,
+      comment: 'Excellent real-world learning experience with DO PILOT mentorship.',
+    };
+    updateSection('reviewsSection', {
+      ...data.reviewsSection,
+      reviews: [...current, newRev],
+    });
+    showToast('New review card added.');
+  };
+
+  const handleDeleteReview = (idx: number) => {
+    const current = (data.reviewsSection?.reviews || []).filter((_, i) => i !== idx);
+    updateSection('reviewsSection', {
+      ...data.reviewsSection,
+      reviews: current,
+    });
+    showToast('Review card removed.');
+  };
+
+  const handleSaveCodeLab = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    updateSection('codeLab', {
+      badgeText: (formData.get('codeLabBadge') as string) || 'CODE LAB',
+      title: (formData.get('codeLabTitle') as string) || 'Run Python Programs Instantly',
+      description: (formData.get('codeLabDesc') as string) || '',
+      defaultCode: (formData.get('defaultCode') as string) || 'print("Hello, World!")\n',
+    });
+    addAuditLog('UPDATE_CODE_LAB', 'Code Lab updated.');
+    showToast('Code Lab saved successfully!');
+  };
+
+  const handleSaveLiveClass = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const benefitsStr = (formData.get('benefits') as string) || '';
+    const benefits = benefitsStr
+      .split('\n')
+      .map(b => b.trim())
+      .filter(Boolean);
+
+    updateSection('liveClass', {
+      badgeText: (formData.get('liveClassBadge') as string) || 'LIVE CLASS',
+      title: (formData.get('liveClassTitle') as string) || 'Upcoming Live Class',
+      description: (formData.get('liveClassDesc') as string) || '',
+      spotlightBadge: (formData.get('spotlightBadge') as string) || 'Live Workshop • Limited Seats',
+      className: (formData.get('className') as string) || 'Building AI-Powered Apps with Python',
+      classDescription: (formData.get('classDescription') as string) || '',
+      benefits: benefits.length > 0 ? benefits : [
+        'Hands-on coding with live mentor guidance',
+        'Python & AI API integration',
+        'Live Q&A and complete project source code'
+      ],
+      seatsLeft: (formData.get('seatsLeft') as string) || '14 Spots Left',
+      targetDateTime: (formData.get('targetDateTime') as string) || '2026-10-18T18:00',
+      date: (formData.get('date') as string) || 'Saturday, Oct 18, 2026',
+      time: (formData.get('time') as string) || '6:00 PM – 8:00 PM IST',
+      duration: (formData.get('duration') as string) || '2 Hours Hands-on',
+      platform: (formData.get('platform') as string) || 'Interactive IDE & Live Stream',
+      pricing: (formData.get('pricing') as string) || 'Free',
+      mentorName: (formData.get('mentorName') as string) || 'Arunav Sharma',
+      mentorRole: (formData.get('mentorRole') as string) || 'Lead Python Engineer & Architect',
+      mentorAvatar: (formData.get('mentorAvatar') as string) || '',
+      buttonText: (formData.get('buttonText') as string) || 'Join Live Masterclass',
+    });
+    addAuditLog('UPDATE_LIVE_CLASS', 'Live Class updated.');
+    showToast('Live Class saved successfully!');
+  };
+
+  const handleSaveFooter = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+
+    const githubUrl = formData.get('social_github_url') as string;
+    const twitterUrl = formData.get('social_twitter_url') as string;
+    const linkedinUrl = formData.get('social_linkedin_url') as string;
+    const whatsappUrl = formData.get('social_whatsapp_url') as string;
+
+    updateSection('footer', {
+      ...data.footer,
+      companyName: (formData.get('companyName') as string) || 'DO PILOT',
+      companyLogo: (formData.get('companyLogo') as string) || '',
+      description: (formData.get('footerDesc') as string) || '',
+      email: (formData.get('footerEmail') as string) || 'support@dopilot.com',
+      phone: (formData.get('footerPhone') as string) || '+91 97787 07336',
+      address: (formData.get('footerAddress') as string) || 'Online & Global Campus',
+      copyrightText: (formData.get('copyrightText') as string) || '© 2026 DO PILOT. All rights reserved.',
+      exploreTitle: (formData.get('exploreTitle') as string) || 'Explore',
+      coursesTitle: (formData.get('coursesTitle') as string) || 'Popular Courses',
+      legalTitle: (formData.get('legalTitle') as string) || 'Legal & Policies',
+      contactTitle: (formData.get('contactTitle') as string) || 'Contact & Support',
+      socialLinks: {
+        github: { url: githubUrl || '', enabled: !!githubUrl },
+        twitter: { url: twitterUrl || '', enabled: !!twitterUrl },
+        linkedin: { url: linkedinUrl || '', enabled: !!linkedinUrl },
+        whatsapp: { url: whatsappUrl || '', enabled: !!whatsappUrl },
+      },
+    });
+    addAuditLog('UPDATE_FOOTER', 'Footer details updated.');
+    showToast('Footer saved successfully!');
+  };
 
   const handleUpdateCreds = (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,7 +922,7 @@ export const AdminPanel: React.FC = () => {
     e.preventDefault();
     const res = await requestEmailChangeOTP();
     if (res.success) {
-      setEmailOtpNotice('[SECURITY GUARD]: 6-Digit Verification OTP code sent directly to your registered email inbox.');
+      setEmailOtpNotice('[SECURITY]: 6-digit OTP code sent to your registered inbox.');
       setShowEmailOtpModal(true);
     }
   };
@@ -157,273 +934,14 @@ export const AdminPanel: React.FC = () => {
     if (verifyEmailChangeOTP(emailOtpCode)) {
       if (updateRecoveryEmails(primaryEmail, secondaryEmail)) {
         setShowEmailOtpModal(false);
-        showToast('Security Authorized! Dual Recovery Emails updated successfully!');
+        showToast('Dual recovery emails updated successfully!');
         setEmailOtpCode('');
       } else {
         setEmailOtpError('Failed to save updated recovery emails.');
       }
     } else {
-      setEmailOtpError('Invalid 6-Digit Security OTP Code! Email change blocked.');
+      setEmailOtpError('Invalid 6-digit OTP code.');
     }
-  };
-
-  // Protect Dashboard: if not logged in, immediately redirect to home page (/) without rendering any page
-  useEffect(() => {
-    if (!isLoggedIn) {
-      navigate('/', { replace: true });
-    }
-  }, [isLoggedIn, navigate]);
-
-  if (!isLoggedIn) {
-    return null;
-  }
-
-  const showToast = (msg: string, autoReload = true) => {
-    setToastMsg(msg);
-    if (autoReload) {
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-    } else {
-      setTimeout(() => setToastMsg(null), 3000);
-    }
-  };
-
-  const handleSaveHero = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const opacityVal = parseInt(formData.get('videoOpacity') as string, 10);
-    await updateSection('hero', {
-      eyebrow: formData.get('eyebrow') as string,
-      headlineWord1: formData.get('headlineWord1') as string,
-      headlineWord2: formData.get('headlineWord2') as string,
-      headlineWord3: formData.get('headlineWord3') as string,
-      headlineWord4: formData.get('headlineWord4') as string,
-      videoUrl: (formData.get('videoUrl') as string) || heroVideoUrl,
-      videoOpacity: isNaN(opacityVal) ? heroVideoOpacity : opacityVal,
-      glowingTarget: (formData.get('glowingTarget') as any) || 'NEXT',
-      glowingWords: {
-        word1: formData.get('glowWord1') === 'on',
-        word2: formData.get('glowWord2') === 'on',
-        word3: formData.get('glowWord3') === 'on',
-        word4: formData.get('glowWord4') === 'on',
-        build: formData.get('glowWord1') === 'on',
-        whats: formData.get('glowWord3') === 'on',
-        next: formData.get('glowWord4') === 'on',
-      },
-      description: formData.get('description') as string,
-      pillars: [
-        formData.get('pillar1') as string || 'Transparent Pricing',
-        formData.get('pillar2') as string || 'Agile & Adaptive',
-        formData.get('pillar3') as string || 'Products That Last',
-      ],
-      primaryCtaText: formData.get('primaryCtaText') as string,
-      primaryCtaLink: formData.get('primaryCtaLink') as string,
-      secondaryCtaText: formData.get('secondaryCtaText') as string,
-      secondaryCtaLink: formData.get('secondaryCtaLink') as string,
-      note: formData.get('note') as string,
-      metrics: [
-        { value: formData.get('metric1Val') as string || '40+', label: formData.get('metric1Label') as string || 'Shipped Products' },
-        { value: formData.get('metric2Val') as string || '98%', label: formData.get('metric2Label') as string || 'Retention Rate' },
-        { value: formData.get('metric3Val') as string || '6 Wk', label: formData.get('metric3Label') as string || 'Products That Last' },
-      ],
-    });
-    addAuditLog('UPDATE_HERO', 'Hero section content, pillars & metrics updated.');
-    showToast('Hero Section updated & saved permanently to disk!');
-  };
-
-  const handleSaveAbout = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    updateSection('about', {
-      ...data.about,
-      eyebrow: formData.get('aboutEyebrow') as string,
-      description: formData.get('aboutDescription') as string,
-      stats: [
-        {
-          id: 'stat-1',
-          tag: formData.get('stat1Tag') as string || '// TOTAL DELIVERED',
-          value: formData.get('stat1Val') as string || '40+',
-          targetNum: parseInt(formData.get('stat1Target') as string || '40', 10),
-          suffix: formData.get('stat1Suffix') as string || '+',
-          description: formData.get('stat1Desc') as string || 'High-impact web apps, platforms & site-builder engines shipped worldwide.',
-        },
-        {
-          id: 'stat-2',
-          tag: formData.get('stat2Tag') as string || '// CLIENT SATISFACTION',
-          value: formData.get('stat2Val') as string || '98%',
-          targetNum: parseInt(formData.get('stat2Target') as string || '98', 10),
-          suffix: formData.get('stat2Suffix') as string || '%',
-          description: formData.get('stat2Desc') as string || 'Long-term partners who rely on DO Company for enterprise engineering.',
-        },
-        {
-          id: 'stat-3',
-          tag: formData.get('stat3Tag') as string || '// CODE QUALITY',
-          value: formData.get('stat3Val') as string || '99%',
-          targetNum: parseInt(formData.get('stat3Target') as string || '99', 10),
-          suffix: (formData.get('stat3Suffix') as string) || ((formData.get('stat3Val') as string || '').includes('%') ? '%' : (formData.get('stat3Val') as string || '').includes('+') ? '+' : '%'),
-          description: formData.get('stat3Desc') as string || 'Every line of code is written with performance, readability, and long-term reliability in mind.',
-        },
-      ],
-    });
-    addAuditLog('UPDATE_ABOUT', 'About section stats & philosophy updated.');
-    showToast('About Section updated successfully!');
-  };
-
-  const handleSaveFounder = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-
-    const githubUrl = formData.get('founder_github_url') as string;
-    const githubEnabled = formData.get('founder_github_enabled') === 'on';
-
-    const twitterUrl = formData.get('founder_twitter_url') as string;
-    const twitterEnabled = formData.get('founder_twitter_enabled') === 'on';
-
-    const linkedinUrl = formData.get('founder_linkedin_url') as string;
-    const linkedinEnabled = formData.get('founder_linkedin_enabled') === 'on';
-
-    const instagramUrl = formData.get('founder_instagram_url') as string;
-    const instagramEnabled = formData.get('founder_instagram_enabled') === 'on';
-
-    const facebookUrl = formData.get('founder_facebook_url') as string;
-    const facebookEnabled = formData.get('founder_facebook_enabled') === 'on';
-
-    const whatsappUrl = formData.get('founder_whatsapp_url') as string;
-    const whatsappEnabled = formData.get('founder_whatsapp_enabled') === 'on';
-
-    updateSection('founder', {
-      ...data.founder,
-      eyebrow: formData.get('eyebrow') as string,
-      headline: formData.get('headline') as string,
-      name: formData.get('name') as string,
-      role: formData.get('role') as string,
-      tagline: formData.get('tagline') as string,
-      quote: formData.get('quote') as string,
-      bio: formData.get('bio') as string,
-      image: founderImage || (formData.get('image') as string),
-      github: githubUrl || (formData.get('github') as string),
-      linkedin: linkedinUrl || (formData.get('linkedin') as string),
-      twitter: twitterUrl || (formData.get('twitter') as string),
-      contributionNote: formData.get('contributionNote') as string,
-      socialLinks: {
-        github: { url: githubUrl, enabled: githubEnabled },
-        twitter: { url: twitterUrl, enabled: twitterEnabled },
-        linkedin: { url: linkedinUrl, enabled: linkedinEnabled },
-        instagram: { url: instagramUrl, enabled: instagramEnabled },
-        facebook: { url: facebookUrl, enabled: facebookEnabled },
-        whatsapp: { url: whatsappUrl, enabled: whatsappEnabled },
-      }
-    });
-    addAuditLog('UPDATE_FOUNDER', 'Founder section content and social links updated.');
-    showToast('Founder Section updated successfully!');
-  };
-
-  const handleSaveCtaFooter = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    updateSection('cta', {
-      eyebrow: (formData.get('ctaEyebrow') as string) || "// WHAT'S NEXT",
-      title: formData.get('ctaTitle') as string,
-      subtitle: formData.get('ctaSubtitle') as string,
-      email: formData.get('ctaEmail') as string,
-      phone: formData.get('ctaPhone') as string,
-      buttonText: formData.get('ctaButtonText') as string,
-    });
-
-    const githubUrl = formData.get('social_github_url') as string;
-    const githubEnabled = formData.get('social_github_enabled') === 'on';
-
-    const twitterUrl = formData.get('social_twitter_url') as string;
-    const twitterEnabled = formData.get('social_twitter_enabled') === 'on';
-
-    const linkedinUrl = formData.get('social_linkedin_url') as string;
-    const linkedinEnabled = formData.get('social_linkedin_enabled') === 'on';
-
-    const instagramUrl = formData.get('social_instagram_url') as string;
-    const instagramEnabled = formData.get('social_instagram_enabled') === 'on';
-
-    const facebookUrl = formData.get('social_facebook_url') as string;
-    const facebookEnabled = formData.get('social_facebook_enabled') === 'on';
-
-    const whatsappUrl = formData.get('social_whatsapp_url') as string;
-    const whatsappEnabled = formData.get('social_whatsapp_enabled') === 'on';
-
-    updateSection('footer', {
-      ...data.footer,
-      companyName: formData.get('companyName') as string,
-      companyLogo: formData.get('companyLogo') as string,
-      description: formData.get('footerDesc') as string,
-      addressLine1: formData.get('addressLine1') as string,
-      addressLine2: formData.get('addressLine2') as string,
-      email: formData.get('footerEmail') as string,
-      copyrightText: formData.get('copyrightText') as string,
-      github: githubUrl || (data.footer.github || ''),
-      linkedin: linkedinUrl || (data.footer.linkedin || ''),
-      twitter: twitterUrl || (data.footer.twitter || ''),
-      socialLinks: {
-        github: { url: githubUrl, enabled: githubEnabled },
-        twitter: { url: twitterUrl, enabled: twitterEnabled },
-        linkedin: { url: linkedinUrl, enabled: linkedinEnabled },
-        instagram: { url: instagramUrl, enabled: instagramEnabled },
-        facebook: { url: facebookUrl, enabled: facebookEnabled },
-        whatsapp: { url: whatsappUrl, enabled: whatsappEnabled },
-      }
-    });
-    addAuditLog('UPDATE_CTA_FOOTER', 'CTA Banner & Footer social links updated.');
-    showToast('CTA & Footer updated successfully!');
-  };
-
-  const handleSaveNavbar = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const currentLinks = data.navbar?.navLinks && data.navbar.navLinks.length > 0
-      ? data.navbar.navLinks
-      : [
-          { id: 'nav-1', name: 'SERVICES', href: '#services' },
-          { id: 'nav-2', name: 'WORK', href: '#work' },
-          { id: 'nav-3', name: 'PROCESS', href: '#process' },
-          { id: 'nav-4', name: 'FOUNDER', href: '#founder' },
-          { id: 'nav-5', name: 'MENTORS', href: '#mentors' },
-          { id: 'nav-6', name: 'CONTACT', href: '#contact' },
-        ];
-
-    const updatedLinks = currentLinks.map((link, idx) => ({
-      ...link,
-      name: (formData.get(`navLinkName_${idx}`) as string) || link.name,
-      href: (formData.get(`navLinkHref_${idx}`) as string) || link.href,
-    }));
-
-    updateSection('navbar', {
-      ctaText: (formData.get('navbarCtaText') as string) || 'Start a Project',
-      ctaLink: (formData.get('navbarCtaLink') as string) || '#contact',
-      navLinks: updatedLinks,
-    });
-    addAuditLog('UPDATE_NAVBAR', 'Navbar header navigation updated.');
-    showToast('Navbar options saved successfully!');
-  };
-
-  const handleAddNavLink = () => {
-    const currentLinks = data.navbar?.navLinks && data.navbar.navLinks.length > 0
-      ? [...data.navbar.navLinks]
-      : [
-          { id: 'nav-1', name: 'SERVICES', href: '#services' },
-          { id: 'nav-2', name: 'WORK', href: '#work' },
-          { id: 'nav-3', name: 'PROCESS', href: '#process' },
-          { id: 'nav-4', name: 'FOUNDER', href: '#founder' },
-          { id: 'nav-5', name: 'MENTORS', href: '#mentors' },
-          { id: 'nav-6', name: 'CONTACT', href: '#contact' },
-        ];
-    const newLink = {
-      id: `nav-${Date.now()}`,
-      name: 'NEW OPTION',
-      href: '#contact',
-    };
-    updateSection('navbar', {
-      ...data.navbar,
-      navLinks: [...currentLinks, newLink],
-    });
-    showToast('New Navbar link option added!');
   };
 
   const handleExportData = () => {
@@ -432,3363 +950,3979 @@ export const AdminPanel: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `portfolio_backup_${Date.now()}.json`;
+    a.download = `dopilot_backup_${Date.now()}.json`;
     a.click();
-    showToast('Site data backup JSON downloaded.');
+    showToast('Site data backup downloaded.');
   };
 
   const handleImportData = async (e: React.FormEvent) => {
     e.preventDefault();
     if (await importDataJSON(jsonInput)) {
-      showToast('Site data imported & saved to disk successfully!');
+      showToast('Data imported successfully!');
       setJsonInput('');
     } else {
-      showToast('Import failed. Invalid JSON format.');
+      showToast('Import failed. Invalid JSON.');
     }
   };
 
-  return (
-    <div className="min-h-screen bg-black text-paper flex flex-col font-sans selection:bg-primary selection:text-ink relative overflow-hidden">
-      
-      {/* 2nd Background Video (Services Background Video) */}
-      <video
-        autoPlay
-        loop
-        muted
-        playsInline
-        className="fixed inset-0 w-full h-full object-cover opacity-25 pointer-events-none z-0 mix-blend-screen"
-        style={{ willChange: 'transform' }}
-      >
-        <source src="/services-background.mp4" type="video/mp4" />
-      </video>
+  // Section List Navigation Definition
+  const sectionsList = [
+    { id: 'hero' as SectionId, label: 'Hero Section', icon: Layout, tag: 'Intro & Badges' },
+    { id: 'whyUs' as SectionId, label: 'Why Choose Us', icon: ShieldCheck, tag: '4 Cards & Table' },
+    { id: 'courses' as SectionId, label: 'Popular Courses', icon: BookOpen, tag: `${data.coursesSection?.courses?.length || 0} Courses` },
+    { id: 'reviews' as SectionId, label: 'Student Reviews', icon: Star, tag: `${data.reviewsSection?.reviews?.length || 0} Reviews` },
+    { id: 'codeLab' as SectionId, label: 'Python Code Lab', icon: Terminal, tag: 'Interactive IDE' },
+    { id: 'liveClass' as SectionId, label: 'Live Masterclass', icon: Video, tag: 'Schedule & Host' },
+    { id: 'footer' as SectionId, label: 'Footer & Links', icon: ExternalLink, tag: 'Brand & Social' },
+  ];
 
-      {/* Dark Ambient Overlay */}
-      <div className="fixed inset-0 bg-gradient-to-b from-black/90 via-black/80 to-black pointer-events-none z-0" />
+  const systemList = [
+    { id: 'cloudinary' as SectionId, label: 'Cloudinary CDN', icon: Cloud, tag: 'Media Hosting' },
+    { id: 'security' as SectionId, label: 'Security & Backup', icon: Shield, tag: 'Credentials' },
+    { id: 'studentExport' as SectionId, label: 'Extract Student Data', icon: FileSpreadsheet, tag: `${students.length} Contacts` },
+    { id: 'studentHelpNav' as any, label: 'Student Help Desk', icon: MessageSquare, tag: `${pendingHelpCount} Tickets` },
+  ];
+
+  // Render Subcomponents
+  const renderHeroSection = () => (
+    <section id="section-hero" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="font-jakarta text-lg font-black text-paper">Hero Section</h2>
+            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">01</span>
+          </div>
+          <p className="text-xs text-slate mt-0.5">Top headline, 3 value pillars, and CTA action buttons.</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSaveHero} className="space-y-6 text-sm">
+        {/* Headline Group */}
+        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
+          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// HEADLINE &amp; SUBTITLE</span>
+          <div>
+            <label className="block font-mono text-[11px] text-slate mb-1">Eyebrow Badge (Optional)</label>
+            <input
+              type="text"
+              name="eyebrow"
+              defaultValue={data.hero.eyebrow || ''}
+              placeholder="e.g. // MASTER SOFTWARE ENGINEERING"
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Headline Prefix</label>
+              <input
+                type="text"
+                name="headlinePrefix"
+                defaultValue={data.hero.headlinePrefix ?? "Master Real Tech Skills with"}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-bold"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Glowing Highlight Word</label>
+              <input
+                type="text"
+                name="highlightWord"
+                defaultValue={data.hero.highlightWord ?? "DO PILOT"}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-primary focus:border-primary focus:outline-none font-bold"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-mono text-[11px] text-slate mb-1">Subtitle / Description</label>
+            <textarea
+              name="description"
+              rows={2}
+              defaultValue={data.hero.description}
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none resize-none leading-relaxed"
+            />
+          </div>
+        </div>
+
+        {/* 3 Pillars Group */}
+        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
+          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// 3 VALUE PILLARS</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block font-mono text-[10px] text-slate mb-1">Pillar 1</label>
+              <input
+                type="text"
+                name="pillar1"
+                defaultValue={data.hero.pillars[0] || '100% Practical Projects'}
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-2 text-paper text-xs focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[10px] text-slate mb-1">Pillar 2</label>
+              <input
+                type="text"
+                name="pillar2"
+                defaultValue={data.hero.pillars[1] || 'Live Interactive Classes'}
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-2 text-paper text-xs focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[10px] text-slate mb-1">Pillar 3</label>
+              <input
+                type="text"
+                name="pillar3"
+                defaultValue={data.hero.pillars[2] || '1-on-1 Mentor Support'}
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-2 text-paper text-xs focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Buttons & Video Group */}
+        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
+          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// CTA BUTTONS &amp; VIDEO</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Primary CTA Button</label>
+              <input
+                type="text"
+                name="primaryCtaText"
+                defaultValue={data.hero.primaryCtaText}
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Primary CTA Destination Link</label>
+              <input
+                type="text"
+                name="primaryCtaLink"
+                defaultValue={data.hero.primaryCtaLink}
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Secondary CTA Button</label>
+              <input
+                type="text"
+                name="secondaryCtaText"
+                defaultValue={data.hero.secondaryCtaText}
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Secondary CTA Destination Link</label>
+              <input
+                type="text"
+                name="secondaryCtaLink"
+                defaultValue={data.hero.secondaryCtaLink}
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <label className="block font-mono text-[11px] text-slate mb-1">Scroll Cue Text</label>
+            <input
+              type="text"
+              name="scrollCueText"
+              defaultValue={data.hero.scrollCueText ?? "Explore DO PILOT"}
+              className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="submit"
+            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+          >
+            <Save className="w-4 h-4" />
+            <span>Save Hero Changes</span>
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+
+  const renderWhyUsSection = () => (
+    <section id="section-whyUs" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="font-jakarta text-lg font-black text-paper">Why Choose Us</h2>
+            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">02</span>
+          </div>
+          <p className="text-xs text-slate mt-0.5">Key advantages and side-by-side comparison matrix with legacy courses.</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSaveWhyUs} className="space-y-6 text-sm">
+        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
+          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// SECTION HEADER</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Badge Text</label>
+              <input
+                type="text"
+                name="whyUsBadge"
+                defaultValue={data.whyUs?.badgeText || 'WHY CHOOSE US'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Title</label>
+              <input
+                type="text"
+                name="whyUsTitle"
+                defaultValue={data.whyUs?.title || 'Why DO PILOT?'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block font-mono text-[11px] text-slate mb-1">Description</label>
+            <textarea
+              name="whyUsDesc"
+              rows={2}
+              defaultValue={data.whyUs?.description || ''}
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
+            />
+          </div>
+        </div>
+
+        {/* 4 Cards Grid */}
+        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
+          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// 4 FEATURE PILLARS</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {(data.whyUs?.features || []).map((feat, idx) => (
+              <div key={idx} className="p-4 rounded-xl bg-black border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs text-primary font-bold">Feature #{idx + 1}</span>
+                  <input
+                    type="text"
+                    name={`featHighlight_${idx}`}
+                    defaultValue={feat.highlight}
+                    placeholder="Badge Text"
+                    className="bg-black/60 border border-white/15 rounded-md px-2 py-0.5 text-[10px] text-paper font-mono focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <input
+                  type="text"
+                  name={`featTitle_${idx}`}
+                  defaultValue={feat.title}
+                  placeholder="Card Title"
+                  className="w-full bg-black/60 border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                />
+                <textarea
+                  name={`featDesc_${idx}`}
+                  rows={2}
+                  defaultValue={feat.description}
+                  placeholder="Card Description"
+                  className="w-full bg-black/60 border border-white/15 rounded-lg px-3 py-1.5 text-xs text-slate focus:border-primary focus:outline-none resize-none"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Comparison Table */}
+        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
+          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// COMPARISON SHOWCASE MATRIX</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Matrix Title</label>
+              <input
+                type="text"
+                name="compTitle"
+                defaultValue={data.whyUs?.comparisonsTitle || 'How DO PILOT Compares'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Matrix Subtitle</label>
+              <input
+                type="text"
+                name="compSubtitle"
+                defaultValue={data.whyUs?.comparisonsSubtitle || 'See the direct difference between regular courses and our engineering mentorship.'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+            <div>
+              <label className="block font-mono text-[10px] text-slate mb-1">Col 1 Header</label>
+              <input
+                type="text"
+                name="tableHeaderFeature"
+                defaultValue={data.whyUs?.tableHeaderFeature || 'Feature'}
+                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[10px] text-slate mb-1">Col 2 Header (Competitors)</label>
+              <input
+                type="text"
+                name="tableHeaderTraditional"
+                defaultValue={data.whyUs?.tableHeaderTraditional || 'Regular Online Courses'}
+                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-rose-300 font-mono focus:border-rose-400 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[10px] text-slate mb-1">Col 3 Header (DO PILOT)</label>
+              <input
+                type="text"
+                name="tableHeaderDoPilot"
+                defaultValue={data.whyUs?.tableHeaderDoPilot || 'DO PILOT Platform'}
+                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-primary font-mono font-bold focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <span className="font-mono text-xs text-slate font-bold uppercase tracking-wider block pt-3">// COMPARISON ROWS</span>
+          <div className="space-y-2.5">
+            {(data.whyUs?.comparisons || []).map((comp, idx) => (
+              <div key={idx} className="p-3.5 rounded-xl bg-black border border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input
+                  type="text"
+                  name={`compFeature_${idx}`}
+                  defaultValue={comp.feature}
+                  placeholder="Feature name"
+                  className="bg-black/60 border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                />
+                <input
+                  type="text"
+                  name={`compTrad_${idx}`}
+                  defaultValue={comp.traditional}
+                  placeholder="Traditional"
+                  className="bg-black/60 border border-rose-500/20 rounded-lg px-3 py-1.5 text-xs text-slate focus:border-rose-400 focus:outline-none"
+                />
+                <input
+                  type="text"
+                  name={`compDo_${idx}`}
+                  defaultValue={comp.doPilot}
+                  placeholder="DO PILOT"
+                  className="bg-black/60 border border-emerald-500/30 rounded-lg px-3 py-1.5 text-xs text-paper font-semibold focus:border-primary focus:outline-none"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="submit"
+            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+          >
+            <Save className="w-4 h-4" />
+            <span>Save Why Us Changes</span>
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+
+  const renderCoursesSection = () => (
+    <section id="section-courses" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="font-jakarta text-lg font-black text-paper">Popular Courses</h2>
+            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">03</span>
+          </div>
+          <p className="text-xs text-slate mt-0.5">Manage curriculum course cards, duration, difficulty, tags, and syllabus previews.</p>
+        </div>
+        <button
+          type="button"
+          onClick={handleAddCourse}
+          className="px-3.5 py-1.5 rounded-xl bg-primary/20 hover:bg-primary text-primary hover:text-ink font-mono text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>Add Course</span>
+        </button>
+      </div>
+
+      <form onSubmit={handleSaveCoursesSection} className="space-y-6 text-sm">
+        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
+          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// SECTION HEADER</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Badge</label>
+              <input
+                type="text"
+                name="coursesBadge"
+                defaultValue={data.coursesSection?.badgeText || 'SKILL PATHS'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Title</label>
+              <input
+                type="text"
+                name="coursesTitle"
+                defaultValue={data.coursesSection?.title || 'Our Courses'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block font-mono text-[11px] text-slate mb-1">Description / Subtitle</label>
+            <textarea
+              name="coursesDesc"
+              rows={2}
+              defaultValue={data.coursesSection?.description || 'Practical courses designed to take you from fundamentals to job-ready projects.'}
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
+            />
+          </div>
+        </div>
+
+        {/* Course Cards List */}
+        <div className="space-y-4">
+          {(data.coursesSection?.courses || []).map((c, idx) => (
+            <div key={idx} className="p-5 rounded-2xl bg-black/60 border border-white/10 space-y-4">
+              <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                <span className="font-mono text-xs text-primary font-bold">Course #{idx + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteCourse(idx)}
+                  className="p-1.5 rounded-lg text-slate hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                  title="Remove Course"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-mono text-[10px] text-slate mb-1">Title</label>
+                  <input
+                    type="text"
+                    name={`courseTitle_${idx}`}
+                    defaultValue={c.title?.replace(/Programming/gi, 'Course')}
+                    className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-mono text-[10px] text-slate mb-1">Badge (e.g. Bestseller)</label>
+                  <input
+                    type="text"
+                    name={`courseBadge_${idx}`}
+                    defaultValue={c.badge}
+                    className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block font-mono text-[10px] text-slate mb-1">Duration</label>
+                    <input
+                      type="text"
+                      name={`courseDuration_${idx}`}
+                      defaultValue={c.duration}
+                      className="w-full bg-black border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-mono text-[10px] text-slate mb-1">Level</label>
+                    <input
+                      type="text"
+                      name={`courseLevel_${idx}`}
+                      defaultValue={c.level}
+                      className="w-full bg-black border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-mono text-[10px] text-slate mb-1">Tags (Comma Separated)</label>
+                  <input
+                    type="text"
+                    name={`courseTags_${idx}`}
+                    defaultValue={(c.tags || []).join(', ')}
+                    className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-mono text-[10px] text-slate mb-1">Thumbnail Image URL</label>
+                  <input
+                    type="text"
+                    name={`courseImage_${idx}`}
+                    defaultValue={c.image}
+                    className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-mono text-[10px] text-slate mb-1">Description</label>
+                <textarea
+                  name={`courseDesc_${idx}`}
+                  rows={2}
+                  defaultValue={c.description}
+                  className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-slate focus:border-primary focus:outline-none resize-none"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="submit"
+            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+          >
+            <Save className="w-4 h-4" />
+            <span>Save Courses Changes</span>
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+
+  const renderReviewsSection = () => (
+    <section id="section-reviews" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="font-jakarta text-lg font-black text-paper">Student Reviews</h2>
+            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">04</span>
+          </div>
+          <p className="text-xs text-slate mt-0.5">Student feedback and testimonials.</p>
+        </div>
+        <button
+          type="button"
+          onClick={handleAddReview}
+          className="px-3.5 py-1.5 rounded-xl bg-primary/20 hover:bg-primary text-primary hover:text-ink font-mono text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>Add Review</span>
+        </button>
+      </div>
+
+      <form onSubmit={handleSaveReviewsSection} className="space-y-6 text-sm">
+        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
+          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// SECTION HEADER</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Badge</label>
+              <input
+                type="text"
+                name="reviewsBadge"
+                defaultValue={data.reviewsSection?.badgeText || 'STUDENT STORIES'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Title</label>
+              <input
+                type="text"
+                name="reviewsTitle"
+                defaultValue={data.reviewsSection?.title || 'Student Reviews'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-mono text-[11px] text-slate mb-1">Description / Subtitle</label>
+            <textarea
+              name="reviewsDesc"
+              rows={2}
+              defaultValue={data.reviewsSection?.description || 'Real feedback from learners who gained practical skills and built their careers with DO PILOT.'}
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
+            />
+          </div>
+        </div>
+
+        {/* Reviews List */}
+        <div className="space-y-4">
+          {(data.reviewsSection?.reviews || []).map((r, idx) => (
+            <div key={idx} className="p-5 rounded-2xl bg-black/60 border border-white/10 space-y-3">
+              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                <span className="font-mono text-xs text-primary font-bold">Review #{idx + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteReview(idx)}
+                  className="p-1.5 rounded-lg text-slate hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                  title="Remove Review"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input
+                  type="text"
+                  name={`revName_${idx}`}
+                  defaultValue={r.name}
+                  placeholder="Student name"
+                  className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                />
+                <input
+                  type="text"
+                  name={`revRole_${idx}`}
+                  defaultValue={r.role}
+                  placeholder="Job title / company"
+                  className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
+                />
+                <input
+                  type="text"
+                  name={`revCourse_${idx}`}
+                  defaultValue={r.course}
+                  placeholder="Course name"
+                  className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <textarea
+                name={`revComment_${idx}`}
+                rows={2}
+                defaultValue={r.comment}
+                placeholder="Student testimonial"
+                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-slate focus:border-primary focus:outline-none resize-none"
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="submit"
+            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+          >
+            <Save className="w-4 h-4" />
+            <span>Save Reviews Changes</span>
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+
+  const renderCodeLabSection = () => (
+    <section id="section-codeLab" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+      <div className="flex items-center justify-between pb-5 border-b border-white/10">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="font-jakarta text-lg font-black text-paper">Python Code Lab</h2>
+            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">05</span>
+          </div>
+          <p className="text-xs text-slate mt-0.5">In-browser live Python playground title, description, and initial code.</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSaveCodeLab} className="space-y-6 text-sm">
+        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Badge</label>
+              <input
+                type="text"
+                name="codeLabBadge"
+                defaultValue={data.codeLab?.badgeText || 'CODE LAB'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Title</label>
+              <input
+                type="text"
+                name="codeLabTitle"
+                defaultValue={data.codeLab?.title || 'Run Python Programs Instantly'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block font-mono text-[11px] text-slate mb-1">Description</label>
+            <textarea
+              name="codeLabDesc"
+              rows={2}
+              defaultValue={data.codeLab?.description || 'Write, test, and execute Python 3.12 code directly in your browser.'}
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
+            />
+          </div>
+          <div>
+            <label className="block font-mono text-[11px] text-slate mb-1">Default Starter Python Code</label>
+            <textarea
+              name="defaultCode"
+              rows={5}
+              defaultValue={data.codeLab?.defaultCode || 'print("Hello, World!")\n'}
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-3 text-primary font-mono text-xs focus:border-primary focus:outline-none resize-none leading-relaxed"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="submit"
+            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+          >
+            <Save className="w-4 h-4" />
+            <span>Save Code Lab</span>
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+
+  const renderLiveClassSection = () => (
+    <section id="section-liveClass" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+      <div className="flex items-center justify-between pb-5 border-b border-white/10">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="font-jakarta text-lg font-black text-paper">Live Masterclass</h2>
+            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">06</span>
+          </div>
+          <p className="text-xs text-slate mt-0.5">Upcoming live interactive workshop schedule, mentor name, and seat counter.</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSaveLiveClass} className="space-y-6 text-sm">
+        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Badge</label>
+              <input
+                type="text"
+                name="liveClassBadge"
+                defaultValue={data.liveClass?.badgeText || 'LIVE CLASS'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Section Title</label>
+              <input
+                type="text"
+                name="liveClassTitle"
+                defaultValue={data.liveClass?.title || 'Upcoming Live Class'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Spotlight Badge</label>
+              <input
+                type="text"
+                name="spotlightBadge"
+                defaultValue={data.liveClass?.spotlightBadge || 'Live Workshop • Limited Seats'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-rose-400 font-mono text-xs focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-mono text-[11px] text-slate mb-1">Section Description / Subtitle</label>
+            <textarea
+              name="liveClassDesc"
+              rows={2}
+              defaultValue={data.liveClass?.description || 'Join our interactive live masterclass. Code alongside experienced engineers and ask your questions live.'}
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Class / Masterclass Name</label>
+              <input
+                type="text"
+                name="className"
+                defaultValue={data.liveClass?.className || 'Python & AI Assistant: Live Masterclass'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Class Description</label>
+              <input
+                type="text"
+                name="classDescription"
+                defaultValue={data.liveClass?.classDescription || 'Build a functional AI assistant with Python and live API integration in a 2-hour interactive code-along.'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Schedule & Live Countdown Timer Configuration */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">
+                Target Date &amp; Time (Countdown Timer)
+              </label>
+              <input
+                type="datetime-local"
+                name="targetDateTime"
+                defaultValue={data.liveClass?.targetDateTime || '2026-10-18T18:00'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              />
+              <span className="block font-mono text-[10px] text-slate/70 mt-1">
+                Timer automatically counts down to this exact date &amp; time.
+              </span>
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Display Date (Card)</label>
+              <input
+                type="text"
+                name="date"
+                defaultValue={data.liveClass?.date || 'Saturday, Oct 18, 2026'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              />
+              <span className="block font-mono text-[10px] text-slate/70 mt-1">e.g. Saturday, Oct 18, 2026</span>
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Display Time (Card)</label>
+              <input
+                type="text"
+                name="time"
+                defaultValue={data.liveClass?.time || '6:00 PM – 8:00 PM IST'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              />
+              <span className="block font-mono text-[10px] text-slate/70 mt-1">e.g. 6:00 PM – 8:00 PM IST</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-mono text-[10px] text-slate mb-1">Platform</label>
+              <input
+                type="text"
+                name="platform"
+                defaultValue={data.liveClass?.platform || 'Live on Google Meet / Zoom'}
+                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[10px] text-slate mb-1">Seats Remaining</label>
+              <input
+                type="text"
+                name="seatsLeft"
+                defaultValue={data.liveClass?.seatsLeft || '14 Spots Left'}
+                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-primary font-mono font-bold focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div>
+              <label className="block font-mono text-[10px] text-slate mb-1">Mentor Name</label>
+              <input
+                type="text"
+                name="mentorName"
+                defaultValue={data.liveClass?.mentorName || 'Lead Mentor'}
+                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[10px] text-slate mb-1">Mentor Role</label>
+              <input
+                type="text"
+                name="mentorRole"
+                defaultValue={data.liveClass?.mentorRole || 'Senior Software Engineer at DO PILOT'}
+                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[10px] text-slate mb-1">Mentor Avatar URL</label>
+              <input
+                type="text"
+                name="mentorAvatar"
+                defaultValue={data.liveClass?.mentorAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces'}
+                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[10px] text-slate mb-1">CTA Button Text</label>
+              <input
+                type="text"
+                name="buttonText"
+                defaultValue={data.liveClass?.buttonText || 'Reserve Your Free Spot'}
+                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-primary font-bold focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-mono text-[10px] text-slate mb-1">Takeaway Benefits (One per line)</label>
+            <textarea
+              name="benefits"
+              rows={3}
+              defaultValue={(data.liveClass?.benefits || []).join('\n')}
+              className="w-full bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-paper font-mono focus:border-primary focus:outline-none resize-none leading-relaxed"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="submit"
+            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+          >
+            <Save className="w-4 h-4" />
+            <span>Save Live Class</span>
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+
+  const renderFooterSection = () => (
+    <section id="section-footer" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+      <div className="flex items-center justify-between pb-5 border-b border-white/10">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="font-jakarta text-lg font-black text-paper">Footer &amp; Links</h2>
+            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">07</span>
+          </div>
+          <p className="text-xs text-slate mt-0.5">Brand name, campus location, official email, phone, and social media channels.</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSaveFooter} className="space-y-6 text-sm">
+        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Company / Brand Name</label>
+              <input
+                type="text"
+                name="companyName"
+                defaultValue={data.footer?.companyName || 'DO PILOT'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Company Logo URL</label>
+              <input
+                type="text"
+                name="companyLogo"
+                defaultValue={data.footer?.companyLogo || data.navbar?.companyLogo || 'https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Support Email</label>
+              <input
+                type="email"
+                name="footerEmail"
+                defaultValue={data.footer?.email || 'support@dopilot.com'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Phone Number</label>
+              <input
+                type="text"
+                name="footerPhone"
+                defaultValue={data.footer?.phone || '+91 97787 07336'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Campus / Location</label>
+              <input
+                type="text"
+                name="footerAddress"
+                defaultValue={data.footer?.address || 'Online & Global Campus'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-[11px] text-slate mb-1">Copyright Line</label>
+              <input
+                type="text"
+                name="copyrightText"
+                defaultValue={data.footer?.copyrightText || '© 2026 DO PILOT. All rights reserved.'}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="p-4 rounded-xl bg-black border border-white/10 space-y-3">
+            <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// 4 COLUMN HEADINGS</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className="block font-mono text-[10px] text-slate mb-1">Col 1 Title</label>
+                <input
+                  type="text"
+                  name="exploreTitle"
+                  defaultValue={data.footer?.exploreTitle || 'Explore'}
+                  className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block font-mono text-[10px] text-slate mb-1">Col 2 Title</label>
+                <input
+                  type="text"
+                  name="coursesTitle"
+                  defaultValue={data.footer?.coursesTitle || 'Popular Courses'}
+                  className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block font-mono text-[10px] text-slate mb-1">Col 3 Title</label>
+                <input
+                  type="text"
+                  name="legalTitle"
+                  defaultValue={data.footer?.legalTitle || 'Legal & Policies'}
+                  className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block font-mono text-[10px] text-slate mb-1">Col 4 Title</label>
+                <input
+                  type="text"
+                  name="contactTitle"
+                  defaultValue={data.footer?.contactTitle || 'Contact & Support'}
+                  className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-mono text-[11px] text-slate mb-1">Footer Tagline / Summary</label>
+            <textarea
+              name="footerDesc"
+              rows={2}
+              defaultValue={data.footer?.description || ''}
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
+            />
+          </div>
+
+          {/* Social Links */}
+          <div className="pt-2">
+            <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block mb-2">// SOCIAL MEDIA LINKS</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <input
+                type="text"
+                name="social_whatsapp_url"
+                defaultValue={data.footer?.socialLinks?.whatsapp?.url || 'https://wa.me/919778707336'}
+                placeholder="WhatsApp URL"
+                className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+              />
+              <input
+                type="text"
+                name="social_github_url"
+                defaultValue={data.footer?.socialLinks?.github?.url || ''}
+                placeholder="GitHub URL"
+                className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+              />
+              <input
+                type="text"
+                name="social_linkedin_url"
+                defaultValue={data.footer?.socialLinks?.linkedin?.url || ''}
+                placeholder="LinkedIn URL"
+                className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+              />
+              <input
+                type="text"
+                name="social_twitter_url"
+                defaultValue={data.footer?.socialLinks?.twitter?.url || ''}
+                placeholder="Twitter / X URL"
+                className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="submit"
+            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+          >
+            <Save className="w-4 h-4" />
+            <span>Save Footer Changes</span>
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+
+  const renderCloudinarySection = () => (
+    <section id="section-cloudinary" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+      <div className="flex items-center justify-between pb-5 border-b border-white/10">
+        <div>
+          <h2 className="font-jakarta text-lg font-black text-paper">Cloudinary CDN Media Hosting</h2>
+          <p className="text-xs text-slate mt-0.5">Stream high-resolution course assets and background videos without slowing down your app.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block font-mono text-[11px] text-slate mb-1">Cloud Name</label>
+          <input
+            type="text"
+            value={cloudinaryCloudName}
+            onChange={(e) => setCloudinaryCloudName(e.target.value)}
+            placeholder="e.g. ufo0zltq"
+            className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+          />
+        </div>
+        <div>
+          <label className="block font-mono text-[11px] text-slate mb-1">Unsigned Upload Preset</label>
+          <input
+            type="text"
+            value={cloudinaryUploadPreset}
+            onChange={(e) => setCloudinaryUploadPreset(e.target.value)}
+            placeholder="e.g. dopilot_preset"
+            className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end pt-1">
+        <button
+          type="button"
+          onClick={() => {
+            updateSection('cloudinary', {
+              cloudName: cloudinaryCloudName.trim(),
+              uploadPreset: cloudinaryUploadPreset.trim()
+            });
+            showToast('Cloudinary CDN settings saved!');
+          }}
+          className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+        >
+          <Save className="w-4 h-4" />
+          <span>Save Cloudinary Settings</span>
+        </button>
+      </div>
+    </section>
+  );
+
+  const renderSecuritySection = () => (
+    <section id="section-security" className="space-y-6">
+      {/* Change Credentials Card */}
+      <form onSubmit={handleUpdateCreds} className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl">
+        <div className="flex items-center justify-between pb-5 border-b border-white/10">
+          <div>
+            <h2 className="font-jakarta text-lg font-black text-paper">Admin Credentials</h2>
+            <p className="text-xs text-slate mt-0.5">Authorize credential updates using your current password.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block font-mono text-[11px] text-amber-400 font-bold mb-1">Current Admin Password *</label>
+            <div className="relative">
+              <input
+                type={showCredPassword ? 'text' : 'password'}
+                required
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="Current password"
+                className="w-full bg-black border border-amber-500/40 rounded-xl px-4 py-2.5 text-paper focus:border-amber-400 focus:outline-none font-mono text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => setShowCredPassword(!showCredPassword)}
+                className="absolute right-3 top-2.5 text-slate hover:text-paper"
+              >
+                {showCredPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block font-mono text-[11px] text-slate mb-1">Admin Username / Email</label>
+            <input
+              type="text"
+              required
+              value={newUsername}
+              onChange={(e) => setNewUsername(e.target.value)}
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+            />
+          </div>
+          <div>
+            <label className="block font-mono text-[11px] text-slate mb-1">New Password</label>
+            <input
+              type={showCredPassword ? 'text' : 'password'}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Min 6 characters"
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+            />
+          </div>
+          <div>
+            <label className="block font-mono text-[11px] text-slate mb-1">Confirm New Password</label>
+            <input
+              type={showCredPassword ? 'text' : 'password'}
+              value={confirmNewPassword}
+              onChange={(e) => setConfirmNewPassword(e.target.value)}
+              placeholder="Repeat new password"
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="submit"
+            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+          >
+            <Save className="w-4 h-4" />
+            <span>Update Password</span>
+          </button>
+        </div>
+      </form>
+
+      {/* Recovery Emails Card */}
+      <form onSubmit={handleUpdateEmails} className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl">
+        <div className="flex items-center justify-between pb-5 border-b border-white/10">
+          <div>
+            <h2 className="font-jakarta text-lg font-black text-paper">Emergency Dual Recovery Emails</h2>
+            <p className="text-xs text-slate mt-0.5">Registered backup emails used to receive 6-digit OTP verification codes if you forget credentials.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block font-mono text-[11px] text-slate mb-1">Primary Recovery Email</label>
+            <input
+              type="email"
+              required
+              value={primaryEmail}
+              onChange={(e) => setPrimaryEmail(e.target.value)}
+              placeholder="primary@gmail.com"
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+            />
+          </div>
+          <div>
+            <label className="block font-mono text-[11px] text-slate mb-1">Secondary Backup Email</label>
+            <input
+              type="email"
+              required
+              value={secondaryEmail}
+              onChange={(e) => setSecondaryEmail(e.target.value)}
+              placeholder="backup@gmail.com"
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="submit"
+            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+          >
+            <Mail className="w-4 h-4" />
+            <span>Update Recovery Emails (Send OTP)</span>
+          </button>
+        </div>
+      </form>
+
+      {/* Backup & Factory Preset Card */}
+      <div className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl">
+        <div className="flex items-center justify-between pb-5 border-b border-white/10">
+          <div>
+            <h2 className="font-jakarta text-lg font-black text-paper">Presets &amp; Data Backup</h2>
+            <p className="text-xs text-slate mt-0.5">Download full site JSON backups or lock in your modifications as the permanent default preset.</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => {
+              if (window.confirm("Save all current modifications as the permanent default preset?")) {
+                setAsPermanentDefaults();
+                showToast("Saved as permanent baseline defaults!");
+              }
+            }}
+            className="px-5 py-2.5 rounded-xl bg-primary text-ink font-mono text-xs font-bold flex items-center gap-2 cursor-pointer hover:bg-white transition-all shadow-md shadow-primary/20"
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Lock As Permanent Defaults</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (window.confirm("Reset all site data back to your saved Permanent Defaults?")) {
+                resetToDefaults();
+                showToast("Reset to Permanent Defaults.");
+              }
+            }}
+            className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/15 text-paper hover:border-primary font-mono text-xs flex items-center gap-2 cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4 text-primary" />
+            <span>Reset to Permanent Defaults</span>
+          </button>
+
+          <button
+            onClick={handleExportData}
+            className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/15 text-paper hover:border-primary font-mono text-xs flex items-center gap-2 cursor-pointer"
+          >
+            <Download className="w-4 h-4 text-primary" />
+            <span>Download Backup JSON</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (window.confirm("Revert to factory original baseline?")) {
+                resetToFactoryDefaults();
+                showToast("Reverted to factory original template.");
+              }
+            }}
+            className="px-5 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20 font-mono text-xs flex items-center gap-2 cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>Restore Factory Baseline</span>
+          </button>
+        </div>
+
+        {/* Import JSON */}
+        <form onSubmit={handleImportData} className="pt-4 border-t border-white/10 space-y-3">
+          <label className="block font-mono text-xs text-slate">Import Backup JSON Data</label>
+          <textarea
+            rows={3}
+            value={jsonInput}
+            onChange={(e) => setJsonInput(e.target.value)}
+            placeholder="Paste JSON backup string here..."
+            className="w-full bg-black border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs resize-none"
+          />
+          <button
+            type="submit"
+            className="px-5 py-2 rounded-xl bg-white/5 border border-white/15 text-paper hover:border-primary font-mono text-xs flex items-center gap-2 cursor-pointer"
+          >
+            <Upload className="w-4 h-4 text-primary" />
+            <span>Import JSON</span>
+          </button>
+        </form>
+      </div>
+
+      {/* Security Logs */}
+      <div className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-4 shadow-2xl">
+        <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// RECENT AUDIT LOGS</h3>
+        <div className="max-h-48 overflow-y-auto space-y-2 font-mono text-xs pr-2">
+          {auditLogs.map((log) => (
+            <div key={log.id} className="p-3 rounded-xl bg-black border border-white/5 flex items-center justify-between text-[11px]">
+              <div>
+                <span className="text-primary font-bold">{log.action}: </span>
+                <span className="text-paper">{log.details}</span>
+              </div>
+              <span className="text-slate/60 text-[10px] shrink-0 ml-2">{log.timestamp}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+
+  const copyContactToClipboard = (text: string, id: string, label: string) => {
+    try {
+      navigator.clipboard.writeText(text);
+      setCopiedCellId(id);
+      showToast(`Copied ${label} to clipboard!`);
+      setTimeout(() => {
+        setCopiedCellId((prev) => (prev === id ? null : prev));
+      }, 2000);
+    } catch (e) {
+      showToast('Could not copy to clipboard.');
+    }
+  };
+
+  const handleExportAllStudentCSV = () => {
+    const headers = [
+      '#',
+      'Student Name',
+      'Email Address',
+      'Phone Number',
+      'College / Organization',
+      'Enrolled Courses',
+      'Where Did You Find Us',
+      'Total Points',
+      'Learning Status',
+      'Registered Date'
+    ];
+
+    const rows = students.map((s, idx) => [
+      idx + 1,
+      `"${(s.name || '').replace(/"/g, '""')}"`,
+      `"${(s.email || '').replace(/"/g, '""')}"`,
+      `"${(s.phone && s.phone !== 'Phone not added' ? s.phone : 'N/A').replace(/"/g, '""')}"`,
+      `"${(s.collegeOrCompany || 'N/A').replace(/"/g, '""')}"`,
+      `"${(s.enrolledCourses?.join(', ') || 'None').replace(/"/g, '""')}"`,
+      `"${(s.whereDidYouFindUs || 'N/A').replace(/"/g, '""')}"`,
+      s.points || 0,
+      `"${(s.courseProgressStatus || 'registered').replace(/"/g, '""')}"`,
+      `"${new Date(s.createdAt).toLocaleDateString()}"`
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `DO_PILOT_Students_Contact_Data_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast(`Extracted and downloaded ${students.length} student records as CSV!`);
+  };
+
+  const handleCopyAllEmails = () => {
+    const emails = students.map((s) => s.email).filter(Boolean);
+    if (!emails.length) {
+      showToast('No student emails available to copy.');
+      return;
+    }
+    navigator.clipboard.writeText(emails.join(', '));
+    showToast(`Copied ${emails.length} student emails to clipboard!`);
+  };
+
+  const handleCopyAllPhones = () => {
+    const phones = students.map((s) => s.phone).filter((p): p is string => Boolean(p && p !== 'Phone not added' && p.trim().length >= 10));
+    if (!phones.length) {
+      showToast('No student phone numbers available to copy.');
+      return;
+    }
+    navigator.clipboard.writeText(phones.join(', '));
+    showToast(`Copied ${phones.length} valid phone numbers to clipboard!`);
+  };
+
+  const renderStudentExportSection = () => {
+    const filteredStudents = students.filter((s) => {
+      if (!studentExportSearch.trim()) return true;
+      const q = studentExportSearch.toLowerCase();
+      return (
+        s.name?.toLowerCase().includes(q) ||
+        s.email?.toLowerCase().includes(q) ||
+        s.phone?.toLowerCase().includes(q)
+      );
+    });
+
+    const validPhonesCount = students.filter(
+      (s) => s.phone && s.phone !== 'Phone not added' && s.phone.trim().length >= 10
+    ).length;
+
+    return (
+      <section id="section-student-export" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+        {/* Header & Cleanly Organized Action Bar */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-white/10">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-jakarta text-lg font-black text-paper">Extract Student Data</h2>
+              <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">
+                Contacts Only
+              </span>
+            </div>
+            <p className="text-xs text-slate mt-0.5">
+              Minimal contact directory. Full student data is exported in the CSV file.
+            </p>
+          </div>
+
+          {/* Cleanly Organized Action Toolbar */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleExportAllStudentCSV}
+              className="px-4 py-2.5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-primary/20 active:scale-95"
+              title="Download CSV spreadsheet with all complete student details"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>EXPORT CSV</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCopyAllPhones}
+              className="px-3.5 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-jakarta text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              title="Copy all 10-digit mobile numbers for WhatsApp or SMS"
+            >
+              <Phone className="w-3.5 h-3.5" />
+              <span>Copy All Phones</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-[10px] font-mono font-bold">
+                ({validPhonesCount})
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCopyAllEmails}
+              className="px-3.5 py-2.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-jakarta text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              title="Copy all verified email addresses for campaigns"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>Copy All Emails</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-cyan-500/20 text-[10px] font-mono font-bold">
+                ({students.length})
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Search Input Bar */}
+        <div className="flex items-center gap-3 p-2 bg-black/60 border border-white/10 rounded-2xl">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate/50 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={studentExportSearch}
+              onChange={(e) => setStudentExportSearch(e.target.value)}
+              placeholder="Search by student name, email, or phone number..."
+              className="w-full bg-transparent pl-10 pr-4 py-2 text-paper text-xs placeholder:text-slate/40 focus:outline-none font-jakarta"
+            />
+          </div>
+          {studentExportSearch && (
+            <button
+              type="button"
+              onClick={() => setStudentExportSearch('')}
+              className="text-xs text-slate hover:text-paper font-mono px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer"
+            >
+              Clear
+            </button>
+          )}
+          <span className="font-mono text-[11px] text-slate/70 pr-3 whitespace-nowrap">
+            Showing <strong className="text-primary">{filteredStudents.length}</strong> of {students.length}
+          </span>
+        </div>
+
+        {/* Minimal Clean Contact Data Table */}
+        <div className="rounded-2xl border border-white/10 bg-black/40 overflow-hidden shadow-xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-white/10 bg-white/[0.02] text-slate/70 font-mono text-[10px] uppercase tracking-wider">
+                  <th className="py-3 px-4 w-12 text-center">#</th>
+                  <th className="py-3 px-5">Student Name</th>
+                  <th className="py-3 px-5">Verified Email</th>
+                  <th className="py-3 px-5">Phone Number</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 font-jakarta text-xs">
+                {filteredStudents.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-12 text-center text-slate font-mono text-xs">
+                      No student records matched "{studentExportSearch}".
+                    </td>
+                  </tr>
+                ) : (
+                  filteredStudents.map((std, idx) => {
+                    const hasValidPhone = std.phone && std.phone !== 'Phone not added' && std.phone.trim().length >= 10;
+                    const emailCopied = copiedCellId === `email-${std.id}`;
+                    const phoneCopied = copiedCellId === `phone-${std.id}`;
+
+                    return (
+                      <tr key={std.id || idx} className="hover:bg-white/[0.02] transition-colors">
+                        {/* 1. Row Index */}
+                        <td className="py-3.5 px-4 text-center font-mono text-[11px] text-slate/50">
+                          {idx + 1}
+                        </td>
+
+                        {/* 2. Student Name */}
+                        <td className="py-3.5 px-5">
+                          <span className="font-bold text-sm text-paper">
+                            {std.name}
+                          </span>
+                        </td>
+
+                        {/* 3. Email Address */}
+                        <td className="py-3.5 px-5">
+                          <div className="flex items-center gap-2 group">
+                            <span className="font-mono text-xs text-slate/90 select-all">
+                              {std.email}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => copyContactToClipboard(std.email, `email-${std.id}`, 'Email')}
+                              className="p-1.5 rounded-lg bg-white/5 hover:bg-cyan-500/20 text-slate hover:text-cyan-400 transition-colors cursor-pointer"
+                              title="Copy email to clipboard"
+                            >
+                              {emailCopied ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+
+                        {/* 4. Phone Number */}
+                        <td className="py-3.5 px-5">
+                          {hasValidPhone ? (
+                            <div className="flex items-center gap-2 group">
+                              <a
+                                href={`tel:${std.phone}`}
+                                className="font-mono text-xs text-paper hover:text-emerald-400 transition-colors font-bold select-all tracking-wide"
+                                title="Click to call"
+                              >
+                                {std.phone}
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => copyContactToClipboard(std.phone!, `phone-${std.id}`, 'Phone')}
+                                className="p-1.5 rounded-lg bg-white/5 hover:bg-emerald-500/20 text-slate hover:text-emerald-400 transition-colors cursor-pointer"
+                                title="Copy phone number to clipboard"
+                              >
+                                {phoneCopied ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="font-mono text-[11px] text-slate/40 italic">
+                              Not added
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    );
+  };
+
+  const exportIndividualStudentPDF = (s: StudentAdminRecord) => {
+    try {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      // Dark header banner
+      doc.setFillColor(12, 13, 14);
+      doc.rect(0, 0, pageWidth, 75, 'F');
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(0, 255, 157);
+      doc.text("DO PILOT", 40, 36);
+
+      doc.setFontSize(11);
+      doc.setTextColor(240, 240, 240);
+      doc.text("Student Performance & Assessment Report Card", 40, 56);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - 180, 56);
+
+      // Student Profile Box
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(40, 95, pageWidth - 80, 75, 'FD');
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(15, 23, 42);
+      doc.text(s.name, 55, 118);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Email: ${s.email}`, 55, 134);
+      doc.text(`Phone: ${s.phone || 'N/A'}`, 55, 148);
+      doc.text(`College / Organization: ${s.collegeOrCompany || 'N/A'}`, 240, 134);
+      doc.text(`Enrolled: ${s.enrolledCourses.join(', ') || 'Python Core'}`, 240, 148);
+      doc.text(`Goal: ${s.learningGoal || 'General Tech Mastery'}`, 240, 162);
+      doc.text(`Joined: ${new Date(s.createdAt).toLocaleDateString()}`, 55, 162);
+
+      // KPI Metric Tiles
+      let y = 185;
+      const boxWidth = (pageWidth - 80 - 30) / 4;
+
+      // Total Score
+      doc.setFillColor(240, 253, 244);
+      doc.rect(40, y, boxWidth, 48, 'F');
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(22, 101, 52);
+      doc.text(`${s.points} pts`, 50, y + 24);
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text("TOTAL SCORE", 50, y + 38);
+
+      // Tests Attempted
+      doc.setFillColor(241, 245, 249);
+      doc.rect(40 + boxWidth + 10, y, boxWidth, 48, 'F');
+      doc.setFontSize(14);
+      doc.setTextColor(30, 41, 59);
+      doc.text(`${s.testsAttemptedCount}`, 50 + boxWidth + 10, y + 24);
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text("TESTS ATTEMPTED", 50 + boxWidth + 10, y + 38);
+
+      // Tests Passed
+      doc.setFillColor(236, 253, 245);
+      doc.rect(40 + (boxWidth + 10) * 2, y, boxWidth, 48, 'F');
+      doc.setFontSize(14);
+      doc.setTextColor(5, 150, 105);
+      doc.text(`${s.testsPassedCount} Passed`, 50 + (boxWidth + 10) * 2, y + 24);
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text("SUCCESSFUL TASKS", 50 + (boxWidth + 10) * 2, y + 38);
+
+      // Tests Failed / Wrong Answers
+      doc.setFillColor(254, 242, 242);
+      doc.rect(40 + (boxWidth + 10) * 3, y, boxWidth, 48, 'F');
+      doc.setFontSize(14);
+      doc.setTextColor(225, 29, 72);
+      doc.text(`${s.testsFailedCount} Failed`, 50 + (boxWidth + 10) * 3, y + 24);
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text("MISTAKES / WRONG", 50 + (boxWidth + 10) * 3, y + 38);
+
+      // Certificate Banner
+      y = 250;
+      if (s.hasCertificate) {
+        doc.setFillColor(254, 249, 195);
+        doc.rect(40, y, pageWidth - 80, 28, 'F');
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(133, 77, 14);
+        doc.text(`[VERIFIED CERTIFIED] Certificate Issued: ${s.certificateId || 'CERT-DO-PILOT'} on ${s.certificateIssuedDate || 'Completed'}`, 50, y + 18);
+      } else {
+        doc.setFillColor(241, 245, 249);
+        doc.rect(40, y, pageWidth - 80, 28, 'F');
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Certificate Status: In Progress (Requires 20+ points or Part 14 completion to unlock)`, 50, y + 18);
+      }
+
+      // Section 1: Mistake & Failure Details
+      y = 295;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text("Assessment Mistakes & Test Failure Log (Where Answer Was Wrong)", 40, y);
+
+      y += 14;
+      if (s.wrongAttempts.length === 0) {
+        doc.setFillColor(240, 253, 244);
+        doc.rect(40, y, pageWidth - 80, 26, 'F');
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(22, 101, 52);
+        doc.text("Clean record! No wrong answers or failed questions on record for this student.", 50, y + 17);
+        y += 38;
+      } else {
+        s.wrongAttempts.forEach((w) => {
+          doc.setFillColor(255, 241, 242);
+          doc.rect(40, y, pageWidth - 80, 28, 'F');
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(8.5);
+          doc.setTextColor(190, 18, 60);
+          doc.text(`[${w.section}] ${w.taskTitle}`, 50, y + 12);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(71, 85, 105);
+          doc.text(`${w.detail} (${w.failedAt})`, 50, y + 22);
+          y += 33;
+        });
+        y += 10;
+      }
+
+      // Section 2: Section-by-Section Progress
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text("Course Section Breakdown & Mastery", 40, y);
+
+      y += 15;
+      doc.setFillColor(241, 245, 249);
+      doc.rect(40, y, pageWidth - 80, 20, 'F');
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(30, 41, 59);
+      doc.text("Module / Section", 50, y + 13);
+      doc.text("Challenges Solved", 340, y + 13);
+      doc.text("Module Status", 460, y + 13);
+
+      y += 24;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(51, 65, 85);
+
+      s.sectionProgress.forEach((sec, idx) => {
+        if (idx % 2 === 1) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(40, y - 10, pageWidth - 80, 16, 'F');
+        }
+        doc.text(sec.title, 50, y + 2);
+        doc.text(`${sec.solvedTasks} / ${sec.totalTasks} tasks`, 340, y + 2);
+        doc.text(sec.status.toUpperCase(), 460, y + 2);
+        y += 18;
+      });
+
+      doc.save(`DO_PILOT_${s.name.replace(/\s+/g, '_')}_Progress_Report.pdf`);
+      showToast(`Downloaded performance report for ${s.name}!`);
+    } catch (e) {
+      console.error("Failed to generate student report:", e);
+      showToast("Error generating report PDF.");
+    }
+  };
+
+  // Render Full-Screen Fixed Modal for Student Inspection (Root Level)
+  const renderStudentInspectModal = () => {
+    if (!selectedStudentForReport) return null;
+    return (
+      <div className="fixed inset-0 z-[99999] bg-black/90 backdrop-blur-xl flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200">
+        <div className="w-full max-w-[1550px] h-[92vh] rounded-3xl bg-[#0a0b0d] border border-white/15 shadow-2xl flex flex-col relative overflow-hidden">
+          
+          {/* Modal Top Header (Fixed) */}
+          <div className="px-6 py-4 border-b border-white/10 bg-[#0f1013]/95 backdrop-blur-md flex items-center justify-between gap-4 shrink-0">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 border-2 border-primary text-primary flex items-center justify-center font-jakarta font-black text-lg tracking-wider shrink-0 shadow-lg shadow-primary/20">
+                {getUserInitials(selectedStudentForReport.name)}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h3 className="font-jakarta font-black text-lg text-paper truncate">
+                    {selectedStudentForReport.name}
+                  </h3>
+                  {selectedStudentForReport.hasCertificate && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 font-mono text-[10px] font-bold flex items-center gap-1">
+                      <Award className="w-3 h-3 text-amber-400" />
+                      <span>Verified Certified</span>
+                    </span>
+                  )}
+                  <span className={`px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold uppercase ${
+                    selectedStudentForReport.courseProgressStatus === 'completed'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : selectedStudentForReport.courseProgressStatus === 'in_progress'
+                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                      : 'bg-white/10 text-slate border border-white/10'
+                  }`}>
+                    {selectedStudentForReport.courseProgressStatus.replace(/_/g, ' ')}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate mt-0.5">
+                  <span className="font-mono text-slate/80">{selectedStudentForReport.email}</span>
+                  {selectedStudentForReport.phone && (
+                    <>
+                      <span className="text-white/20">•</span>
+                      <span className="font-mono text-paper flex items-center gap-1">
+                        <Phone className="w-3 h-3 text-primary" />
+                        {selectedStudentForReport.phone}
+                      </span>
+                    </>
+                  )}
+                  {selectedStudentForReport.collegeOrCompany && (
+                    <>
+                      <span className="text-white/20">•</span>
+                      <span className="text-slate flex items-center gap-1 truncate">
+                        <GraduationCap className="w-3 h-3 text-slate/60" />
+                        {selectedStudentForReport.collegeOrCompany}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => exportIndividualStudentPDF(selectedStudentForReport)}
+                className="px-3.5 py-2 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs hover:bg-white transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-primary/20"
+                title="Export Student Report Card to PDF"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Export PDF Report</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedStudentForReport(null)}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/15 text-slate hover:text-paper transition-all cursor-pointer border border-white/10"
+                title="Close (Esc)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Scrollable Modal Content Body */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+            
+            {/* 12-Column Responsive Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              
+              {/* Left Column (4 Cols on lg): Profile, Contact & Key Metrics */}
+              <div className="lg:col-span-4 space-y-5">
+                
+                {/* Key Metrics Strip (4 Tiles) */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-4 rounded-2xl bg-[#121316] border border-white/10 space-y-1">
+                    <span className="text-[10px] font-mono text-slate/70 uppercase tracking-wider block">Total Points</span>
+                    <div className="flex items-center gap-2">
+                      <Star className="w-5 h-5 text-primary" />
+                      <span className="font-jakarta font-black text-2xl text-paper">{selectedStudentForReport.points} pts</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-[#121316] border border-white/10 space-y-1">
+                    <span className="text-[10px] font-mono text-slate/70 uppercase tracking-wider block">Tests Attempted</span>
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="w-5 h-5 text-cyan-400" />
+                      <span className="font-jakarta font-black text-2xl text-paper">{selectedStudentForReport.testsAttemptedCount}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-[#121316] border border-white/10 space-y-1">
+                    <span className="text-[10px] font-mono text-slate/70 uppercase tracking-wider block">Tasks Passed</span>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                      <span className="font-jakarta font-black text-2xl text-emerald-400">{selectedStudentForReport.testsPassedCount}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-[#121316] border border-white/10 space-y-1">
+                    <span className="text-[10px] font-mono text-slate/70 uppercase tracking-wider block">Mistakes Recorded</span>
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 text-rose-400" />
+                      <span className="font-jakarta font-black text-2xl text-rose-400">{selectedStudentForReport.testsFailedCount}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Student Onboarding & Contact Details */}
+                <div className="p-5 rounded-3xl bg-[#121316] border border-white/10 space-y-3.5">
+                  <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">
+                    // Student Profile &amp; Contact
+                  </span>
+
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex items-start justify-between gap-2 pb-2 border-b border-white/5">
+                      <span className="text-slate font-mono">Full Name</span>
+                      <span className="font-bold text-paper text-right">{selectedStudentForReport.name}</span>
+                    </div>
+
+                    <div className="flex items-start justify-between gap-2 pb-2 border-b border-white/5">
+                      <span className="text-slate font-mono">Verified Email</span>
+                      <span className="font-mono text-slate/90 text-right truncate max-w-[200px]">{selectedStudentForReport.email}</span>
+                    </div>
+
+                    <div className="flex items-start justify-between gap-2 pb-2 border-b border-white/5">
+                      <span className="text-slate font-mono">Contact Phone</span>
+                      <span className="font-mono font-semibold text-paper text-right">{selectedStudentForReport.phone || 'Not added'}</span>
+                    </div>
+
+                    {selectedStudentForReport.collegeOrCompany && (
+                      <div className="flex items-start justify-between gap-2 pb-2 border-b border-white/5">
+                        <span className="text-slate font-mono">College / Org</span>
+                        <span className="text-paper text-right font-medium">{selectedStudentForReport.collegeOrCompany}</span>
+                      </div>
+                    )}
+
+                    {selectedStudentForReport.learningGoal && (
+                      <div className="flex items-start justify-between gap-2 pb-2 border-b border-white/5">
+                        <span className="text-slate font-mono">Career Goal</span>
+                        <span className="text-primary text-right font-semibold">{selectedStudentForReport.learningGoal}</span>
+                      </div>
+                    )}
+
+                    {selectedStudentForReport.whereDidYouFindUs && (
+                      <div className="flex items-start justify-between gap-2 pb-2 border-b border-white/5">
+                        <span className="text-slate font-mono">Source</span>
+                        <span className="text-slate text-right">{selectedStudentForReport.whereDidYouFindUs}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-slate font-mono">Account Created</span>
+                      <span className="text-slate/70 font-mono text-right">{new Date(selectedStudentForReport.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Enrolled Courses & Live Training */}
+                <div className="p-5 rounded-3xl bg-[#121316] border border-white/10 space-y-3">
+                  <span className="font-mono text-xs text-slate/70 font-bold uppercase tracking-wider block">
+                    Enrolled Courses &amp; Live Class
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedStudentForReport.enrolledCourses && selectedStudentForReport.enrolledCourses.length > 0 ? (
+                      selectedStudentForReport.enrolledCourses.map((c, i) => (
+                        <span
+                          key={i}
+                          className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-paper font-jakarta text-xs font-semibold"
+                        >
+                          {c}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-slate/60 font-mono">No specific course selected yet</span>
+                    )}
+
+                    {selectedStudentForReport.joinedLiveClass && (
+                      <span className="px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-primary font-jakarta text-xs font-bold flex items-center gap-1.5">
+                        <Video className="w-3.5 h-3.5" />
+                        <span>Live Masterclass Registered</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Verified Certificate Showcase Banner */}
+                <div className={`p-5 rounded-3xl border space-y-2.5 ${
+                  selectedStudentForReport.hasCertificate
+                    ? 'bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border-amber-400/30'
+                    : 'bg-[#121316] border-white/10'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Award className={`w-5 h-5 ${selectedStudentForReport.hasCertificate ? 'text-amber-400' : 'text-slate/60'}`} />
+                      <h4 className="font-jakarta font-bold text-sm text-paper">
+                        {selectedStudentForReport.hasCertificate ? 'Course Certificate Issued' : 'Certificate Progress'}
+                      </h4>
+                    </div>
+                    {selectedStudentForReport.hasCertificate && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-black font-jakarta font-extrabold text-[10px] uppercase">
+                        VERIFIED
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-slate leading-relaxed">
+                    {selectedStudentForReport.hasCertificate
+                      ? `This student has passed core requirements with ${selectedStudentForReport.points} points. Certificate ID: ${selectedStudentForReport.certificateId || 'CERT-DO-PILOT'} issued on ${selectedStudentForReport.certificateIssuedDate || 'Completed'}.`
+                      : `Requires scoring 20+ points or finishing Part 14 to unlock verifiable certificate. Currently at ${selectedStudentForReport.points} / 20 points.`}
+                  </p>
+
+                  {/* Mini Progress Bar for Certificate */}
+                  <div className="space-y-1 pt-1">
+                    <div className="flex justify-between text-[11px] font-mono text-slate">
+                      <span>Progress to Certificate</span>
+                      <span className="font-bold text-paper">{Math.min(100, Math.round((selectedStudentForReport.points / 20) * 100))}%</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          selectedStudentForReport.hasCertificate ? 'bg-amber-400' : 'bg-primary'
+                        }`}
+                        style={{ width: `${Math.min(100, Math.round((selectedStudentForReport.points / 20) * 100))}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Right Column (8 Cols on lg): Mistakes Log + Course Mastery */}
+              <div className="lg:col-span-8 space-y-6">
+                
+                {/* Section 1: Where Did They Make Answers Wrong? (Mistake Log) */}
+                <div className="p-6 rounded-3xl bg-[#121316] border border-white/10 space-y-4 shadow-xl">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/10">
+                    <div>
+                      <h4 className="font-jakarta font-black text-sm text-paper uppercase tracking-wider flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-rose-400" />
+                        <span>Where Did They Make Answers Wrong? (Mistake Log)</span>
+                      </h4>
+                      <p className="text-xs text-slate mt-0.5">
+                        Exact tests and Python challenges where the student entered incorrect code or failed test assertions.
+                      </p>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-full font-mono text-[11px] font-bold ${
+                      selectedStudentForReport.wrongAttempts.length > 0
+                        ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                        : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                    }`}>
+                      {selectedStudentForReport.wrongAttempts.length} Mistakes Recorded
+                    </span>
+                  </div>
+
+                  {selectedStudentForReport.wrongAttempts.length === 0 ? (
+                    <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 flex items-center gap-3">
+                      <CheckCircle2 className="w-6 h-6 shrink-0 text-emerald-400" />
+                      <div className="space-y-0.5">
+                        <span className="font-jakarta font-bold text-sm text-emerald-300 block">
+                          Clean Record — 100% Accuracy!
+                        </span>
+                        <p className="text-xs text-emerald-400/80">
+                          This student has completed all attempted challenges without a single failed test or incorrect answer on record.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedStudentForReport.wrongAttempts.map((mistake, idx) => (
+                        <div
+                          key={idx}
+                          className="p-4 rounded-2xl bg-rose-500/[0.08] border border-rose-500/25 space-y-2 hover:border-rose-500/40 transition-colors"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-jakarta font-bold text-sm text-rose-300 flex items-center gap-1.5">
+                              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                              <span>{mistake.taskTitle}</span>
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-lg bg-black/60 font-mono text-[10px] text-slate/90 border border-white/10">
+                              {mistake.section}
+                            </span>
+                          </div>
+
+                          <div className="p-3 rounded-xl bg-black/60 border border-white/5 font-mono text-xs text-rose-200/90 leading-relaxed">
+                            {mistake.detail}
+                          </div>
+
+                          <div className="flex items-center justify-between text-[10px] font-mono text-slate/60 pt-0.5">
+                            <span>Failed Attempt Timestamp: {mistake.failedAt}</span>
+                            <span className="text-rose-400/80">Requires Code Correction</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 2: Complete Course Modules & Section Mastery */}
+                <div className="p-6 rounded-3xl bg-[#121316] border border-white/10 space-y-4 shadow-xl">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/10">
+                    <div>
+                      <h4 className="font-jakarta font-black text-sm text-paper uppercase tracking-wider flex items-center gap-2">
+                        <BookOpen className="w-4 h-4 text-primary" />
+                        <span>Section-by-Section Course Mastery</span>
+                      </h4>
+                      <p className="text-xs text-slate mt-0.5">
+                        Progress tracking across all curriculum parts and interactive coding exercises.
+                      </p>
+                    </div>
+                    <span className="font-mono text-xs font-bold text-primary bg-primary/10 border border-primary/20 px-3 py-1 rounded-full">
+                      {selectedStudentForReport.sectionProgress.filter((s) => s.status === 'passed').length} / {selectedStudentForReport.sectionProgress.length || 8} Modules Passed
+                    </span>
+                  </div>
+
+                  {selectedStudentForReport.sectionProgress.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-slate/60 bg-black/40 rounded-2xl border border-white/5">
+                      Student has not started course challenges yet. Once they open Python Code Lab and run challenges, real-time section mastery will appear here.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {selectedStudentForReport.sectionProgress.map((sec, idx) => {
+                        const isPassed = sec.status === 'passed';
+                        const isInProgress = sec.status === 'in_progress';
+                        const isFailed = sec.status === 'failed';
+
+                        return (
+                          <div
+                            key={idx}
+                            className={`p-4 rounded-2xl border space-y-2.5 transition-all ${
+                              isPassed
+                                ? 'bg-emerald-500/[0.04] border-emerald-500/20 hover:border-emerald-500/40'
+                                : isFailed
+                                ? 'bg-rose-500/[0.04] border-rose-500/20 hover:border-rose-500/40'
+                                : isInProgress
+                                ? 'bg-cyan-500/[0.04] border-cyan-500/20 hover:border-cyan-500/40'
+                                : 'bg-black/40 border-white/5 opacity-70'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <span className="font-jakarta font-bold text-xs text-paper block truncate">
+                                  {sec.title}
+                                </span>
+                                <span className="font-mono text-[11px] text-slate/70 block mt-0.5">
+                                  {sec.solvedTasks} of {sec.totalTasks} challenges solved
+                                </span>
+                              </div>
+
+                              <span className={`px-2.5 py-0.5 rounded-full font-mono text-[9px] font-bold uppercase shrink-0 ${
+                                isPassed
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  : isFailed
+                                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                  : isInProgress
+                                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                                  : 'bg-white/5 text-slate border border-white/10'
+                              }`}>
+                                {sec.status.replace(/_/g, ' ')}
+                              </span>
+                            </div>
+
+                            {/* Mini Progress Bar */}
+                            <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${
+                                  isPassed
+                                    ? 'bg-emerald-400'
+                                    : isFailed
+                                    ? 'bg-rose-400'
+                                    : isInProgress
+                                    ? 'bg-cyan-400'
+                                    : 'bg-white/10'
+                                }`}
+                                style={{ width: `${Math.round((sec.solvedTasks / sec.totalTasks) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* Modal Bottom Footer (Fixed) */}
+          <div className="px-6 py-4 border-t border-white/10 bg-[#0f1013]/95 backdrop-blur-md flex flex-wrap items-center justify-between gap-4 shrink-0">
+            <div className="flex items-center gap-2 font-mono text-[11px] text-slate/70">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>Viewing record for <strong className="text-paper">{selectedStudentForReport.name}</strong> • Registered {new Date(selectedStudentForReport.createdAt).toLocaleString()}</span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => exportIndividualStudentPDF(selectedStudentForReport)}
+                className="px-4 py-2 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs hover:bg-white transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download Full Student Report Card (PDF)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedStudentForReport(null)}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-paper font-jakarta text-xs font-bold transition-all cursor-pointer"
+              >
+                Close Window
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  };
+
+  // Render Students & Learning Analytics Section
+  const renderStudentsSection = () => {
+    // Unique list of all courses across platform and student roster
+    const uniqueCourses = Array.from(
+      new Set([
+        ...(data.coursesSection?.courses || []).map((c: any) => c.title),
+        ...students.flatMap((s) => s.enrolledCourses || [])
+      ])
+    ).filter(Boolean);
+
+    // 1. Scoped pool by Course Filter
+    const studentsInSelectedCourse = selectedCourseFilter === 'all'
+      ? students
+      : students.filter((s) => s.enrolledCourses?.some((c) => c.toLowerCase() === selectedCourseFilter.toLowerCase()));
+
+    // 2. Date / Time Period Filter Predicate
+    const matchesDateFilter = (createdAt: string) => {
+      if (studentDatePreset === 'all' && !studentStartDate && !studentEndDate) {
+        return true;
+      }
+      const recordTime = new Date(createdAt).getTime();
+      if (isNaN(recordTime)) return true;
+      const now = Date.now();
+
+      if (studentDatePreset === 'today') {
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        return recordTime >= startOfToday.getTime();
+      }
+      if (studentDatePreset === '7days') {
+        return recordTime >= now - 7 * 86400000;
+      }
+      if (studentDatePreset === '30days') {
+        return recordTime >= now - 30 * 86400000;
+      }
+      if (studentDatePreset === '90days') {
+        return recordTime >= now - 90 * 86400000;
+      }
+      if (studentDatePreset === '1year') {
+        return recordTime >= now - 365 * 86400000;
+      }
+      if (studentDatePreset === 'custom') {
+        let matchesStart = true;
+        let matchesEnd = true;
+        if (studentStartDate) {
+          const sTime = new Date(`${studentStartDate}T00:00:00`).getTime();
+          if (!isNaN(sTime)) matchesStart = recordTime >= sTime;
+        }
+        if (studentEndDate) {
+          const eTime = new Date(`${studentEndDate}T23:59:59.999`).getTime();
+          if (!isNaN(eTime)) matchesEnd = recordTime <= eTime;
+        }
+        return matchesStart && matchesEnd;
+      }
+      return true;
+    };
+
+    // Scoped pool by Course Filter + Date Period
+    const studentsInDateAndCourse = studentsInSelectedCourse.filter((s) => matchesDateFilter(s.createdAt));
+
+    // Counts for filter pills (scoped to selected course & active date range)
+    const totalCount = studentsInDateAndCourse.length;
+    const startedCount = studentsInDateAndCourse.filter((s) => s.courseProgressStatus === 'in_progress' || s.courseProgressStatus === 'completed').length;
+    const completedCount = studentsInDateAndCourse.filter((s) => s.courseProgressStatus === 'completed').length;
+    const maxPointsInCourse = studentsInDateAndCourse.length > 0
+      ? Math.max(...studentsInDateAndCourse.map((s) => s.points), 0)
+      : 0;
+    const topPointsCount = selectedCourseFilter === 'all'
+      ? studentsInDateAndCourse.filter((s) => s.points >= 10).length
+      : (maxPointsInCourse > 0
+          ? studentsInDateAndCourse.filter((s) => s.points === maxPointsInCourse).length
+          : 0);
+    const lowMarksCount = studentsInDateAndCourse.filter((s) => (s.points <= 3 && s.courseProgressStatus !== 'registered_only') || s.testsFailedCount > 0).length;
+    const registeredOnlyCount = studentsInDateAndCourse.filter((s) => s.courseProgressStatus === 'registered_only' || s.courseProgressStatus === 'enrolled_not_started' || s.points === 0).length;
+
+    // 3. Multi-Criteria Filter (Course + Date + Search Query + Performance Tab)
+    const filteredStudents = studentsInDateAndCourse.filter((s) => {
+      const q = studentSearch.toLowerCase().trim();
+      if (q) {
+        const matchName = s.name.toLowerCase().includes(q);
+        const matchEmail = s.email.toLowerCase().includes(q);
+        const matchPhone = (s.phone || '').toLowerCase().includes(q);
+        const matchCollege = (s.collegeOrCompany || '').toLowerCase().includes(q);
+        const matchGoal = (s.learningGoal || '').toLowerCase().includes(q);
+        const matchWhere = (s.whereDidYouFindUs || '').toLowerCase().includes(q);
+        const matchCourse = s.enrolledCourses?.some((c) => c.toLowerCase().includes(q));
+        const matchStatus = s.courseProgressStatus.toLowerCase().replace(/_/g, ' ').includes(q);
+        const matchCert = (s.hasCertificate ? 'certified' : 'in progress').includes(q);
+        const matchCertId = (s.certificateId || '').toLowerCase().includes(q);
+        if (!matchName && !matchEmail && !matchPhone && !matchCollege && !matchGoal && !matchWhere && !matchCourse && !matchStatus && !matchCert && !matchCertId) {
+          return false;
+        }
+      }
+
+      if (studentFilter === 'started') {
+        return s.courseProgressStatus === 'in_progress' || s.courseProgressStatus === 'completed';
+      }
+      if (studentFilter === 'completed') {
+        return s.courseProgressStatus === 'completed';
+      }
+      if (studentFilter === 'top_points') {
+        if (selectedCourseFilter !== 'all') {
+          return s.points === maxPointsInCourse && maxPointsInCourse > 0;
+        }
+        return s.points >= 10;
+      }
+      if (studentFilter === 'low_marks') {
+        return (s.points <= 3 && s.courseProgressStatus !== 'registered_only') || s.testsFailedCount > 0;
+      }
+      if (studentFilter === 'registered_only') {
+        return s.courseProgressStatus === 'registered_only' || s.courseProgressStatus === 'enrolled_not_started' || s.points === 0;
+      }
+      return true;
+    }).sort((a, b) => {
+      if (studentSort === 'points_desc') return b.points - a.points;
+      if (studentSort === 'points_asc') return a.points - b.points;
+      if (studentSort === 'date_desc') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (studentSort === 'name_asc') return a.name.localeCompare(b.name);
+      return 0;
+    });
+
+    const exportToExcel = () => {
+      const headers = [
+        "Student Name",
+        "Email",
+        "Phone",
+        "College / Organization",
+        "Where Found Us",
+        "Learning Goal",
+        "Enrolled Courses",
+        "Live Class Joined",
+        "Total Score / Points",
+        "Tests Attempted",
+        "Tests Passed",
+        "Tests Failed / Wrong",
+        "Certificate Status",
+        "Certificate ID",
+        "Where Made Answers Wrong / Mistake Log",
+        "Section Mastery Summary",
+        "Learning Status",
+        "Registration Date"
+      ];
+
+      const rows = filteredStudents.map((s) => {
+        const mistakeDetails = s.wrongAttempts.length > 0
+          ? s.wrongAttempts.map((w) => `[${w.section}] ${w.taskTitle}: ${w.detail}`).join(" | ")
+          : "Clean Sheet (0 Mistakes)";
+        const sectionSummary = s.sectionProgress.length > 0
+          ? s.sectionProgress.map((sec) => `Part ${sec.partNum} (${sec.solvedTasks}/${sec.totalTasks} ${sec.status.toUpperCase()})`).join("; ")
+          : "Not Started";
+
+        return [
+          `"${(s.name || '').replace(/"/g, '""')}"`,
+          `"${(s.email || '').replace(/"/g, '""')}"`,
+          `"${(s.phone || 'N/A').replace(/"/g, '""')}"`,
+          `"${(s.collegeOrCompany || 'N/A').replace(/"/g, '""')}"`,
+          `"${(s.whereDidYouFindUs || 'N/A').replace(/"/g, '""')}"`,
+          `"${(s.learningGoal || 'N/A').replace(/"/g, '""')}"`,
+          `"${(s.enrolledCourses?.join('; ') || 'None').replace(/"/g, '""')}"`,
+          `"${s.joinedLiveClass ? 'Yes' : 'No'}"`,
+          s.points,
+          s.testsAttemptedCount,
+          s.testsPassedCount,
+          s.testsFailedCount,
+          `"${s.hasCertificate ? 'Issued' : 'In Progress'}"`,
+          `"${s.certificateId || 'N/A'}"`,
+          `"${mistakeDetails.replace(/"/g, '""')}"`,
+          `"${sectionSummary.replace(/"/g, '""')}"`,
+          `"${s.courseProgressStatus.toUpperCase().replace(/_/g, ' ')}"`,
+          `"${new Date(s.createdAt).toLocaleDateString()}"`
+        ];
+      });
+
+      const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `DO_PILOT_Students_${studentFilter.toUpperCase()}_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`Exported ${filteredStudents.length} students to Excel CSV successfully!`);
+    };
+
+    const exportToPDF = () => {
+      try {
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+        const pageWidth = doc.internal.pageSize.getWidth();
+
+        // Brand Banner
+        doc.setFillColor(12, 13, 14);
+        doc.rect(0, 0, pageWidth, 55, 'F');
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.setTextColor(0, 255, 157);
+        doc.text("DO PILOT — Student Learning & Progress Report", 40, 32);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(160, 160, 160);
+        doc.text(`Generated: ${new Date().toLocaleString()}  |  Filter: ${studentFilter.toUpperCase().replace(/_/g, ' ')}  |  Total Count: ${filteredStudents.length}`, 40, 47);
+
+        // Header Row
+        let currentY = 80;
+        doc.setFillColor(242, 244, 247);
+        doc.rect(40, currentY, pageWidth - 80, 22, 'F');
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(20, 20, 20);
+        doc.text("#", 45, currentY + 15);
+        doc.text("Student Name", 70, currentY + 15);
+        doc.text("Email", 210, currentY + 15);
+        doc.text("Phone", 350, currentY + 15);
+        doc.text("Score / Tests", 440, currentY + 15);
+        doc.text("Passed / Failed", 530, currentY + 15);
+        doc.text("Certificate", 640, currentY + 15);
+        doc.text("Status", 730, currentY + 15);
+
+        currentY += 28;
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+        doc.setTextColor(40, 40, 40);
+
+        filteredStudents.forEach((s, idx) => {
+          if (currentY > 530) {
+            doc.addPage();
+            currentY = 45;
+          }
+
+          if (idx % 2 === 1) {
+            doc.setFillColor(248, 250, 252);
+            doc.rect(40, currentY - 11, pageWidth - 80, 18, 'F');
+          }
+
+          doc.text(String(idx + 1), 45, currentY + 2);
+          doc.text(s.name.slice(0, 24), 70, currentY + 2);
+          doc.text(s.email.slice(0, 28), 210, currentY + 2);
+          doc.text(s.phone || 'N/A', 350, currentY + 2);
+          doc.text(`${s.points} pts (${s.testsAttemptedCount} att)`, 440, currentY + 2);
+          doc.text(`${s.testsPassedCount} pass / ${s.testsFailedCount} fail`, 530, currentY + 2);
+          doc.text(s.hasCertificate ? '✓ Issued' : 'In Progress', 640, currentY + 2);
+          doc.text(s.courseProgressStatus.toUpperCase().replace(/_/g, ' '), 730, currentY + 2);
+
+          currentY += 19;
+        });
+
+        doc.save(`DO_PILOT_Students_${studentFilter.toUpperCase()}_${new Date().toISOString().slice(0, 10)}.pdf`);
+        showToast(`Exported ${filteredStudents.length} students to PDF Report!`);
+      } catch (err) {
+        console.error("PDF export failed:", err);
+        showToast("PDF generation error. Please try again.");
+      }
+    };
+
+    return (
+      <section id="section-students" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+        {/* Section Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-jakarta text-lg font-black text-paper">Students &amp; Learning Analytics</h2>
+              <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">
+                {totalCount} Total
+              </span>
+            </div>
+            <p className="text-xs text-slate mt-0.5">
+              Live Google-authenticated student profiles, completed onboarding details, test mistakes, section mastery, and certificates.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={fetchStudents}
+              disabled={isLoadingStudents}
+              className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-paper font-jakarta text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Refresh student data from cloud"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingStudents ? 'animate-spin text-primary' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={exportToExcel}
+              className="px-3.5 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-jakarta text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/10"
+              title="Export filtered student list with test breakdown to Excel (.csv)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Export Excel</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={exportToPDF}
+              className="px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-jakarta text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-rose-500/10"
+              title="Export filtered student list to Printable PDF"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Export PDF</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Filter Controls: Course Selector & Filter Pills */}
+        <div className="space-y-3 pt-2">
+          {/* Smart Filter Pills with Integrated Course Selector */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Inline Course Selector */}
+            <div className="flex items-center gap-1.5 bg-[#121316] border border-white/15 px-3 py-1.5 rounded-xl shadow-sm">
+              <BookOpen className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="text-[11px] font-mono text-slate/80 font-bold uppercase">Course:</span>
+              <select
+                value={selectedCourseFilter}
+                onChange={(e) => {
+                  setSelectedCourseFilter(e.target.value);
+                  setStudentFilter('all');
+                }}
+                className="bg-transparent text-paper font-jakarta text-xs font-bold focus:outline-none cursor-pointer pr-1"
+              >
+                <option value="all" className="bg-[#111215] text-paper">
+                  All Courses ({students.length})
+                </option>
+                {uniqueCourses.map((c, i) => {
+                  const countInCourse = students.filter((s) => s.enrolledCourses?.some((ec) => ec.toLowerCase() === c.toLowerCase())).length;
+                  return (
+                    <option key={i} value={c} className="bg-[#111215] text-paper">
+                      {c} ({countInCourse})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Smart Filter Pills (Scoped to Selected Course) */}
+            {[
+              { id: 'all', label: selectedCourseFilter === 'all' ? 'All Students' : 'All in Course', count: totalCount },
+              { id: 'top_points', label: selectedCourseFilter === 'all' ? 'Top Points (≥10)' : 'Course Topper', count: topPointsCount },
+              { id: 'low_marks', label: 'Failed / Struggling', count: lowMarksCount },
+              { id: 'completed', label: 'Completed', count: completedCount },
+              { id: 'started', label: 'Course Started', count: startedCount },
+              { id: 'registered_only', label: 'Registered Only', count: registeredOnlyCount },
+            ].map((tab) => {
+              const active = studentFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setStudentFilter(tab.id as any)}
+                  className={`px-3.5 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                    active
+                      ? 'bg-primary text-ink shadow-md shadow-primary/20 scale-[1.02]'
+                      : 'bg-white/5 text-slate hover:text-paper hover:bg-white/10 border border-white/5'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                    active ? 'bg-black/20 text-ink font-bold' : 'bg-white/10 text-slate/80'
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Search Bar & Controls Toolbar */}
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pt-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate/50" />
+              <input
+                type="text"
+                value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+                placeholder="Search anything: student name, course, email, phone, college, status (e.g. 'completed', 'certified')..."
+                className="w-full pl-10 pr-12 py-2.5 rounded-2xl bg-black/60 border border-white/10 text-paper font-jakarta text-xs placeholder:text-slate/40 focus:outline-none focus:border-primary transition-colors"
+              />
+              {studentSearch && (
+                <button
+                  type="button"
+                  onClick={() => setStudentSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded-md bg-white/10 hover:bg-white/20 text-slate hover:text-paper font-mono text-[10px] transition-all"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* View Controls Toolbar */}
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              {/* Date & Time Period Filter */}
+              <div className="flex items-center gap-1.5 bg-black/60 border border-white/10 px-3 py-1.5 rounded-2xl">
+                <Calendar className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span className="text-[11px] font-mono text-slate/60">Period:</span>
+                <select
+                  value={studentDatePreset}
+                  onChange={(e) => {
+                    const val = e.target.value as StudentDateFilterPreset;
+                    setStudentDatePreset(val);
+                    if (val !== 'custom') {
+                      setStudentStartDate('');
+                      setStudentEndDate('');
+                    }
+                  }}
+                  className="bg-transparent text-paper font-jakarta text-xs font-bold focus:outline-none cursor-pointer pr-1"
+                >
+                  <option value="all" className="bg-[#111215] text-paper">All Time</option>
+                  <option value="today" className="bg-[#111215] text-paper">Today (Last 24h)</option>
+                  <option value="7days" className="bg-[#111215] text-paper">Last 7 Days (Week)</option>
+                  <option value="30days" className="bg-[#111215] text-paper">Last 30 Days (Month)</option>
+                  <option value="90days" className="bg-[#111215] text-paper">Last 3 Months (Quarter)</option>
+                  <option value="1year" className="bg-[#111215] text-paper">Last 1 Year</option>
+                  <option value="custom" className="bg-[#111215] text-paper">Custom Date Range 📅</option>
+                </select>
+              </div>
+
+              {/* Sort By Dropdown */}
+              <div className="flex items-center gap-1.5 bg-black/60 border border-white/10 px-3 py-1.5 rounded-2xl">
+                <ArrowUpDown className="w-3.5 h-3.5 text-slate/60" />
+                <span className="text-[11px] font-mono text-slate/60">Sort:</span>
+                <select
+                  value={studentSort}
+                  onChange={(e) => setStudentSort(e.target.value as any)}
+                  className="bg-transparent text-paper font-jakarta text-xs focus:outline-none cursor-pointer pr-1"
+                >
+                  <option value="points_desc" className="bg-[#111215] text-paper">Highest Points</option>
+                  <option value="points_asc" className="bg-[#111215] text-paper">Lowest Points</option>
+                  <option value="date_desc" className="bg-[#111215] text-paper">Newest Registered</option>
+                  <option value="name_asc" className="bg-[#111215] text-paper">Alphabetical (A-Z)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center bg-black/60 border border-white/10 p-1 rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => setStudentViewFormat('cards')}
+                  className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    studentViewFormat === 'cards'
+                      ? 'bg-primary text-ink shadow-md shadow-primary/20'
+                      : 'text-slate hover:text-paper'
+                  }`}
+                  title="Spacious Cards Grid View"
+                >
+                  <Grid className="w-3.5 h-3.5" />
+                  <span>Cards</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStudentViewFormat('table')}
+                  className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    studentViewFormat === 'table'
+                      ? 'bg-primary text-ink shadow-md shadow-primary/20'
+                      : 'text-slate hover:text-paper'
+                  }`}
+                  title="Structured List / Table View"
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span>Table View</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Custom Date Range Picker Strip (Shown when 'custom' is selected) */}
+          {studentDatePreset === 'custom' && (
+            <div className="flex flex-wrap items-center gap-3 p-3 rounded-2xl bg-[#121316] border border-primary/30">
+              <div className="flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-primary" />
+                <span className="font-mono text-xs font-bold text-paper">Custom Range:</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[11px] text-slate">From:</span>
+                <input
+                  type="date"
+                  value={studentStartDate}
+                  onChange={(e) => setStudentStartDate(e.target.value)}
+                  className="bg-black border border-white/15 rounded-xl px-3 py-1.5 text-paper text-xs font-mono focus:border-primary focus:outline-none cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[11px] text-slate">To:</span>
+                <input
+                  type="date"
+                  value={studentEndDate}
+                  onChange={(e) => setStudentEndDate(e.target.value)}
+                  className="bg-black border border-white/15 rounded-xl px-3 py-1.5 text-paper text-xs font-mono focus:border-primary focus:outline-none cursor-pointer"
+                />
+              </div>
+
+              {(studentStartDate || studentEndDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStudentStartDate('');
+                    setStudentEndDate('');
+                  }}
+                  className="text-xs text-rose-400 hover:text-rose-300 font-mono px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 cursor-pointer"
+                >
+                  Reset Dates
+                </button>
+              )}
+
+              <span className="font-mono text-[11px] text-slate/70 ml-auto">
+                {studentStartDate && studentEndDate
+                  ? `Active window: ${studentStartDate} to ${studentEndDate}`
+                  : studentStartDate
+                  ? `Active: from ${studentStartDate}`
+                  : studentEndDate
+                  ? `Active: up to ${studentEndDate}`
+                  : 'Select exact start & end dates above'}
+              </span>
+            </div>
+          )}
+
+          {/* Active Date Filter Chip (If any date filter is active) */}
+          {studentDatePreset !== 'all' && (
+            <div className="flex items-center gap-2 text-xs font-mono text-primary bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-xl w-fit">
+              <Calendar className="w-3.5 h-3.5 shrink-0" />
+              <span>
+                Period:{' '}
+                <strong className="text-paper">
+                  {studentDatePreset === 'today' && 'Today (Last 24 Hours)'}
+                  {studentDatePreset === '7days' && 'Last 7 Days (Week)'}
+                  {studentDatePreset === '30days' && 'Last 30 Days (Month)'}
+                  {studentDatePreset === '90days' && 'Last 3 Months (Quarter)'}
+                  {studentDatePreset === '1year' && 'Last 1 Year'}
+                  {studentDatePreset === 'custom' && (studentStartDate || studentEndDate ? `${studentStartDate || 'Start'} to ${studentEndDate || 'Present'}` : 'Custom Date Range')}
+                </strong>
+                {' '}({filteredStudents.length} {filteredStudents.length === 1 ? 'student' : 'students'})
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setStudentDatePreset('all');
+                  setStudentStartDate('');
+                  setStudentEndDate('');
+                }}
+                className="text-primary hover:text-white font-bold ml-1.5 underline cursor-pointer text-[11px]"
+                title="Reset back to all time"
+              >
+                Clear Date Filter
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Zero State if empty */}
+        {filteredStudents.length === 0 ? (
+          <div className="p-16 text-center rounded-3xl bg-white/[0.02] border border-white/10 space-y-3">
+            <Users className="w-10 h-10 text-slate/40 mx-auto" />
+            <h4 className="font-jakarta font-bold text-base text-paper">No students match your filter</h4>
+            <p className="text-xs text-slate max-w-sm mx-auto">
+              Try adjusting your date range, search query, or resetting filters to view all students.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setStudentFilter('all');
+                setStudentSearch('');
+                setSelectedCourseFilter('all');
+                setStudentDatePreset('all');
+                setStudentStartDate('');
+                setStudentEndDate('');
+              }}
+              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-paper font-jakarta text-xs font-bold transition-all cursor-pointer"
+            >
+              Reset All Filters
+            </button>
+          </div>
+        ) : studentViewFormat === 'cards' ? (
+          /* Cards View: Clean & Minimal */
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredStudents.map((student) => {
+              const isTop = student.points >= 10;
+
+              return (
+                <div
+                  key={student.id}
+                  className="rounded-3xl bg-[#0e0f12] border border-white/10 p-5 space-y-4 hover:border-primary/40 transition-all shadow-xl flex flex-col justify-between group"
+                >
+                  {/* Top: Avatar, Name, Email, Status */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative shrink-0">
+                        <div className="w-11 h-11 rounded-2xl bg-primary/20 border border-primary/40 text-primary flex items-center justify-center font-jakarta font-black text-sm shrink-0">
+                          {getUserInitials(student.name)}
+                        </div>
+                        {student.hasCertificate && (
+                          <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-amber-400 text-ink flex items-center justify-center text-[9px] font-bold shadow" title="Certified Student">
+                            ★
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-jakarta font-bold text-sm text-paper group-hover:text-primary transition-colors truncate">
+                          {student.name}
+                        </h3>
+                        <span className="font-mono text-xs text-slate/70 block truncate">
+                          {student.email}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0">
+                      {student.courseProgressStatus === 'completed' && (
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-bold whitespace-nowrap">
+                          ✓ COMPLETED
+                        </span>
+                      )}
+                      {student.courseProgressStatus === 'in_progress' && (
+                        <span className="px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 font-mono text-[10px] font-bold whitespace-nowrap">
+                          ● IN PROGRESS
+                        </span>
+                      )}
+                      {student.courseProgressStatus === 'enrolled_not_started' && (
+                        <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 font-mono text-[10px] font-bold whitespace-nowrap">
+                          ○ ENROLLED
+                        </span>
+                      )}
+                      {student.courseProgressStatus === 'registered_only' && (
+                        <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-slate font-mono text-[10px] whitespace-nowrap">
+                          REGISTERED
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Middle: Enrolled Courses & Key Stats Pill */}
+                  <div className="p-3.5 rounded-2xl bg-black/40 border border-white/5 space-y-2.5">
+                    <div>
+                      <span className="text-[10px] font-mono text-slate/50 uppercase tracking-wider block mb-1">
+                        Enrolled Course
+                      </span>
+                      <div className="space-y-1.5">
+                        {student.enrolledCourses && student.enrolledCourses.length > 0 ? (
+                          student.enrolledCourses.map((c, i) => (
+                            <div
+                              key={i}
+                              className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-paper font-jakarta text-xs font-semibold w-fit"
+                            >
+                              {c}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-2.5 py-1 rounded-lg bg-white/[0.03] border border-white/5 text-slate/40 text-xs w-fit">
+                            None
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono text-slate/50 uppercase">Points:</span>
+                        <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-white/5 border border-white/10">
+                          {isTop ? (
+                            <Trophy className="w-3 h-3 text-amber-400" />
+                          ) : (
+                            <Star className="w-3 h-3 text-primary" />
+                          )}
+                          <span className="font-mono font-bold text-xs text-paper">{student.points} pts</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono text-slate/50 uppercase">Cert:</span>
+                        {student.hasCertificate ? (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-400/15 border border-amber-400/30 text-amber-300 font-mono text-[10px] font-bold">
+                            ✓ CERTIFIED
+                          </span>
+                        ) : (
+                          <span className="text-slate/50 font-mono text-[10px]">
+                            In Progress
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions: Inspect & Download */}
+                  <div className="pt-1 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStudentForReport(student)}
+                      className="flex-1 py-2 px-3 rounded-xl bg-primary text-ink hover:bg-white font-jakarta text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-primary/20"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Inspect</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => exportIndividualStudentPDF(student)}
+                      className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-slate hover:text-rose-400 border border-white/10 hover:border-rose-500/30 transition-all cursor-pointer"
+                      title="Download single student PDF report card"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* Clean & Minimal Table View (User Name, Enrolled Course, Points, Certificate, Status, Inspect & Download) */
+          <div className="rounded-3xl border border-white/10 bg-[#0c0d10] shadow-2xl overflow-hidden">
+            {/* Table Meta Bar */}
+            <div className="px-6 py-3.5 bg-white/[0.02] border-b border-white/10 flex items-center justify-between text-xs text-slate">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                <span className="font-mono text-paper font-bold">{filteredStudents.length}</span>
+                <span>{filteredStudents.length === 1 ? 'student record' : 'student records'}</span>
+              </div>
+              <span className="text-[11px] font-mono text-slate/50 hidden sm:inline">
+                Click "Inspect" to view full quiz history, mistakes &amp; onboarding details
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs min-w-[850px] border-collapse">
+                <thead>
+                  <tr className="bg-white/[0.03] border-b border-white/10 text-slate font-mono uppercase text-[11px] tracking-wider">
+                    <th className="py-4 px-6">User / Student</th>
+                    <th className="py-4 px-6">Enrolled Course</th>
+                    <th className="py-4 px-6 text-center">Points</th>
+                    <th className="py-4 px-6 text-center">Certificate</th>
+                    <th className="py-4 px-6 text-center">Status</th>
+                    <th className="py-4 px-6 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 font-jakarta">
+                  {filteredStudents.map((student) => {
+                    const isTop = student.points >= 10;
+
+                    return (
+                      <tr key={student.id} className="hover:bg-white/[0.03] transition-colors group">
+                        {/* 1. User Name & Profile */}
+                        <td className="py-4 px-6 align-middle">
+                          <div className="flex items-center gap-3.5">
+                            <div className="relative shrink-0">
+                              <div className="w-10 h-10 rounded-2xl bg-primary/20 border border-primary/40 text-primary flex items-center justify-center font-jakarta font-black text-xs shrink-0">
+                                {getUserInitials(student.name)}
+                              </div>
+                              {student.hasCertificate && (
+                                <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-amber-400 text-ink flex items-center justify-center text-[9px] font-bold shadow" title="Certified Student">
+                                  ★
+                                </span>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-bold text-sm text-paper group-hover:text-primary transition-colors block truncate">
+                                {student.name}
+                              </span>
+                              <span className="font-mono text-xs text-slate/70 truncate block mt-0.5">
+                                {student.email}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* 2. Enrolled Course */}
+                        <td className="py-4 px-6 align-middle">
+                          <div className="space-y-1.5">
+                            {student.enrolledCourses && student.enrolledCourses.length > 0 ? (
+                              student.enrolledCourses.map((c, i) => (
+                                <div
+                                  key={i}
+                                  className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-paper font-jakarta text-xs font-semibold w-fit"
+                                >
+                                  {c}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="px-2.5 py-1 rounded-lg bg-white/[0.03] border border-white/5 text-slate/40 font-jakarta text-xs w-fit">
+                                None
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* 3. Points */}
+                        <td className="py-4 px-6 text-center align-middle whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/5 border border-white/10 font-mono font-bold text-xs text-paper">
+                            {isTop ? (
+                              <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                            ) : (
+                              <Star className="w-3.5 h-3.5 text-primary" />
+                            )}
+                            <span>{student.points} pts</span>
+                          </div>
+                        </td>
+
+                        {/* 4. Certificate */}
+                        <td className="py-4 px-6 text-center align-middle whitespace-nowrap">
+                          {student.hasCertificate ? (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-400/15 border border-amber-400/30 text-amber-300 font-mono text-[10px] font-bold">
+                              <Award className="w-3 h-3 text-amber-400" />
+                              <span>CERTIFIED</span>
+                            </span>
+                          ) : (
+                            <span className="inline-block px-2.5 py-0.5 rounded-full bg-white/5 border border-white/5 text-slate/60 font-mono text-[10px]">
+                              In Progress
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 5. Status */}
+                        <td className="py-4 px-6 text-center align-middle whitespace-nowrap">
+                          {student.courseProgressStatus === 'completed' && (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-bold">
+                              ✓ COMPLETED
+                            </span>
+                          )}
+                          {student.courseProgressStatus === 'in_progress' && (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 font-mono text-[10px] font-bold">
+                              ● IN PROGRESS
+                            </span>
+                          )}
+                          {student.courseProgressStatus === 'enrolled_not_started' && (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 font-mono text-[10px] font-bold">
+                              ○ ENROLLED
+                            </span>
+                          )}
+                          {student.courseProgressStatus === 'registered_only' && (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate font-mono text-[10px]">
+                              REGISTERED
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 6. Actions: Inspect & Download */}
+                        <td className="py-4 px-6 text-center align-middle whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedStudentForReport(student)}
+                              className="px-3.5 py-1.5 rounded-xl bg-primary text-ink hover:bg-white font-jakarta text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-primary/20 group"
+                              title="Inspect student quiz mistakes and section breakdown"
+                            >
+                              <Eye className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                              <span>Inspect</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => exportIndividualStudentPDF(student)}
+                              className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-slate hover:text-rose-400 border border-white/10 hover:border-rose-500/30 transition-all cursor-pointer"
+                              title="Download student PDF report card"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+      </section>
+    );
+  };
+
+  const renderStudentHelpSection = () => {
+    const filteredHelp = helpMessages.filter(msg => {
+      const matchSearch =
+        helpSearch.trim() === '' ||
+        msg.studentName.toLowerCase().includes(helpSearch.toLowerCase()) ||
+        msg.studentEmail.toLowerCase().includes(helpSearch.toLowerCase()) ||
+        msg.studentPhone.toLowerCase().includes(helpSearch.toLowerCase()) ||
+        msg.courseTitle.toLowerCase().includes(helpSearch.toLowerCase()) ||
+        msg.message.toLowerCase().includes(helpSearch.toLowerCase());
+
+      const matchStatus = helpStatusFilter === 'all' || msg.status === helpStatusFilter;
+      const matchCourse = helpCourseFilter === 'all' || msg.courseTitle.toLowerCase().includes(helpCourseFilter.toLowerCase()) || msg.courseId === helpCourseFilter;
+
+      return matchSearch && matchStatus && matchCourse;
+    });
+
+    const pendingCount = helpMessages.filter(m => m.status === 'pending').length;
+    const inProgressCount = helpMessages.filter(m => m.status === 'in_progress').length;
+    const resolvedCount = helpMessages.filter(m => m.status === 'resolved').length;
+
+    const handleStatusChange = (id: string, newStatus: 'pending' | 'in_progress' | 'resolved') => {
+      const updated = updateStudentHelpMessageStatus(id, newStatus);
+      setHelpMessages(updated);
+      showToast(`Ticket status updated to "${newStatus.replace('_', ' ')}"`);
+    };
+
+    const handleSaveNotes = (id: string) => {
+      const updated = updateStudentHelpMessageNotes(id, editingNotesText);
+      setHelpMessages(updated);
+      setEditingNotesId(null);
+      setEditingNotesText('');
+      showToast('Admin notes saved successfully');
+    };
+
+    const handleDelete = (id: string) => {
+      if (window.confirm('Are you sure you want to delete this help ticket?')) {
+        const updated = deleteStudentHelpMessage(id);
+        setHelpMessages(updated);
+        showToast('Ticket deleted');
+      }
+    };
+
+    const handleClearResolved = () => {
+      if (window.confirm('Are you sure you want to clear all resolved help tickets?')) {
+        const updated = clearResolvedStudentHelpMessages();
+        setHelpMessages(updated);
+        showToast('All resolved tickets cleared');
+      }
+    };
+
+    return (
+      <section className="space-y-6">
+        {/* Top Header Card */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 blur-[130px] rounded-full pointer-events-none" />
+
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.05] border border-white/10 mb-3">
+                <MessageSquare className="w-3.5 h-3.5 text-primary" />
+                <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider">
+                  Direct Student Assistance Desk
+                </span>
+                {pendingCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold">
+                    {pendingCount} Needs Attention
+                  </span>
+                )}
+              </div>
+              <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
+                Student Help Requests
+              </h2>
+              <p className="font-mono text-xs text-slate mt-1.5 max-w-2xl leading-relaxed">
+                Review and resolve questions, code doubts, and assistance requests submitted directly by students across Python, Java, Full Stack, and Cyber Security tracks.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setHelpMessages(getStudentHelpMessages());
+                  showToast('Help tickets refreshed');
+                }}
+                className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-paper font-jakarta text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer"
+                title="Refresh list"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-primary" />
+                <span>Refresh</span>
+              </button>
+
+              {resolvedCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearResolved}
+                  className="px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-300 font-jakarta text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Clear all resolved tickets"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear Resolved</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Metric Badges Strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 mt-6 border-t border-white/10 relative z-10">
+            <div className="p-3.5 rounded-2xl bg-black/50 border border-white/5">
+              <span className="font-mono text-[10px] text-slate uppercase block">Total Tickets</span>
+              <span className="font-jakarta text-2xl font-black text-paper mt-1 block">
+                {helpMessages.length}
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+              <span className="font-mono text-[10px] text-amber-300 uppercase block flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                <span>Pending Action</span>
+              </span>
+              <span className="font-jakarta text-2xl font-black text-amber-300 mt-1 block">
+                {pendingCount}
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-sky-500/10 border border-sky-500/20">
+              <span className="font-mono text-[10px] text-sky-300 uppercase block">In Progress</span>
+              <span className="font-jakarta text-2xl font-black text-sky-300 mt-1 block">
+                {inProgressCount}
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+              <span className="font-mono text-[10px] text-emerald-300 uppercase block">Resolved</span>
+              <span className="font-jakarta text-2xl font-black text-emerald-300 mt-1 block">
+                {resolvedCount}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Support Channels (Call & WhatsApp) Configuration Card */}
+        <div className="p-6 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl relative overflow-hidden space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/25 flex items-center justify-center text-primary shrink-0">
+                <Phone className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="font-jakarta text-sm sm:text-base font-bold text-paper">
+                  Support Contact Numbers (Call &amp; WhatsApp)
+                </h3>
+                <p className="font-mono text-xs text-slate">
+                  Configure the official phone and WhatsApp routing for student &quot;Need Help&quot; buttons across all course pages.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[10px] font-bold uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Active Live Routing</span>
+              </span>
+            </div>
+          </div>
+
+          <form onSubmit={handleSaveSupportChannels} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end pt-1">
+            <div className="md:col-span-5 space-y-1.5">
+              <label className="block font-mono text-[11px] text-slate font-semibold flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-paper">
+                  <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Call Us Phone Number *</span>
+                </span>
+                {supportPhoneInput && (
+                  <a
+                    href={`tel:${supportPhoneInput.replace(/[^0-9+]/g, '')}`}
+                    className="text-[10px] text-primary hover:underline font-mono"
+                    title="Test Call"
+                  >
+                    Test Call ↗
+                  </a>
+                )}
+              </label>
+              <input
+                type="text"
+                required
+                value={supportPhoneInput}
+                onChange={(e) => setSupportPhoneInput(e.target.value)}
+                placeholder="+91 97787 07336"
+                className="w-full px-4 py-2.5 rounded-xl bg-black/60 border border-white/10 text-paper font-mono text-xs focus:outline-none focus:border-primary transition-colors"
+              />
+              <span className="font-mono text-[10px] text-slate/60 block">
+                Triggered immediately when student taps &quot;Call Us&quot; on any course page.
+              </span>
+            </div>
+
+            <div className="md:col-span-5 space-y-1.5">
+              <label className="block font-mono text-[11px] text-slate font-semibold flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-paper">
+                  <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
+                  <span>WhatsApp Mentor Number *</span>
+                </span>
+                {supportWhatsAppInput && (
+                  <a
+                    href={`https://wa.me/${supportWhatsAppInput.replace(/[^0-9]/g, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] text-[#25D366] hover:underline font-mono"
+                    title="Test WhatsApp"
+                  >
+                    Test WhatsApp ↗
+                  </a>
+                )}
+              </label>
+              <input
+                type="text"
+                required
+                value={supportWhatsAppInput}
+                onChange={(e) => setSupportWhatsAppInput(e.target.value)}
+                placeholder="+91 97787 07336 or 919778707336"
+                className="w-full px-4 py-2.5 rounded-xl bg-black/60 border border-white/10 text-paper font-mono text-xs focus:outline-none focus:border-primary transition-colors"
+              />
+              <span className="font-mono text-[10px] text-slate/60 block">
+                Opens mentor chat directly when student taps &quot;WhatsApp&quot; on any course page.
+              </span>
+            </div>
+
+            <div className="md:col-span-2 flex items-end">
+              <button
+                type="submit"
+                disabled={isSavingSupportNumbers}
+                className="w-full py-2.5 rounded-xl bg-primary text-ink font-jakarta font-black text-xs uppercase tracking-wider hover:bg-white transition-all cursor-pointer shadow-lg shadow-primary/20 flex items-center justify-center gap-1.5 disabled:opacity-60"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{isSavingSupportNumbers ? 'Saving...' : 'Save Numbers'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Filter & Search Bar */}
+        <div className="p-4 rounded-2xl bg-[#0c0d0e] border border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
+          {/* Search Box */}
+          <div className="relative w-full md:w-96">
+            <Search className="w-4 h-4 text-slate absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={helpSearch}
+              onChange={(e) => setHelpSearch(e.target.value)}
+              placeholder="Search student name, phone, email, course..."
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-black/60 border border-white/10 text-paper font-jakarta text-xs focus:outline-none focus:border-primary transition-colors"
+            />
+            {helpSearch && (
+              <button
+                type="button"
+                onClick={() => setHelpSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate hover:text-paper"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Status Tabs & Course Filter */}
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            {(['all', 'pending', 'in_progress', 'resolved'] as const).map((st) => (
+              <button
+                key={st}
+                type="button"
+                onClick={() => setHelpStatusFilter(st)}
+                className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all cursor-pointer ${
+                  helpStatusFilter === st
+                    ? 'bg-primary text-ink shadow-md shadow-primary/20'
+                    : 'bg-white/5 text-slate hover:text-paper hover:bg-white/10'
+                }`}
+              >
+                {st === 'all' && `All (${helpMessages.length})`}
+                {st === 'pending' && `Pending (${pendingCount})`}
+                {st === 'in_progress' && `In Progress (${inProgressCount})`}
+                {st === 'resolved' && `Resolved (${resolvedCount})`}
+              </button>
+            ))}
+
+            <select
+              value={helpCourseFilter}
+              onChange={(e) => setHelpCourseFilter(e.target.value)}
+              className="px-3 py-1.5 rounded-xl bg-black/70 border border-white/10 text-paper font-mono text-xs focus:outline-none focus:border-primary cursor-pointer"
+            >
+              <option value="all">All Courses</option>
+              <option value="python">Python</option>
+              <option value="java">Java</option>
+              <option value="fullstack">Full Stack</option>
+              <option value="cyber">Cyber Security</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Tickets List */}
+        {filteredHelp.length === 0 ? (
+          <div className="p-12 text-center rounded-3xl bg-[#0c0d0e] border border-white/10 space-y-3">
+            <div className="w-12 h-12 rounded-full bg-white/5 text-slate flex items-center justify-center mx-auto">
+              <MessageSquare className="w-6 h-6" />
+            </div>
+            <h4 className="font-jakarta text-base font-bold text-paper">No Help Requests Found</h4>
+            <p className="font-mono text-xs text-slate max-w-sm mx-auto">
+              {helpSearch || helpStatusFilter !== 'all' || helpCourseFilter !== 'all'
+                ? 'Try adjusting your search query or status filter.'
+                : 'Direct student help inquiries submitted through course pages will appear here in real time.'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredHelp.map((item) => {
+              const dateStr = new Date(item.submittedAt).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+              });
+              const timeStr = new Date(item.submittedAt).toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit'
+              });
+
+              const cleanPhone = item.studentPhone.replace(/[^0-9+]/g, '');
+              const cleanPhoneWa = item.studentPhone.replace(/[^0-9]/g, '');
+
+              return (
+                <div
+                  key={item.id}
+                  className={`p-5 sm:p-6 rounded-3xl bg-[#0c0d0e] border transition-all space-y-4 shadow-xl ${
+                    item.status === 'pending'
+                      ? 'border-amber-500/40 bg-gradient-to-r from-amber-500/[0.03] to-transparent'
+                      : item.status === 'in_progress'
+                      ? 'border-sky-500/40 bg-gradient-to-r from-sky-500/[0.03] to-transparent'
+                      : 'border-white/10 opacity-90'
+                  }`}
+                >
+                  {/* Top Bar: Status, Ticket ID, Timestamp & Actions */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/10">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-[10px] font-bold uppercase tracking-wider ${
+                          item.status === 'pending'
+                            ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                            : item.status === 'in_progress'
+                            ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
+                            : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                        }`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            item.status === 'pending'
+                              ? 'bg-amber-400 animate-pulse'
+                              : item.status === 'in_progress'
+                              ? 'bg-sky-400'
+                              : 'bg-emerald-400'
+                          }`}
+                        />
+                        <span>{item.status.replace('_', ' ')}</span>
+                      </span>
+
+                      <span className="font-mono text-xs text-slate/80 font-bold">
+                        #{item.id}
+                      </span>
+
+                      <span className="font-mono text-xs text-slate/50">
+                        • {dateStr} at {timeStr}
+                      </span>
+                    </div>
+
+                    {/* Quick Status Control Buttons & Delete */}
+                    <div className="flex items-center gap-2">
+                      {item.status !== 'resolved' ? (
+                        <button
+                          type="button"
+                          onClick={() => handleStatusChange(item.id, 'resolved')}
+                          className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-jakarta text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                          title="Mark this request as resolved"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Mark as Resolved</span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-jakarta text-xs font-bold flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Resolved</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleStatusChange(item.id, 'pending')}
+                            className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate hover:text-paper font-mono text-[10px] transition-colors cursor-pointer"
+                            title="Reopen help request"
+                          >
+                            Reopen
+                          </button>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item.id)}
+                        className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500/20 text-slate hover:text-rose-400 border border-white/10 hover:border-rose-500/30 transition-all cursor-pointer ml-1"
+                        title="Delete Ticket"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Student & Course Details Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+                    {/* Student Name & Avatar */}
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center font-jakarta font-black text-primary text-sm shrink-0">
+                        {getUserInitials(item.studentName)}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-jakarta text-sm font-bold text-paper truncate">
+                          {item.studentName}
+                        </h4>
+                        <div className="flex items-center gap-1 font-mono text-[11px] text-slate truncate">
+                          <Mail className="w-3 h-3 shrink-0 text-slate/70" />
+                          <a
+                            href={`mailto:${item.studentEmail}`}
+                            className="hover:text-primary transition-colors truncate"
+                          >
+                            {item.studentEmail}
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Phone Number with One-Click Call & WhatsApp */}
+                    <div className="flex items-center gap-2 bg-black/40 px-3.5 py-2 rounded-2xl border border-white/5">
+                      <div className="min-w-0 flex-1">
+                        <span className="font-mono text-[10px] text-slate/70 block uppercase">
+                          Contact Phone
+                        </span>
+                        <span className="font-mono text-xs font-bold text-paper truncate block">
+                          {item.studentPhone}
+                        </span>
+                      </div>
+
+                      <a
+                        href={`tel:${cleanPhone}`}
+                        className="p-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 transition-all shrink-0 cursor-pointer"
+                        title={`Call ${item.studentPhone}`}
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                      </a>
+
+                      <a
+                        href={`https://wa.me/${cleanPhoneWa}?text=${encodeURIComponent(
+                          `Hi ${item.studentName}, regarding your help request for "${item.courseTitle}" on DO PILOT:`
+                        )}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/30 text-[#25D366] border border-[#25D366]/30 transition-all shrink-0 cursor-pointer"
+                        title={`WhatsApp ${item.studentPhone}`}
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+
+                    {/* Course Track Tag */}
+                    <div className="flex items-center gap-2 bg-black/40 px-3.5 py-2 rounded-2xl border border-white/5">
+                      <BookOpen className="w-4 h-4 text-primary shrink-0" />
+                      <div className="min-w-0">
+                        <span className="font-mono text-[10px] text-slate/70 block uppercase">
+                          Enrolled Course
+                        </span>
+                        <span className="font-jakarta text-xs font-bold text-paper truncate block">
+                          {item.courseTitle}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Student Message Body */}
+                  <div className="p-4 rounded-2xl bg-black/60 border border-white/10 space-y-1.5">
+                    <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider block">
+                      Student Help Message:
+                    </span>
+                    <p className="font-jakarta text-xs sm:text-sm text-paper leading-relaxed whitespace-pre-wrap">
+                      {item.message}
+                    </p>
+                  </div>
+
+                  {/* Admin Resolution Notes Box */}
+                  <div className="pt-1">
+                    {editingNotesId === item.id ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-mono text-amber-300 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                            <span>Internal Note (Admin Only — Not visible to students)</span>
+                          </span>
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={editingNotesText}
+                          onChange={(e) => setEditingNotesText(e.target.value)}
+                          placeholder="Type internal resolution note, e.g. Called student, explained topic, resolved error..."
+                          className="w-full px-3 py-2 rounded-xl bg-black border border-primary/50 text-paper font-jakarta text-xs focus:outline-none resize-none"
+                        />
+                        <div className="flex items-center gap-2 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingNotesId(null);
+                              setEditingNotesText('');
+                            }}
+                            className="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate text-xs cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveNotes(item.id)}
+                            className="px-3.5 py-1 rounded-lg bg-primary text-ink font-bold text-xs hover:bg-white transition-all cursor-pointer"
+                          >
+                            Save Note
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-3 text-xs font-mono">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-slate/70 uppercase text-[10px] shrink-0 flex items-center gap-1.5">
+                            <span>Admin Notes:</span>
+                            <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-[9px] text-amber-300 font-mono font-bold uppercase border border-amber-500/20">Admin Only</span>
+                          </span>
+                          <span className="text-paper truncate italic">
+                            {item.adminNotes ? item.adminNotes : 'No notes added yet.'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingNotesId(item.id);
+                            setEditingNotesText(item.adminNotes || '');
+                          }}
+                          className="text-[11px] text-primary hover:underline shrink-0 cursor-pointer font-sans font-semibold"
+                        >
+                          {item.adminNotes ? 'Edit Note' : '+ Add Note'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-black text-paper flex flex-col font-sans selection:bg-primary selection:text-ink relative overflow-hidden select-none">
+      
+      {/* Background Ambient Radial Glow */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-gradient-to-b from-primary/10 via-teal-500/5 to-transparent blur-[140px] pointer-events-none z-0" />
+
+      {/* Subtle Grid Accent */}
+      <div 
+        className="fixed inset-0 z-0 opacity-[0.035] pointer-events-none"
+        style={{
+          backgroundImage: `linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)`,
+          backgroundSize: '48px 48px'
+        }}
+      />
 
       {/* Toast Notification */}
       {toastMsg && (
-        <div className="fixed bottom-6 right-6 z-50 bg-primary text-ink font-jakarta font-bold text-xs py-3.5 px-6 rounded-2xl shadow-2xl flex items-center gap-2 animate-bounce">
-          <CheckCircle className="w-4 h-4" />
+        <div className="fixed bottom-6 right-6 z-50 bg-primary text-ink font-jakarta font-extrabold text-xs py-3 px-5 rounded-2xl shadow-2xl flex items-center gap-2 animate-bounce">
+          <CheckCircle2 className="w-4 h-4" />
           <span>{toastMsg}</span>
         </div>
       )}
 
       {/* Top Header Bar */}
-      <header className="bg-panel/90 border-b border-white/15 px-4 sm:px-8 py-4 flex items-center justify-between sticky top-0 z-40 backdrop-blur-xl relative">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary text-ink flex items-center justify-center font-jakarta font-black text-base shadow-lg shadow-primary/20">
-            DO
-          </div>
-          <div>
-            <h1 className="font-jakarta font-black text-lg text-paper leading-none">
-              Admin Control System
-            </h1>
-            <span className="font-mono text-xs text-primary">
-              Authenticated as <strong className="text-paper">{getAdminUsername()}</strong>
-            </span>
+      <header className="sticky top-0 z-40 bg-black/85 backdrop-blur-xl border-b border-white/10 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2.5">
+            <img
+              src={data.navbar?.companyLogo || 'https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png'}
+              alt="DO"
+              className="h-7 w-auto object-contain shrink-0"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            <div>
+              <h1 className="font-jakarta font-black text-sm text-paper leading-none">
+                DO PILOT
+              </h1>
+              <span className="font-mono text-[10px] text-slate/70 block mt-1">
+                Logged in as <strong className="text-paper">{getAdminUsername() || 'admin'}</strong>
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* Header Right Actions */}
+        <div className="flex items-center gap-2.5">
+
           <button
             onClick={handleDeployToLive}
             disabled={isDeploying}
-            className="px-4 py-2 rounded-xl bg-primary text-ink font-jakarta font-extrabold hover:bg-white hover:shadow-lg hover:shadow-primary/40 transition-all font-mono text-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
-            title="Deploy all saved changes to GitHub and trigger Vercel auto-redeploy"
+            className="px-4 py-2 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider hover:bg-white hover:shadow-xl hover:shadow-primary/40 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            title="Deploy all changes to live production on Vercel"
           >
-            <Rocket className={`w-4 h-4 ${isDeploying ? 'animate-spin' : ''}`} />
-            <span>{isDeploying ? 'Deploying...' : 'Deploy to Live 🚀'}</span>
+            <Rocket className={`w-3.5 h-3.5 ${isDeploying ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{isDeploying ? 'Deploying...' : 'Deploy Live 🚀'}</span>
           </button>
+
           <button
             onClick={() => navigate('/')}
-            className="px-4 py-2 rounded-xl bg-black/70 border border-white/15 text-slate hover:text-paper hover:border-primary transition-all font-mono text-xs flex items-center gap-2 cursor-pointer"
+            className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate hover:text-paper hover:border-primary transition-all cursor-pointer"
+            title="Preview Live Site"
           >
             <Eye className="w-4 h-4" />
-            <span className="hidden sm:inline">View Main Site</span>
           </button>
+
           <button
             onClick={() => {
               logoutAdmin();
               navigate('/');
             }}
-            className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-all font-mono text-xs flex items-center gap-2 cursor-pointer"
+            className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition-all cursor-pointer"
+            title="Sign Out"
           >
             <LogOut className="w-4 h-4" />
-            <span>Logout</span>
           </button>
         </div>
       </header>
 
-      {/* Main Content Body - Full Width Optimized Layout */}
-      <div className="flex-1 flex flex-col md:flex-row w-full max-w-[1700px] mx-auto relative z-10 p-4 sm:p-6 lg:p-8 gap-6">
-        
-        {/* Navigation Sidebar */}
-        <aside className="w-full md:w-72 lg:w-80 bg-panel/80 border border-white/15 rounded-3xl p-4 flex flex-row md:flex-col gap-1.5 overflow-x-auto select-none backdrop-blur-xl shrink-0 h-fit">
-          
-          {/* Prominent Deploy to Live Action Button */}
-          <div className="p-3 rounded-2xl bg-primary/10 border border-primary/40 space-y-2 mb-2">
+      {/* Top High-Level Workspace Switcher */}
+      <div className="sticky top-[57px] z-30 bg-[#08090a]/95 backdrop-blur-xl border-b border-white/10 px-4 sm:px-8 py-3">
+        <div className="max-w-[1650px] w-full mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center p-1 bg-black/80 border border-white/10 rounded-2xl w-full sm:w-auto shadow-inner">
             <button
-              onClick={handleDeployToLive}
-              disabled={isDeploying}
-              className="w-full text-center px-4 py-3 rounded-xl bg-primary text-ink font-jakarta font-black text-xs uppercase tracking-wider hover:bg-white hover:shadow-xl hover:shadow-primary/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              type="button"
+              onClick={() => switchWorkspace('website')}
+              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-jakarta text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+                adminWorkspace === 'website'
+                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black scale-[1.01]'
+                  : 'text-slate hover:text-paper hover:bg-white/5'
+              }`}
             >
-              <Rocket className={`w-4 h-4 ${isDeploying ? 'animate-spin' : ''}`} />
-              <span>{isDeploying ? 'Deploying...' : 'Deploy Changes to Live 🚀'}</span>
-            </button>
-            <p className="text-[10px] font-mono text-slate text-center leading-tight">
-              Publishes all saved changes to GitHub & Vercel
-            </p>
-          </div>
-          <button
-            onClick={() => setActiveTab('hero')}
-            className={`w-full text-left px-4 py-3.5 rounded-2xl font-mono text-xs flex items-center gap-3 transition-all cursor-pointer ${
-              activeTab === 'hero' ? 'bg-primary text-ink font-bold shadow-lg shadow-primary/20' : 'text-slate hover:bg-white/5 hover:text-paper'
-            }`}
-          >
-            <Layout className="w-4 h-4" />
-            <span>Hero & General</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('navbar')}
-            className={`w-full text-left px-4 py-3.5 rounded-2xl font-mono text-xs flex items-center gap-3 transition-all cursor-pointer ${
-              activeTab === 'navbar' ? 'bg-primary text-ink font-bold shadow-lg shadow-primary/20' : 'text-slate hover:bg-white/5 hover:text-paper'
-            }`}
-          >
-            <Layout className="w-4 h-4" />
-            <span>Navbar Options</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('founder')}
-            className={`w-full text-left px-4 py-3.5 rounded-2xl font-mono text-xs flex items-center gap-3 transition-all cursor-pointer ${
-              activeTab === 'founder' ? 'bg-primary text-ink font-bold shadow-lg shadow-primary/20' : 'text-slate hover:bg-white/5 hover:text-paper'
-            }`}
-          >
-            <User className="w-4 h-4" />
-            <span>Founder Section</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('mentors')}
-            className={`w-full text-left px-4 py-3.5 rounded-2xl font-mono text-xs flex items-center gap-3 transition-all cursor-pointer ${
-              activeTab === 'mentors' ? 'bg-primary text-ink font-bold shadow-lg shadow-primary/20' : 'text-slate hover:bg-white/5 hover:text-paper'
-            }`}
-          >
-            <User className="w-4 h-4" />
-            <span>Mentors ({data.mentors.items.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('projects')}
-            className={`w-full text-left px-4 py-3.5 rounded-2xl font-mono text-xs flex items-center gap-3 transition-all cursor-pointer ${
-              activeTab === 'projects' ? 'bg-primary text-ink font-bold shadow-lg shadow-primary/20' : 'text-slate hover:bg-white/5 hover:text-paper'
-            }`}
-          >
-            <Briefcase className="w-4 h-4" />
-            <span>Projects ({data.projects.items.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('services')}
-            className={`w-full text-left px-4 py-3.5 rounded-2xl font-mono text-xs flex items-center gap-3 transition-all cursor-pointer ${
-              activeTab === 'services' ? 'bg-primary text-ink font-bold shadow-lg shadow-primary/20' : 'text-slate hover:bg-white/5 hover:text-paper'
-            }`}
-          >
-            <Wrench className="w-4 h-4" />
-            <span>Services & Skills</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('process')}
-            className={`w-full text-left px-4 py-3.5 rounded-2xl font-mono text-xs flex items-center gap-3 transition-all cursor-pointer ${
-              activeTab === 'process' ? 'bg-primary text-ink font-bold shadow-lg shadow-primary/20' : 'text-slate hover:bg-white/5 hover:text-paper'
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>Process & Steps</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('testimonials')}
-            className={`w-full text-left px-4 py-3.5 rounded-2xl font-mono text-xs flex items-center gap-3 transition-all cursor-pointer ${
-              activeTab === 'testimonials' ? 'bg-primary text-ink font-bold shadow-lg shadow-primary/20' : 'text-slate hover:bg-white/5 hover:text-paper'
-            }`}
-          >
-            <MessageSquare className="w-4 h-4" />
-            <span>Testimonials</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('cta')}
-            className={`w-full text-left px-4 py-3.5 rounded-2xl font-mono text-xs flex items-center gap-3 transition-all cursor-pointer ${
-              activeTab === 'cta' ? 'bg-primary text-ink font-bold shadow-lg shadow-primary/20' : 'text-slate hover:bg-white/5 hover:text-paper'
-            }`}
-          >
-            <ExternalLink className="w-4 h-4" />
-            <span>CTA & Footer</span>
-          </button>
-
-          {/* INBOX TAB HIDDEN - messages stored in localStorage only (not synced across devices)
-          <button
-            onClick={() => setActiveTab('messages')}
-            className={`w-full text-left px-4 py-3.5 rounded-2xl font-mono text-xs flex items-center justify-between transition-all cursor-pointer ${
-              activeTab === 'messages' ? 'bg-primary text-ink font-bold shadow-lg shadow-primary/20' : 'text-slate hover:bg-white/5 hover:text-paper'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <MessageSquare className="w-4 h-4" />
-              <span>Inbox Messages</span>
-            </div>
-            {data.messages.length > 0 && (
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] ${activeTab === 'messages' ? 'bg-ink text-primary font-bold' : 'bg-primary text-ink font-bold'}`}>
-                {data.messages.length}
+              <Layout className="w-4 h-4" />
+              <span>1. Website Content Editor</span>
+              <span className={`font-mono text-[10px] px-2 py-0.5 rounded-md font-semibold ${
+                adminWorkspace === 'website' ? 'bg-black/20 text-ink' : 'bg-white/10 text-slate'
+              }`}>
+                8 Sections
               </span>
-            )}
-          </button>
-          */}
-
-          <button
-            onClick={() => setActiveTab('cloudinary')}
-            className={`w-full text-left px-4 py-3.5 rounded-2xl font-mono text-xs flex items-center gap-3 transition-all cursor-pointer ${
-              activeTab === 'cloudinary' ? 'bg-primary text-ink font-bold shadow-lg shadow-primary/20' : 'text-slate hover:bg-white/5 hover:text-paper'
-            }`}
-          >
-            <Cloud className="w-4 h-4" />
-            <span>Cloudinary CDN</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('security')}
-            className={`w-full text-left px-4 py-3.5 rounded-2xl font-mono text-xs flex items-center gap-3 transition-all cursor-pointer ${
-              activeTab === 'security' ? 'bg-primary text-ink font-bold shadow-lg shadow-primary/20' : 'text-slate hover:bg-white/5 hover:text-paper'
-            }`}
-          >
-            <Shield className="w-4 h-4" />
-            <span>Security & System</span>
-          </button>
-        </aside>
-
-        {/* Tab Panels Content Area - Full Width */}
-        <main className="flex-1 w-full bg-panel/75 border border-white/15 rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-2xl">
-          
-          {/* TAB: NAVBAR */}
-          {activeTab === 'navbar' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-jakarta text-2xl font-black text-paper">Edit Navbar Header Options</h2>
-                  <p className="font-sans text-xs text-slate mt-1">
-                    Manage top navigation menu options, header CTA button, and brand logo.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleAddNavLink}
-                  className="px-4 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs flex items-center gap-2 hover:bg-white transition-all cursor-pointer shadow-lg shadow-primary/20"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Nav Link Option</span>
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveNavbar} className="space-y-6 font-sans text-sm">
-                {/* Header CTA Button Settings */}
-                <div className="bg-black/60 border border-white/15 rounded-2xl p-5 space-y-4 shadow-xl">
-                  <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// HEADER CTA BUTTON</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block font-mono text-xs text-slate mb-1">Header Button Text</label>
-                      <input
-                        type="text"
-                        name="navbarCtaText"
-                        defaultValue={data.navbar?.ctaText || "Start a Project"}
-                        placeholder="Start a Project"
-                        className="w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-bold text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-mono text-xs text-slate mb-1">Header Button Target Link / Anchor</label>
-                      <input
-                        type="text"
-                        name="navbarCtaLink"
-                        defaultValue={data.navbar?.ctaLink || "#contact"}
-                        placeholder="#contact"
-                        className="w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Nav Links Manager */}
-                <div className="bg-black/60 border border-white/15 rounded-2xl p-5 space-y-4 shadow-xl">
-                  <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// NAVIGATION LINKS</h3>
-                  <div className="space-y-3">
-                    {(data.navbar?.navLinks && data.navbar.navLinks.length > 0 ? data.navbar.navLinks : [
-                      { id: 'nav-1', name: 'SERVICES', href: '#services' },
-                      { id: 'nav-2', name: 'WORK', href: '#work' },
-                      { id: 'nav-3', name: 'PROCESS', href: '#process' },
-                      { id: 'nav-4', name: 'FOUNDER', href: '#founder' },
-                      { id: 'nav-5', name: 'MENTORS', href: '#mentors' },
-                      { id: 'nav-6', name: 'CONTACT', href: '#contact' },
-                    ]).map((link, idx, arr) => (
-                      <div key={link.id || idx} className="flex flex-col sm:flex-row items-center gap-3 bg-panel p-3.5 rounded-xl border border-white/10">
-                        <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block font-mono text-[10px] text-slate mb-1">Link Name / Option Text</label>
-                            <input
-                              type="text"
-                              name={`navLinkName_${idx}`}
-                              defaultValue={link.name}
-                              placeholder="SERVICES"
-                              className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-bold text-xs"
-                            />
-                          </div>
-                          <div>
-                            <label className="block font-mono text-[10px] text-slate mb-1">Target Link / Anchor (e.g. #services)</label>
-                            <input
-                              type="text"
-                              name={`navLinkHref_${idx}`}
-                              defaultValue={link.href}
-                              placeholder="#services"
-                              className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
-                          <button
-                            type="button"
-                            disabled={idx === 0}
-                            onClick={() => {
-                              moveArrayItem('navbar', 'navLinks', idx, 'up');
-                              showToast('Moved nav link up!');
-                            }}
-                            title="Move Up"
-                            className={`p-2 rounded-xl border border-white/10 font-mono text-xs flex items-center gap-1 cursor-pointer transition-all ${
-                              idx === 0 ? 'opacity-30 cursor-not-allowed bg-black/40 text-slate' : 'bg-panel-light text-primary hover:bg-primary/20 hover:border-primary/40'
-                            }`}
-                          >
-                            <ChevronUp className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={idx === arr.length - 1}
-                            onClick={() => {
-                              moveArrayItem('navbar', 'navLinks', idx, 'down');
-                              showToast('Moved nav link down!');
-                            }}
-                            title="Move Down"
-                            className={`p-2 rounded-xl border border-white/10 font-mono text-xs flex items-center gap-1 cursor-pointer transition-all ${
-                              idx === arr.length - 1 ? 'opacity-30 cursor-not-allowed bg-black/40 text-slate' : 'bg-panel-light text-primary hover:bg-primary/20 hover:border-primary/40'
-                            }`}
-                          >
-                            <ChevronDown className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              deleteArrayItem('navbar', 'navLinks', link.id);
-                              showToast('Nav link deleted.');
-                            }}
-                            className="p-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    className="w-full py-4 rounded-xl bg-primary text-ink font-jakarta font-black text-sm uppercase tracking-wider hover:bg-white hover:shadow-xl hover:shadow-primary/30 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>Save Navbar Options</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {/* TAB: HERO */}
-          {activeTab === 'hero' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="font-jakarta text-2xl font-black text-paper">Edit Hero Section</h2>
-                <p className="font-sans text-xs text-slate mt-1">Manage hero text, headline words, and action buttons.</p>
-              </div>
-
-              <form onSubmit={handleSaveHero} className="space-y-5 font-sans text-sm">
-                <div>
-                  <label className="block font-mono text-xs text-slate mb-1">Status Eyebrow Badge</label>
-                  <input
-                    type="text"
-                    name="eyebrow"
-                    defaultValue={data.hero.eyebrow}
-                    className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Headline Word 1</label>
-                    <input
-                      type="text"
-                      name="headlineWord1"
-                      defaultValue={data.hero.headlineWord1}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Headline Word 2</label>
-                    <input
-                      type="text"
-                      name="headlineWord2"
-                      defaultValue={data.hero.headlineWord2}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Headline Word 3</label>
-                    <input
-                      type="text"
-                      name="headlineWord3"
-                      defaultValue={data.hero.headlineWord3}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Headline Word 4</label>
-                    <input
-                      type="text"
-                      name="headlineWord4"
-                      defaultValue={data.hero.headlineWord4}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-bold"
-                    />
-                  </div>
-                </div>
-
-                <div className="p-4.5 rounded-2xl bg-black/60 border border-primary/30 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="block font-mono text-xs text-primary font-bold uppercase tracking-wider">
-                      // HEADLINE LED GLOWING LIGHT TARGET (4 TICK OPTIONS)
-                    </label>
-                    <span className="text-[10px] font-mono text-slate">Tick to light up word</span>
-                  </div>
-                  <p className="font-mono text-[10px] text-slate/80 leading-relaxed">
-                    Tick the checkboxes below to select which of the 4 headline word areas light up with the shimmering LED dot matrix animation:
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-                    <label className="flex items-center gap-3 p-3.5 rounded-xl bg-black/80 border border-white/15 cursor-pointer hover:border-primary/50 transition-colors">
-                      <input
-                        type="checkbox"
-                        name="glowWord1"
-                        defaultChecked={data.hero.glowingWords?.word1 ?? data.hero.glowingWords?.build ?? false}
-                        className="w-4 h-4 rounded border-white/20 text-primary focus:ring-primary bg-panel accent-primary"
-                      />
-                      <div>
-                        <span className="font-mono text-xs font-bold text-paper block">Word 1 Light</span>
-                        <span className="font-mono text-[10px] text-primary">"{data.hero.headlineWord1 || 'BUILD'}"</span>
-                      </div>
-                    </label>
-
-                    <label className="flex items-center gap-3 p-3.5 rounded-xl bg-black/80 border border-white/15 cursor-pointer hover:border-primary/50 transition-colors">
-                      <input
-                        type="checkbox"
-                        name="glowWord2"
-                        defaultChecked={data.hero.glowingWords?.word2 ?? false}
-                        className="w-4 h-4 rounded border-white/20 text-primary focus:ring-primary bg-panel accent-primary"
-                      />
-                      <div>
-                        <span className="font-mono text-xs font-bold text-paper block">Word 2 Light</span>
-                        <span className="font-mono text-[10px] text-slate">{data.hero.headlineWord2 ? `"${data.hero.headlineWord2}"` : '(Empty)'}</span>
-                      </div>
-                    </label>
-
-                    <label className="flex items-center gap-3 p-3.5 rounded-xl bg-black/80 border border-white/15 cursor-pointer hover:border-primary/50 transition-colors">
-                      <input
-                        type="checkbox"
-                        name="glowWord3"
-                        defaultChecked={data.hero.glowingWords?.word3 ?? data.hero.glowingWords?.whats ?? false}
-                        className="w-4 h-4 rounded border-white/20 text-primary focus:ring-primary bg-panel accent-primary"
-                      />
-                      <div>
-                        <span className="font-mono text-xs font-bold text-paper block">Word 3 Light</span>
-                        <span className="font-mono text-[10px] text-primary">"{data.hero.headlineWord3 || "WHAT'S"}"</span>
-                      </div>
-                    </label>
-
-                    <label className="flex items-center gap-3 p-3.5 rounded-xl bg-black/80 border border-white/15 cursor-pointer hover:border-primary/50 transition-colors">
-                      <input
-                        type="checkbox"
-                        name="glowWord4"
-                        defaultChecked={data.hero.glowingWords?.word4 ?? data.hero.glowingWords?.next ?? true}
-                        className="w-4 h-4 rounded border-white/20 text-primary focus:ring-primary bg-panel accent-primary"
-                      />
-                      <div>
-                        <span className="font-mono text-xs font-bold text-paper block">Word 4 Light</span>
-                        <span className="font-mono text-[10px] text-primary">"{data.hero.headlineWord4 || 'NEXT.'}"</span>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-
-                {/* HERO BACKGROUND VIDEO & OPACITY SETTINGS */}
-                <div className="p-5 rounded-2xl bg-black/60 border border-primary/30 space-y-4">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                    <div>
-                      <h4 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// HERO BACKGROUND VIDEO URL & OPACITY</h4>
-                      <p className="font-sans text-xs text-slate mt-0.5">Enter video URL or path (e.g. /hero-background.mp4), and adjust opacity from 0% to 100%.</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-paper font-bold px-3 py-1 rounded-lg bg-panel border border-white/15">
-                        Opacity: {heroVideoOpacity}%
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="font-sans text-xs">
-                    <label className="block font-mono text-[10px] text-slate font-bold uppercase mb-1">Background Video URL / Path</label>
-                    <input
-                      type="text"
-                      name="videoUrl"
-                      value={heroVideoUrl}
-                      onChange={(e) => {
-                        setHeroVideoUrl(e.target.value);
-                        updateSection('hero', { videoUrl: e.target.value });
-                      }}
-                      placeholder="https://... or /hero-background.mp4"
-                      className="w-full bg-black/80 border border-white/15 rounded-xl px-3.5 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs font-bold"
-                    />
-                  </div>
-
-                  {/* Opacity Slider */}
-                  <div className="space-y-2 pt-2 border-t border-white/10 font-sans text-xs">
-                    <div className="flex items-center justify-between">
-                      <label className="block font-mono text-xs text-slate font-bold uppercase">
-                        Video Opacity Level (0% - 100%)
-                      </label>
-                      <span className="font-mono text-xs text-primary font-bold">{heroVideoOpacity}%</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="font-mono text-xs text-slate">0%</span>
-                      <input
-                        type="range"
-                        name="videoOpacity"
-                        min="0"
-                        max="100"
-                        step="1"
-                        value={heroVideoOpacity}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value, 10);
-                          setHeroVideoOpacity(val);
-                          updateSection('hero', { videoOpacity: val });
-                        }}
-                        className="w-full h-2 bg-panel rounded-lg appearance-none cursor-pointer accent-primary border border-white/15"
-                      />
-                      <span className="font-mono text-xs text-slate">100%</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-mono text-xs text-slate mb-1">Hero Sub-description</label>
-                  <textarea
-                    name="description"
-                    rows={3}
-                    defaultValue={data.hero.description}
-                    className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none resize-none leading-relaxed"
-                  />
-                </div>
-
-                {/* Hero Pillars */}
-                <div className="pt-2">
-                  <label className="block font-mono text-xs text-primary font-bold uppercase tracking-wider mb-2">// HERO PILLARS BADGES</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block font-mono text-[10px] text-slate mb-1">Pillar 1</label>
-                      <input
-                        type="text"
-                        name="pillar1"
-                        defaultValue={data.hero.pillars[0] || 'Transparent Pricing'}
-                        className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-mono text-[10px] text-slate mb-1">Pillar 2</label>
-                      <input
-                        type="text"
-                        name="pillar2"
-                        defaultValue={data.hero.pillars[1] || 'Agile & Adaptive'}
-                        className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-mono text-[10px] text-slate mb-1">Pillar 3</label>
-                      <input
-                        type="text"
-                        name="pillar3"
-                        defaultValue={data.hero.pillars[2] || 'Products That Last'}
-                        className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Primary CTA Button Text</label>
-                    <input
-                      type="text"
-                      name="primaryCtaText"
-                      defaultValue={data.hero.primaryCtaText}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Primary CTA Link</label>
-                    <input
-                      type="text"
-                      name="primaryCtaLink"
-                      defaultValue={data.hero.primaryCtaLink}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Secondary CTA Button Text</label>
-                    <input
-                      type="text"
-                      name="secondaryCtaText"
-                      defaultValue={data.hero.secondaryCtaText}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Secondary CTA Link</label>
-                    <input
-                      type="text"
-                      name="secondaryCtaLink"
-                      defaultValue={data.hero.secondaryCtaLink}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-mono text-xs text-slate mb-1">Small Note Below Buttons</label>
-                  <input
-                    type="text"
-                    name="note"
-                    defaultValue={data.hero.note}
-                    className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none"
-                  />
-                </div>
-
-                {/* Hero Metrics */}
-                <div className="pt-2">
-                  <label className="block font-mono text-xs text-primary font-bold uppercase tracking-wider mb-2">// HERO QUICK METRICS</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <label className="block font-mono text-[10px] text-slate">Metric 1 (Value / Label)</label>
-                      <input
-                        type="text"
-                        name="metric1Val"
-                        defaultValue={data.hero.metrics[0]?.value || '40+'}
-                        placeholder="e.g. 40+"
-                        className="w-full bg-black/70 border border-white/15 rounded-xl px-3 py-2 text-paper focus:border-primary focus:outline-none font-bold"
-                      />
-                      <input
-                        type="text"
-                        name="metric1Label"
-                        defaultValue={data.hero.metrics[0]?.label || 'Shipped Products'}
-                        placeholder="e.g. Shipped Products"
-                        className="w-full bg-black/70 border border-white/15 rounded-xl px-3 py-2 text-slate focus:border-primary focus:outline-none text-xs"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block font-mono text-[10px] text-slate">Metric 2 (Value / Label)</label>
-                      <input
-                        type="text"
-                        name="metric2Val"
-                        defaultValue={data.hero.metrics[1]?.value || '98%'}
-                        placeholder="e.g. 98%"
-                        className="w-full bg-black/70 border border-white/15 rounded-xl px-3 py-2 text-paper focus:border-primary focus:outline-none font-bold text-primary"
-                      />
-                      <input
-                        type="text"
-                        name="metric2Label"
-                        defaultValue={data.hero.metrics[1]?.label || 'Retention Rate'}
-                        placeholder="e.g. Retention Rate"
-                        className="w-full bg-black/70 border border-white/15 rounded-xl px-3 py-2 text-slate focus:border-primary focus:outline-none text-xs"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block font-mono text-[10px] text-slate">Metric 3 (Value / Label)</label>
-                      <input
-                        type="text"
-                        name="metric3Val"
-                        defaultValue={data.hero.metrics[2]?.value || '6 Wk'}
-                        placeholder="e.g. 6 Wk"
-                        className="w-full bg-black/70 border border-white/15 rounded-xl px-3 py-2 text-paper focus:border-primary focus:outline-none font-bold"
-                      />
-                      <input
-                        type="text"
-                        name="metric3Label"
-                        defaultValue={data.hero.metrics[2]?.label || 'Products That Last'}
-                        placeholder="e.g. Products That Last"
-                        className="w-full bg-black/70 border border-white/15 rounded-xl px-3 py-2 text-slate focus:border-primary focus:outline-none text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  className="px-6 py-3.5 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider hover:bg-white transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Save Hero Changes</span>
-                </button>
-              </form>
-
-              {/* ABOUT & PHILOSOPHY SECTION EDITOR */}
-              <hr className="border-white/10 my-8" />
-
-              <div>
-                <h2 className="font-jakarta text-2xl font-black text-paper">Edit About & Philosophy Section</h2>
-                <p className="font-sans text-xs text-slate mt-1">Manage main philosophy headline reveal text and the 3 key stat cards.</p>
-              </div>
-
-              <form onSubmit={handleSaveAbout} className="space-y-5 font-sans text-sm">
-                <div>
-                  <label className="block font-mono text-xs text-slate mb-1">Section Tag/Eyebrow</label>
-                  <input
-                    type="text"
-                    name="aboutEyebrow"
-                    defaultValue={data.about.eyebrow}
-                    className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-mono text-xs text-slate mb-1">Philosophy Statement Text (Reveals on scroll)</label>
-                  <textarea
-                    name="aboutDescription"
-                    rows={3}
-                    defaultValue={data.about.description}
-                    className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none resize-none leading-relaxed"
-                  />
-                </div>
-
-                <label className="block font-mono text-xs text-primary font-bold uppercase tracking-wider">// ABOUT STATS CARDS</label>
-                
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  {/* Stat Card 1 */}
-                  <div className="bg-black/60 border border-white/15 rounded-2xl p-4 space-y-3">
-                    <span className="font-mono text-xs text-primary font-bold">Stat Card 1</span>
-                    <div>
-                      <label className="block font-mono text-[10px] text-slate mb-1">Header Tag</label>
-                      <input
-                        type="text"
-                        name="stat1Tag"
-                        defaultValue={data.about.stats?.[0]?.tag || '// TOTAL DELIVERED'}
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Value Display</label>
-                        <input
-                          type="text"
-                          name="stat1Val"
-                          defaultValue={data.about.stats?.[0]?.value || '40+'}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-bold"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Count Target</label>
-                        <input
-                          type="number"
-                          name="stat1Target"
-                          defaultValue={data.about.stats?.[0]?.targetNum || 40}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block font-mono text-[10px] text-slate mb-1">Description</label>
-                      <textarea
-                        name="stat1Desc"
-                        rows={2}
-                        defaultValue={data.about.stats?.[0]?.description || 'High-impact web apps, platforms & site-builder engines shipped worldwide.'}
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none resize-none text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Stat Card 2 */}
-                  <div className="bg-black/60 border border-white/15 rounded-2xl p-4 space-y-3">
-                    <span className="font-mono text-xs text-primary font-bold">Stat Card 2</span>
-                    <div>
-                      <label className="block font-mono text-[10px] text-slate mb-1">Header Tag</label>
-                      <input
-                        type="text"
-                        name="stat2Tag"
-                        defaultValue={data.about.stats?.[1]?.tag || '// CLIENT SATISFACTION'}
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Value Display</label>
-                        <input
-                          type="text"
-                          name="stat2Val"
-                          defaultValue={data.about.stats?.[1]?.value || '98%'}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-bold text-primary"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Count Target</label>
-                        <input
-                          type="number"
-                          name="stat2Target"
-                          defaultValue={data.about.stats?.[1]?.targetNum || 98}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block font-mono text-[10px] text-slate mb-1">Description</label>
-                      <textarea
-                        name="stat2Desc"
-                        rows={2}
-                        defaultValue={data.about.stats?.[1]?.description || 'Long-term partners who rely on DO Company for enterprise engineering.'}
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none resize-none text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Stat Card 3 */}
-                  <div className="bg-black/60 border border-white/15 rounded-2xl p-4 space-y-3">
-                    <span className="font-mono text-xs text-primary font-bold">Stat Card 3</span>
-                    <div>
-                      <label className="block font-mono text-[10px] text-slate mb-1">Header Tag</label>
-                      <input
-                        type="text"
-                        name="stat3Tag"
-                        defaultValue={data.about.stats?.[2]?.tag || '// SPEED TO MARKET'}
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Value Display</label>
-                        <input
-                          type="text"
-                          name="stat3Val"
-                          defaultValue={data.about.stats?.[2]?.value || '6 Wk'}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-bold"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Count Target</label>
-                        <input
-                          type="number"
-                          name="stat3Target"
-                          defaultValue={data.about.stats?.[2]?.targetNum || 6}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block font-mono text-[10px] text-slate mb-1">Description</label>
-                      <textarea
-                        name="stat3Desc"
-                        rows={2}
-                        defaultValue={data.about.stats?.[2]?.description || 'Average timeframe from specs sign-off to live production deployment.'}
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none resize-none text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  className="px-6 py-3.5 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider hover:bg-white transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Save About & Stats Changes</span>
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* TAB: FOUNDER */}
-          {activeTab === 'founder' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="font-jakarta text-2xl font-black text-paper">Edit Founder Section</h2>
-                <p className="font-sans text-xs text-slate mt-1">Update founder profile, image, quote, and social details.</p>
-              </div>
-
-              <form onSubmit={handleSaveFounder} className="space-y-5 font-sans text-sm">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Section Tag/Eyebrow</label>
-                    <input
-                      type="text"
-                      name="eyebrow"
-                      defaultValue={data.founder.eyebrow}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Headline Text</label>
-                    <input
-                      type="text"
-                      name="headline"
-                      defaultValue={data.founder.headline}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-bold"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Founder Name</label>
-                    <input
-                      type="text"
-                      name="name"
-                      defaultValue={data.founder.name}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Title / Role</label>
-                    <input
-                      type="text"
-                      name="role"
-                      defaultValue={data.founder.role}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Tagline</label>
-                    <input
-                      type="text"
-                      name="tagline"
-                      defaultValue={data.founder.tagline}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-black/60 border border-white/15 space-y-4">
-                  <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block font-mono text-xs text-primary font-bold uppercase tracking-wider">
-                        // FOUNDER PORTRAIT IMAGE URL
-                      </label>
-                      <span className="text-[10px] font-mono text-slate">Paste any direct image URL (JPG, PNG, WEBP, SVG)</span>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="text"
-                        name="image"
-                        value={founderImage}
-                        onChange={(e) => setFounderImage(e.target.value)}
-                        placeholder="https://images.unsplash.com/... or /images/founder.jpg"
-                        className="flex-1 bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                      {founderImage && (
-                        <div className="w-12 h-12 rounded-xl bg-panel border border-primary/40 overflow-hidden shrink-0">
-                          <img
-                            src={founderImage}
-                            alt="Founder Preview"
-                            className="w-full h-full object-cover"
-                            onError={(e) => (e.currentTarget.style.display = 'none')}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-mono text-xs text-slate mb-1">Featured Quote</label>
-                  <textarea
-                    name="quote"
-                    rows={3}
-                    defaultValue={data.founder.quote}
-                    className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none resize-none italic"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-mono text-xs text-slate mb-1">Biography / Overview</label>
-                  <textarea
-                    name="bio"
-                    rows={3}
-                    defaultValue={data.founder.bio}
-                    className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none resize-none leading-relaxed"
-                  />
-                </div>
-
-                <hr className="border-white/10 my-4" />
-                <div className="space-y-3">
-                  <div>
-                    <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// FOUNDER SOCIAL MEDIA LINKS</h3>
-                    <p className="font-sans text-xs text-slate mt-0.5">Toggle checkboxes to enable or disable social media icons on the Founder card.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                    {/* GitHub */}
-                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
-                          <GithubIcon className="w-4 h-4 text-primary" />
-                          <span>GitHub</span>
-                        </label>
-                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
-                          <input
-                            type="checkbox"
-                            name="founder_github_enabled"
-                            defaultChecked={data.founder.socialLinks?.github?.enabled ?? true}
-                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                          />
-                          <span>Show on Founder Card</span>
-                        </label>
-                      </div>
-                      <input
-                        type="text"
-                        name="founder_github_url"
-                        defaultValue={data.founder.socialLinks?.github?.url ?? data.founder.github ?? ''}
-                        placeholder="https://github.com/foundername"
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-
-                    {/* Twitter / X */}
-                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
-                          <TwitterIcon className="w-4 h-4 text-primary" />
-                          <span>Twitter / X</span>
-                        </label>
-                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
-                          <input
-                            type="checkbox"
-                            name="founder_twitter_enabled"
-                            defaultChecked={data.founder.socialLinks?.twitter?.enabled ?? true}
-                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                          />
-                          <span>Show on Founder Card</span>
-                        </label>
-                      </div>
-                      <input
-                        type="text"
-                        name="founder_twitter_url"
-                        defaultValue={data.founder.socialLinks?.twitter?.url ?? data.founder.twitter ?? ''}
-                        placeholder="https://x.com/foundername"
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-
-                    {/* LinkedIn */}
-                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
-                          <LinkedinIcon className="w-4 h-4 text-primary" />
-                          <span>LinkedIn</span>
-                        </label>
-                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
-                          <input
-                            type="checkbox"
-                            name="founder_linkedin_enabled"
-                            defaultChecked={data.founder.socialLinks?.linkedin?.enabled ?? true}
-                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                          />
-                          <span>Show on Founder Card</span>
-                        </label>
-                      </div>
-                      <input
-                        type="text"
-                        name="founder_linkedin_url"
-                        defaultValue={data.founder.socialLinks?.linkedin?.url ?? data.founder.linkedin ?? ''}
-                        placeholder="https://linkedin.com/in/foundername"
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-
-                    {/* Instagram */}
-                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
-                          <InstagramIcon className="w-4 h-4 text-primary" />
-                          <span>Instagram</span>
-                        </label>
-                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
-                          <input
-                            type="checkbox"
-                            name="founder_instagram_enabled"
-                            defaultChecked={data.founder.socialLinks?.instagram?.enabled ?? true}
-                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                          />
-                          <span>Show on Founder Card</span>
-                        </label>
-                      </div>
-                      <input
-                        type="text"
-                        name="founder_instagram_url"
-                        defaultValue={data.founder.socialLinks?.instagram?.url ?? ''}
-                        placeholder="https://instagram.com/foundername"
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-
-                    {/* Facebook */}
-                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
-                          <FacebookIcon className="w-4 h-4 text-primary" />
-                          <span>Facebook</span>
-                        </label>
-                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
-                          <input
-                            type="checkbox"
-                            name="founder_facebook_enabled"
-                            defaultChecked={data.founder.socialLinks?.facebook?.enabled ?? true}
-                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                          />
-                          <span>Show on Founder Card</span>
-                        </label>
-                      </div>
-                      <input
-                        type="text"
-                        name="founder_facebook_url"
-                        defaultValue={data.founder.socialLinks?.facebook?.url ?? ''}
-                        placeholder="https://facebook.com/foundername"
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-
-                    {/* WhatsApp */}
-                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
-                          <WhatsappIcon className="w-4 h-4 text-primary" />
-                          <span>WhatsApp</span>
-                        </label>
-                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
-                          <input
-                            type="checkbox"
-                            name="founder_whatsapp_enabled"
-                            defaultChecked={data.founder.socialLinks?.whatsapp?.enabled ?? true}
-                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                          />
-                          <span>Show on Founder Card</span>
-                        </label>
-                      </div>
-                      <input
-                        type="text"
-                        name="founder_whatsapp_url"
-                        defaultValue={data.founder.socialLinks?.whatsapp?.url ?? ''}
-                        placeholder="https://wa.me/918787878787"
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-mono text-xs text-slate mb-1">Contribution Note</label>
-                  <input
-                    type="text"
-                    name="contributionNote"
-                    defaultValue={data.founder.contributionNote}
-                    className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="px-6 py-3.5 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider hover:bg-white transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Save Founder Changes</span>
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* TAB: MENTORS - Full Width Responsive Grid */}
-          {activeTab === 'mentors' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-jakarta text-2xl font-black text-paper">Edit Mentors & Advisors</h2>
-                  <p className="font-sans text-xs text-slate mt-1">Add, update, or remove mentors.</p>
-                </div>
-                <button
-                  onClick={() => {
-                    addArrayItem('mentors', 'items', {
-                      name: 'New Mentor',
-                      role: 'Advisor',
-                      specialty: 'Engineering & Strategy',
-                      image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop',
-                      tag: 'Advisor'
-                    });
-                    showToast('New mentor added!');
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Mentor</span>
-                </button>
-              </div>
-
-              {/* Mentors Section Header Settings */}
-              <div className="bg-panel border border-white/15 rounded-2xl p-6 space-y-4 shadow-xl">
-                <h3 className="font-jakarta text-lg font-bold text-paper border-b border-white/10 pb-3 flex items-center gap-2">
-                  <span className="font-mono text-xs text-primary font-bold">// SECTION HEADER</span>
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans text-xs">
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate mb-1">Section Tag / Eyebrow</label>
-                    <input
-                      type="text"
-                      value={data.mentors.eyebrow}
-                      onChange={(e) => updateSection('mentors', { eyebrow: e.target.value })}
-                      placeholder="// MENTORS & ADVISORS"
-                      className="w-full bg-black/80 border border-white/15 rounded-lg px-3.5 py-2.5 text-paper focus:border-primary focus:outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate mb-1">Headline Text / Sentence</label>
-                    <input
-                      type="text"
-                      value={data.mentors.title}
-                      onChange={(e) => updateSection('mentors', { title: e.target.value })}
-                      placeholder="Guided by industry veterans and seasoned architects."
-                      className="w-full bg-black/80 border border-white/15 rounded-lg px-3.5 py-2.5 text-paper focus:border-primary focus:outline-none font-bold"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 gap-6">
-                {data.mentors.items.map((mentor, idx) => (
-                  <div key={mentor.id} className="bg-black/60 border border-white/15 rounded-2xl p-5 space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-14 h-14 rounded-2xl bg-panel border border-primary/40 flex items-center justify-center font-mono font-bold text-primary text-lg shrink-0">
-                          {mentor.name ? mentor.name.charAt(0) : 'M'}
-                        </div>
-                        <div>
-                          <h4 className="font-jakarta font-bold text-base text-paper">{mentor.name}</h4>
-                          <span className="font-mono text-xs text-primary">{mentor.role}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          disabled={idx === 0}
-                          onClick={() => {
-                            moveArrayItem('mentors', 'items', idx, 'up');
-                            showToast('Moved mentor up!');
-                          }}
-                          title="Move Up"
-                          className={`p-2 rounded-xl border border-white/10 font-mono text-xs flex items-center gap-1 cursor-pointer transition-all ${
-                            idx === 0 ? 'opacity-30 cursor-not-allowed bg-black/40 text-slate' : 'bg-panel-light text-primary hover:bg-primary/20 hover:border-primary/40'
-                          }`}
-                        >
-                          <ChevronUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={idx === data.mentors.items.length - 1}
-                          onClick={() => {
-                            moveArrayItem('mentors', 'items', idx, 'down');
-                            showToast('Moved mentor down!');
-                          }}
-                          title="Move Down"
-                          className={`p-2 rounded-xl border border-white/10 font-mono text-xs flex items-center gap-1 cursor-pointer transition-all ${
-                            idx === data.mentors.items.length - 1 ? 'opacity-30 cursor-not-allowed bg-black/40 text-slate' : 'bg-panel-light text-primary hover:bg-primary/20 hover:border-primary/40'
-                          }`}
-                        >
-                          <ChevronDown className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            deleteArrayItem('mentors', 'items', mentor.id);
-                            showToast('Mentor deleted.');
-                          }}
-                          className="p-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-sans text-xs">
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Name</label>
-                        <input
-                          type="text"
-                          value={mentor.name}
-                          onChange={(e) => updateArrayItem('mentors', 'items', mentor.id, { name: e.target.value })}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Role / Position</label>
-                        <input
-                          type="text"
-                          value={mentor.role}
-                          onChange={(e) => updateArrayItem('mentors', 'items', mentor.id, { role: e.target.value })}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Specialty</label>
-                        <input
-                          type="text"
-                          value={mentor.specialty}
-                          onChange={(e) => updateArrayItem('mentors', 'items', mentor.id, { specialty: e.target.value })}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Badge Tag</label>
-                        <input
-                          type="text"
-                          value={mentor.tag}
-                          onChange={(e) => updateArrayItem('mentors', 'items', mentor.id, { tag: e.target.value })}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 pt-2 border-t border-white/10">
-                      <label className="block font-mono text-[10px] text-slate font-bold uppercase">
-                        Mentor Portrait Image URL
-                      </label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="text"
-                          value={mentor.image}
-                          onChange={(e) => updateArrayItem('mentors', 'items', mentor.id, { image: e.target.value })}
-                          placeholder="https://images.unsplash.com/... or /images/mentor.jpg"
-                          className="flex-1 bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                        />
-                        {mentor.image && (
-                          <div className="w-9 h-9 rounded-lg bg-panel border border-primary/40 overflow-hidden shrink-0">
-                            <img
-                              src={mentor.image}
-                              alt={mentor.name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => (e.currentTarget.style.display = 'none')}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Social Media Links for Team Member */}
-                    <div className="space-y-3 pt-3 border-t border-white/10 font-sans text-xs">
-                      <label className="block font-mono text-[10px] text-primary font-bold uppercase tracking-wider">
-                        // SOCIAL MEDIA LINKS
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        {/* GitHub */}
-                        <div className="bg-black/80 border border-white/10 rounded-lg p-2.5 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono text-[11px] font-bold text-paper flex items-center gap-1.5">
-                              <GithubIcon className="w-3.5 h-3.5 text-primary" />
-                              GitHub
-                            </span>
-                            <label className="flex items-center gap-1.5 text-[10px] font-mono text-slate cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={mentor.socialLinks?.github?.enabled ?? false}
-                                onChange={(e) => {
-                                  const currentSocial = mentor.socialLinks || {};
-                                  updateArrayItem('mentors', 'items', mentor.id, {
-                                    socialLinks: {
-                                      ...currentSocial,
-                                      github: { url: currentSocial.github?.url || '', enabled: e.target.checked }
-                                    }
-                                  });
-                                }}
-                                className="rounded border-white/20 bg-black text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
-                              />
-                              <span>Show</span>
-                            </label>
-                          </div>
-                          <input
-                            type="text"
-                            value={mentor.socialLinks?.github?.url || ''}
-                            onChange={(e) => {
-                              const currentSocial = mentor.socialLinks || {};
-                              updateArrayItem('mentors', 'items', mentor.id, {
-                                socialLinks: {
-                                  ...currentSocial,
-                                  github: { enabled: currentSocial.github?.enabled ?? true, url: e.target.value }
-                                }
-                              });
-                            }}
-                            placeholder="https://github.com/username"
-                            className="w-full bg-black border border-white/15 rounded px-2.5 py-1.5 text-paper focus:border-primary focus:outline-none font-mono text-[11px]"
-                          />
-                        </div>
-
-                        {/* Twitter / X */}
-                        <div className="bg-black/80 border border-white/10 rounded-lg p-2.5 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono text-[11px] font-bold text-paper flex items-center gap-1.5">
-                              <TwitterIcon className="w-3.5 h-3.5 text-primary" />
-                              Twitter / X
-                            </span>
-                            <label className="flex items-center gap-1.5 text-[10px] font-mono text-slate cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={mentor.socialLinks?.twitter?.enabled ?? false}
-                                onChange={(e) => {
-                                  const currentSocial = mentor.socialLinks || {};
-                                  updateArrayItem('mentors', 'items', mentor.id, {
-                                    socialLinks: {
-                                      ...currentSocial,
-                                      twitter: { url: currentSocial.twitter?.url || '', enabled: e.target.checked }
-                                    }
-                                  });
-                                }}
-                                className="rounded border-white/20 bg-black text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
-                              />
-                              <span>Show</span>
-                            </label>
-                          </div>
-                          <input
-                            type="text"
-                            value={mentor.socialLinks?.twitter?.url || ''}
-                            onChange={(e) => {
-                              const currentSocial = mentor.socialLinks || {};
-                              updateArrayItem('mentors', 'items', mentor.id, {
-                                socialLinks: {
-                                  ...currentSocial,
-                                  twitter: { enabled: currentSocial.twitter?.enabled ?? true, url: e.target.value }
-                                }
-                              });
-                            }}
-                            placeholder="https://x.com/username"
-                            className="w-full bg-black border border-white/15 rounded px-2.5 py-1.5 text-paper focus:border-primary focus:outline-none font-mono text-[11px]"
-                          />
-                        </div>
-
-                        {/* LinkedIn */}
-                        <div className="bg-black/80 border border-white/10 rounded-lg p-2.5 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono text-[11px] font-bold text-paper flex items-center gap-1.5">
-                              <LinkedinIcon className="w-3.5 h-3.5 text-primary" />
-                              LinkedIn
-                            </span>
-                            <label className="flex items-center gap-1.5 text-[10px] font-mono text-slate cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={mentor.socialLinks?.linkedin?.enabled ?? false}
-                                onChange={(e) => {
-                                  const currentSocial = mentor.socialLinks || {};
-                                  updateArrayItem('mentors', 'items', mentor.id, {
-                                    socialLinks: {
-                                      ...currentSocial,
-                                      linkedin: { url: currentSocial.linkedin?.url || '', enabled: e.target.checked }
-                                    }
-                                  });
-                                }}
-                                className="rounded border-white/20 bg-black text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
-                              />
-                              <span>Show</span>
-                            </label>
-                          </div>
-                          <input
-                            type="text"
-                            value={mentor.socialLinks?.linkedin?.url || ''}
-                            onChange={(e) => {
-                              const currentSocial = mentor.socialLinks || {};
-                              updateArrayItem('mentors', 'items', mentor.id, {
-                                socialLinks: {
-                                  ...currentSocial,
-                                  linkedin: { enabled: currentSocial.linkedin?.enabled ?? true, url: e.target.value }
-                                }
-                              });
-                            }}
-                            placeholder="https://linkedin.com/in/username"
-                            className="w-full bg-black border border-white/15 rounded px-2.5 py-1.5 text-paper focus:border-primary focus:outline-none font-mono text-[11px]"
-                          />
-                        </div>
-
-                        {/* Instagram */}
-                        <div className="bg-black/80 border border-white/10 rounded-lg p-2.5 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono text-[11px] font-bold text-paper flex items-center gap-1.5">
-                              <InstagramIcon className="w-3.5 h-3.5 text-primary" />
-                              Instagram
-                            </span>
-                            <label className="flex items-center gap-1.5 text-[10px] font-mono text-slate cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={mentor.socialLinks?.instagram?.enabled ?? false}
-                                onChange={(e) => {
-                                  const currentSocial = mentor.socialLinks || {};
-                                  updateArrayItem('mentors', 'items', mentor.id, {
-                                    socialLinks: {
-                                      ...currentSocial,
-                                      instagram: { url: currentSocial.instagram?.url || '', enabled: e.target.checked }
-                                    }
-                                  });
-                                }}
-                                className="rounded border-white/20 bg-black text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
-                              />
-                              <span>Show</span>
-                            </label>
-                          </div>
-                          <input
-                            type="text"
-                            value={mentor.socialLinks?.instagram?.url || ''}
-                            onChange={(e) => {
-                              const currentSocial = mentor.socialLinks || {};
-                              updateArrayItem('mentors', 'items', mentor.id, {
-                                socialLinks: {
-                                  ...currentSocial,
-                                  instagram: { enabled: currentSocial.instagram?.enabled ?? true, url: e.target.value }
-                                }
-                              });
-                            }}
-                            placeholder="https://instagram.com/username"
-                            className="w-full bg-black border border-white/15 rounded px-2.5 py-1.5 text-paper focus:border-primary focus:outline-none font-mono text-[11px]"
-                          />
-                        </div>
-
-                        {/* Facebook */}
-                        <div className="bg-black/80 border border-white/10 rounded-lg p-2.5 space-y-1.5 sm:col-span-2">
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono text-[11px] font-bold text-paper flex items-center gap-1.5">
-                              <FacebookIcon className="w-3.5 h-3.5 text-primary" />
-                              Facebook
-                            </span>
-                            <label className="flex items-center gap-1.5 text-[10px] font-mono text-slate cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={mentor.socialLinks?.facebook?.enabled ?? false}
-                                onChange={(e) => {
-                                  const currentSocial = mentor.socialLinks || {};
-                                  updateArrayItem('mentors', 'items', mentor.id, {
-                                    socialLinks: {
-                                      ...currentSocial,
-                                      facebook: { url: currentSocial.facebook?.url || '', enabled: e.target.checked }
-                                    }
-                                  });
-                                }}
-                                className="rounded border-white/20 bg-black text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
-                              />
-                              <span>Show</span>
-                            </label>
-                          </div>
-                          <input
-                            type="text"
-                            value={mentor.socialLinks?.facebook?.url || ''}
-                            onChange={(e) => {
-                              const currentSocial = mentor.socialLinks || {};
-                              updateArrayItem('mentors', 'items', mentor.id, {
-                                socialLinks: {
-                                  ...currentSocial,
-                                  facebook: { enabled: currentSocial.facebook?.enabled ?? true, url: e.target.value }
-                                }
-                              });
-                            }}
-                            placeholder="https://facebook.com/username"
-                            className="w-full bg-black border border-white/15 rounded px-2.5 py-1.5 text-paper focus:border-primary focus:outline-none font-mono text-[11px]"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="pt-4 border-t border-white/10 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateSection('mentors', { items: data.mentors.items, eyebrow: data.mentors.eyebrow, title: data.mentors.title });
-                    showToast('Mentors section saved locally! Click "Deploy to Live" at top to publish.');
-                  }}
-                  className="px-6 py-3 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-sm flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20 hover:bg-white transition-all"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Save Mentors Section</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: PROJECTS - Full Width Grid */}
-          {activeTab === 'projects' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-jakarta text-2xl font-black text-paper">Edit Projects & Work Showcase</h2>
-                  <p className="font-sans text-xs text-slate mt-1">Manage work showcase cards, categories, images, and descriptions.</p>
-                </div>
-                <button
-                  onClick={() => {
-                    addArrayItem('projects', 'items', {
-                      title: 'New Featured Project',
-                      category: 'Web App',
-                      technologies: 'React, Node.js, TypeScript',
-                      image: '/images/placeholder.webp',
-                      description: 'Custom high-performance web platform engineered for scale.',
-                      link: '#'
-                    });
-                    showToast('New project added!');
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Project</span>
-                </button>
-              </div>
-
-              {/* Projects Section Header Settings */}
-              <div className="bg-panel border border-white/15 rounded-2xl p-6 space-y-4 shadow-xl">
-                <h3 className="font-jakarta text-lg font-bold text-paper border-b border-white/10 pb-3 flex items-center gap-2">
-                  <span className="font-mono text-xs text-primary font-bold">// SECTION HEADER</span>
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans text-xs">
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate mb-1">Section Tag / Eyebrow</label>
-                    <input
-                      type="text"
-                      value={data.projects.eyebrow}
-                      onChange={(e) => updateSection('projects', { eyebrow: e.target.value })}
-                      placeholder="// SELECTED WORK"
-                      className="w-full bg-black/80 border border-white/15 rounded-lg px-3.5 py-2.5 text-paper focus:border-primary focus:outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate mb-1">Headline Text / Sentence</label>
-                    <input
-                      type="text"
-                      value={data.projects.title}
-                      onChange={(e) => updateSection('projects', { title: e.target.value })}
-                      placeholder="Recent projects we've designed, engineered, and shipped."
-                      className="w-full bg-black/80 border border-white/15 rounded-lg px-3.5 py-2.5 text-paper focus:border-primary focus:outline-none font-bold"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {data.projects.items.map((proj, idx) => (
-                  <div key={proj.id} className="bg-black/60 border border-white/15 rounded-2xl p-5 space-y-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-16 h-12 rounded-xl bg-panel border border-primary/40 flex items-center justify-center font-mono font-bold text-primary text-xs shrink-0">
-                          PROJ
-                        </div>
-                        <div>
-                          <h4 className="font-jakarta font-bold text-base text-paper">{proj.title}</h4>
-                          <span className="font-mono text-xs text-primary">{proj.category}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          disabled={idx === 0}
-                          onClick={() => {
-                            moveArrayItem('projects', 'items', idx, 'up');
-                            showToast('Moved project up!');
-                          }}
-                          title="Move Up"
-                          className={`p-2 rounded-xl border border-white/10 font-mono text-xs flex items-center gap-1 cursor-pointer transition-all ${
-                            idx === 0 ? 'opacity-30 cursor-not-allowed bg-black/40 text-slate' : 'bg-panel-light text-primary hover:bg-primary/20 hover:border-primary/40'
-                          }`}
-                        >
-                          <ChevronUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={idx === data.projects.items.length - 1}
-                          onClick={() => {
-                            moveArrayItem('projects', 'items', idx, 'down');
-                            showToast('Moved project down!');
-                          }}
-                          title="Move Down"
-                          className={`p-2 rounded-xl border border-white/10 font-mono text-xs flex items-center gap-1 cursor-pointer transition-all ${
-                            idx === data.projects.items.length - 1 ? 'opacity-30 cursor-not-allowed bg-black/40 text-slate' : 'bg-panel-light text-primary hover:bg-primary/20 hover:border-primary/40'
-                          }`}
-                        >
-                          <ChevronDown className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            deleteArrayItem('projects', 'items', proj.id);
-                            showToast('Project deleted.');
-                          }}
-                          className="p-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-sans text-xs">
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Project Title</label>
-                        <input
-                          type="text"
-                          value={proj.title}
-                          onChange={(e) => updateArrayItem('projects', 'items', proj.id, { title: e.target.value })}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-bold"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Category</label>
-                        <input
-                          type="text"
-                          value={proj.category}
-                          onChange={(e) => updateArrayItem('projects', 'items', proj.id, { category: e.target.value })}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-bold"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-sans text-xs">
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Year Badge / Tag</label>
-                        <input
-                          type="text"
-                          value={proj.year || '2025'}
-                          onChange={(e) => updateArrayItem('projects', 'items', proj.id, { year: e.target.value })}
-                          placeholder="2025"
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Case Study Link / URL</label>
-                        <input
-                          type="text"
-                          value={proj.link || '#contact'}
-                          onChange={(e) => updateArrayItem('projects', 'items', proj.id, { link: e.target.value })}
-                          placeholder="#contact or https://..."
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block font-mono text-[10px] text-slate mb-1">Technologies Stack</label>
-                      <input
-                        type="text"
-                        value={proj.technologies}
-                        onChange={(e) => updateArrayItem('projects', 'items', proj.id, { technologies: e.target.value })}
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-
-                    <div className="space-y-2 pt-2 border-t border-white/10">
-                      <label className="block font-mono text-[10px] text-slate font-bold uppercase">
-                        Project Showcase Image URL
-                      </label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="text"
-                          value={proj.image}
-                          onChange={(e) => updateArrayItem('projects', 'items', proj.id, { image: e.target.value })}
-                          placeholder="https://images.unsplash.com/... or /images/project-1.webp"
-                          className="flex-1 bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                        />
-                        {proj.image && (
-                          <div className="w-12 h-8 rounded-lg bg-panel border border-primary/40 overflow-hidden shrink-0">
-                            <img
-                              src={proj.image}
-                              alt={proj.title}
-                              className="w-full h-full object-cover"
-                              onError={(e) => (e.currentTarget.style.display = 'none')}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block font-mono text-[10px] text-slate mb-1">Description</label>
-                      <textarea
-                        rows={2}
-                        value={proj.description}
-                        onChange={(e) => updateArrayItem('projects', 'items', proj.id, { description: e.target.value })}
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none resize-none font-sans text-xs leading-relaxed"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="pt-4 border-t border-white/10 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateSection('projects', { items: data.projects.items, eyebrow: data.projects.eyebrow, title: data.projects.title });
-                    showToast('Projects section saved locally! Click "Deploy to Live" at top to publish.');
-                  }}
-                  className="px-6 py-3 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-sm flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20 hover:bg-white transition-all"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Save Projects Section</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: SERVICES */}
-          {activeTab === 'services' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-jakarta text-2xl font-black text-paper">Edit Services & Capabilities</h2>
-                  <p className="font-sans text-xs text-slate mt-1">Manage core services offered and section heading.</p>
-                </div>
-                <button
-                  onClick={() => {
-                    addArrayItem('services', 'items', {
-                      title: 'New Custom Service',
-                      description: 'High-performance engineering solutions tailored for scalable enterprise growth.',
-                      details: 'Complete end-to-end architecture, development, deployment, and long-term optimization.',
-                      tools: ['React', 'TypeScript', 'Node.js', 'AWS']
-                    });
-                    showToast('New Service added successfully!', false);
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-primary text-ink font-bold text-xs flex items-center gap-2 hover:bg-primary-light transition-all shadow-lg shadow-primary/20 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add New Service</span>
-                </button>
-              </div>
-
-              {/* Services Section Header Settings */}
-              <div className="bg-panel border border-white/15 rounded-2xl p-6 space-y-4 shadow-xl">
-                <h3 className="font-jakarta text-lg font-bold text-paper border-b border-white/10 pb-3 flex items-center gap-2">
-                  <span className="font-mono text-xs text-primary font-bold">// SECTION HEADER</span>
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans text-xs">
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate mb-1">Section Tag / Eyebrow</label>
-                    <input
-                      type="text"
-                      value={data.services.eyebrow}
-                      onChange={(e) => updateSection('services', { eyebrow: e.target.value })}
-                      placeholder="// SERVICES"
-                      className="w-full bg-black/80 border border-white/15 rounded-lg px-3.5 py-2.5 text-paper focus:border-primary focus:outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate mb-1">Headline Text / Sentence</label>
-                    <input
-                      type="text"
-                      value={data.services.title}
-                      onChange={(e) => updateSection('services', { title: e.target.value })}
-                      placeholder="Engineering services built for speed, scale, and longevity."
-                      className="w-full bg-black/80 border border-white/15 rounded-lg px-3.5 py-2.5 text-paper focus:border-primary focus:outline-none font-bold"
-                    />
-                  </div>
-                  <div className="md:col-span-2 space-y-3 pt-3 border-t border-white/10">
-                    <div className="flex items-center justify-between">
-                      <label className="block font-mono text-[10px] text-slate font-bold uppercase">Services Background Video URL</label>
-                      <span className="font-mono text-xs text-primary font-bold">Opacity: {servicesVideoOpacity}%</span>
-                    </div>
-                    <input
-                      type="text"
-                      value={data.services.videoUrl || ''}
-                      onChange={(e) => updateSection('services', { videoUrl: e.target.value })}
-                      placeholder="https://.../video.mp4 or /services-background.mp4"
-                      className="w-full bg-black/80 border border-white/15 rounded-lg px-3.5 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs font-bold"
-                    />
-
-                    {/* Services Video Opacity Slider */}
-                    <div className="space-y-2 pt-2 border-t border-white/10 font-sans text-xs">
-                      <div className="flex items-center justify-between">
-                        <label className="block font-mono text-[10px] text-slate font-bold uppercase">
-                          Services Video Opacity Level (0% - 100%)
-                        </label>
-                        <span className="font-mono text-xs text-primary font-bold">{servicesVideoOpacity}%</span>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="font-mono text-xs text-slate">0%</span>
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={servicesVideoOpacity}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value, 10);
-                            setServicesVideoOpacity(val);
-                            updateSection('services', { videoOpacity: val });
-                          }}
-                          className="w-full h-2 bg-black border border-white/15 rounded-lg appearance-none cursor-pointer accent-primary"
-                        />
-                        <span className="font-mono text-xs text-slate">100%</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Tech Toolkit Section Header Settings */}
-              <div className="bg-panel border border-white/15 rounded-2xl p-6 space-y-4 shadow-xl">
-                <h3 className="font-jakarta text-lg font-bold text-paper border-b border-white/10 pb-3 flex items-center gap-2">
-                  <span className="font-mono text-xs text-primary font-bold">// TECH TOOLKIT SECTION HEADER</span>
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans text-xs">
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate mb-1">Section Tag / Eyebrow</label>
-                    <input
-                      type="text"
-                      value={data.toolkit?.eyebrow || '// OUR TOOLKIT'}
-                      onChange={(e) => updateSection('toolkit', { eyebrow: e.target.value })}
-                      placeholder="// OUR TOOLKIT"
-                      className="w-full bg-black/80 border border-white/15 rounded-lg px-3.5 py-2.5 text-paper focus:border-primary focus:outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate mb-1">Headline Text / Sentence</label>
-                    <input
-                      type="text"
-                      value={data.toolkit?.title || 'Engineered with modern, battle-tested technologies.'}
-                      onChange={(e) => updateSection('toolkit', { title: e.target.value })}
-                      placeholder="Engineered with modern, battle-tested technologies."
-                      className="w-full bg-black/80 border border-white/15 rounded-lg px-3.5 py-2.5 text-paper focus:border-primary focus:outline-none font-bold"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {data.services.items.map((service) => (
-                  <div key={service.id} className="bg-black/60 border border-white/15 rounded-2xl p-5 space-y-4">
-                    <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                      <h4 className="font-jakarta font-bold text-lg text-paper">{service.title || 'Untitled Service'}</h4>
-                      {data.services.items.length > 1 && (
-                        <button
-                          onClick={() => {
-                            if (window.confirm(`Are you sure you want to delete service "${service.title}"?`)) {
-                              deleteArrayItem('services', 'items', service.id);
-                              showToast(`Deleted service "${service.title}".`, false);
-                            }
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-all font-mono text-[11px] flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Delete</span>
-                        </button>
-                      )}
-                    </div>
-                    <div className="space-y-3 font-sans text-xs">
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Service Title</label>
-                        <input
-                          type="text"
-                          value={service.title}
-                          onChange={(e) => updateArrayItem('services', 'items', service.id, { title: e.target.value })}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-bold"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Short Description</label>
-                        <input
-                          type="text"
-                          value={service.description}
-                          onChange={(e) => updateArrayItem('services', 'items', service.id, { description: e.target.value })}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Detailed Explanation</label>
-                        <textarea
-                          rows={3}
-                          value={service.details}
-                          onChange={(e) => updateArrayItem('services', 'items', service.id, { details: e.target.value })}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none resize-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Tools / Technologies (Comma separated)</label>
-                        <input
-                          type="text"
-                          value={service.tools.join(', ')}
-                          onChange={(e) =>
-                            updateArrayItem('services', 'items', service.id, {
-                              tools: e.target.value.split(',').map((t) => t.trim()).filter(Boolean)
-                            })
-                          }
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="pt-4 border-t border-white/10 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateSection('services', { items: data.services.items, eyebrow: data.services.eyebrow, title: data.services.title, videoUrl: data.services.videoUrl, videoOpacity: data.services.videoOpacity });
-                    if (data.toolkit) updateSection('toolkit', { eyebrow: data.toolkit.eyebrow, title: data.toolkit.title });
-                    showToast('Services section saved locally! Click "Deploy to Live" at top to publish.');
-                  }}
-                  className="px-6 py-3 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-sm flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20 hover:bg-white transition-all"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Save Services Section</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: PROCESS */}
-          {activeTab === 'process' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-jakarta text-2xl font-black text-paper">Edit Engineering Process</h2>
-                  <p className="font-sans text-xs text-slate mt-1">Add, update, or remove workflow steps.</p>
-                </div>
-                <button
-                  onClick={() => {
-                    const stepNum = String(data.process.steps.length + 1).padStart(2, '0');
-                    addArrayItem('process', 'steps', {
-                      number: stepNum,
-                      title: 'New Process Stage',
-                      description: 'Description of the new engineering process step.'
-                    });
-                    showToast('New process step added!', false);
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Step</span>
-                </button>
-              </div>
-
-              {/* Process Section Header Settings */}
-              <div className="bg-panel border border-white/15 rounded-2xl p-6 space-y-4 shadow-xl">
-                <h3 className="font-jakarta text-lg font-bold text-paper border-b border-white/10 pb-3 flex items-center gap-2">
-                  <span className="font-mono text-xs text-primary font-bold">// SECTION HEADER</span>
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans text-xs">
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate mb-1">Section Tag / Eyebrow</label>
-                    <input
-                      type="text"
-                      value={data.process.eyebrow}
-                      onChange={(e) => updateSection('process', { eyebrow: e.target.value })}
-                      placeholder="// PROCESS"
-                      className="w-full bg-black/80 border border-white/15 rounded-lg px-3.5 py-2.5 text-paper focus:border-primary focus:outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate mb-1">Headline Text / Sentence</label>
-                    <input
-                      type="text"
-                      value={data.process.title}
-                      onChange={(e) => updateSection('process', { title: e.target.value })}
-                      placeholder="How we turn ideas into production-ready software."
-                      className="w-full bg-black/80 border border-white/15 rounded-lg px-3.5 py-2.5 text-paper focus:border-primary focus:outline-none font-bold"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {data.process.steps.map((step) => (
-                  <div key={step.id} className="bg-black/60 border border-white/15 rounded-2xl p-5 space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 flex-1">
-                        <input
-                          type="text"
-                          value={step.number}
-                          onChange={(e) => updateArrayItem('process', 'steps', step.id, { number: e.target.value })}
-                          className="w-16 bg-black/80 border border-white/15 rounded-lg px-2 py-2 text-primary font-mono font-bold text-center text-sm"
-                        />
-                        <input
-                          type="text"
-                          value={step.title}
-                          onChange={(e) => updateArrayItem('process', 'steps', step.id, { title: e.target.value })}
-                          className="flex-1 bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-jakarta font-bold text-sm"
-                        />
-                      </div>
-                      <button
-                        onClick={() => {
-                          deleteArrayItem('process', 'steps', step.id);
-                          showToast('Process step deleted.', false);
-                        }}
-                        className="p-2 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <textarea
-                      rows={2}
-                      value={step.description}
-                      onChange={(e) => updateArrayItem('process', 'steps', step.id, { description: e.target.value })}
-                      className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none resize-none font-sans text-xs"
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <div className="pt-4 border-t border-white/10 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateSection('process', { steps: data.process.steps, eyebrow: data.process.eyebrow, title: data.process.title });
-                    showToast('Process section saved locally! Click "Deploy to Live" at top to publish.');
-                  }}
-                  className="px-6 py-3 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-sm flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20 hover:bg-white transition-all"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Save Process Section</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: TESTIMONIALS */}
-          {activeTab === 'testimonials' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-jakarta text-2xl font-black text-paper">Edit Testimonials</h2>
-                  <p className="font-sans text-xs text-slate mt-1">Manage client testimonials and author portraits.</p>
-                </div>
-                <button
-                  onClick={() => {
-                    addArrayItem('testimonials', 'items', {
-                      quote: 'Outstanding work and technical expertise. Highly recommended!',
-                      author: 'Alex Morgan',
-                      role: 'VP Engineering',
-                      company: 'NextGen Tech',
-                      image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=300&auto=format&fit=crop'
-                    });
-                    showToast('New testimonial added!');
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Testimonial</span>
-                </button>
-              </div>
-
-              {/* Testimonials Section Header Settings */}
-              <div className="bg-panel border border-white/15 rounded-2xl p-6 space-y-4 shadow-xl">
-                <h3 className="font-jakarta text-lg font-bold text-paper border-b border-white/10 pb-3 flex items-center gap-2">
-                  <span className="font-mono text-xs text-primary font-bold">// SECTION HEADER</span>
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans text-xs">
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate mb-1">Section Tag / Eyebrow</label>
-                    <input
-                      type="text"
-                      value={data.testimonials.eyebrow}
-                      onChange={(e) => updateSection('testimonials', { eyebrow: e.target.value })}
-                      placeholder="// CLIENT VERDICT"
-                      className="w-full bg-black/80 border border-white/15 rounded-lg px-3.5 py-2.5 text-paper focus:border-primary focus:outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate mb-1">Headline Text / Sentence</label>
-                    <input
-                      type="text"
-                      value={data.testimonials.title}
-                      onChange={(e) => updateSection('testimonials', { title: e.target.value })}
-                      placeholder="Trusted by founders and engineering leaders."
-                      className="w-full bg-black/80 border border-white/15 rounded-lg px-3.5 py-2.5 text-paper focus:border-primary focus:outline-none font-bold"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {data.testimonials.items.map((test) => (
-                  <div key={test.id} className="bg-black/60 border border-white/15 rounded-2xl p-5 space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-panel border border-primary/40 flex items-center justify-center font-mono font-bold text-primary text-sm shrink-0">
-                          {test.author ? test.author.charAt(0) : 'T'}
-                        </div>
-                        <div>
-                          <h4 className="font-jakarta font-bold text-sm text-paper">{test.author}</h4>
-                          <span className="font-mono text-xs text-primary">{test.role} {test.company ? `@ ${test.company}` : ''}</span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          deleteArrayItem('testimonials', 'items', test.id);
-                          showToast('Testimonial deleted.');
-                        }}
-                        className="p-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="block font-mono text-[10px] text-slate mb-1">Quote</label>
-                      <textarea
-                        rows={2}
-                        value={test.quote}
-                        onChange={(e) => updateArrayItem('testimonials', 'items', test.id, { quote: e.target.value })}
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none resize-none font-sans text-xs italic"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-sans text-xs">
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Author Name</label>
-                        <input
-                          type="text"
-                          value={test.author}
-                          onChange={(e) => updateArrayItem('testimonials', 'items', test.id, { author: e.target.value })}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Role</label>
-                        <input
-                          type="text"
-                          value={test.role}
-                          onChange={(e) => updateArrayItem('testimonials', 'items', test.id, { role: e.target.value })}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-mono text-[10px] text-slate mb-1">Company</label>
-                        <input
-                          type="text"
-                          value={test.company}
-                          onChange={(e) => updateArrayItem('testimonials', 'items', test.id, { company: e.target.value })}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Author Portrait Image Upload */}
-                    <div className="space-y-2 pt-2 border-t border-white/10 font-sans text-xs">
-                      <label className="block font-mono text-[10px] text-slate font-bold uppercase">
-                        Author Portrait Image URL
-                      </label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="text"
-                          value={test.image}
-                          onChange={(e) => updateArrayItem('testimonials', 'items', test.id, { image: e.target.value })}
-                          placeholder="https://images.unsplash.com/... or /images/author.jpg"
-                          className="flex-1 bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                        />
-                        {test.image && (
-                          <div className="w-9 h-9 rounded-full bg-panel border border-primary/40 overflow-hidden shrink-0">
-                            <img
-                              src={test.image}
-                              alt={test.author}
-                              className="w-full h-full object-cover"
-                              onError={(e) => (e.currentTarget.style.display = 'none')}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="pt-4 border-t border-white/10 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateSection('testimonials', { items: data.testimonials.items, eyebrow: data.testimonials.eyebrow, title: data.testimonials.title });
-                    showToast('Testimonials section saved locally! Click "Deploy to Live" at top to publish.');
-                  }}
-                  className="px-6 py-3 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-sm flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20 hover:bg-white transition-all"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Save Testimonials Section</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: CTA & FOOTER */}
-          {activeTab === 'cta' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="font-jakarta text-2xl font-black text-paper">Edit CTA Banner & Footer</h2>
-                <p className="font-sans text-xs text-slate mt-1">Manage global call-to-action and footer contact information.</p>
-              </div>
-
-              <form onSubmit={handleSaveCtaFooter} className="space-y-5 font-sans text-sm">
-                <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// CTA BANNER</h3>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Section Tag / Eyebrow</label>
-                    <input
-                      type="text"
-                      name="ctaEyebrow"
-                      defaultValue={data.cta.eyebrow || "// WHAT'S NEXT"}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Banner Title</label>
-                    <input
-                      type="text"
-                      name="ctaTitle"
-                      defaultValue={data.cta.title}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-bold"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Contact Phone Number</label>
-                    <input
-                      type="text"
-                      name="ctaPhone"
-                      defaultValue={data.cta.phone || "+1 (800) 450-BUILD"}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Contact Email</label>
-                    <input
-                      type="text"
-                      name="ctaEmail"
-                      defaultValue={data.cta.email || data.footer.email}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Button Text</label>
-                    <input
-                      type="text"
-                      name="ctaButtonText"
-                      defaultValue={data.cta.buttonText}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-bold"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-mono text-xs text-slate mb-1">Banner Subtitle</label>
-                  <input
-                    type="text"
-                    name="ctaSubtitle"
-                    defaultValue={data.cta.subtitle}
-                    className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none"
-                  />
-                </div>
-
-                <hr className="border-white/10 my-4" />
-                <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// FOOTER INFO</h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Company Name</label>
-                    <input
-                      type="text"
-                      name="companyName"
-                      defaultValue={data.footer.companyName}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Company Logo Image URL (Navbar & Footer)</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        name="companyLogo"
-                        defaultValue={data.footer.companyLogo || ''}
-                        placeholder="https://.../logo.png or /images/logo.png"
-                        className="flex-1 bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                      {data.footer.companyLogo && (
-                        <div className="w-11 h-11 rounded-xl bg-panel border border-primary/40 p-1 flex items-center justify-center overflow-hidden shrink-0">
-                          <img
-                            src={data.footer.companyLogo}
-                            alt="Logo preview"
-                            className="w-full h-full object-contain"
-                            onError={(e) => (e.currentTarget.style.display = 'none')}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Footer Email</label>
-                    <input
-                      type="text"
-                      name="footerEmail"
-                      defaultValue={data.footer.email}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Contact Phone Number</label>
-                    <input
-                      type="text"
-                      name="ctaPhone"
-                      defaultValue={data.cta.phone || "+1 (800) 450-BUILD"}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-mono text-xs text-slate mb-1">Footer Description</label>
-                  <textarea
-                    name="footerDesc"
-                    rows={2}
-                    defaultValue={data.footer.description}
-                    className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none resize-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Address Line 1</label>
-                    <input
-                      type="text"
-                      name="addressLine1"
-                      defaultValue={data.footer.addressLine1}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Address Line 2</label>
-                    <input
-                      type="text"
-                      name="addressLine2"
-                      defaultValue={data.footer.addressLine2}
-                      className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-mono text-xs text-slate mb-1">Copyright Text (5 clicks triggers Admin)</label>
-                  <input
-                    type="text"
-                    name="copyrightText"
-                    defaultValue={data.footer.copyrightText}
-                    className="w-full bg-black/70 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                  />
-                </div>
-
-                <hr className="border-white/10 my-4" />
-                <div className="space-y-3">
-                  <div>
-                    <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// COMPANY SOCIAL MEDIA LINKS</h3>
-                    <p className="font-sans text-xs text-slate mt-0.5">Toggle checkboxes to enable or disable social media icons in the footer.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                    {/* GitHub */}
-                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
-                          <GithubIcon className="w-4 h-4 text-primary" />
-                          <span>GitHub</span>
-                        </label>
-                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
-                          <input
-                            type="checkbox"
-                            name="social_github_enabled"
-                            defaultChecked={data.footer.socialLinks?.github?.enabled ?? true}
-                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                          />
-                          <span>Show in Footer</span>
-                        </label>
-                      </div>
-                      <input
-                        type="text"
-                        name="social_github_url"
-                        defaultValue={data.footer.socialLinks?.github?.url ?? data.footer.github ?? 'https://github.com'}
-                        placeholder="https://github.com/yourcompany"
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-
-                    {/* Twitter / X */}
-                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
-                          <TwitterIcon className="w-4 h-4 text-primary" />
-                          <span>Twitter / X</span>
-                        </label>
-                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
-                          <input
-                            type="checkbox"
-                            name="social_twitter_enabled"
-                            defaultChecked={data.footer.socialLinks?.twitter?.enabled ?? true}
-                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                          />
-                          <span>Show in Footer</span>
-                        </label>
-                      </div>
-                      <input
-                        type="text"
-                        name="social_twitter_url"
-                        defaultValue={data.footer.socialLinks?.twitter?.url ?? data.footer.twitter ?? 'https://x.com'}
-                        placeholder="https://x.com/yourcompany"
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-
-                    {/* LinkedIn */}
-                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
-                          <LinkedinIcon className="w-4 h-4 text-primary" />
-                          <span>LinkedIn</span>
-                        </label>
-                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
-                          <input
-                            type="checkbox"
-                            name="social_linkedin_enabled"
-                            defaultChecked={data.footer.socialLinks?.linkedin?.enabled ?? true}
-                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                          />
-                          <span>Show in Footer</span>
-                        </label>
-                      </div>
-                      <input
-                        type="text"
-                        name="social_linkedin_url"
-                        defaultValue={data.footer.socialLinks?.linkedin?.url ?? data.footer.linkedin ?? 'https://linkedin.com'}
-                        placeholder="https://linkedin.com/company/yourcompany"
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-
-                    {/* Instagram */}
-                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
-                          <InstagramIcon className="w-4 h-4 text-primary" />
-                          <span>Instagram</span>
-                        </label>
-                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
-                          <input
-                            type="checkbox"
-                            name="social_instagram_enabled"
-                            defaultChecked={data.footer.socialLinks?.instagram?.enabled ?? true}
-                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                          />
-                          <span>Show in Footer</span>
-                        </label>
-                      </div>
-                      <input
-                        type="text"
-                        name="social_instagram_url"
-                        defaultValue={data.footer.socialLinks?.instagram?.url ?? 'https://instagram.com'}
-                        placeholder="https://instagram.com/yourcompany"
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-
-                    {/* Facebook */}
-                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
-                          <FacebookIcon className="w-4 h-4 text-primary" />
-                          <span>Facebook</span>
-                        </label>
-                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
-                          <input
-                            type="checkbox"
-                            name="social_facebook_enabled"
-                            defaultChecked={data.footer.socialLinks?.facebook?.enabled ?? true}
-                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                          />
-                          <span>Show in Footer</span>
-                        </label>
-                      </div>
-                      <input
-                        type="text"
-                        name="social_facebook_url"
-                        defaultValue={data.footer.socialLinks?.facebook?.url ?? 'https://facebook.com'}
-                        placeholder="https://facebook.com/yourcompany"
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-
-                    {/* WhatsApp */}
-                    <div className="bg-black/60 border border-white/10 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="font-mono text-xs font-bold text-paper flex items-center gap-2">
-                          <WhatsappIcon className="w-4 h-4 text-primary" />
-                          <span>WhatsApp</span>
-                        </label>
-                        <label className="flex items-center gap-2 text-xs font-mono text-slate cursor-pointer">
-                          <input
-                            type="checkbox"
-                            name="social_whatsapp_enabled"
-                            defaultChecked={data.footer.socialLinks?.whatsapp?.enabled ?? true}
-                            className="rounded border-white/20 bg-black text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                          />
-                          <span>Show in Footer</span>
-                        </label>
-                      </div>
-                      <input
-                        type="text"
-                        name="social_whatsapp_url"
-                        defaultValue={data.footer.socialLinks?.whatsapp?.url ?? 'https://wa.me/918787878787'}
-                        placeholder="https://wa.me/918787878787"
-                        className="w-full bg-black/80 border border-white/15 rounded-lg px-3 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  className="px-6 py-3.5 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider hover:bg-white transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Save CTA & Footer Changes</span>
-                </button>
-              </form>
-
-              {/* Footer Navigation Links Manager */}
-              <div className="bg-panel border border-white/15 rounded-2xl p-6 space-y-4 shadow-xl mt-8">
-                <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                  <div>
-                    <h3 className="font-jakarta text-lg font-bold text-paper flex items-center gap-2">
-                      <span className="font-mono text-xs text-primary font-bold">// FOOTER NAVIGATION LINKS</span>
-                    </h3>
-                    <p className="font-sans text-xs text-slate mt-0.5">Manage link titles and section target anchors in the site footer.</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const navs = data.footer.navLinks || [
-                        { id: "nav-1", label: "Services", href: "#services" },
-                        { id: "nav-2", label: "Selected Work", href: "#work" },
-                        { id: "nav-3", label: "Engineering Process", href: "#process" },
-                        { id: "nav-4", label: "Leadership", href: "#founder" },
-                        { id: "nav-5", label: "Advisors", href: "#mentors" }
-                      ];
-                      const newNavs = [...navs, { id: `nav-${Date.now()}`, label: "New Link", href: "#" }];
-                      updateSection('footer', { navLinks: newNavs });
-                      showToast('New Footer Navigation Link added!');
-                    }}
-                    className="px-3.5 py-2 rounded-xl bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 transition-all font-jakarta font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Link</span>
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(data.footer.navLinks || [
-                    { id: "nav-1", label: "Services", href: "#services" },
-                    { id: "nav-2", label: "Selected Work", href: "#work" },
-                    { id: "nav-3", label: "Engineering Process", href: "#process" },
-                    { id: "nav-4", label: "Leadership", href: "#founder" },
-                    { id: "nav-5", label: "Advisors", href: "#mentors" }
-                  ]).map((item) => (
-                    <div key={item.id} className="bg-black/60 border border-white/10 rounded-xl p-3.5 flex items-center gap-3">
-                      <div className="flex-1 grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <label className="block font-mono text-[10px] text-slate mb-1">Label</label>
-                          <input
-                            type="text"
-                            value={item.label}
-                            onChange={(e) => {
-                              const navs = data.footer.navLinks || [];
-                              const updated = navs.map((n) => n.id === item.id ? { ...n, label: e.target.value } : n);
-                              updateSection('footer', { navLinks: updated });
-                            }}
-                            className="w-full bg-black/80 border border-white/15 rounded-lg px-2.5 py-1.5 text-paper focus:border-primary focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="block font-mono text-[10px] text-slate mb-1">URL / Anchor Href</label>
-                          <input
-                            type="text"
-                            value={item.href}
-                            onChange={(e) => {
-                              const navs = data.footer.navLinks || [];
-                              const updated = navs.map((n) => n.id === item.id ? { ...n, href: e.target.value } : n);
-                              updateSection('footer', { navLinks: updated });
-                            }}
-                            className="w-full bg-black/80 border border-white/15 rounded-lg px-2.5 py-1.5 text-paper focus:border-primary focus:outline-none font-mono"
-                          />
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const navs = data.footer.navLinks || [];
-                          const filtered = navs.filter((n) => n.id !== item.id);
-                          updateSection('footer', { navLinks: filtered });
-                          showToast('Navigation link deleted.');
-                        }}
-                        className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer mt-4"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Footer Capabilities Manager */}
-              <div className="bg-panel border border-white/15 rounded-2xl p-6 space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                  <div>
-                    <h3 className="font-jakarta text-lg font-bold text-paper flex items-center gap-2">
-                      <span className="font-mono text-xs text-primary font-bold">// FOOTER CAPABILITIES</span>
-                    </h3>
-                    <p className="font-sans text-xs text-slate mt-0.5">Manage capability tags listed in the footer column.</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const caps = data.footer.capabilities || [
-                        { id: "cap-1", label: "Full-Stack Web Dev" },
-                        { id: "cap-2", label: "React Native Apps" },
-                        { id: "cap-3", label: "No-Code Builder Tools" },
-                        { id: "cap-4", label: "Microservice Architecture" },
-                        { id: "cap-5", label: "Performance Auditing" }
-                      ];
-                      const newCaps = [...caps, { id: `cap-${Date.now()}`, label: "New Capability" }];
-                      updateSection('footer', { capabilities: newCaps });
-                      showToast('New Capability added!');
-                    }}
-                    className="px-3.5 py-2 rounded-xl bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 transition-all font-jakarta font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Capability</span>
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {(data.footer.capabilities || [
-                    { id: "cap-1", label: "Full-Stack Web Dev" },
-                    { id: "cap-2", label: "React Native Apps" },
-                    { id: "cap-3", label: "No-Code Builder Tools" },
-                    { id: "cap-4", label: "Microservice Architecture" },
-                    { id: "cap-5", label: "Performance Auditing" }
-                  ]).map((item) => (
-                    <div key={item.id} className="bg-black/60 border border-white/10 rounded-xl p-3 flex items-center gap-2">
-                      <div className="flex-1 text-xs">
-                        <label className="block font-mono text-[10px] text-slate mb-1">Capability Label</label>
-                        <input
-                          type="text"
-                          value={item.label}
-                          onChange={(e) => {
-                            const caps = data.footer.capabilities || [];
-                            const updated = caps.map((c) => c.id === item.id ? { ...c, label: e.target.value } : c);
-                            updateSection('footer', { capabilities: updated });
-                          }}
-                          className="w-full bg-black/80 border border-white/15 rounded-lg px-2.5 py-1.5 text-paper focus:border-primary focus:outline-none"
-                        />
-                      </div>
-                      <button
-                        onClick={() => {
-                          const caps = data.footer.capabilities || [];
-                          const filtered = caps.filter((c) => c.id !== item.id);
-                          updateSection('footer', { capabilities: filtered });
-                          showToast('Capability deleted.');
-                        }}
-                        className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer mt-4"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: MESSAGES - Responsive Grid */}
-          {activeTab === 'messages' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="font-jakarta text-2xl font-black text-paper">Inbox Messages</h2>
-                <p className="font-sans text-xs text-slate mt-1">Inquiries submitted by site visitors.</p>
-              </div>
-
-              {data.messages.length === 0 ? (
-                <div className="bg-black/60 border border-white/15 rounded-2xl p-12 text-center text-slate font-mono text-xs">
-                  No messages in your inbox yet.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {data.messages.map((msg) => (
-                    <div key={msg.id} className="bg-black/60 border border-white/15 rounded-2xl p-5 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-jakarta font-bold text-base text-paper">{msg.name}</h4>
-                            <span className="font-mono text-xs text-primary">&lt;{msg.email}&gt;</span>
-                          </div>
-                          <span className="font-mono text-[10px] text-slate/70">{msg.date}</span>
-                        </div>
-                        <button
-                          onClick={() => {
-                            deleteMessage(msg.id);
-                            showToast('Message deleted.');
-                          }}
-                          className="p-2 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {msg.subject && (
-                        <div className="font-mono text-xs text-paper font-semibold">
-                          Subject: {msg.subject}
-                        </div>
-                      )}
-
-                      <p className="bg-black/80 border border-white/10 rounded-xl p-3.5 font-sans text-xs text-slate leading-relaxed whitespace-pre-wrap">
-                        {msg.message}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB: CLOUDINARY MEDIA CDN */}
-          {activeTab === 'cloudinary' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="font-jakarta text-2xl font-black text-paper">Cloudinary Media CDN Configuration</h2>
-                <p className="font-sans text-xs text-slate mt-1">Configure your free Cloudinary account to stream 4K videos and high-res photos on Vercel.</p>
-              </div>
-
-              {/* CLOUDINARY MEDIA CDN SETTINGS */}
-              <div className="bg-black/60 border border-primary/40 rounded-3xl p-6 space-y-5 font-sans text-sm shadow-2xl">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/40 flex items-center justify-center text-primary">
-                      <Cloud className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// CLOUDINARY MEDIA CDN SETTINGS</h3>
-                      <p className="font-sans text-xs text-slate mt-0.5">Upload photos and 4K videos permanently to Cloudinary CDN for instant worldwide streaming on Vercel.</p>
-                    </div>
-                  </div>
-                  {getCloudinaryConfig({ cloudName: cloudinaryCloudName, uploadPreset: cloudinaryUploadPreset }).cloudName ? (
-                    <span className="font-mono text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 font-bold">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Cloudinary Active</span>
-                    </span>
-                  ) : (
-                    <span className="font-mono text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-xl font-bold">
-                      Not Configured
-                    </span>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block font-mono text-xs text-paper font-bold uppercase mb-1.5">Cloudinary Cloud Name *</label>
-                    <input
-                      type="text"
-                      value={cloudinaryCloudName}
-                      onChange={(e) => setCloudinaryCloudName(e.target.value)}
-                      placeholder="e.g. dxy123abc"
-                      className="w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-paper font-bold uppercase mb-1.5">Unsigned Upload Preset *</label>
-                    <input
-                      type="text"
-                      value={cloudinaryUploadPreset}
-                      onChange={(e) => setCloudinaryUploadPreset(e.target.value)}
-                      placeholder="e.g. docompany_preset"
-                      className="w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-white/10">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      updateSection('cloudinary', {
-                        cloudName: cloudinaryCloudName.trim(),
-                        uploadPreset: cloudinaryUploadPreset.trim()
-                      });
-                      showToast('Cloudinary CDN settings saved successfully!', false);
-                    }}
-                    className="px-6 py-3 rounded-xl bg-primary text-ink font-mono text-xs font-bold flex items-center gap-2 cursor-pointer hover:scale-102 transition-all shadow-lg shadow-primary/20"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>Save Cloudinary Credentials</span>
-                  </button>
-                </div>
-
-                <div className="bg-panel-light/80 p-5 rounded-2xl border border-white/15 font-mono text-xs text-slate space-y-2 leading-relaxed">
-                  <p className="font-bold text-primary">// Simple 60-Second Cloudinary Setup Guide:</p>
-                  <p>1. Sign in to your account at <a href="https://cloudinary.com" target="_blank" rel="noreferrer" className="text-primary underline">Cloudinary.com</a>.</p>
-                  <p>2. Copy your <strong className="text-paper">Cloud Name</strong> from the main dashboard & paste it into the field above.</p>
-                  <p>3. Go to Dashboard → Settings ⚙️ (bottom left) → Click <strong className="text-paper">Upload</strong> tab → Scroll down to <strong className="text-paper">Upload presets</strong> → Click <strong className="text-paper">Add upload preset</strong>.</p>
-                  <p>4. Set Signing Mode to <strong className="text-emerald-400 font-bold">Unsigned</strong> → Click Save → Copy Preset Name & paste it into the field above!</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: SECURITY & SYSTEM */}
-          {activeTab === 'security' && (
-            <div className="space-y-8">
-              <div>
-                <h2 className="font-jakarta text-2xl font-black text-paper">Security & System Settings</h2>
-                <p className="font-sans text-xs text-slate mt-1">Manage admin credentials, audit logs, and data backups.</p>
-              </div>
-
-              {/* Credential Update Form (Requires Current/Old Password) */}
-              <form onSubmit={handleUpdateCreds} className="bg-black/60 border border-white/15 rounded-3xl p-6 space-y-4 font-sans text-sm">
-                <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// CHANGE ADMIN CREDENTIALS</h3>
-                <p className="text-slate text-xs">Enter your current password to authorize changing your username or password.</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-mono text-xs text-amber-400 font-bold mb-1">Current Admin Password *</label>
-                    <div className="relative">
-                      <input
-                        type={showCredPassword ? 'text' : 'password'}
-                        required
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        placeholder="Enter current password"
-                        className="w-full bg-black/80 border border-amber-500/40 rounded-xl pl-4 pr-10 py-3 text-paper focus:border-amber-400 focus:outline-none font-mono text-xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowCredPassword(!showCredPassword)}
-                        className="absolute right-3.5 top-3.5 text-slate hover:text-paper transition-colors focus:outline-none"
-                      >
-                        {showCredPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">New Admin Username</label>
-                    <input
-                      type="text"
-                      required
-                      value={newUsername}
-                      onChange={(e) => setNewUsername(e.target.value)}
-                      placeholder="admin@gmail.com"
-                      className="w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">New Admin Password *</label>
-                    <div className="relative">
-                      <input
-                        type={showCredPassword ? 'text' : 'password'}
-                        required
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Enter new password (min 6 chars)"
-                        className="w-full bg-black/80 border border-white/15 rounded-xl pl-4 pr-10 py-3 text-paper focus:border-primary focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowCredPassword(!showCredPassword)}
-                        className="absolute right-3.5 top-3.5 text-slate hover:text-paper transition-colors focus:outline-none"
-                      >
-                        {showCredPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Confirm New Password *</label>
-                    <div className="relative">
-                      <input
-                        type={showCredPassword ? 'text' : 'password'}
-                        required
-                        value={confirmNewPassword}
-                        onChange={(e) => setConfirmNewPassword(e.target.value)}
-                        placeholder="Confirm new password"
-                        className="w-full bg-black/80 border border-white/15 rounded-xl pl-4 pr-10 py-3 text-paper focus:border-primary focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  className="px-6 py-3.5 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider hover:bg-white transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Update Credentials</span>
-                </button>
-              </form>
-
-              {/* Recovery Email Management Form (Requires OTP Verification Guard) */}
-              <form onSubmit={handleUpdateEmails} className="bg-black/60 border border-white/15 rounded-3xl p-6 space-y-4 font-sans text-sm">
-                <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// RECOVERY EMAILS MANAGEMENT</h3>
-                <p className="text-slate text-xs">Configure your primary and backup emergency recovery emails. Modifying these settings requires OTP verification.</p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Primary Recovery Email</label>
-                    <input
-                      type="email"
-                      required
-                      value={primaryEmail}
-                      onChange={(e) => setPrimaryEmail(e.target.value)}
-                      placeholder="bimaljayakumar18@gmail.com"
-                      className="w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-slate mb-1">Secondary Recovery Email (Optional)</label>
-                    <input
-                      type="email"
-                      value={secondaryEmail}
-                      onChange={(e) => setSecondaryEmail(e.target.value)}
-                      placeholder="admin.backup@gmail.com"
-                      className="w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  className="px-6 py-3.5 rounded-xl bg-panel-light border border-white/20 text-paper hover:border-primary font-mono text-xs flex items-center gap-2 transition-all cursor-pointer"
-                >
-                  <ShieldAlert className="w-4 h-4 text-primary" />
-                  <span>Update Recovery Emails (Requires Security OTP)</span>
-                </button>
-              </form>
-
-              {/* CLOUDINARY MEDIA CDN SETTINGS */}
-              <div className="bg-black/60 border border-primary/30 rounded-3xl p-6 space-y-4 font-sans text-sm">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/40 flex items-center justify-center text-primary">
-                      <Cloud className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// CLOUDINARY MEDIA CDN SETTINGS</h3>
-                      <p className="font-sans text-xs text-slate mt-0.5">Upload photos and 4K videos permanently to Cloudinary CDN for instant worldwide streaming on Vercel.</p>
-                    </div>
-                  </div>
-                  {getCloudinaryConfig({ cloudName: cloudinaryCloudName, uploadPreset: cloudinaryUploadPreset }).cloudName ? (
-                    <span className="font-mono text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl flex items-center gap-1.5 font-bold">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Cloudinary Active</span>
-                    </span>
-                  ) : (
-                    <span className="font-mono text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-lg">
-                      Not Configured
-                    </span>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate font-bold uppercase mb-1">Cloudinary Cloud Name</label>
-                    <input
-                      type="text"
-                      value={cloudinaryCloudName}
-                      onChange={(e) => setCloudinaryCloudName(e.target.value)}
-                      placeholder="e.g. dxy123abc or from .env"
-                      className="w-full bg-black/80 border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate font-bold uppercase mb-1">Unsigned Upload Preset</label>
-                    <input
-                      type="text"
-                      value={cloudinaryUploadPreset}
-                      onChange={(e) => setCloudinaryUploadPreset(e.target.value)}
-                      placeholder="e.g. company_preset or ml_default"
-                      className="w-full bg-black/80 border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-white/10">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      updateSection('cloudinary', {
-                        cloudName: cloudinaryCloudName.trim(),
-                        uploadPreset: cloudinaryUploadPreset.trim()
-                      });
-                      showToast('Cloudinary CDN settings saved permanently!', false);
-                    }}
-                    className="px-5 py-2.5 rounded-xl bg-primary text-ink font-mono text-xs font-bold flex items-center gap-2 cursor-pointer hover:scale-102 transition-all shadow-md shadow-primary/20"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>Save Cloudinary Settings</span>
-                  </button>
-                </div>
-
-                <div className="bg-panel-light/60 p-4 rounded-2xl border border-white/10 font-mono text-[11px] text-slate/90 space-y-1.5">
-                  <p className="font-bold text-primary">// Free 60-Second Cloudinary Setup (100% Free 25GB Storage & Bandwidth):</p>
-                  <p>1. Create a free account at <a href="https://cloudinary.com" target="_blank" rel="noreferrer" className="text-primary underline">Cloudinary.com</a>.</p>
-                  <p>2. Copy your <strong className="text-paper">Cloud Name</strong> from the dashboard & paste it above.</p>
-                  <p>3. Go to Cloudinary Dashboard → Settings ⚙️ → Upload → Scroll down to <strong className="text-paper">Upload presets</strong> → Click <strong className="text-paper">Add upload preset</strong>.</p>
-                  <p>4. Set Signing Mode to <strong className="text-emerald-400">Unsigned</strong> → Click Save → Copy Preset Name & paste it above!</p>
-                </div>
-              </div>
-
-              {/* Global Company Name & Brand Settings */}
-              <div className="bg-black/60 border border-primary/30 rounded-3xl p-6 space-y-4 font-sans text-sm">
-                <div className="border-b border-white/10 pb-3">
-                  <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// COMPANY NAME & GLOBAL BRAND IDENTITY</h3>
-                  <p className="font-sans text-xs text-slate mt-0.5">Changing the company name here automatically updates the Navbar, Footer, Page Title, Meta Tags, and Brand Badges everywhere across the site.</p>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block font-mono text-xs text-slate font-bold">Company Name</label>
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                    <input
-                      type="text"
-                      value={data.footer?.companyName || ''}
-                      onChange={(e) => {
-                        updateSection('footer', { companyName: e.target.value });
-                      }}
-                      placeholder="e.g. DO Company or Your Business Name"
-                      className="flex-1 bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-bold text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        showToast('Company Name updated globally across all pages!');
-                      }}
-                      className="px-5 py-3 rounded-xl bg-primary text-ink font-mono text-xs font-bold flex items-center justify-center gap-2 cursor-pointer hover:bg-white transition-all shadow-md shadow-primary/20 shrink-0"
-                    >
-                      <Save className="w-4 h-4" />
-                      <span>Save Company Name</span>
-                    </button>
-                  </div>
-                  <p className="font-mono text-[10px] text-slate/70">
-                    Layout protects long names: text automatically scales and truncates on mobile headers without breaking layout.
-                  </p>
-                </div>
-              </div>
-
-              {/* Data Management, Permanent Baseline & Restore */}
-              <div className="bg-black/60 border border-white/15 rounded-3xl p-6 space-y-5 font-sans text-sm">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
-                  <div>
-                    <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// PERMANENT BASELINE & DATA BACKUP</h3>
-                    <p className="font-sans text-xs text-slate mt-1">Lock in all your current edits as permanent defaults or backup/restore site state.</p>
-                  </div>
-                  {hasPermanentDefaults && (
-                    <span className="font-mono text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl flex items-center gap-1.5 font-bold">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Custom Permanent Defaults Locked</span>
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4">
-                  {/* Set Current Details as Permanent Defaults */}
-                  <button
-                    onClick={() => {
-                      if (window.confirm("Lock all current site details (custom copy, uploaded images, video URLs, and project items) as your new Permanent Default baseline?")) {
-                        setAsPermanentDefaults();
-                        addAuditLog("PERMANENT_DEFAULTS_SAVED", "Saved current site state as Permanent Defaults baseline");
-                        showToast("All current site details locked as Permanent Defaults!");
-                      }
-                    }}
-                    className="px-5 py-3 rounded-xl bg-primary text-ink font-mono text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-primary/20 hover:scale-102"
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>Set Current Details as Permanent Defaults</span>
-                  </button>
-
-                  {/* Reset to Permanent Defaults */}
-                  <button
-                    onClick={() => {
-                      if (window.confirm("Reset all site data back to your saved Permanent Defaults?")) {
-                        resetToDefaults();
-                        showToast("Site data reset to your saved Permanent Defaults.");
-                      }
-                    }}
-                    className="px-5 py-3 rounded-xl bg-panel-light border border-white/15 text-paper hover:border-primary font-mono text-xs flex items-center gap-2 transition-all cursor-pointer"
-                  >
-                    <RefreshCw className="w-4 h-4 text-primary" />
-                    <span>Reset to Permanent Defaults</span>
-                  </button>
-
-                  {/* Download Backup JSON */}
-                  <button
-                    onClick={handleExportData}
-                    className="px-5 py-3 rounded-xl bg-panel-light border border-white/15 text-paper hover:border-primary font-mono text-xs flex items-center gap-2 transition-all cursor-pointer"
-                  >
-                    <Download className="w-4 h-4 text-primary" />
-                    <span>Download Backup JSON</span>
-                  </button>
-
-                  {/* Restore Factory Original Code Template */}
-                  <button
-                    onClick={() => {
-                      if (window.confirm("WARNING: This will clear your custom Permanent Defaults and revert to the factory original code template. Proceed?")) {
-                        resetToFactoryDefaults();
-                        showToast("Site reset to factory original code template.");
-                      }
-                    }}
-                    className="px-5 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 font-mono text-xs flex items-center gap-2 transition-all cursor-pointer"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                    <span>Restore Factory Original</span>
-                  </button>
-                </div>
-
-                {/* Import JSON */}
-                <form onSubmit={handleImportData} className="pt-4 border-t border-white/10 space-y-3">
-                  <label className="block font-mono text-xs text-slate">Import Backup JSON String</label>
-                  <textarea
-                    rows={3}
-                    value={jsonInput}
-                    onChange={(e) => setJsonInput(e.target.value)}
-                    placeholder="Paste JSON string here..."
-                    className="w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs resize-none"
-                  />
-                  <button
-                    type="submit"
-                    className="px-5 py-2.5 rounded-xl bg-panel-light border border-white/15 text-paper hover:border-primary font-mono text-xs flex items-center gap-2 cursor-pointer"
-                  >
-                    <Upload className="w-4 h-4 text-primary" />
-                    <span>Import JSON Data</span>
-                  </button>
-                </form>
-              </div>
-
-              {/* Security Audit Logs */}
-              <div className="bg-black/60 border border-white/15 rounded-3xl p-6 space-y-4">
-                <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// SECURITY AUDIT LOGS</h3>
-                <div className="max-h-64 overflow-y-auto space-y-2 font-mono text-xs pr-2">
-                  {auditLogs.map((log) => (
-                    <div
-                      key={log.id}
-                      className="p-3.5 rounded-xl bg-black/80 border border-white/10 flex items-center justify-between gap-4"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            log.status === 'SUCCESS' ? 'bg-emerald-400' : log.status === 'FAILED' ? 'bg-red-400' : 'bg-amber-400'
-                          }`}
-                        />
-                        <span className="font-bold text-paper">{log.action}:</span>
-                        <span className="text-slate">{log.details}</span>
-                      </div>
-                      <span className="text-slate/60 text-[10px] shrink-0">{log.timestamp}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-        </main>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => switchWorkspace('students')}
+              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-jakarta text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+                adminWorkspace === 'students'
+                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black scale-[1.01]'
+                  : 'text-slate hover:text-paper hover:bg-white/5'
+              }`}
+            >
+              <GraduationCap className="w-4 h-4" />
+              <span>2. Student Data &amp; Analytics</span>
+              <span className={`font-mono text-[10px] px-2 py-0.5 rounded-md font-bold ${
+                adminWorkspace === 'students' ? 'bg-black/20 text-ink' : 'bg-primary/20 text-primary'
+              }`}>
+                {students.length} Learners
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => switchWorkspace('studentHelp')}
+              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-jakarta text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+                adminWorkspace === 'studentHelp'
+                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black scale-[1.01]'
+                  : 'text-slate hover:text-paper hover:bg-white/5'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>3. Student Help</span>
+              <span className={`font-mono text-[10px] px-2 py-0.5 rounded-md font-bold ${
+                adminWorkspace === 'studentHelp'
+                  ? 'bg-black/20 text-ink'
+                  : pendingHelpCount > 0
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  : 'bg-white/10 text-slate'
+              }`}>
+                {helpMessages.length} Requests {pendingHelpCount > 0 ? `(${pendingHelpCount} New)` : ''}
+              </span>
+            </button>
+          </div>
+        </div>
       </div>
-      {/* SECURITY OTP GUARD MODAL FOR RECOVERY EMAIL CHANGES */}
-      {showEmailOtpModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-panel border border-red-500/30 rounded-3xl p-6 shadow-2xl space-y-4 relative">
-            <div className="text-center space-y-1">
-              <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 flex items-center justify-center mx-auto mb-2">
-                <ShieldAlert className="w-6 h-6" />
+
+      {/* Main Workspace Body */}
+      {adminWorkspace === 'website' ? (
+        <div className="flex-1 max-w-[1650px] w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-8 relative z-10">
+          
+          {/* Left Navigation Rail */}
+          <aside className="w-full lg:w-72 shrink-0 space-y-6">
+            
+            {/* Quick Publish Card */}
+            <div className="p-4 rounded-3xl bg-[#0c0d0e] border border-white/10 space-y-2.5 shadow-xl">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>Live Ready</span>
+                </span>
+                <span className="font-mono text-[10px] text-slate/70">8 Sections</span>
               </div>
-              <h3 className="font-jakarta font-black text-xl text-paper">Security Verification Guard</h3>
-              <p className="font-sans text-xs text-slate">
-                To update your recovery email addresses, please enter the 6-Digit OTP sent to your current registered email ({adminEmails.primaryEmail}).
-              </p>
+              <button
+                onClick={handleDeployToLive}
+                disabled={isDeploying}
+                className="w-full py-2.5 rounded-xl bg-primary text-ink font-jakarta font-black text-xs uppercase tracking-wider hover:bg-white transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-primary/20"
+              >
+                <Rocket className="w-3.5 h-3.5" />
+                <span>{isDeploying ? 'Deploying...' : 'Publish to Live'}</span>
+              </button>
             </div>
 
-            {emailOtpNotice && (
-              <div className="p-3 rounded-xl bg-primary/10 border border-primary/30 font-mono text-xs text-primary text-center">
-                {emailOtpNotice}
-              </div>
-            )}
+            {/* DO PILOT Sections Rail */}
+            <div className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-3 space-y-1 shadow-xl">
+              <span className="font-mono text-[10px] text-slate/60 font-bold uppercase tracking-wider px-3 py-1.5 block">
+                Site Sections
+              </span>
 
-            {emailOtpError && (
-              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 font-mono text-xs text-red-400 text-center">
-                {emailOtpError}
-              </div>
-            )}
+              {sectionsList.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeSection === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveSection(item.id)}
+                    className={`w-full text-left px-3.5 py-2.5 rounded-2xl flex items-center justify-between transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-primary text-ink font-bold shadow-md shadow-primary/20 scale-[1.01]'
+                        : 'text-slate hover:text-paper hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Icon className="w-4 h-4 shrink-0" />
+                      <span className="font-jakarta text-xs font-semibold truncate">{item.label}</span>
+                    </div>
+                    <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded shrink-0 ${
+                      isActive ? 'bg-black/20 text-ink font-bold' : 'text-slate/60 bg-white/5'
+                    }`}>
+                      {item.tag}
+                    </span>
+                  </button>
+                );
+              })}
 
-            <form onSubmit={handleConfirmEmailOtpUpdate} className="space-y-4">
-              <div>
-                <label className="block font-mono text-xs text-slate mb-1">Enter 6-Digit Security OTP *</label>
-                <input
-                  type="text"
-                  required
-                  maxLength={6}
-                  value={emailOtpCode}
-                  onChange={(e) => setEmailOtpCode(e.target.value.replace(/\D/g, ''))}
-                  placeholder="Enter 6-digit OTP code"
-                  className="w-full bg-black/80 border border-primary/50 rounded-xl px-4 py-3 text-paper font-mono text-xs tracking-widest text-center focus:border-primary focus:outline-none"
-                />
-              </div>
+              <span className="font-mono text-[10px] text-slate/60 font-bold uppercase tracking-wider px-3 pt-3 pb-1 block border-t border-white/5 mt-2">
+                System Settings
+              </span>
 
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowEmailOtpModal(false);
-                    setEmailOtpCode('');
-                    setEmailOtpError(null);
-                  }}
-                  className="flex-1 py-3 rounded-xl bg-black/60 border border-white/15 text-slate hover:text-paper font-mono text-xs"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-3 rounded-xl bg-red-500 text-paper font-jakarta font-bold text-xs uppercase tracking-wider hover:bg-white hover:text-ink transition-all shadow-lg shadow-red-500/20"
-                >
-                  Authorize Update
-                </button>
-              </div>
-            </form>
+              {systemList.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeSection === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      if ((item.id as string) === 'studentHelpNav') {
+                        switchWorkspace('studentHelp');
+                      } else {
+                        setActiveSection(item.id);
+                      }
+                    }}
+                    className={`w-full text-left px-3.5 py-2.5 rounded-2xl flex items-center justify-between transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-primary text-ink font-bold shadow-md shadow-primary/20'
+                        : 'text-slate hover:text-paper hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Icon className="w-4 h-4 shrink-0" />
+                      <span className="font-jakarta text-xs font-semibold truncate">{item.label}</span>
+                    </div>
+                    <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded shrink-0 ${
+                      isActive ? 'bg-black/20 text-ink font-bold' : 'text-slate/60 bg-white/5'
+                    }`}>
+                      {item.tag}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+          </aside>
+
+          {/* Right Main Editor Canvas */}
+          <main className="flex-1 min-w-0 space-y-8">
+            {activeSection === 'hero' && renderHeroSection()}
+            {activeSection === 'whyUs' && renderWhyUsSection()}
+            {activeSection === 'courses' && renderCoursesSection()}
+            {activeSection === 'reviews' && renderReviewsSection()}
+            {activeSection === 'codeLab' && renderCodeLabSection()}
+            {activeSection === 'liveClass' && renderLiveClassSection()}
+            {activeSection === 'footer' && renderFooterSection()}
+            {activeSection === 'cloudinary' && renderCloudinarySection()}
+            {activeSection === 'security' && renderSecuritySection()}
+            {activeSection === 'studentExport' && renderStudentExportSection()}
+          </main>
+
+        </div>
+      ) : adminWorkspace === 'studentHelp' ? (
+        /* Student Help Workspace: Full-width, organized, responsive */
+        <div className="flex-1 max-w-[1650px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
+          {renderStudentHelpSection()}
+        </div>
+      ) : (
+        /* Students Workspace: Full-width, clean, dedicated, zero congestion */
+        <div className="flex-1 max-w-[1650px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
+          {renderStudentsSection()}
+        </div>
+      )}
+
+      {/* Root-Level Full-Screen Student Inspect Modal (Guaranteed Above all Headers & Navbars) */}
+      {selectedStudentForReport && renderStudentInspectModal()}
+
+      {/* Dual Email OTP Modal */}
+      {showEmailOtpModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="max-w-md w-full rounded-3xl bg-[#0c0d0e] border border-white/15 p-6 space-y-4 shadow-2xl">
+            <h3 className="font-jakarta font-bold text-lg text-paper">Security Verification OTP</h3>
+            <p className="text-xs text-slate">{emailOtpNotice}</p>
+            {emailOtpError && <p className="text-xs text-rose-400 font-bold">{emailOtpError}</p>}
+            <input
+              type="text"
+              value={emailOtpCode}
+              onChange={(e) => setEmailOtpCode(e.target.value)}
+              placeholder="Enter 6-digit code"
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-sm tracking-widest text-center"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleConfirmEmailOtpUpdate}
+                className="flex-1 py-2.5 rounded-xl bg-primary text-ink font-bold text-xs"
+              >
+                Confirm Code
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowEmailOtpModal(false)}
+                className="py-2.5 px-4 rounded-xl bg-white/10 text-paper font-bold text-xs"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -3796,3 +4930,5 @@ export const AdminPanel: React.FC = () => {
     </div>
   );
 };
+
+export default AdminPanel;

@@ -4,12 +4,11 @@
     "uploadPreset": ""
   },
   "hero": {
-    "eyebrow": "We Build. We Launch. We Educate.",
-    "headlineWord1": "BUILD",
-    "headlineWord2": "",
-    "headlineWord3": "WHAT'S",
-    "headlineWord4": "NEXT?",
-    "glowingTarget": "NEXT",
+    "eyebrow": "",
+    "headlineWord1": "Master Real Tech Skills with",
+    "headlineWord2": "DO PILOT",
+    "headlineWord3": "",
+    "headlineWord4": "",
     "glowingWords": {
       "word1": false,
       "word2": false,
@@ -19,33 +18,23 @@
       "whats": false,
       "next": true
     },
-    "videoUrl": "https://res.cloudinary.com/ufo0zltq/video/upload/v1786901892/DO_VIDEO_SMALL_ihfkzf.mp4",
-    "videoOpacity": 80,
-    "description": "We design, engineer, and deploy high-performance web applications, cross-platform mobile apps, and custom site-builder infrastructure for forward-thinking enterprises.",
+    "videoUrl": "",
+    "videoOpacity": 0,
+    "description": "Practical, project-based courses and live classes taught by industry engineers. Learn Python, Full Stack development, and real-world skills to launch your tech career.",
     "pillars": [
-      "Transparent Pricing",
-      "Agile & Adaptive",
-      "Products That Last"
+      "100% Practical Projects",
+      "Live Interactive Classes",
+      "1-on-1 Mentor Support"
     ],
-    "primaryCtaText": "Get Started",
-    "primaryCtaLink": "#contact",
-    "secondaryCtaText": "See Our Work",
-    "secondaryCtaLink": "#work",
+    "primaryCtaText": "Explore Courses",
+    "primaryCtaLink": "#courses",
+    "secondaryCtaText": "Join Next Live Class",
+    "secondaryCtaLink": "#live-class",
+    "headlinePrefix": "Master Real Tech Skills with",
+    "highlightWord": "DO PILOT",
+    "scrollCueText": "Explore DO PILOT",
     "note": "No commitment needed — just a conversation.",
-    "metrics": [
-      {
-        "value": "1L+",
-        "label": "Lines of Code"
-      },
-      {
-        "value": "20+",
-        "label": "Web Applications"
-      },
-      {
-        "value": "24/7",
-        "label": "Learning Mindset"
-      }
-    ]
+    "metrics": []
   },
   "about": {
     "eyebrow": "// CAPABILITIES & EXPERIENCE",
@@ -473,12 +462,12 @@
     "buttonText": "Send a Message"
   },
   "footer": {
-    "companyName": "DO Company",
-    "description": "High-performance software engineering agency specializing in custom web applications, cross-platform mobile apps, and enterprise site-builder tools.",
-    "addressLine1": "548 Market Street, Suite 900",
-    "addressLine2": "San Francisco, CA 94104",
-    "email": "build@docompany.dev",
-    "copyrightText": "© 2026 DO Company Inc. All rights reserved.",
+    "companyName": "DO PILOT",
+    "description": "DO PILOT is an educational platform offering project-driven coding courses in Python, Full Stack development, and real-time live masterclasses with industry mentors.",
+    "addressLine1": "Online & Global Campus",
+    "addressLine2": "Remote Learning Worldwide",
+    "email": "support@dopilot.com",
+    "copyrightText": "© 2026 DO PILOT. All rights reserved.",
     "github": "https://github.com",
     "linkedin": "https://linkedin.com",
     "twitter": "https://twitter.com",
@@ -560,42 +549,75 @@
     "companyLogo": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png"
   },
   "navbar": {
-    "ctaText": "Start a Project",
+    "companyName": "DO PILOT",
+    "companyLogo": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png",
+    "ctaText": "Get in Touch",
     "ctaLink": "#contact",
     "navLinks": [
       {
         "id": "nav-1",
-        "name": "SERVICES",
-        "href": "#services"
+        "name": "WHY US",
+        "href": "#why-us"
       },
       {
         "id": "nav-2",
-        "name": "WORK",
-        "href": "#work"
+        "name": "COURSES",
+        "href": "#courses"
       },
       {
         "id": "nav-3",
-        "name": "PROCESS",
-        "href": "#process"
+        "name": "REVIEWS",
+        "href": "#reviews"
+      },
+      {
+        "id": "nav-code-lab",
+        "name": "CODE LAB",
+        "href": "#code-lab"
       },
       {
         "id": "nav-4",
-        "name": "FOUNDER",
-        "href": "#founder"
-      },
-      {
-        "id": "nav-5",
-        "name": "MENTORS",
-        "href": "#mentors"
-      },
-      {
-        "id": "nav-6",
-        "name": "CONTACT",
-        "href": "#contact"
+        "name": "LIVE CLASS",
+        "href": "#live-class"
       }
     ]
   },
   "messages": [
+    {
+      "id": "msg-1791384537733",
+      "name": "Bimal Jayakumar",
+      "email": "bimaljayakumar18@gmail.com",
+      "subject": "Enrollment: General Enrollment",
+      "message": "Phone: +91 8888888888\nTrack: General Enrollment\nNotes: uuu",
+      "date": "10/7/2026, 8:18:57 PM",
+      "read": false
+    },
+    {
+      "id": "msg-1791299288390",
+      "name": "AJMAL",
+      "email": "bimaljayakumar18@gmail.com",
+      "subject": "Enrollment: General Enrollment",
+      "message": "Phone: +91 7777777777\nTrack: General Enrollment\nNotes: hI",
+      "date": "10/6/2026, 8:38:08 PM",
+      "read": false
+    },
+    {
+      "id": "msg-1791299259563",
+      "name": "Bimal Jayakumar",
+      "email": "bimaljayakumar18@gmail.com",
+      "subject": "Enrollment: Full Stack Web Development",
+      "message": "Phone: +91 9778707336\nTrack: Full Stack Web Development\nNotes: Hi",
+      "date": "10/6/2026, 8:37:39 PM",
+      "read": false
+    },
+    {
+      "id": "msg-1791299120528",
+      "name": "Bimal Jayakumar",
+      "email": "bimaljayakumar18@gmail.com",
+      "subject": "Enrollment: Full Stack Web Development",
+      "message": "Phone: +91 9778707336\nTrack: Full Stack Web Development\nNotes: Hi, Contact",
+      "date": "10/6/2026, 8:35:20 PM",
+      "read": false
+    },
     {
       "id": "msg-1790521578396",
       "name": "Bimal Jayakumar",
@@ -606,5 +628,396 @@
       "read": false
     }
   ],
-  "version": 1790522172390
+  "version": 1792000000000,
+  "whyUs": {
+    "badgeText": "WHY CHOOSE US",
+    "title": "Why DO PILOT?",
+    "description": "Most online tutorials leave you stranded when you face real code errors. Here is how DO PILOT transforms your learning into real capability.",
+    "features": [
+      {
+        "id": "feat-1",
+        "iconName": "Code2",
+        "title": "Real Projects, Not Just Theory",
+        "description": "You will not just watch videos. You write real code, build production-ready applications, and push commits to GitHub from day one.",
+        "highlight": "10+ Portfolio Projects"
+      },
+      {
+        "id": "feat-2",
+        "iconName": "Users",
+        "title": "Mentor Support When You Are Stuck",
+        "description": "Never get stuck on bugs for hours. Our experienced software engineers review your code and help you debug in real time.",
+        "highlight": "Personal Code Reviews"
+      },
+      {
+        "id": "feat-3",
+        "iconName": "Laptop",
+        "title": "Interactive Live Classes",
+        "description": "Ask questions live and solve problems together with mentors. We keep our live batches focused and hands-on.",
+        "highlight": "Live Coding & Instant Q&A"
+      },
+      {
+        "id": "feat-4",
+        "iconName": "Briefcase",
+        "title": "Career & Industry Ready",
+        "description": "Master real developer tools (Git, APIs, Databases, Clean Architecture) so you can crack interviews and freelance with confidence.",
+        "highlight": "Interview Prep & Portfolio"
+      }
+    ],
+    "comparisonsTitle": "How DO PILOT Compares",
+    "comparisonsSubtitle": "See the direct difference between regular courses and our engineering mentorship.",
+    "comparisons": [
+      {
+        "id": "comp-1",
+        "feature": "Learning Method",
+        "traditional": "Passive recorded videos from years ago",
+        "doPilot": "Active coding & live interactive sessions"
+      },
+      {
+        "id": "comp-2",
+        "feature": "Project Quality",
+        "traditional": "Basic copy-paste toy examples (Todo list)",
+        "doPilot": "Production-ready apps and real-world tools"
+      },
+      {
+        "id": "comp-3",
+        "feature": "When You Get Stuck",
+        "traditional": "Unanswered forum posts or robot replies",
+        "doPilot": "Direct mentor help & 1-on-1 code reviews"
+      },
+      {
+        "id": "comp-4",
+        "feature": "Outcome",
+        "traditional": "Certificate with no proof of skill",
+        "doPilot": "A verifiable GitHub portfolio that gets jobs"
+      }
+    ]
+  },
+  "coursesSection": {
+    "badgeText": "SKILL PATHS",
+    "title": "Our Courses",
+    "description": "Choose a specialized curriculum built around tangible project outcomes. Taught by senior developers with live code reviews.",
+    "items": [
+      {
+        "id": "python-core",
+        "category": "python",
+        "badge": "Bestseller",
+        "badgeColor": "bg-primary/20 text-primary border-primary/30",
+        "image": "https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=800&auto=format&fit=crop&q=80",
+        "title": "Complete Python Course",
+        "description": "Master Python from core logic and data structures to advanced OOP, recursion, and 2D games with Pygame.",
+        "duration": "14 Parts",
+        "level": "Beginner to Advanced",
+        "tags": [
+          "Python 3",
+          "OOP & Logic",
+          "Pygame"
+        ]
+      },
+      {
+        "id": "complete-java-programming",
+        "category": "java",
+        "badge": "Popular",
+        "badgeColor": "bg-amber-400/20 text-amber-300 border-amber-400/30",
+        "image": "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80",
+        "title": "Complete Java Course",
+        "description": "Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams based on the University of Helsinki Java MOOC.",
+        "duration": "14 Parts",
+        "level": "Beginner to Advanced",
+        "tags": [
+          "Java 21",
+          "OOP & Classes",
+          "Collections"
+        ]
+      },
+      {
+        "id": "fullstack-open",
+        "category": "web",
+        "badge": "Career Track",
+        "badgeColor": "bg-emerald-400/20 text-emerald-300 border-emerald-400/30",
+        "image": "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80",
+        "title": "Full Stack Open Course",
+        "description": "Deep dive into modern web development by University of Helsinki. Master React, Node.js, Express, TypeScript, GraphQL, and Docker.",
+        "duration": "14 Parts",
+        "level": "Intermediate",
+        "tags": [
+          "React & TS",
+          "Node & Express",
+          "GraphQL & Docker"
+        ]
+      },
+      {
+        "id": "python-ai",
+        "category": "ai",
+        "badge": "Trending",
+        "badgeColor": "bg-emerald-400/20 text-emerald-300 border-emerald-400/30",
+        "image": "https://images.unsplash.com/photo-1677442136019-21780efad99a?w=800&auto=format&fit=crop&q=80",
+        "title": "Python for AI & Data Science",
+        "description": "Harness NumPy, Pandas, Scikit-learn, and OpenAI APIs to clean real data, build predictive models, and deploy smart automation.",
+        "duration": "10 Weeks",
+        "level": "All Levels",
+        "tags": [
+          "Data Science",
+          "OpenAI APIs",
+          "Pandas"
+        ]
+      },
+      {
+        "id": "mobile-dev",
+        "category": "web",
+        "badge": "High Demand",
+        "badgeColor": "bg-cyan-400/20 text-cyan-300 border-cyan-400/30",
+        "image": "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&auto=format&fit=crop&q=80",
+        "title": "Mobile App Development",
+        "description": "Create and deploy cross-platform iOS and Android apps using React Native and Firebase.",
+        "duration": "8 Weeks",
+        "level": "Intermediate",
+        "tags": [
+          "React Native",
+          "Expo",
+          "iOS & Android"
+        ]
+      }
+    ],
+    "courses": [
+      {
+        "id": "python-core",
+        "category": "python",
+        "badge": "Bestseller",
+        "badgeColor": "bg-primary/20 text-primary border-primary/30",
+        "image": "https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=800&auto=format&fit=crop&q=80",
+        "title": "Complete Python Course",
+        "description": "Master Python from core logic and data structures to advanced OOP, recursion, and 2D games with Pygame.",
+        "duration": "14 Parts",
+        "level": "Beginner to Advanced",
+        "tags": [
+          "Python 3",
+          "OOP & Logic",
+          "Pygame"
+        ]
+      },
+      {
+        "id": "complete-java-programming",
+        "category": "java",
+        "badge": "Popular",
+        "badgeColor": "bg-amber-400/20 text-amber-300 border-amber-400/30",
+        "image": "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80",
+        "title": "Complete Java Course",
+        "description": "Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams based on the University of Helsinki Java MOOC.",
+        "duration": "14 Parts",
+        "level": "Beginner to Advanced",
+        "tags": [
+          "Java 21",
+          "OOP & Classes",
+          "Collections"
+        ]
+      },
+      {
+        "id": "fullstack-open",
+        "category": "web",
+        "badge": "Career Track",
+        "badgeColor": "bg-emerald-400/20 text-emerald-300 border-emerald-400/30",
+        "image": "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80",
+        "title": "Full Stack Open Course",
+        "description": "Deep dive into modern web development by University of Helsinki. Master React, Node.js, Express, TypeScript, GraphQL, and Docker.",
+        "duration": "14 Parts",
+        "level": "Intermediate",
+        "tags": [
+          "React & TS",
+          "Node & Express",
+          "GraphQL & Docker"
+        ]
+      },
+      {
+        "id": "python-ai",
+        "category": "ai",
+        "badge": "Trending",
+        "badgeColor": "bg-emerald-400/20 text-emerald-300 border-emerald-400/30",
+        "image": "https://images.unsplash.com/photo-1677442136019-21780efad99a?w=800&auto=format&fit=crop&q=80",
+        "title": "Python for AI & Data Science",
+        "description": "Harness NumPy, Pandas, Scikit-learn, and OpenAI APIs to clean real data, build predictive models, and deploy smart automation.",
+        "duration": "10 Weeks",
+        "level": "All Levels",
+        "tags": [
+          "Data Science",
+          "OpenAI APIs",
+          "Pandas"
+        ]
+      },
+      {
+        "id": "mobile-dev",
+        "category": "web",
+        "badge": "High Demand",
+        "badgeColor": "bg-cyan-400/20 text-cyan-300 border-cyan-400/30",
+        "image": "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&auto=format&fit=crop&q=80",
+        "title": "Mobile App Development",
+        "description": "Create and deploy cross-platform iOS and Android apps using React Native and Firebase.",
+        "duration": "8 Weeks",
+        "level": "Intermediate",
+        "tags": [
+          "React Native",
+          "Expo",
+          "iOS & Android"
+        ]
+      }
+    ]
+  },
+  "reviewsSection": {
+    "badgeText": "REVIEWS",
+    "title": "Real Reviews from Real Learners",
+    "description": "Here is what our students have to say about learning, building projects, and transforming their careers with DO PILOT.",
+    "ratingValue": "4.9/5",
+    "ratingSubtext": "Average Rating",
+    "studentsMentored": "1,200+ Students Mentored",
+    "items": [
+      {
+        "id": 1,
+        "name": "Rahul Verma",
+        "role": "Python Developer at TechSprint",
+        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces",
+        "course": "Complete Python Course",
+        "rating": 5,
+        "comment": "DO PILOT completely changed how I learn programming. In week two, we built actual automation bots instead of reading textbook theory. The 1-on-1 mentor code reviews gave me the exact skills I needed to land my job."
+      },
+      {
+        "id": 2,
+        "name": "Ananya Sharma",
+        "role": "Full Stack Engineer at AppScale",
+        "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop&crop=faces",
+        "course": "Full Stack Web Development",
+        "rating": 5,
+        "comment": "What sets DO PILOT apart is that the instructors are active software engineers. Whenever I ran into backend bugs in Node or React state issues, they helped me debug and explained the underlying system."
+      },
+      {
+        "id": 3,
+        "name": "Karthik Nair",
+        "role": "Data Analyst at FinMetrics",
+        "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop&crop=faces",
+        "course": "Python for AI & Data Science",
+        "rating": 5,
+        "comment": "The data science track is gold. We cleaned raw real-world datasets and integrated OpenAI endpoints into actual tools. My GitHub portfolio from this course was the highlight of my technical interview."
+      },
+      {
+        "id": 4,
+        "name": "Sneha Patel",
+        "role": "Frontend Developer & Freelancer",
+        "avatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&crop=faces",
+        "course": "Live Python & Web Workshop",
+        "rating": 5,
+        "comment": "I joined one of their weekend live classes and was amazed by the hands-on quality. No boring presentations—just live building and instant Q&A. I learned more in 2 hours than a month of self-study."
+      },
+      {
+        "id": 5,
+        "name": "Devendra Singh",
+        "role": "Software Engineer at CloudCore",
+        "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop&crop=faces",
+        "course": "Full Stack Web Development",
+        "rating": 5,
+        "comment": "The focus on clean code and production deployment made all the difference. Building real projects with TypeScript and PostgreSQL helped me clear 3 technical interviews in my first month after graduating."
+      },
+      {
+        "id": 6,
+        "name": "Meera Krishnan",
+        "role": "AI Automation Specialist at NextWave",
+        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces",
+        "course": "Python for AI & Data Science",
+        "rating": 5,
+        "comment": "Outstanding curriculum. Writing actual scraping scripts and chaining AI models opened so many doors. The mentors are available whenever you need help debugging complex workflows."
+      }
+    ],
+    "reviews": [
+      {
+        "id": 1,
+        "name": "Rahul Verma",
+        "role": "Python Developer at TechSprint",
+        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces",
+        "course": "Complete Python Course",
+        "rating": 5,
+        "comment": "DO PILOT completely changed how I learn programming. In week two, we built actual automation bots instead of reading textbook theory. The 1-on-1 mentor code reviews gave me the exact skills I needed to land my job."
+      },
+      {
+        "id": 2,
+        "name": "Ananya Sharma",
+        "role": "Full Stack Engineer at AppScale",
+        "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop&crop=faces",
+        "course": "Full Stack Web Development",
+        "rating": 5,
+        "comment": "What sets DO PILOT apart is that the instructors are active software engineers. Whenever I ran into backend bugs in Node or React state issues, they helped me debug and explained the underlying system."
+      },
+      {
+        "id": 3,
+        "name": "Karthik Nair",
+        "role": "Data Analyst at FinMetrics",
+        "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop&crop=faces",
+        "course": "Python for AI & Data Science",
+        "rating": 5,
+        "comment": "The data science track is gold. We cleaned raw real-world datasets and integrated OpenAI endpoints into actual tools. My GitHub portfolio from this course was the highlight of my technical interview."
+      },
+      {
+        "id": 4,
+        "name": "Sneha Patel",
+        "role": "Frontend Developer & Freelancer",
+        "avatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&crop=faces",
+        "course": "Live Python & Web Workshop",
+        "rating": 5,
+        "comment": "I joined one of their weekend live classes and was amazed by the hands-on quality. No boring presentations—just live building and instant Q&A. I learned more in 2 hours than a month of self-study."
+      },
+      {
+        "id": 5,
+        "name": "Devendra Singh",
+        "role": "Software Engineer at CloudCore",
+        "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop&crop=faces",
+        "course": "Full Stack Web Development",
+        "rating": 5,
+        "comment": "The focus on clean code and production deployment made all the difference. Building real projects with TypeScript and PostgreSQL helped me clear 3 technical interviews in my first month after graduating."
+      },
+      {
+        "id": 6,
+        "name": "Meera Krishnan",
+        "role": "AI Automation Specialist at NextWave",
+        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces",
+        "course": "Python for AI & Data Science",
+        "rating": 5,
+        "comment": "Outstanding curriculum. Writing actual scraping scripts and chaining AI models opened so many doors. The mentors are available whenever you need help debugging complex workflows."
+      }
+    ]
+  },
+  "codeLab": {
+    "badgeText": "CODE LAB",
+    "title": "Run Python Programs Instantly",
+    "description": "Write, test, and execute Python 3.12 code directly in your browser.",
+    "defaultCode": "print(\"Hello, World!\")\n",
+    "statusText": "Ready to run Python 3.12"
+  },
+  "liveClass": {
+    "badgeText": "LIVE CLASS",
+    "title": "Upcoming Live Class",
+    "description": "Join our interactive live masterclass. Code alongside experienced engineers and ask your questions live.",
+    "spotlightBadge": "Live Workshop • Limited Seats",
+    "className": "Python & AI Assistant: Live Masterclass",
+    "classDescription": "Build a functional AI assistant with Python and live API integration in a 2-hour interactive code-along.",
+    "benefits": [
+      "Hands-on coding with live mentor guidance",
+      "Python & AI API integration",
+      "Live Q&A and complete project source code"
+    ],
+    "seatsLeft": "14 Spots Left",
+    "seatsTotal": "50 Total",
+    "dateText": "Saturday, Oct 18, 2026",
+    "date": "Saturday, Oct 18, 2026",
+    "timeText": "6:00 PM – 8:00 PM IST",
+    "time": "6:00 PM – 8:00 PM IST",
+    "durationText": "2 Hours Hands-on",
+    "duration": "2 Hours Hands-on",
+    "platformText": "Interactive IDE & Live Stream",
+    "platform": "Interactive IDE & Live Stream",
+    "pricingText": "Free",
+    "pricing": "Free",
+    "mentorName": "Arunav Sharma",
+    "mentorRole": "Lead Python Engineer & Architect",
+    "mentorAvatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces",
+    "buttonText": "Join Live Masterclass",
+    "countdownDays": 3,
+    "countdownHours": 8,
+    "targetDateTime": "2026-10-18T18:00"
+  }
 }
