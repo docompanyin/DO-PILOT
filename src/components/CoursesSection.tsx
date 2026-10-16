@@ -225,61 +225,70 @@ export const CoursesSection: React.FC<CoursesSectionProps> = ({ onEnroll }) => {
           }
         ];
 
-  // Guarantee that Python, Java, and Full Stack Open are rendered in strict order
+  // Guarantee that Python, Java, Full Stack Open, and Cyber Security are rendered in order, merging dynamic admin edits
+  const pythonFromRaw = rawList.find((c: any) => c.id === 'python-core' || c.category === 'python' || c.title?.toLowerCase().includes('python'));
+  const javaFromRaw = rawList.find((c: any) => c.id === 'complete-java-programming' || c.category === 'java' || c.title?.toLowerCase().includes('java'));
+  const fullstackFromRaw = rawList.find((c: any) => c.id === 'fullstack-open' || c.id === 'full-stack-web' || c.title?.toLowerCase().includes('full stack'));
+  const cyberSecurityFromRaw = rawList.find((c: any) => c.id === 'cyber-security' || c.category === 'security' || c.title?.toLowerCase().includes('cyber'));
+
   const pythonCourse: CourseItem = {
-    id: 'python-core',
-    category: 'python',
-    badge: 'Bestseller',
-    badgeColor: 'bg-primary/20 text-primary border-primary/30',
-    image: 'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=800&auto=format&fit=crop&q=80',
-    title: 'Complete Python Course',
-    description: 'Master Python from core logic and data structures to advanced OOP, recursion, and 2D games with Pygame.',
-    duration: '14 Parts',
-    level: 'Beginner to Advanced',
-    tags: ['Python 3', 'OOP & Logic', 'Pygame']
+    id: pythonFromRaw?.id || 'python-core',
+    category: pythonFromRaw?.category || 'python',
+    badge: pythonFromRaw?.badge || 'Bestseller',
+    badgeColor: pythonFromRaw?.badgeColor || 'bg-primary/20 text-primary border-primary/30',
+    image: pythonFromRaw?.image || 'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=800&auto=format&fit=crop&q=80',
+    title: (pythonFromRaw?.title || 'Complete Python Course').replace(/Programming/gi, 'Course'),
+    description: pythonFromRaw?.description || 'Master Python from core logic and data structures to advanced OOP, recursion, and 2D games with Pygame.',
+    duration: pythonFromRaw?.duration || '14 Parts',
+    level: pythonFromRaw?.level || 'Beginner to Advanced',
+    tags: (Array.isArray(pythonFromRaw?.tags) && pythonFromRaw.tags.length > 0) ? pythonFromRaw.tags : ['Python 3', 'OOP & Logic', 'Pygame']
   };
 
   const javaCourse: CourseItem = {
-    id: 'complete-java-programming',
-    category: 'java',
-    badge: 'Popular',
-    badgeColor: 'bg-amber-400/20 text-amber-300 border-amber-400/30',
-    image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80',
-    title: 'Complete Java Course',
-    description: 'Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams based on Helsinki MOOC.',
-    duration: '14 Parts',
-    level: 'Beginner to Advanced',
-    tags: ['Java 21', 'OOP & Classes', 'Collections']
+    id: javaFromRaw?.id || 'complete-java-programming',
+    category: javaFromRaw?.category || 'java',
+    badge: javaFromRaw?.badge || 'Popular',
+    badgeColor: javaFromRaw?.badgeColor || 'bg-amber-400/20 text-amber-300 border-amber-400/30',
+    image: javaFromRaw?.image || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80',
+    title: (javaFromRaw?.title || 'Complete Java Course').replace(/Programming/gi, 'Course'),
+    description: javaFromRaw?.description || 'Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams based on Helsinki MOOC.',
+    duration: javaFromRaw?.duration || '14 Parts',
+    level: javaFromRaw?.level || 'Beginner to Advanced',
+    tags: (Array.isArray(javaFromRaw?.tags) && javaFromRaw.tags.length > 0) ? javaFromRaw.tags : ['Java 21', 'OOP & Classes', 'Collections']
   };
 
   const fullstackCourse: CourseItem = {
-    id: 'fullstack-open',
-    category: 'web',
-    badge: 'Career Track',
-    badgeColor: 'bg-emerald-400/20 text-emerald-300 border-emerald-400/30',
-    image: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80',
-    title: 'Full Stack Open Course',
-    description: 'Deep dive into modern web development by University of Helsinki. Master React, Node.js, Express, TypeScript, GraphQL, and Docker.',
-    duration: '14 Parts',
-    level: 'Intermediate',
-    tags: ['React & TS', 'Node & Express', 'GraphQL & Docker']
+    id: fullstackFromRaw?.id || 'fullstack-open',
+    category: fullstackFromRaw?.category || 'web',
+    badge: fullstackFromRaw?.badge || 'Career Track',
+    badgeColor: fullstackFromRaw?.badgeColor || 'bg-emerald-400/20 text-emerald-300 border-emerald-400/30',
+    image: fullstackFromRaw?.image || 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80',
+    title: (fullstackFromRaw?.title || 'Full Stack Open Course').replace(/Programming/gi, 'Course'),
+    description: fullstackFromRaw?.description || 'Deep dive into modern web development by University of Helsinki. Master React, Node.js, Express, TypeScript, GraphQL, and Docker.',
+    duration: fullstackFromRaw?.duration || '14 Parts',
+    level: fullstackFromRaw?.level || 'Intermediate',
+    tags: (Array.isArray(fullstackFromRaw?.tags) && fullstackFromRaw.tags.length > 0) ? fullstackFromRaw.tags : ['React & TS', 'Node & Express', 'GraphQL & Docker']
   };
 
   const cyberSecurityCourse: CourseItem = {
-    id: 'cyber-security',
-    category: 'security',
-    badge: 'High Demand',
-    badgeColor: 'bg-cyan-400/20 text-cyan-300 border-cyan-400/30',
-    image: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&auto=format&fit=crop&q=80',
-    title: 'Cyber Security Course',
-    description: 'Master network defense, penetration testing, malware analysis, and CISSP enterprise governance based on STL Academy.',
-    duration: '14 Parts',
-    level: 'Beginner to Advanced',
-    tags: ['Network Defense', 'Ethical Hacking', 'CISSP & Cryptography']
+    id: cyberSecurityFromRaw?.id || 'cyber-security',
+    category: cyberSecurityFromRaw?.category || 'security',
+    badge: cyberSecurityFromRaw?.badge || 'High Demand',
+    badgeColor: cyberSecurityFromRaw?.badgeColor || 'bg-cyan-400/20 text-cyan-300 border-cyan-400/30',
+    image: cyberSecurityFromRaw?.image || 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&auto=format&fit=crop&q=80',
+    title: (cyberSecurityFromRaw?.title || 'Cyber Security Course').replace(/Programming/gi, 'Course'),
+    description: cyberSecurityFromRaw?.description || 'Master network defense, penetration testing, malware analysis, and CISSP enterprise governance based on STL Academy.',
+    duration: cyberSecurityFromRaw?.duration || '14 Parts',
+    level: cyberSecurityFromRaw?.level || 'Beginner to Advanced',
+    tags: (Array.isArray(cyberSecurityFromRaw?.tags) && cyberSecurityFromRaw.tags.length > 0) ? cyberSecurityFromRaw.tags : ['Network Defense', 'Ethical Hacking', 'CISSP & Cryptography']
   };
 
   const otherCourses = rawList
     .filter((c: any) => 
+      c.id !== pythonCourse.id && 
+      c.id !== javaCourse.id && 
+      c.id !== fullstackCourse.id && 
+      c.id !== cyberSecurityCourse.id &&
       c.id !== 'python-core' && 
       c.id !== 'complete-java-programming' && 
       c.id !== 'fullstack-open' && 

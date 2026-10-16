@@ -843,7 +843,7 @@ export const AdminPanel: React.FC = () => {
       headlineWord2: highlightWord,
       videoUrl: '',
       videoOpacity: 0,
-      description: (formData.get('description') as string) || 'Practical, project-based courses and live classes taught by industry engineers. Learn Python, Java courses, and real-world skills to launch your tech career.',
+      description: (formData.get('description') as string) || 'Practical, project-based courses and live classes taught by industry engineers. Learn Python, Full Stack development, and real-world skills to launch your tech career.',
       pillars: [
         (formData.get('pillar1') as string) || '100% Practical Projects',
         (formData.get('pillar2') as string) || 'Live Interactive Classes',
@@ -882,9 +882,9 @@ export const AdminPanel: React.FC = () => {
     updateSection('whyUs', {
       badgeText: (formData.get('whyUsBadge') as string) || 'WHY CHOOSE US',
       title: (formData.get('whyUsTitle') as string) || 'Why DO PILOT?',
-      description: (formData.get('whyUsDesc') as string) || '',
+      description: (formData.get('whyUsDesc') as string) || 'Most online tutorials leave you stranded when you face real code errors. Here is how DO PILOT transforms your learning into real capability.',
       comparisonsTitle: (formData.get('compTitle') as string) || 'How DO PILOT Compares',
-      comparisonsSubtitle: (formData.get('compSubtitle') as string) || '',
+      comparisonsSubtitle: (formData.get('compSubtitle') as string) || 'See the direct difference between regular courses and our engineering mentorship.',
       tableHeaderFeature: (formData.get('tableHeaderFeature') as string) || 'Feature',
       tableHeaderTraditional: (formData.get('tableHeaderTraditional') as string) || 'Regular Online Courses',
       tableHeaderDoPilot: (formData.get('tableHeaderDoPilot') as string) || 'DO PILOT Platform',
@@ -917,7 +917,7 @@ export const AdminPanel: React.FC = () => {
     updateSection('coursesSection', {
       badgeText: (formData.get('coursesBadge') as string) || 'SKILL PATHS',
       title: (formData.get('coursesTitle') as string) || 'Our Courses',
-      description: (formData.get('coursesDesc') as string) || '',
+      description: (formData.get('coursesDesc') as string) || 'Choose a specialized curriculum built around tangible project outcomes. Taught by senior developers with live code reviews.',
       courses,
       items: courses,
     });
@@ -974,8 +974,9 @@ export const AdminPanel: React.FC = () => {
     updateSection('reviewsSection', {
       badgeText: (formData.get('reviewsBadge') as string) || 'STUDENT STORIES',
       title: (formData.get('reviewsTitle') as string) || 'Student Reviews',
-      description: (formData.get('reviewsDesc') as string) || '',
+      description: (formData.get('reviewsDesc') as string) || 'Real feedback from learners who gained practical skills and built their careers with DO PILOT.',
       reviews,
+      items: reviews,
     });
     addAuditLog('UPDATE_REVIEWS', 'Student reviews updated.');
     showToast('Student reviews saved successfully!');
@@ -995,6 +996,7 @@ export const AdminPanel: React.FC = () => {
     updateSection('reviewsSection', {
       ...data.reviewsSection,
       reviews: [...current, newRev],
+      items: [...current, newRev],
     });
     showToast('New review card added.');
   };
@@ -1004,6 +1006,7 @@ export const AdminPanel: React.FC = () => {
     updateSection('reviewsSection', {
       ...data.reviewsSection,
       reviews: current,
+      items: current,
     });
     showToast('Review card removed.');
   };
@@ -1014,7 +1017,7 @@ export const AdminPanel: React.FC = () => {
     updateSection('codeLab', {
       badgeText: (formData.get('codeLabBadge') as string) || 'CODE LAB',
       title: (formData.get('codeLabTitle') as string) || 'Run Python Programs Instantly',
-      description: (formData.get('codeLabDesc') as string) || '',
+      description: (formData.get('codeLabDesc') as string) || 'Write, test, and execute Python 3.12 code directly in your browser.',
       defaultCode: (formData.get('defaultCode') as string) || 'print("Hello, World!")\n',
     });
     addAuditLog('UPDATE_CODE_LAB', 'Code Lab updated.');
@@ -1033,10 +1036,10 @@ export const AdminPanel: React.FC = () => {
     updateSection('liveClass', {
       badgeText: (formData.get('liveClassBadge') as string) || 'LIVE CLASS',
       title: (formData.get('liveClassTitle') as string) || 'Upcoming Live Class',
-      description: (formData.get('liveClassDesc') as string) || '',
+      description: (formData.get('liveClassDesc') as string) || 'Join our interactive live masterclass. Code alongside experienced engineers and ask your questions live.',
       spotlightBadge: (formData.get('spotlightBadge') as string) || 'Live Workshop • Limited Seats',
-      className: (formData.get('className') as string) || 'Building AI-Powered Apps with Python',
-      classDescription: (formData.get('classDescription') as string) || '',
+      className: (formData.get('className') as string) || 'Python & AI Assistant: Live Masterclass',
+      classDescription: (formData.get('classDescription') as string) || 'Build a functional AI assistant with Python and live API integration in a 2-hour interactive code-along.',
       benefits: benefits.length > 0 ? benefits : [
         'Hands-on coding with live mentor guidance',
         'Python & AI API integration',
@@ -1051,7 +1054,7 @@ export const AdminPanel: React.FC = () => {
       pricing: (formData.get('pricing') as string) || 'Free',
       mentorName: (formData.get('mentorName') as string) || 'Arunav Sharma',
       mentorRole: (formData.get('mentorRole') as string) || 'Lead Python Engineer & Architect',
-      mentorAvatar: (formData.get('mentorAvatar') as string) || '',
+      mentorAvatar: (formData.get('mentorAvatar') as string) || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces',
       buttonText: (formData.get('buttonText') as string) || 'Join Live Masterclass',
     });
     addAuditLog('UPDATE_LIVE_CLASS', 'Live Class updated.');
@@ -1070,8 +1073,8 @@ export const AdminPanel: React.FC = () => {
     updateSection('footer', {
       ...data.footer,
       companyName: (formData.get('companyName') as string) || 'DO PILOT',
-      companyLogo: (formData.get('companyLogo') as string) || '',
-      description: (formData.get('footerDesc') as string) || '',
+      companyLogo: (formData.get('companyLogo') as string) || 'https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png',
+      description: (formData.get('footerDesc') as string) || 'DO PILOT is an educational platform dedicated to project-first coding. We teach practical Python, Java programming, and real-world software engineering with live mentorship.',
       email: (formData.get('footerEmail') as string) || 'support@dopilot.com',
       phone: (formData.get('footerPhone') as string) || '+91 97787 07336',
       address: (formData.get('footerAddress') as string) || 'Online & Global Campus',
@@ -1081,10 +1084,10 @@ export const AdminPanel: React.FC = () => {
       legalTitle: (formData.get('legalTitle') as string) || 'Legal & Policies',
       contactTitle: (formData.get('contactTitle') as string) || 'Contact & Support',
       socialLinks: {
-        github: { url: githubUrl || '', enabled: !!githubUrl },
-        twitter: { url: twitterUrl || '', enabled: !!twitterUrl },
-        linkedin: { url: linkedinUrl || '', enabled: !!linkedinUrl },
-        whatsapp: { url: whatsappUrl || '', enabled: !!whatsappUrl },
+        github: { url: githubUrl || 'https://github.com', enabled: !!githubUrl },
+        twitter: { url: twitterUrl || 'https://twitter.com', enabled: !!twitterUrl },
+        linkedin: { url: linkedinUrl || 'https://linkedin.com', enabled: !!linkedinUrl },
+        whatsapp: { url: whatsappUrl || 'https://wa.me/919778707336', enabled: !!whatsappUrl },
       },
     });
     addAuditLog('UPDATE_FOOTER', 'Footer details updated.');
@@ -1226,7 +1229,7 @@ export const AdminPanel: React.FC = () => {
             <textarea
               name="description"
               rows={2}
-              defaultValue={data.hero.description}
+              defaultValue={data.hero.description || 'Practical, project-based courses and live classes taught by industry engineers. Learn Python, Full Stack development, and real-world skills to launch your tech career.'}
               className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none leading-relaxed"
             />
           </div>
@@ -1372,7 +1375,7 @@ export const AdminPanel: React.FC = () => {
             <textarea
               name="whyUsDesc"
               rows={2}
-              defaultValue={data.whyUs?.description || ''}
+              defaultValue={data.whyUs?.description || 'Most online tutorials leave you stranded when you face real code errors. Here is how DO PILOT transforms your learning into real capability.'}
               className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
             />
           </div>
@@ -1558,7 +1561,7 @@ export const AdminPanel: React.FC = () => {
             <textarea
               name="coursesDesc"
               rows={2}
-              defaultValue={data.coursesSection?.description || 'Practical courses designed to take you from fundamentals to job-ready projects.'}
+              defaultValue={data.coursesSection?.description || 'Choose a specialized curriculum built around tangible project outcomes. Taught by senior developers with live code reviews.'}
               className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
             />
           </div>
@@ -2184,7 +2187,7 @@ export const AdminPanel: React.FC = () => {
             <textarea
               name="footerDesc"
               rows={2}
-              defaultValue={data.footer?.description || ''}
+              defaultValue={data.footer?.description || 'DO PILOT is an educational platform dedicated to project-first coding. We teach practical Python, Java programming, and real-world software engineering with live mentorship.'}
               className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
             />
           </div>

@@ -449,6 +449,9 @@ export const DEFAULT_WHY_US: WhyUsData = {
   ],
   comparisonsTitle: 'How DO PILOT Compares',
   comparisonsSubtitle: 'See the direct difference between regular courses and our engineering mentorship.',
+  tableHeaderFeature: 'Feature',
+  tableHeaderTraditional: 'Regular Online Courses',
+  tableHeaderDoPilot: 'DO PILOT Platform',
   comparisons: [
     {
       id: 'comp-1',
@@ -618,9 +621,9 @@ const DEFAULT_REVIEW_ITEMS: ReviewItem[] = [
 ];
 
 export const DEFAULT_REVIEWS_SECTION: ReviewsSectionData = {
-  badgeText: 'REVIEWS',
-  title: 'Real Reviews from Real Learners',
-  description: 'Here is what our students have to say about learning, building projects, and transforming their careers with DO PILOT.',
+  badgeText: 'STUDENT STORIES',
+  title: 'Student Reviews',
+  description: 'Real feedback from learners who gained practical skills and built their careers with DO PILOT.',
   items: DEFAULT_REVIEW_ITEMS,
   reviews: DEFAULT_REVIEW_ITEMS
 };
@@ -711,6 +714,43 @@ export const DEFAULT_NAVBAR: NavbarData = {
   ]
 };
 
+export const DEFAULT_FOOTER: FooterData = {
+  companyName: 'DO PILOT',
+  companyLogo: 'https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png',
+  description: 'DO PILOT is an educational platform dedicated to project-first coding. We teach practical Python, Java programming, and real-world software engineering with live mentorship.',
+  email: 'support@dopilot.com',
+  phone: '+91 97787 07336',
+  address: 'Online & Global Campus',
+  copyrightText: 'All rights reserved.',
+  exploreTitle: 'Explore',
+  coursesTitle: 'Popular Courses',
+  legalTitle: 'Legal & Policies',
+  contactTitle: 'Contact & Support',
+  socialLinks: {
+    github: { url: 'https://github.com', enabled: true },
+    twitter: { url: 'https://twitter.com', enabled: true },
+    linkedin: { url: 'https://linkedin.com', enabled: true },
+    whatsapp: { url: 'https://wa.me/919778707336', enabled: true }
+  },
+  exploreLinks: [
+    { name: 'Why Us', href: '#why-us' },
+    { name: 'Courses', href: '#courses' },
+    { name: 'Code Lab', href: '#code-lab' },
+    { name: 'Reviews', href: '#reviews' },
+    { name: 'Live Class', href: '#live-class' },
+  ],
+  popularCoursesLinks: [
+    { name: 'Complete Python Course', href: '/course/complete-python-programming' },
+    { name: 'Complete Java Course', href: '/course/complete-java-programming' },
+    { name: 'Python for AI & Data', href: '/course/python-ai-data-science' },
+  ],
+  legalLinks: [
+    { name: 'Privacy Policy', href: '/privacy' },
+    { name: 'Terms of Service', href: '/terms' },
+    { name: 'Refund Policy', href: '/refund' },
+  ]
+};
+
 const DEFAULT_SITE_DATA: SiteData = {
   ...(initialSiteData as unknown as SiteData),
   hero: (initialSiteData as any)?.hero || DEFAULT_HERO,
@@ -721,6 +761,7 @@ const DEFAULT_SITE_DATA: SiteData = {
   reviewsSection: (initialSiteData as any)?.reviewsSection || DEFAULT_REVIEWS_SECTION,
   codeLab: (initialSiteData as any)?.codeLab || DEFAULT_CODE_LAB,
   liveClass: (initialSiteData as any)?.liveClass || DEFAULT_LIVE_CLASS,
+  footer: DEFAULT_FOOTER,
 };
 
 const STORAGE_KEY = "docompany_portfolio_site_data_v1";
@@ -753,6 +794,9 @@ const getBaselineDefaults = (): SiteData => {
         reviewsSection: parsed.reviewsSection || DEFAULT_REVIEWS_SECTION,
         codeLab: parsed.codeLab || DEFAULT_CODE_LAB,
         liveClass: parsed.liveClass || DEFAULT_LIVE_CLASS,
+        footer: (parsed.footer && !parsed.footer.navLinks?.some((l: any) => l.label === 'Services'))
+          ? { ...DEFAULT_FOOTER, ...parsed.footer }
+          : DEFAULT_FOOTER,
       };
     }
   } catch (e) {
@@ -771,6 +815,9 @@ const saveDataLocally = async (nextState: SiteData): Promise<boolean> => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
     localStorage.setItem(PERMANENT_DEFAULT_KEY, JSON.stringify(nextState));
+
+    // Dispatch custom event so other components and open tabs update synchronously
+    window.dispatchEvent(new CustomEvent('dopilot_site_content_updated', { detail: nextState }));
 
     // Sync to Supabase PostgreSQL Database (Cloud)
     try {
@@ -872,6 +919,82 @@ interface DataContextType {
   deployToLive: () => Promise<boolean>;
 }
 
+export const reconcileSiteData = (rawContent: any, baseline: SiteData): SiteData => {
+  if (!rawContent || typeof rawContent !== 'object') return baseline;
+
+  const content: SiteData = {
+    ...baseline,
+    ...rawContent,
+    hero: {
+      ...baseline.hero,
+      ...(rawContent.hero || {}),
+      headlinePrefix: rawContent.hero?.headlinePrefix || rawContent.hero?.headlineWord1 || baseline.hero.headlinePrefix,
+      highlightWord: rawContent.hero?.highlightWord || rawContent.hero?.headlineWord2 || baseline.hero.highlightWord,
+    },
+    sectionsManager: rawContent.sectionsManager || baseline.sectionsManager || DEFAULT_SECTIONS_MANAGER,
+    navbar: (rawContent.navbar && !rawContent.navbar.navLinks?.some((l: any) => l.name === 'SERVICES')) 
+      ? rawContent.navbar 
+      : (baseline.navbar || DEFAULT_NAVBAR),
+    whyUs: {
+      ...baseline.whyUs,
+      ...(rawContent.whyUs || {}),
+      badgeText: rawContent.whyUs?.badgeText || baseline.whyUs?.badgeText || 'WHY CHOOSE US',
+      title: rawContent.whyUs?.title || baseline.whyUs?.title || 'Why DO PILOT?',
+      description: rawContent.whyUs?.description || baseline.whyUs?.description || '',
+      tableHeaderFeature: rawContent.whyUs?.tableHeaderFeature || baseline.whyUs?.tableHeaderFeature || 'Feature',
+      tableHeaderTraditional: rawContent.whyUs?.tableHeaderTraditional || baseline.whyUs?.tableHeaderTraditional || 'Regular Online Courses',
+      tableHeaderDoPilot: rawContent.whyUs?.tableHeaderDoPilot || baseline.whyUs?.tableHeaderDoPilot || 'DO PILOT Platform',
+    },
+    coursesSection: sanitizeCoursesSection(rawContent.coursesSection || baseline.coursesSection),
+    reviewsSection: {
+      ...baseline.reviewsSection,
+      ...(rawContent.reviewsSection || {}),
+      badgeText: (rawContent.reviewsSection?.badgeText && rawContent.reviewsSection.badgeText !== 'REVIEWS') 
+        ? rawContent.reviewsSection.badgeText 
+        : (baseline.reviewsSection?.badgeText || 'STUDENT STORIES'),
+      title: (rawContent.reviewsSection?.title && rawContent.reviewsSection.title !== 'Real Reviews from Real Learners')
+        ? rawContent.reviewsSection.title
+        : (baseline.reviewsSection?.title || 'Student Reviews'),
+      description: (rawContent.reviewsSection?.description && !rawContent.reviewsSection.description.includes('Here is what our students have to say'))
+        ? rawContent.reviewsSection.description
+        : (baseline.reviewsSection?.description || 'Real feedback from learners who gained practical skills and built their careers with DO PILOT.'),
+      reviews: (rawContent.reviewsSection?.reviews && rawContent.reviewsSection.reviews.length > 0 && !rawContent.reviewsSection.reviews.some((r: any) => r.name === 'Ananya Sharma' && r.course?.includes('Full Stack Web')))
+        ? rawContent.reviewsSection.reviews
+        : (baseline.reviewsSection?.reviews || DEFAULT_REVIEW_ITEMS),
+    },
+    codeLab: {
+      ...baseline.codeLab,
+      ...(rawContent.codeLab || {}),
+    },
+    liveClass: {
+      ...baseline.liveClass,
+      ...(rawContent.liveClass || {}),
+    },
+    footer: {
+      ...baseline.footer,
+      ...(rawContent.footer || {}),
+      exploreTitle: rawContent.footer?.exploreTitle || baseline.footer?.exploreTitle || 'Explore',
+      coursesTitle: rawContent.footer?.coursesTitle || baseline.footer?.coursesTitle || 'Popular Courses',
+      legalTitle: rawContent.footer?.legalTitle || baseline.footer?.legalTitle || 'Legal & Policies',
+      contactTitle: rawContent.footer?.contactTitle || baseline.footer?.contactTitle || 'Contact & Support',
+      exploreLinks: (rawContent.footer?.exploreLinks && rawContent.footer.exploreLinks.length > 0)
+        ? rawContent.footer.exploreLinks
+        : (baseline.footer?.exploreLinks || DEFAULT_FOOTER.exploreLinks),
+      popularCoursesLinks: (rawContent.footer?.popularCoursesLinks && rawContent.footer.popularCoursesLinks.length > 0)
+        ? rawContent.footer.popularCoursesLinks
+        : (baseline.footer?.popularCoursesLinks || DEFAULT_FOOTER.popularCoursesLinks),
+      legalLinks: (rawContent.footer?.legalLinks && rawContent.footer.legalLinks.length > 0)
+        ? rawContent.footer.legalLinks
+        : (baseline.footer?.legalLinks || DEFAULT_FOOTER.legalLinks),
+      description: (rawContent.footer?.description && !rawContent.footer.description.includes('Full Stack development, and real-time live masterclasses'))
+        ? rawContent.footer.description
+        : (baseline.footer?.description || DEFAULT_FOOTER.description),
+    }
+  };
+
+  return content;
+};
+
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -885,23 +1008,46 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        return {
-          ...baseline,
-          ...parsed,
-          sectionsManager: parsed.sectionsManager || baseline.sectionsManager || DEFAULT_SECTIONS_MANAGER,
-          navbar: (parsed.navbar && !parsed.navbar.navLinks?.some((l: any) => l.name === 'SERVICES')) ? parsed.navbar : (baseline.navbar || DEFAULT_NAVBAR),
-          whyUs: parsed.whyUs || baseline.whyUs || DEFAULT_WHY_US,
-          coursesSection: sanitizeCoursesSection(parsed.coursesSection || baseline.coursesSection),
-          reviewsSection: parsed.reviewsSection || baseline.reviewsSection || DEFAULT_REVIEWS_SECTION,
-          codeLab: parsed.codeLab || baseline.codeLab || DEFAULT_CODE_LAB,
-          liveClass: parsed.liveClass || baseline.liveClass || DEFAULT_LIVE_CLASS,
-        };
+        return reconcileSiteData(parsed, baseline);
       }
     } catch (e) {
       console.error("Failed to load local site data:", e);
     }
     return baseline;
   });
+
+  // Listen for local tab / cross-component updates and Supabase Realtime
+  useEffect(() => {
+    const handleLocalUpdate = (e: any) => {
+      if (e?.detail) {
+        setData(e.detail);
+      }
+    };
+    window.addEventListener('dopilot_site_content_updated', handleLocalUpdate);
+
+    // Also subscribe to Supabase Realtime so live homepage updates immediately when admin saves
+    let channel: any = null;
+    if (isSupabaseConfigured()) {
+      channel = supabase
+        .channel('public:site_content')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'site_content', filter: 'id=eq.default' }, (payload: any) => {
+          if (payload.new?.content) {
+            const baseline = getBaselineDefaults();
+            const reconciled = reconcileSiteData(payload.new.content, baseline);
+            setData(reconciled);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(reconciled));
+          }
+        })
+        .subscribe();
+    }
+
+    return () => {
+      window.removeEventListener('dopilot_site_content_updated', handleLocalUpdate);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, []);
 
   // Load latest site content from Supabase cloud on initial mount
   useEffect(() => {
@@ -916,15 +1062,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .maybeSingle();
 
         if (isMounted && row?.content && !error) {
-          const content = { ...row.content };
-          if (content.coursesSection) {
-            content.coursesSection = sanitizeCoursesSection(content.coursesSection);
-          }
-          setData((prev) => ({
-            ...prev,
-            ...content
-          }));
-          localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...row.content, coursesSection: content.coursesSection }));
+          const baseline = getBaselineDefaults();
+          const reconciled = reconcileSiteData(row.content, baseline);
+          setData(reconciled);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(reconciled));
         } else if (isMounted && !error && !row) {
           // Table exists but is fresh/empty: auto-seed with current real site data so nothing is ever blank!
           await supabase
