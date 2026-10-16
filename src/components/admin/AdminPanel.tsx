@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Layout, ShieldCheck, BookOpen, Star, Terminal, Video, ExternalLink,
-  Cloud, Shield, Rocket, Save, Plus, Trash2, CheckCircle2,
+  Shield, Rocket, Save, Plus, Trash2, CheckCircle2,
   RefreshCw, Download, Upload, Eye, EyeOff, LogOut,
   Mail, Users, FileSpreadsheet, FileText, Search,
   Trophy, Award, AlertCircle, ArrowUpDown, Phone, GraduationCap,
@@ -354,7 +354,6 @@ export const AdminPanel: React.FC = () => {
     | 'codeLab'
     | 'liveClass'
     | 'footer'
-    | 'cloudinary'
     | 'security'
     | 'studentExport';
 
@@ -368,15 +367,6 @@ export const AdminPanel: React.FC = () => {
 
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [jsonInput, setJsonInput] = useState('');
-
-  // Cloudinary State
-  const [cloudinaryCloudName, setCloudinaryCloudName] = useState(data.cloudinary?.cloudName || '');
-  const [cloudinaryUploadPreset, setCloudinaryUploadPreset] = useState(data.cloudinary?.uploadPreset || '');
-
-  useEffect(() => {
-    if (data.cloudinary?.cloudName !== undefined) setCloudinaryCloudName(data.cloudinary.cloudName);
-    if (data.cloudinary?.uploadPreset !== undefined) setCloudinaryUploadPreset(data.cloudinary.uploadPreset);
-  }, [data.cloudinary]);
 
   // Security Credentials State
   const [currentPassword, setCurrentPassword] = useState('');
@@ -1175,7 +1165,6 @@ export const AdminPanel: React.FC = () => {
   ];
 
   const systemList = [
-    { id: 'cloudinary' as SectionId, label: 'Cloudinary CDN', icon: Cloud, tag: 'Media Hosting' },
     { id: 'security' as SectionId, label: 'Security & Backup', icon: Shield, tag: 'Credentials' },
     { id: 'studentExport' as SectionId, label: 'Extract Student Data', icon: FileSpreadsheet, tag: `${students.length} Contacts` },
     { id: 'studentHelpNav' as any, label: 'Student Help Desk', icon: MessageSquare, tag: `${pendingHelpCount} Tickets` },
@@ -2246,56 +2235,6 @@ export const AdminPanel: React.FC = () => {
     </section>
   );
 
-  const renderCloudinarySection = () => (
-    <section id="section-cloudinary" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
-      <div className="flex items-center justify-between pb-5 border-b border-white/10">
-        <div>
-          <h2 className="font-jakarta text-lg font-black text-paper">Cloudinary CDN Media Hosting</h2>
-          <p className="text-xs text-slate mt-0.5">Stream high-resolution course assets and background videos without slowing down your app.</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block font-mono text-[11px] text-slate mb-1">Cloud Name</label>
-          <input
-            type="text"
-            value={cloudinaryCloudName}
-            onChange={(e) => setCloudinaryCloudName(e.target.value)}
-            placeholder="e.g. ufo0zltq"
-            className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-          />
-        </div>
-        <div>
-          <label className="block font-mono text-[11px] text-slate mb-1">Unsigned Upload Preset</label>
-          <input
-            type="text"
-            value={cloudinaryUploadPreset}
-            onChange={(e) => setCloudinaryUploadPreset(e.target.value)}
-            placeholder="e.g. dopilot_preset"
-            className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-end pt-1">
-        <button
-          type="button"
-          onClick={() => {
-            updateSection('cloudinary', {
-              cloudName: cloudinaryCloudName.trim(),
-              uploadPreset: cloudinaryUploadPreset.trim()
-            });
-            showToast('Cloudinary CDN settings saved!');
-          }}
-          className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
-        >
-          <Save className="w-4 h-4" />
-          <span>Save Cloudinary Settings</span>
-        </button>
-      </div>
-    </section>
-  );
 
   const renderSecuritySection = () => (
     <section id="section-security" className="space-y-6">
@@ -7526,7 +7465,6 @@ export const AdminPanel: React.FC = () => {
                 {activeSection === 'codeLab' && renderCodeLabSection()}
                 {activeSection === 'liveClass' && renderLiveClassSection()}
                 {activeSection === 'footer' && renderFooterSection()}
-                {activeSection === 'cloudinary' && renderCloudinarySection()}
                 {activeSection === 'security' && renderSecuritySection()}
                 {activeSection === 'studentExport' && renderStudentExportSection()}
               </>
