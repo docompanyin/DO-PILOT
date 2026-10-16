@@ -10,7 +10,8 @@ import {
   MessageSquare, MessageCircle, Clock, Gift,
   RotateCcw, Unlock, KeyRound, ShieldAlert,
   Tag, ShoppingBag, CreditCard, Percent, Edit3,
-  QrCode, CheckCheck, XCircle, Image as ImageIcon
+  QrCode, CheckCheck, XCircle, Image as ImageIcon,
+  Menu, ChevronRight
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { useSiteData } from '../../context/DataContext';
@@ -69,8 +70,7 @@ export const AdminPanel: React.FC = () => {
     resetToDefaults,
     setAsPermanentDefaults,
     resetToFactoryDefaults,
-    importDataJSON,
-    deployToLive
+    importDataJSON
   } = useSiteData();
 
   const {
@@ -110,6 +110,8 @@ export const AdminPanel: React.FC = () => {
       sessionStorage.setItem('dopilot_admin_workspace', ws);
     } catch (e) {}
   };
+
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Student Help & Direct Contact Tickets State
   const [helpMessages, setHelpMessages] = useState<StudentHelpMessage[]>(() => getStudentHelpMessages());
@@ -356,7 +358,6 @@ export const AdminPanel: React.FC = () => {
 
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [jsonInput, setJsonInput] = useState('');
-  const [isDeploying, setIsDeploying] = useState(false);
 
   // Cloudinary State
   const [cloudinaryCloudName, setCloudinaryCloudName] = useState(data.cloudinary?.cloudName || '');
@@ -814,19 +815,15 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  const handleDeployToLive = async () => {
-    const confirmed = window.confirm("Deploy all saved changes to the live site for all users?");
-    if (!confirmed) return;
+  const navigateToWorkspace = (ws: AdminWorkspace) => {
+    switchWorkspace(ws);
+    setMobileSidebarOpen(false);
+  };
 
-    setIsDeploying(true);
-    const success = await deployToLive();
-    setIsDeploying(false);
-
-    if (success) {
-      showToast('Deployed! Live on Vercel for all users in ~2-3 minutes.', false);
-    } else {
-      showToast('Deploy failed. Check VITE_GITHUB_TOKEN in Vercel environment variables.', false);
-    }
+  const navigateToSection = (id: SectionId) => {
+    switchWorkspace('website');
+    setActiveSection(id);
+    setMobileSidebarOpen(false);
   };
 
   // Save Handlers
@@ -7054,8 +7051,302 @@ export const AdminPanel: React.FC = () => {
     );
   };
 
+  const getActiveSectionInfo = () => {
+    if (adminWorkspace === 'students') {
+      return { group: 'Student Hub', title: 'Student Data & Analytics' };
+    }
+    if (adminWorkspace === 'studentHelp') {
+      return { group: 'Student Hub', title: 'Student Help' };
+    }
+    if (adminWorkspace === 'courseReset') {
+      return { group: 'Student Hub', title: 'Course Reset' };
+    }
+    if (adminWorkspace === 'pricingCoupons') {
+      return { group: 'Sales & Payments', title: 'Pricing & Coupons' };
+    }
+    if (adminWorkspace === 'paymentSettings') {
+      return { group: 'Sales & Payments', title: 'Payment Settings' };
+    }
+    const sys = systemList.find(s => s.id === activeSection);
+    if (sys) return { group: 'System Settings', title: sys.label };
+    const sec = sectionsList.find(s => s.id === activeSection);
+    if (sec) return { group: 'Website Content', title: sec.label };
+    return { group: 'Website Content', title: 'Website Content Editor' };
+  };
+
+  const renderSidebarContent = (isMobile = false) => {
+    return (
+      <div className="flex flex-col h-full bg-[#0a0b0c] text-paper">
+        {/* Brand / Logo Header */}
+        <div className="p-4 border-b border-white/10 flex items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <img
+              src={data.navbar?.companyLogo || 'https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png'}
+              alt="DO"
+              className="h-7 w-auto object-contain shrink-0"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            <div className="min-w-0">
+              <h1 className="font-jakarta font-black text-sm text-paper leading-none truncate">
+                DO PILOT
+              </h1>
+              <span className="font-mono text-[10px] text-slate/70 block mt-1 truncate">
+                Admin Dashboard
+              </span>
+            </div>
+          </div>
+          {isMobile && (
+            <button
+              onClick={() => setMobileSidebarOpen(false)}
+              className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-slate hover:text-paper cursor-pointer"
+              title="Close Menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Scrollable Navigation Sections */}
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4 scrollbar-thin">
+          
+          {/* GROUP 1: STUDENT HUB */}
+          <div className="space-y-1">
+            <span className="font-mono text-[10px] text-slate/50 font-bold uppercase tracking-wider px-3 py-1 block">
+              Student Hub
+            </span>
+
+            {/* 1. Student Data & Analytics */}
+            <button
+              type="button"
+              onClick={() => navigateToWorkspace('students')}
+              className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-all cursor-pointer ${
+                adminWorkspace === 'students'
+                  ? 'bg-primary text-ink font-bold shadow-md shadow-primary/20'
+                  : 'text-slate hover:text-paper hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <GraduationCap className="w-4 h-4 shrink-0" />
+                <span className="font-jakarta text-xs font-semibold truncate">Student Data &amp; Analytics</span>
+              </div>
+              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
+                adminWorkspace === 'students' ? 'bg-black/20 text-ink' : 'bg-primary/20 text-primary'
+              }`}>
+                {students.length} Learners
+              </span>
+            </button>
+
+            {/* 2. Student Help */}
+            <button
+              type="button"
+              onClick={() => navigateToWorkspace('studentHelp')}
+              className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-all cursor-pointer ${
+                adminWorkspace === 'studentHelp'
+                  ? 'bg-primary text-ink font-bold shadow-md shadow-primary/20'
+                  : 'text-slate hover:text-paper hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <MessageSquare className="w-4 h-4 shrink-0" />
+                <span className="font-jakarta text-xs font-semibold truncate">Student Help</span>
+              </div>
+              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
+                adminWorkspace === 'studentHelp'
+                  ? 'bg-black/20 text-ink'
+                  : pendingHelpCount > 0
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  : 'bg-white/10 text-slate'
+              }`}>
+                {helpMessages.length} Requests{pendingHelpCount > 0 ? ` (${pendingHelpCount} New)` : ''}
+              </span>
+            </button>
+
+            {/* 3. Course Reset */}
+            <button
+              type="button"
+              onClick={() => navigateToWorkspace('courseReset')}
+              className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-all cursor-pointer ${
+                adminWorkspace === 'courseReset'
+                  ? 'bg-primary text-ink font-bold shadow-md shadow-primary/20'
+                  : 'text-slate hover:text-paper hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <RotateCcw className="w-4 h-4 shrink-0" />
+                <span className="font-jakarta text-xs font-semibold truncate">Course Reset</span>
+              </div>
+              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
+                adminWorkspace === 'courseReset'
+                  ? 'bg-black/20 text-ink'
+                  : activeLockedCount > 0
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-pulse'
+                  : 'bg-white/10 text-slate'
+              }`}>
+                {activeLockedCount > 0 ? `${activeLockedCount} Locked` : '0 Locked'}
+              </span>
+            </button>
+          </div>
+
+          {/* GROUP 2: SALES & PAYMENTS */}
+          <div className="space-y-1">
+            <span className="font-mono text-[10px] text-slate/50 font-bold uppercase tracking-wider px-3 py-1 block">
+              Sales &amp; Payments
+            </span>
+
+            {/* 1. Pricing & Coupons */}
+            <button
+              type="button"
+              onClick={() => navigateToWorkspace('pricingCoupons')}
+              className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-all cursor-pointer ${
+                adminWorkspace === 'pricingCoupons'
+                  ? 'bg-primary text-ink font-bold shadow-md shadow-primary/20'
+                  : 'text-slate hover:text-paper hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Tag className="w-4 h-4 shrink-0" />
+                <span className="font-jakarta text-xs font-semibold truncate">Pricing &amp; Coupons</span>
+              </div>
+              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
+                adminWorkspace === 'pricingCoupons' ? 'bg-black/20 text-ink' : 'bg-white/10 text-slate'
+              }`}>
+                {courseCoupons.filter(c => c.isActive).length} Active Codes
+              </span>
+            </button>
+
+            {/* 2. Payment Settings */}
+            <button
+              type="button"
+              onClick={() => navigateToWorkspace('paymentSettings')}
+              className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-all cursor-pointer ${
+                adminWorkspace === 'paymentSettings'
+                  ? 'bg-primary text-ink font-bold shadow-md shadow-primary/20'
+                  : 'text-slate hover:text-paper hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <CreditCard className="w-4 h-4 shrink-0" />
+                <span className="font-jakarta text-xs font-semibold truncate">Payment Settings</span>
+              </div>
+              {pendingManualPayments.length > 0 && (
+                <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
+                  adminWorkspace === 'paymentSettings'
+                    ? 'bg-black/20 text-ink'
+                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                }`}>
+                  {pendingManualPayments.length} Pending
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* GROUP 3: WEBSITE CONTENT */}
+          <div className="space-y-1">
+            <span className="font-mono text-[10px] text-slate/50 font-bold uppercase tracking-wider px-3 py-1 block">
+              Website Content Editor
+            </span>
+
+            {sectionsList.map((item) => {
+              const Icon = item.icon;
+              const isActive = adminWorkspace === 'website' && activeSection === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => navigateToSection(item.id)}
+                  className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-primary text-ink font-bold shadow-md shadow-primary/20 scale-[1.01]'
+                      : 'text-slate hover:text-paper hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span className="font-jakarta text-xs font-semibold truncate">{item.label}</span>
+                  </div>
+                  <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded shrink-0 ${
+                    isActive ? 'bg-black/20 text-ink font-bold' : 'text-slate/60 bg-white/5'
+                  }`}>
+                    {item.tag}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* GROUP 4: SYSTEM SETTINGS */}
+          <div className="space-y-1">
+            <span className="font-mono text-[10px] text-slate/50 font-bold uppercase tracking-wider px-3 py-1 block">
+              System Settings
+            </span>
+
+            {systemList.filter(item => (item.id as string) !== 'studentHelpNav').map((item) => {
+              const Icon = item.icon;
+              const isActive = adminWorkspace === 'website' && activeSection === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => navigateToSection(item.id)}
+                  className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-primary text-ink font-bold shadow-md shadow-primary/20'
+                      : 'text-slate hover:text-paper hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span className="font-jakarta text-xs font-semibold truncate">{item.label}</span>
+                  </div>
+                  <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded shrink-0 ${
+                    isActive ? 'bg-black/20 text-ink font-bold' : 'text-slate/60 bg-white/5'
+                  }`}>
+                    {item.tag}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+        </div>
+
+        {/* User Footer in Sidebar */}
+        <div className="p-3.5 border-t border-white/10 bg-black/40 shrink-0 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <span className="font-mono text-[10px] text-slate/70 block truncate">
+              Logged in as <strong className="text-paper">{getAdminUsername() || 'admin'}</strong>
+            </span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              <span className="font-mono text-[9px] text-emerald-400 font-bold uppercase">Online</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => navigate('/')}
+              className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-slate hover:text-paper hover:border-primary transition-all cursor-pointer"
+              title="Preview Live Site"
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => {
+                logoutAdmin();
+                navigate('/');
+              }}
+              className="p-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition-all cursor-pointer"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-black text-paper flex flex-col font-sans selection:bg-primary selection:text-ink relative overflow-hidden select-none">
+    <div className="min-h-screen bg-[#070809] text-paper flex flex-col font-sans selection:bg-primary selection:text-ink relative">
       
       {/* Background Ambient Radial Glow */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-gradient-to-b from-primary/10 via-teal-500/5 to-transparent blur-[140px] pointer-events-none z-0" />
@@ -7077,330 +7368,106 @@ export const AdminPanel: React.FC = () => {
         </div>
       )}
 
-      {/* Top Header Bar */}
-      <header className="sticky top-0 z-40 bg-black/85 backdrop-blur-xl border-b border-white/10 px-4 sm:px-8 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2.5">
-            <img
-              src={data.navbar?.companyLogo || 'https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png'}
-              alt="DO"
-              className="h-7 w-auto object-contain shrink-0"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-            <div>
-              <h1 className="font-jakarta font-black text-sm text-paper leading-none">
-                DO PILOT
-              </h1>
-              <span className="font-mono text-[10px] text-slate/70 block mt-1">
-                Logged in as <strong className="text-paper">{getAdminUsername() || 'admin'}</strong>
-              </span>
-            </div>
-          </div>
+      {/* Mobile Slide-out Drawer */}
+      {mobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+          <aside className="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-[#0a0b0c] border-r border-white/10 flex flex-col z-50 shadow-2xl overflow-hidden">
+            {renderSidebarContent(true)}
+          </aside>
         </div>
+      )}
 
-        {/* Header Right Actions */}
-        <div className="flex items-center gap-2.5">
+      {/* Main Layout Container: Desktop Sidebar + Content Area */}
+      <div className="flex-1 flex min-h-screen relative z-10">
+        
+        {/* Desktop Fixed Left Sidebar */}
+        <aside className="hidden lg:flex w-72 shrink-0 flex-col bg-[#0a0b0c] border-r border-white/10 sticky top-0 h-screen overflow-hidden">
+          {renderSidebarContent(false)}
+        </aside>
 
-          <button
-            onClick={handleDeployToLive}
-            disabled={isDeploying}
-            className="px-4 py-2 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider hover:bg-white hover:shadow-xl hover:shadow-primary/40 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-            title="Deploy all changes to live production on Vercel"
-          >
-            <Rocket className={`w-3.5 h-3.5 ${isDeploying ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">{isDeploying ? 'Deploying...' : 'Deploy Live 🚀'}</span>
-          </button>
-
-          <button
-            onClick={() => navigate('/')}
-            className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate hover:text-paper hover:border-primary transition-all cursor-pointer"
-            title="Preview Live Site"
-          >
-            <Eye className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={() => {
-              logoutAdmin();
-              navigate('/');
-            }}
-            className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition-all cursor-pointer"
-            title="Sign Out"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
-      </header>
-
-      {/* Top High-Level Workspace Switcher */}
-      <div className="sticky top-[57px] z-30 bg-[#08090a]/95 backdrop-blur-xl border-b border-white/10 px-3 sm:px-6 lg:px-8 py-2.5">
-        <div className="max-w-[1650px] w-full mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 p-1 bg-black/80 border border-white/10 rounded-2xl w-full overflow-x-auto scrollbar-none shadow-inner">
-            <button
-              type="button"
-              onClick={() => switchWorkspace('website')}
-              className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl font-jakarta text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-                adminWorkspace === 'website'
-                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black'
-                  : 'text-slate hover:text-paper hover:bg-white/5'
-              }`}
-            >
-              <Layout className="w-3.5 h-3.5" />
-              <span>1. Website Content Editor</span>
-              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${
-                adminWorkspace === 'website' ? 'bg-black/20 text-ink' : 'bg-white/10 text-slate'
-              }`}>
-                8 Sections
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => switchWorkspace('students')}
-              className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl font-jakarta text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-                adminWorkspace === 'students'
-                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black'
-                  : 'text-slate hover:text-paper hover:bg-white/5'
-              }`}
-            >
-              <GraduationCap className="w-3.5 h-3.5" />
-              <span>2. Student Data &amp; Analytics</span>
-              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
-                adminWorkspace === 'students' ? 'bg-black/20 text-ink' : 'bg-primary/20 text-primary'
-              }`}>
-                {students.length} Learners
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => switchWorkspace('studentHelp')}
-              className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl font-jakarta text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-                adminWorkspace === 'studentHelp'
-                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black'
-                  : 'text-slate hover:text-paper hover:bg-white/5'
-              }`}
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>3. Student Help</span>
-              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
-                adminWorkspace === 'studentHelp'
-                  ? 'bg-black/20 text-ink'
-                  : pendingHelpCount > 0
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                  : 'bg-white/10 text-slate'
-              }`}>
-                {helpMessages.length} Requests{pendingHelpCount > 0 ? ` (${pendingHelpCount} New)` : ''}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => switchWorkspace('courseReset')}
-              className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl font-jakarta text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-                adminWorkspace === 'courseReset'
-                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black'
-                  : 'text-slate hover:text-paper hover:bg-white/5'
-              }`}
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>4. Course Reset</span>
-              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
-                adminWorkspace === 'courseReset'
-                  ? 'bg-black/20 text-ink'
-                  : activeLockedCount > 0
-                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-pulse'
-                  : 'bg-white/10 text-slate'
-              }`}>
-                {activeLockedCount > 0 ? `${activeLockedCount} Locked` : '0 Locked'}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => switchWorkspace('pricingCoupons')}
-              className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl font-jakarta text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-                adminWorkspace === 'pricingCoupons'
-                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black'
-                  : 'text-slate hover:text-paper hover:bg-white/5'
-              }`}
-            >
-              <Tag className="w-3.5 h-3.5" />
-              <span>5. Pricing &amp; Coupons</span>
-              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
-                adminWorkspace === 'pricingCoupons'
-                  ? 'bg-black/20 text-ink'
-                  : 'bg-white/10 text-slate'
-              }`}>
-                {courseCoupons.filter(c => c.isActive).length} Active Codes
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => switchWorkspace('paymentSettings')}
-              className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl font-jakarta text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-                adminWorkspace === 'paymentSettings'
-                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black'
-                  : 'text-slate hover:text-paper hover:bg-white/5'
-              }`}
-            >
-              <CreditCard className="w-3.5 h-3.5" />
-              <span>6. Payment Settings</span>
-              {pendingManualPayments.length > 0 && (
-                <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
-                  adminWorkspace === 'paymentSettings'
-                    ? 'bg-black/20 text-ink'
-                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                }`}>
-                  {pendingManualPayments.length} Pending
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Workspace Body */}
-      {adminWorkspace === 'website' ? (
-        <div className="flex-1 max-w-[1650px] w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-8 relative z-10">
+        {/* Content Area with Top Header */}
+        <div className="flex-1 flex flex-col min-w-0">
           
-          {/* Left Navigation Rail */}
-          <aside className="w-full lg:w-72 shrink-0 space-y-6">
-            
-            {/* Quick Publish Card */}
-            <div className="p-4 rounded-3xl bg-[#0c0d0e] border border-white/10 space-y-2.5 shadow-xl">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>Live Ready</span>
-                </span>
-                <span className="font-mono text-[10px] text-slate/70">8 Sections</span>
-              </div>
+          {/* Top Header Bar */}
+          <header className="sticky top-0 z-30 bg-[#08090a]/95 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+            {/* Left: Mobile Drawer Trigger + Breadcrumb */}
+            <div className="flex items-center gap-3 min-w-0">
               <button
-                onClick={handleDeployToLive}
-                disabled={isDeploying}
-                className="w-full py-2.5 rounded-xl bg-primary text-ink font-jakarta font-black text-xs uppercase tracking-wider hover:bg-white transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-primary/20"
+                type="button"
+                onClick={() => setMobileSidebarOpen(true)}
+                className="lg:hidden p-2 rounded-xl bg-white/5 border border-white/10 text-slate hover:text-paper cursor-pointer shrink-0"
+                title="Open Menu"
               >
-                <Rocket className="w-3.5 h-3.5" />
-                <span>{isDeploying ? 'Deploying...' : 'Publish to Live'}</span>
+                <Menu className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-1.5 min-w-0 font-jakarta text-xs">
+                <span className="text-slate/60 hidden sm:inline">Admin</span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate/40 hidden sm:inline shrink-0" />
+                <span className="text-slate/80 font-medium truncate">{getActiveSectionInfo().group}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate/40 shrink-0" />
+                <span className="text-paper font-black truncate">{getActiveSectionInfo().title}</span>
+              </div>
+            </div>
+
+            {/* Right Header Actions */}
+            <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                onClick={() => navigate('/')}
+                className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate hover:text-paper hover:border-primary transition-all flex items-center gap-1.5 cursor-pointer text-xs font-semibold"
+                title="Preview Live Site"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Preview Site</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  logoutAdmin();
+                  navigate('/');
+                }}
+                className="px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition-all flex items-center gap-1.5 cursor-pointer text-xs font-semibold"
+                title="Sign Out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Sign Out</span>
               </button>
             </div>
+          </header>
 
-            {/* DO PILOT Sections Rail */}
-            <div className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-3 space-y-1 shadow-xl">
-              <span className="font-mono text-[10px] text-slate/60 font-bold uppercase tracking-wider px-3 py-1.5 block">
-                Site Sections
-              </span>
-
-              {sectionsList.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeSection === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveSection(item.id)}
-                    className={`w-full text-left px-3.5 py-2.5 rounded-2xl flex items-center justify-between transition-all cursor-pointer ${
-                      isActive
-                        ? 'bg-primary text-ink font-bold shadow-md shadow-primary/20 scale-[1.01]'
-                        : 'text-slate hover:text-paper hover:bg-white/5'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Icon className="w-4 h-4 shrink-0" />
-                      <span className="font-jakarta text-xs font-semibold truncate">{item.label}</span>
-                    </div>
-                    <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded shrink-0 ${
-                      isActive ? 'bg-black/20 text-ink font-bold' : 'text-slate/60 bg-white/5'
-                    }`}>
-                      {item.tag}
-                    </span>
-                  </button>
-                );
-              })}
-
-              <span className="font-mono text-[10px] text-slate/60 font-bold uppercase tracking-wider px-3 pt-3 pb-1 block border-t border-white/5 mt-2">
-                System Settings
-              </span>
-
-              {systemList.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeSection === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      if ((item.id as string) === 'studentHelpNav') {
-                        switchWorkspace('studentHelp');
-                      } else {
-                        setActiveSection(item.id);
-                      }
-                    }}
-                    className={`w-full text-left px-3.5 py-2.5 rounded-2xl flex items-center justify-between transition-all cursor-pointer ${
-                      isActive
-                        ? 'bg-primary text-ink font-bold shadow-md shadow-primary/20'
-                        : 'text-slate hover:text-paper hover:bg-white/5'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Icon className="w-4 h-4 shrink-0" />
-                      <span className="font-jakarta text-xs font-semibold truncate">{item.label}</span>
-                    </div>
-                    <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded shrink-0 ${
-                      isActive ? 'bg-black/20 text-ink font-bold' : 'text-slate/60 bg-white/5'
-                    }`}>
-                      {item.tag}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-          </aside>
-
-          {/* Right Main Editor Canvas */}
-          <main className="flex-1 min-w-0 space-y-8">
-            {activeSection === 'hero' && renderHeroSection()}
-            {activeSection === 'whyUs' && renderWhyUsSection()}
-            {activeSection === 'courses' && renderCoursesSection()}
-            {activeSection === 'reviews' && renderReviewsSection()}
-            {activeSection === 'codeLab' && renderCodeLabSection()}
-            {activeSection === 'liveClass' && renderLiveClassSection()}
-            {activeSection === 'footer' && renderFooterSection()}
-            {activeSection === 'cloudinary' && renderCloudinarySection()}
-            {activeSection === 'security' && renderSecuritySection()}
-            {activeSection === 'studentExport' && renderStudentExportSection()}
+          {/* Main Dynamic Canvas */}
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1650px] w-full mx-auto space-y-6">
+            {adminWorkspace === 'website' ? (
+              <>
+                {activeSection === 'hero' && renderHeroSection()}
+                {activeSection === 'whyUs' && renderWhyUsSection()}
+                {activeSection === 'courses' && renderCoursesSection()}
+                {activeSection === 'reviews' && renderReviewsSection()}
+                {activeSection === 'codeLab' && renderCodeLabSection()}
+                {activeSection === 'liveClass' && renderLiveClassSection()}
+                {activeSection === 'footer' && renderFooterSection()}
+                {activeSection === 'cloudinary' && renderCloudinarySection()}
+                {activeSection === 'security' && renderSecuritySection()}
+                {activeSection === 'studentExport' && renderStudentExportSection()}
+              </>
+            ) : adminWorkspace === 'students' ? (
+              renderStudentsSection()
+            ) : adminWorkspace === 'studentHelp' ? (
+              renderStudentHelpSection()
+            ) : adminWorkspace === 'courseReset' ? (
+              renderCourseResetSection()
+            ) : adminWorkspace === 'pricingCoupons' ? (
+              renderCoursePricingAndCouponsSection()
+            ) : adminWorkspace === 'paymentSettings' ? (
+              renderPaymentSettingsSection()
+            ) : null}
           </main>
 
         </div>
-      ) : adminWorkspace === 'studentHelp' ? (
-        /* Student Help Workspace: Full-width, organized, responsive */
-        <div className="flex-1 max-w-[1650px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
-          {renderStudentHelpSection()}
-        </div>
-      ) : adminWorkspace === 'courseReset' ? (
-        /* Course Reset Workspace: Full-width, dedicated lockout & reset management */
-        <div className="flex-1 max-w-[1650px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
-          {renderCourseResetSection()}
-        </div>
-      ) : adminWorkspace === 'pricingCoupons' ? (
-        /* Course Pricing & Coupons Workspace: Full-width, dedicated pricing & discounts management */
-        <div className="flex-1 max-w-[1650px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
-          {renderCoursePricingAndCouponsSection()}
-        </div>
-      ) : adminWorkspace === 'paymentSettings' ? (
-        /* Payment Settings Workspace: Full-width, Google Pay UPI & Cloudflare QR settings */
-        <div className="flex-1 max-w-[1650px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
-          {renderPaymentSettingsSection()}
-        </div>
-      ) : (
-        /* Students Workspace: Full-width, clean, dedicated, zero congestion */
-        <div className="flex-1 max-w-[1650px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
-          {renderStudentsSection()}
-        </div>
-      )}
+      </div>
 
       {/* Root-Level Full-Screen Student Inspect Modal (Guaranteed Above all Headers & Navbars) */}
       {selectedStudentForReport && renderStudentInspectModal()}
