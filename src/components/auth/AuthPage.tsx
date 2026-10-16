@@ -392,7 +392,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
           className={`rounded-3xl bg-panel border border-white/15 shadow-2xl backdrop-blur-xl relative overflow-hidden ${
-            activePending && !loginSuccess ? 'p-5 sm:p-7' : 'p-6 sm:p-8'
+            activePending && !loginSuccess 
+              ? 'p-5 sm:p-7' 
+              : 'min-h-[440px] sm:min-h-0 py-8 px-6 sm:p-8 flex flex-col justify-center sm:block'
           }`}
         >
           {/* Top Corner Glow */}
