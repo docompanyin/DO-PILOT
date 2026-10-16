@@ -628,7 +628,7 @@
       "read": false
     }
   ],
-  "version": 1792000000000,
+  "version": 1792000000002,
   "whyUs": {
     "badgeText": "WHY CHOOSE US",
     "title": "Why DO PILOT?",
@@ -746,35 +746,19 @@
         ]
       },
       {
-        "id": "python-ai",
-        "category": "ai",
-        "badge": "Trending",
-        "badgeColor": "bg-emerald-400/20 text-emerald-300 border-emerald-400/30",
-        "image": "https://images.unsplash.com/photo-1677442136019-21780efad99a?w=800&auto=format&fit=crop&q=80",
-        "title": "Python for AI & Data Science",
-        "description": "Harness NumPy, Pandas, Scikit-learn, and OpenAI APIs to clean real data, build predictive models, and deploy smart automation.",
-        "duration": "10 Weeks",
-        "level": "All Levels",
-        "tags": [
-          "Data Science",
-          "OpenAI APIs",
-          "Pandas"
-        ]
-      },
-      {
-        "id": "mobile-dev",
-        "category": "web",
+        "id": "cyber-security",
+        "category": "security",
         "badge": "High Demand",
         "badgeColor": "bg-cyan-400/20 text-cyan-300 border-cyan-400/30",
-        "image": "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&auto=format&fit=crop&q=80",
-        "title": "Mobile App Development",
-        "description": "Create and deploy cross-platform iOS and Android apps using React Native and Firebase.",
-        "duration": "8 Weeks",
-        "level": "Intermediate",
+        "image": "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&auto=format&fit=crop&q=80",
+        "title": "Cyber Security Course",
+        "description": "Master network defense, penetration testing, malware analysis, and CISSP enterprise governance based on STL Academy.",
+        "duration": "14 Parts",
+        "level": "Beginner to Advanced",
         "tags": [
-          "React Native",
-          "Expo",
-          "iOS & Android"
+          "Network Defense",
+          "Ethical Hacking",
+          "CISSP & Cryptography"
         ]
       }
     ],
@@ -828,35 +812,19 @@
         ]
       },
       {
-        "id": "python-ai",
-        "category": "ai",
-        "badge": "Trending",
-        "badgeColor": "bg-emerald-400/20 text-emerald-300 border-emerald-400/30",
-        "image": "https://images.unsplash.com/photo-1677442136019-21780efad99a?w=800&auto=format&fit=crop&q=80",
-        "title": "Python for AI & Data Science",
-        "description": "Harness NumPy, Pandas, Scikit-learn, and OpenAI APIs to clean real data, build predictive models, and deploy smart automation.",
-        "duration": "10 Weeks",
-        "level": "All Levels",
-        "tags": [
-          "Data Science",
-          "OpenAI APIs",
-          "Pandas"
-        ]
-      },
-      {
-        "id": "mobile-dev",
-        "category": "web",
+        "id": "cyber-security",
+        "category": "security",
         "badge": "High Demand",
         "badgeColor": "bg-cyan-400/20 text-cyan-300 border-cyan-400/30",
-        "image": "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&auto=format&fit=crop&q=80",
-        "title": "Mobile App Development",
-        "description": "Create and deploy cross-platform iOS and Android apps using React Native and Firebase.",
-        "duration": "8 Weeks",
-        "level": "Intermediate",
+        "image": "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&auto=format&fit=crop&q=80",
+        "title": "Cyber Security Course",
+        "description": "Master network defense, penetration testing, malware analysis, and CISSP enterprise governance based on STL Academy.",
+        "duration": "14 Parts",
+        "level": "Beginner to Advanced",
         "tags": [
-          "React Native",
-          "Expo",
-          "iOS & Android"
+          "Network Defense",
+          "Ethical Hacking",
+          "CISSP & Cryptography"
         ]
       }
     ]

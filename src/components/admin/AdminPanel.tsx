@@ -919,6 +919,7 @@ export const AdminPanel: React.FC = () => {
       title: (formData.get('coursesTitle') as string) || 'Our Courses',
       description: (formData.get('coursesDesc') as string) || '',
       courses,
+      items: courses,
     });
     addAuditLog('UPDATE_COURSES', 'Courses updated.');
     showToast('Courses section saved successfully!');
@@ -941,6 +942,7 @@ export const AdminPanel: React.FC = () => {
     updateSection('coursesSection', {
       ...data.coursesSection,
       courses: [...current, newCourse],
+      items: [...current, newCourse],
     });
     showToast('New course added.');
   };
@@ -950,6 +952,7 @@ export const AdminPanel: React.FC = () => {
     updateSection('coursesSection', {
       ...data.coursesSection,
       courses: current,
+      items: current,
     });
     showToast('Course removed.');
   };

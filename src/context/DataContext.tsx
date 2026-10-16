@@ -503,16 +503,16 @@ const DEFAULT_COURSES_ITEMS: CourseCardItem[] = [
     tags: ['Java 21', 'OOP & Classes', 'Collections']
   },
   {
-    id: 'python-ai',
-    category: 'ai',
-    badge: 'Trending',
+    id: 'fullstack-open',
+    category: 'web',
+    badge: 'Career Track',
     badgeColor: 'bg-emerald-400/20 text-emerald-300 border-emerald-400/30',
-    image: 'https://images.unsplash.com/photo-1677442136019-21780efad99a?w=800&auto=format&fit=crop&q=80',
-    title: 'Python for AI & Data Science',
-    description: 'Harness NumPy, Pandas, Scikit-learn, and OpenAI APIs to clean real data, build predictive models, and deploy smart automation.',
-    duration: '10 Weeks',
-    level: 'All Levels',
-    tags: ['Data Science', 'OpenAI APIs', 'Pandas']
+    image: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80',
+    title: 'Full Stack Open Course',
+    description: 'Deep dive into modern web development by University of Helsinki. Master React, Node.js, Express, TypeScript, GraphQL, and Docker.',
+    duration: '14 Parts',
+    level: 'Intermediate',
+    tags: ['React & TS', 'Node & Express', 'GraphQL & Docker']
   },
   {
     id: 'cyber-security',
@@ -527,6 +527,30 @@ const DEFAULT_COURSES_ITEMS: CourseCardItem[] = [
     tags: ['Network Defense', 'Ethical Hacking', 'CISSP & Cryptography']
   }
 ];
+
+export const sanitizeCourses = (courses?: CourseCardItem[]): CourseCardItem[] => {
+  if (!courses || !Array.isArray(courses)) return DEFAULT_COURSES_ITEMS;
+  const filtered = courses.filter(c => c && c.id !== 'python-ai' && c.id !== 'mobile-dev');
+  if (!filtered.some(c => c.id === 'cyber-security')) {
+    const cyber = DEFAULT_COURSES_ITEMS.find(c => c.id === 'cyber-security');
+    if (cyber) filtered.push(cyber);
+  }
+  return filtered.length > 0 ? filtered : DEFAULT_COURSES_ITEMS;
+};
+
+export const sanitizeCoursesSection = (cs?: CoursesSectionData): CoursesSectionData => {
+  if (!cs) return DEFAULT_COURSES_SECTION;
+  const rawList = (cs.courses && cs.courses.length > 0) ? cs.courses : (cs.items || []);
+  const cleaned = sanitizeCourses(rawList);
+  return {
+    ...cs,
+    badgeText: cs.badgeText || 'SKILL PATHS',
+    title: cs.title || 'Our Courses',
+    description: cs.description || 'Choose a specialized curriculum built around tangible project outcomes. Taught by senior developers with live code reviews.',
+    items: cleaned,
+    courses: cleaned,
+  };
+};
 
 export const DEFAULT_COURSES_SECTION: CoursesSectionData = {
   badgeText: 'SKILL PATHS',
@@ -693,7 +717,7 @@ const DEFAULT_SITE_DATA: SiteData = {
   sectionsManager: DEFAULT_SECTIONS_MANAGER,
   navbar: (initialSiteData as any)?.navbar || DEFAULT_NAVBAR,
   whyUs: (initialSiteData as any)?.whyUs || DEFAULT_WHY_US,
-  coursesSection: (initialSiteData as any)?.coursesSection || DEFAULT_COURSES_SECTION,
+  coursesSection: sanitizeCoursesSection((initialSiteData as any)?.coursesSection || DEFAULT_COURSES_SECTION),
   reviewsSection: (initialSiteData as any)?.reviewsSection || DEFAULT_REVIEWS_SECTION,
   codeLab: (initialSiteData as any)?.codeLab || DEFAULT_CODE_LAB,
   liveClass: (initialSiteData as any)?.liveClass || DEFAULT_LIVE_CLASS,
@@ -725,7 +749,7 @@ const getBaselineDefaults = (): SiteData => {
         sectionsManager: parsed.sectionsManager || DEFAULT_SECTIONS_MANAGER,
         navbar: (parsed.navbar && !parsed.navbar.navLinks?.some((l: any) => l.name === 'SERVICES')) ? parsed.navbar : DEFAULT_NAVBAR,
         whyUs: parsed.whyUs || DEFAULT_WHY_US,
-        coursesSection: parsed.coursesSection || DEFAULT_COURSES_SECTION,
+        coursesSection: sanitizeCoursesSection(parsed.coursesSection),
         reviewsSection: parsed.reviewsSection || DEFAULT_REVIEWS_SECTION,
         codeLab: parsed.codeLab || DEFAULT_CODE_LAB,
         liveClass: parsed.liveClass || DEFAULT_LIVE_CLASS,
@@ -867,7 +891,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           sectionsManager: parsed.sectionsManager || baseline.sectionsManager || DEFAULT_SECTIONS_MANAGER,
           navbar: (parsed.navbar && !parsed.navbar.navLinks?.some((l: any) => l.name === 'SERVICES')) ? parsed.navbar : (baseline.navbar || DEFAULT_NAVBAR),
           whyUs: parsed.whyUs || baseline.whyUs || DEFAULT_WHY_US,
-          coursesSection: parsed.coursesSection || baseline.coursesSection || DEFAULT_COURSES_SECTION,
+          coursesSection: sanitizeCoursesSection(parsed.coursesSection || baseline.coursesSection),
           reviewsSection: parsed.reviewsSection || baseline.reviewsSection || DEFAULT_REVIEWS_SECTION,
           codeLab: parsed.codeLab || baseline.codeLab || DEFAULT_CODE_LAB,
           liveClass: parsed.liveClass || baseline.liveClass || DEFAULT_LIVE_CLASS,
@@ -892,11 +916,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .maybeSingle();
 
         if (isMounted && row?.content && !error) {
+          const content = { ...row.content };
+          if (content.coursesSection) {
+            content.coursesSection = sanitizeCoursesSection(content.coursesSection);
+          }
           setData((prev) => ({
             ...prev,
-            ...row.content
+            ...content
           }));
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(row.content));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...row.content, coursesSection: content.coursesSection }));
         } else if (isMounted && !error && !row) {
           // Table exists but is fresh/empty: auto-seed with current real site data so nothing is ever blank!
           await supabase
