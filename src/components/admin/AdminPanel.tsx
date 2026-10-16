@@ -5081,18 +5081,18 @@ export const AdminPanel: React.FC = () => {
     const targetFailedSection = getRecordFailedSection(confirmResetTarget);
 
     return (
-      <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-        <div className="max-w-xl w-full rounded-3xl bg-[#0c0d0e] border border-white/15 p-6 sm:p-8 space-y-6 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+        <div className="max-w-xl w-full max-h-[90vh] overflow-y-auto rounded-3xl bg-[#0c0d0e] border border-white/15 p-5 sm:p-6 space-y-4 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
           <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 blur-[90px] rounded-full pointer-events-none" />
 
           {/* Modal Header */}
-          <div className="flex items-start justify-between gap-4 relative z-10">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
-                <RotateCcw className="w-6 h-6" />
+          <div className="flex items-start justify-between gap-4 relative z-10 pb-2 border-b border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+                <RotateCcw className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-jakarta text-lg sm:text-xl font-black text-paper">
+                <h3 className="font-jakarta text-base font-bold text-paper">
                   Reset / Unlock Course
                 </h3>
                 <p className="font-mono text-xs text-slate mt-0.5">
@@ -5273,7 +5273,7 @@ export const AdminPanel: React.FC = () => {
                 <ShieldAlert className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-3xl font-jakarta font-black text-rose-300">
+            <div className="text-2xl font-jakarta font-black text-rose-300">
               {activeLockedCount}
             </div>
             <p className="font-mono text-[11px] text-slate/70">
@@ -5290,7 +5290,7 @@ export const AdminPanel: React.FC = () => {
                 <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-3xl font-jakarta font-black text-emerald-300">
+            <div className="text-2xl font-jakarta font-black text-emerald-300">
               {unlockedCount}
             </div>
             <p className="font-mono text-[11px] text-slate/70">
@@ -5690,15 +5690,15 @@ export const AdminPanel: React.FC = () => {
     const alreadyOwns = hasCourseAccess(rec.studentId, rec.courseId);
 
     return (
-      <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-        <div className="max-w-xl w-full rounded-3xl bg-[#0c0d0e] border border-white/15 p-6 sm:p-8 space-y-6 shadow-2xl relative">
-          <div className="flex items-center justify-between pb-4 border-b border-white/10">
+      <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+        <div className="max-w-xl w-full max-h-[90vh] overflow-y-auto rounded-3xl bg-[#0c0d0e] border border-white/15 p-5 sm:p-6 space-y-4 shadow-2xl relative">
+          <div className="flex items-center justify-between pb-3 border-b border-white/10">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-                <CheckCheck className="w-5 h-5" />
+                <CheckCheck className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-jakarta font-bold text-lg text-paper">
+                <h3 className="font-jakarta font-bold text-base text-paper">
                   Verify Payment &amp; Unlock Course
                 </h3>
                 <p className="text-xs text-slate font-mono">
@@ -5844,8 +5844,8 @@ export const AdminPanel: React.FC = () => {
   };
 
   const renderCouponModal = () => (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="max-w-2xl sm:max-w-3xl w-full rounded-3xl bg-[#0c0d0e] border border-white/15 p-5 sm:p-6 space-y-4 shadow-2xl relative">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+      <div className="max-w-2xl sm:max-w-3xl w-full max-h-[90vh] overflow-y-auto rounded-3xl bg-[#0c0d0e] border border-white/15 p-5 sm:p-6 space-y-4 shadow-2xl relative">
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary">
@@ -6252,7 +6252,7 @@ export const AdminPanel: React.FC = () => {
 
           {/* Coupon Codes Table */}
           <div className="overflow-x-auto rounded-2xl border border-white/10">
-            <table className="w-full text-left text-xs text-paper">
+            <table className="w-full min-w-[650px] text-left text-xs text-paper">
               <thead className="bg-white/5 text-slate font-mono uppercase text-[10px] tracking-wider border-b border-white/10">
                 <tr>
                   <th className="py-3 px-4">Coupon Code</th>
@@ -6361,8 +6361,8 @@ export const AdminPanel: React.FC = () => {
         <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/10">
             <div>
-              <h3 className="font-jakarta font-extrabold text-lg text-paper flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-primary" />
+              <h3 className="font-jakarta font-bold text-base text-paper flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-primary" />
                 <span>Purchase &amp; Enrollment Tracking</span>
               </h3>
               <p className="text-xs text-slate mt-0.5">
@@ -6468,7 +6468,7 @@ export const AdminPanel: React.FC = () => {
 
           {/* Transactions List */}
           <div className="overflow-x-auto rounded-2xl border border-white/10">
-            <table className="w-full text-left text-xs text-paper">
+            <table className="w-full min-w-[680px] text-left text-xs text-paper">
               <thead className="bg-white/5 text-slate font-mono uppercase text-[10px] tracking-wider border-b border-white/10">
                 <tr>
                   <th className="py-3 px-3">Student</th>
@@ -7135,21 +7135,21 @@ export const AdminPanel: React.FC = () => {
       </header>
 
       {/* Top High-Level Workspace Switcher */}
-      <div className="sticky top-[57px] z-30 bg-[#08090a]/95 backdrop-blur-xl border-b border-white/10 px-4 sm:px-8 py-3">
-        <div className="max-w-[1650px] w-full mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center p-1 bg-black/80 border border-white/10 rounded-2xl w-full sm:w-auto shadow-inner">
+      <div className="sticky top-[57px] z-30 bg-[#08090a]/95 backdrop-blur-xl border-b border-white/10 px-3 sm:px-6 lg:px-8 py-2.5">
+        <div className="max-w-[1650px] w-full mx-auto flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5 p-1 bg-black/80 border border-white/10 rounded-2xl w-full overflow-x-auto scrollbar-none shadow-inner">
             <button
               type="button"
               onClick={() => switchWorkspace('website')}
-              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-jakarta text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+              className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl font-jakarta text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
                 adminWorkspace === 'website'
-                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black scale-[1.01]'
+                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black'
                   : 'text-slate hover:text-paper hover:bg-white/5'
               }`}
             >
-              <Layout className="w-4 h-4" />
+              <Layout className="w-3.5 h-3.5" />
               <span>1. Website Content Editor</span>
-              <span className={`font-mono text-[10px] px-2 py-0.5 rounded-md font-semibold ${
+              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${
                 adminWorkspace === 'website' ? 'bg-black/20 text-ink' : 'bg-white/10 text-slate'
               }`}>
                 8 Sections
@@ -7159,15 +7159,15 @@ export const AdminPanel: React.FC = () => {
             <button
               type="button"
               onClick={() => switchWorkspace('students')}
-              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-jakarta text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+              className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl font-jakarta text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
                 adminWorkspace === 'students'
-                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black scale-[1.01]'
+                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black'
                   : 'text-slate hover:text-paper hover:bg-white/5'
               }`}
             >
-              <GraduationCap className="w-4 h-4" />
+              <GraduationCap className="w-3.5 h-3.5" />
               <span>2. Student Data &amp; Analytics</span>
-              <span className={`font-mono text-[10px] px-2 py-0.5 rounded-md font-bold ${
+              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
                 adminWorkspace === 'students' ? 'bg-black/20 text-ink' : 'bg-primary/20 text-primary'
               }`}>
                 {students.length} Learners
@@ -7177,37 +7177,37 @@ export const AdminPanel: React.FC = () => {
             <button
               type="button"
               onClick={() => switchWorkspace('studentHelp')}
-              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-jakarta text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+              className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl font-jakarta text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
                 adminWorkspace === 'studentHelp'
-                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black scale-[1.01]'
+                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black'
                   : 'text-slate hover:text-paper hover:bg-white/5'
               }`}
             >
-              <MessageSquare className="w-4 h-4" />
+              <MessageSquare className="w-3.5 h-3.5" />
               <span>3. Student Help</span>
-              <span className={`font-mono text-[10px] px-2 py-0.5 rounded-md font-bold ${
+              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
                 adminWorkspace === 'studentHelp'
                   ? 'bg-black/20 text-ink'
                   : pendingHelpCount > 0
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                   : 'bg-white/10 text-slate'
               }`}>
-                {helpMessages.length} Requests {pendingHelpCount > 0 ? `(${pendingHelpCount} New)` : ''}
+                {helpMessages.length} Requests{pendingHelpCount > 0 ? ` (${pendingHelpCount} New)` : ''}
               </span>
             </button>
 
             <button
               type="button"
               onClick={() => switchWorkspace('courseReset')}
-              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-jakarta text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+              className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl font-jakarta text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
                 adminWorkspace === 'courseReset'
-                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black scale-[1.01]'
+                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black'
                   : 'text-slate hover:text-paper hover:bg-white/5'
               }`}
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className="w-3.5 h-3.5" />
               <span>4. Course Reset</span>
-              <span className={`font-mono text-[10px] px-2 py-0.5 rounded-md font-bold ${
+              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
                 adminWorkspace === 'courseReset'
                   ? 'bg-black/20 text-ink'
                   : activeLockedCount > 0
@@ -7221,15 +7221,15 @@ export const AdminPanel: React.FC = () => {
             <button
               type="button"
               onClick={() => switchWorkspace('pricingCoupons')}
-              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-jakarta text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+              className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl font-jakarta text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
                 adminWorkspace === 'pricingCoupons'
-                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black scale-[1.01]'
+                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black'
                   : 'text-slate hover:text-paper hover:bg-white/5'
               }`}
             >
-              <Tag className="w-4 h-4" />
-              <span>5. Pricing & Coupons</span>
-              <span className={`font-mono text-[10px] px-2 py-0.5 rounded-md font-bold ${
+              <Tag className="w-3.5 h-3.5" />
+              <span>5. Pricing &amp; Coupons</span>
+              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
                 adminWorkspace === 'pricingCoupons'
                   ? 'bg-black/20 text-ink'
                   : 'bg-white/10 text-slate'
@@ -7241,16 +7241,16 @@ export const AdminPanel: React.FC = () => {
             <button
               type="button"
               onClick={() => switchWorkspace('paymentSettings')}
-              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-jakarta text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+              className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl font-jakarta text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
                 adminWorkspace === 'paymentSettings'
-                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black scale-[1.01]'
+                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black'
                   : 'text-slate hover:text-paper hover:bg-white/5'
               }`}
             >
-              <CreditCard className="w-4 h-4" />
+              <CreditCard className="w-3.5 h-3.5" />
               <span>6. Payment Settings</span>
               {pendingManualPayments.length > 0 && (
-                <span className={`font-mono text-[10px] px-2 py-0.5 rounded-md font-bold ${
+                <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
                   adminWorkspace === 'paymentSettings'
                     ? 'bg-black/20 text-ink'
                     : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
@@ -7416,9 +7416,9 @@ export const AdminPanel: React.FC = () => {
 
       {/* Dual Email OTP Modal */}
       {showEmailOtpModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="max-w-md w-full rounded-3xl bg-[#0c0d0e] border border-white/15 p-6 space-y-4 shadow-2xl">
-            <h3 className="font-jakarta font-bold text-lg text-paper">Security Verification OTP</h3>
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+          <div className="max-w-md w-full max-h-[90vh] overflow-y-auto rounded-3xl bg-[#0c0d0e] border border-white/15 p-5 sm:p-6 space-y-4 shadow-2xl">
+            <h3 className="font-jakarta font-bold text-base text-paper">Security Verification OTP</h3>
             <p className="text-xs text-slate">{emailOtpNotice}</p>
             {emailOtpError && <p className="text-xs text-rose-400 font-bold">{emailOtpError}</p>}
             <input
