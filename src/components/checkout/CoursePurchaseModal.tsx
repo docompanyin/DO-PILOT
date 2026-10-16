@@ -10,6 +10,8 @@ import {
   validateCoupon,
   recordCoursePurchase,
   getPaymentQRConfig,
+  createQRPaymentSession,
+  expireQRPaymentSession,
   submitManualQRPurchase,
   PaymentQRConfig,
   CourseCoupon,
@@ -66,6 +68,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
   const [sessionExpired, setSessionExpired] = useState(false);
   const [qrImageLoadFailed, setQrImageLoadFailed] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   // Manual UTR Verification State
   const [utrInput, setUtrInput] = useState('');
@@ -113,10 +116,12 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
       setUtrError(null);
       setVerificationSubmitted(false);
       setSubmittedUtr('');
+      setActiveSessionId(null);
     }
   }, [isOpen, courseId, propPricing]);
 
   // 2-Minute QR Code Timer Countdown (Active only on qr_page)
+  // IMPORTANT: Expiration must not automatically mark payment as successful!
   useEffect(() => {
     if (!isOpen || paymentStep !== 'qr_page' || verificationSubmitted || sessionExpired || finalAmount === 0) {
       return;
@@ -127,6 +132,9 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
         if (prev <= 1) {
           clearInterval(timer);
           setSessionExpired(true);
+          if (activeSessionId) {
+            expireQRPaymentSession(activeSessionId);
+          }
           return 0;
         }
         return prev - 1;
@@ -134,7 +142,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isOpen, paymentStep, verificationSubmitted, sessionExpired, finalAmount]);
+  }, [isOpen, paymentStep, verificationSubmitted, sessionExpired, finalAmount, activeSessionId]);
 
   if (!isOpen) return null;
 
@@ -146,12 +154,61 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
+  const handleStartQRPayment = () => {
+    setTimeLeft(PAYMENT_COUNTDOWN_SECONDS);
+    setSessionExpired(false);
+    setUtrError(null);
+    setUtrInput('');
+    setQrImageLoadFailed(false);
+
+    const studentId = user?.id || user?.email || 'guest_student';
+    const studentName = user?.name || user?.email?.split('@')[0] || 'Enrolled Student';
+    const studentEmail = user?.email || `${studentId}@student.dopilot.io`;
+    const studentPhone = user?.phone || '';
+
+    const session = createQRPaymentSession({
+      studentId,
+      studentName,
+      studentEmail,
+      studentPhone,
+      courseId,
+      courseName: resolvedCourseName,
+      originalPrice: pricing.regularPrice,
+      discountAmount,
+      finalAmount,
+      couponCodeApplied: appliedCoupon?.code
+    });
+
+    setActiveSessionId(session.id);
+    setPaymentStep('qr_page');
+  };
+
   const handleResetSession = () => {
     setTimeLeft(PAYMENT_COUNTDOWN_SECONDS);
     setSessionExpired(false);
     setUtrError(null);
     setUtrInput('');
     setQrImageLoadFailed(false);
+
+    const studentId = user?.id || user?.email || 'guest_student';
+    const studentName = user?.name || user?.email?.split('@')[0] || 'Enrolled Student';
+    const studentEmail = user?.email || `${studentId}@student.dopilot.io`;
+    const studentPhone = user?.phone || '';
+
+    const session = createQRPaymentSession({
+      studentId,
+      studentName,
+      studentEmail,
+      studentPhone,
+      courseId,
+      courseName: resolvedCourseName,
+      originalPrice: pricing.regularPrice,
+      discountAmount,
+      finalAmount,
+      couponCodeApplied: appliedCoupon?.code
+    });
+
+    setActiveSessionId(session.id);
   };
 
   const handleCopyUpiId = () => {
@@ -268,6 +325,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
     const studentPhone = user?.phone || '';
 
     const submission = submitManualQRPurchase({
+      sessionId: activeSessionId || undefined,
       studentId,
       studentName,
       studentEmail,
@@ -754,10 +812,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
                   <div className="space-y-3 pt-2 border-t border-white/10">
                     {/* Displayed normally without green oval border or decoration */}
                     <div
-                      onClick={() => {
-                        handleResetSession();
-                        setPaymentStep('qr_page');
-                      }}
+                      onClick={handleStartQRPayment}
                       className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/10 text-paper font-mono text-xs cursor-pointer hover:bg-white/[0.06] transition-colors"
                       role="button"
                       tabIndex={0}
@@ -772,10 +827,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
                     {/* Simplified Payment Button */}
                     <button
                       type="button"
-                      onClick={() => {
-                        handleResetSession();
-                        setPaymentStep('qr_page');
-                      }}
+                      onClick={handleStartQRPayment}
                       className="w-full py-3.5 px-4 rounded-full font-jakarta font-black text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg bg-primary text-ink hover:bg-white shadow-primary/25"
                     >
                       <span>Pay ₹{finalAmount.toLocaleString()}</span>

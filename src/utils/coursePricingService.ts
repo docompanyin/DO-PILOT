@@ -45,8 +45,9 @@ export interface CoursePurchaseRecord {
   orderId?: string;
   utrNumber?: string;
   adminNotes?: string;
-  status: 'completed' | 'pending' | 'pending_verification' | 'failed' | 'rejected';
+  status: 'completed' | 'pending' | 'pending_verification' | 'failed' | 'rejected' | 'expired';
   purchasedAt: string;    // ISO string
+  expiresAt?: string;     // ISO string for session expiration (2 minutes)
   accessGranted: boolean;
 }
 
@@ -207,6 +208,43 @@ const INITIAL_DEMO_PURCHASES: CoursePurchaseRecord[] = [
     status: 'completed',
     purchasedAt: new Date(Date.now() - 7 * 86400000).toISOString(),
     accessGranted: true
+  },
+  {
+    id: 'ORD-UPI-781290',
+    studentId: 'demo-std-3',
+    studentName: 'Aditya Sharma',
+    studentEmail: 'aditya.sharma@gmail.com',
+    studentPhone: '+91 98112 34567',
+    courseId: 'java-core',
+    courseName: 'Complete Java Course',
+    originalPrice: 2999,
+    discountAmount: 2000,
+    finalAmount: 999,
+    couponCodeApplied: undefined,
+    paymentMethod: 'manual_upi_qr',
+    utrNumber: '428901235619',
+    status: 'pending_verification',
+    purchasedAt: new Date(Date.now() - 45 * 60000).toISOString(),
+    accessGranted: false
+  },
+  {
+    id: 'ORD-QR-610294',
+    studentId: 'demo-std-4',
+    studentName: 'Sneha Kulkarni',
+    studentEmail: 'sneha.k@outlook.com',
+    studentPhone: '+91 98234 56789',
+    courseId: 'cyber-security',
+    courseName: 'Cyber Security Course',
+    originalPrice: 3999,
+    discountAmount: 2500,
+    finalAmount: 1499,
+    couponCodeApplied: undefined,
+    paymentMethod: 'manual_upi_qr',
+    utrNumber: '',
+    status: 'expired',
+    purchasedAt: new Date(Date.now() - 120 * 60000).toISOString(),
+    expiresAt: new Date(Date.now() - 118 * 60000).toISOString(),
+    accessGranted: false
   }
 ];
 
@@ -897,9 +935,154 @@ export const updatePaymentQRConfig = (config: Partial<PaymentQRConfig>): Payment
 };
 
 /**
+ * Create a payment record when a student starts a QR payment session
+ * Tracks student ID, name, email, phone, course, expected amount, and 2-minute expiration
+ */
+export const createQRPaymentSession = (data: {
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  studentPhone?: string;
+  courseId: string;
+  courseName: string;
+  originalPrice: number;
+  discountAmount: number;
+  finalAmount: number;
+  couponCodeApplied?: string;
+}): CoursePurchaseRecord => {
+  const normalizedCourse = normalizeCourseId(data.courseId);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 120 * 1000).toISOString(); // 2 minutes
+
+  const purchases = getCoursePurchases();
+  
+  // Check if an active pending session already exists for this student and course
+  const existingPending = purchases.find(
+    p => p.studentId === data.studentId &&
+         p.courseId === normalizedCourse &&
+         p.paymentMethod === 'manual_upi_qr' &&
+         p.status === 'pending'
+  );
+
+  if (existingPending) {
+    existingPending.originalPrice = data.originalPrice;
+    existingPending.discountAmount = data.discountAmount;
+    existingPending.finalAmount = data.finalAmount;
+    existingPending.couponCodeApplied = data.couponCodeApplied;
+    existingPending.purchasedAt = now.toISOString();
+    existingPending.expiresAt = expiresAt;
+    existingPending.status = 'pending';
+    if (data.studentPhone) existingPending.studentPhone = data.studentPhone;
+
+    try {
+      localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(purchases));
+      window.dispatchEvent(new CustomEvent('dopilot_course_purchased', { detail: existingPending }));
+    } catch (e) {}
+
+    return existingPending;
+  }
+
+  const newRecord: CoursePurchaseRecord = {
+    id: `ORD-QR-${Date.now().toString().slice(-6)}`,
+    studentId: data.studentId,
+    studentName: data.studentName,
+    studentEmail: data.studentEmail,
+    studentPhone: data.studentPhone,
+    courseId: normalizedCourse,
+    courseName: data.courseName,
+    originalPrice: data.originalPrice,
+    discountAmount: data.discountAmount,
+    finalAmount: data.finalAmount,
+    couponCodeApplied: data.couponCodeApplied,
+    paymentMethod: 'manual_upi_qr',
+    utrNumber: '',
+    status: 'pending',
+    purchasedAt: now.toISOString(),
+    expiresAt,
+    accessGranted: false
+  };
+
+  const updatedPurchases = [newRecord, ...purchases];
+  try {
+    localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(updatedPurchases));
+    window.dispatchEvent(new CustomEvent('dopilot_course_purchased', { detail: newRecord }));
+  } catch (e) {
+    console.error('Failed to save QR session record:', e);
+  }
+
+  if (isSupabaseConfigured()) {
+    Promise.resolve(
+      supabase.from('course_purchases').insert({
+        id: newRecord.id,
+        student_id: newRecord.studentId,
+        student_name: newRecord.studentName,
+        student_email: newRecord.studentEmail,
+        student_phone: newRecord.studentPhone || null,
+        course_id: newRecord.courseId,
+        course_name: newRecord.courseName,
+        original_price: newRecord.originalPrice,
+        discount_amount: newRecord.discountAmount,
+        final_amount: newRecord.finalAmount,
+        coupon_code_applied: newRecord.couponCodeApplied || null,
+        payment_method: 'manual_upi_qr',
+        status: 'pending',
+        purchased_at: newRecord.purchasedAt,
+        access_granted: false
+      })
+    ).catch(() => {});
+  }
+
+  return newRecord;
+};
+
+/**
+ * Close or expire the QR payment session after 2 minutes
+ * IMPORTANT: Expiration must not automatically mark the payment as successful!
+ */
+export const expireQRPaymentSession = (sessionIdOrStudentId: string, courseId?: string): boolean => {
+  const purchases = getCoursePurchases();
+  const normalizedCourse = courseId ? normalizeCourseId(courseId) : undefined;
+
+  let target = purchases.find(p => p.id === sessionIdOrStudentId);
+  if (!target && normalizedCourse) {
+    target = purchases.find(
+      p => p.studentId === sessionIdOrStudentId &&
+           p.courseId === normalizedCourse &&
+           p.paymentMethod === 'manual_upi_qr' &&
+           p.status === 'pending'
+    );
+  }
+
+  if (!target) return false;
+  // Never overwrite completed or pending_verification payments
+  if (target.status !== 'pending') return false;
+
+  target.status = 'expired';
+  target.accessGranted = false;
+
+  try {
+    localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(purchases));
+    window.dispatchEvent(new CustomEvent('dopilot_course_purchased', { detail: target }));
+  } catch (e) {}
+
+  if (isSupabaseConfigured()) {
+    Promise.resolve(
+      supabase.from('course_purchases').update({
+        status: 'expired',
+        access_granted: false,
+        updated_at: new Date().toISOString()
+      }).eq('id', target.id)
+    ).catch(() => {});
+  }
+
+  return true;
+};
+
+/**
  * Submit a manual UPI QR payment with 12-digit UTR for admin verification
  */
 export const submitManualQRPurchase = (data: {
+  sessionId?: string;
   studentId: string;
   studentName: string;
   studentEmail: string;
@@ -919,11 +1102,70 @@ export const submitManualQRPurchase = (data: {
   }
 
   const purchases = getCoursePurchases();
+
+  // Prevent duplicate enrollment if user already has access
+  if (hasCourseAccess(data.studentId, normalizedCourse)) {
+    return { success: false, error: 'You already have full access to this course!' };
+  }
+
+  // Prevent duplicate UTR submission if already verified on completed order
   const duplicate = purchases.find(
-    p => p.utrNumber && p.utrNumber.toLowerCase() === utr.toLowerCase() && p.status !== 'rejected'
+    p => p.utrNumber && p.utrNumber.toLowerCase() === utr.toLowerCase() && p.status === 'completed'
   );
   if (duplicate) {
-    return { success: false, error: 'This UPI Reference / UTR number has already been submitted.' };
+    return { success: false, error: 'This UPI Reference / UTR number has already been verified for another enrollment.' };
+  }
+
+  // Match existing QR session if provided or pending
+  let existing = data.sessionId ? purchases.find(p => p.id === data.sessionId) : undefined;
+  if (!existing) {
+    existing = purchases.find(
+      p => p.studentId === data.studentId &&
+           p.courseId === normalizedCourse &&
+           p.paymentMethod === 'manual_upi_qr' &&
+           (p.status === 'pending' || p.status === 'expired')
+    );
+  }
+
+  if (existing) {
+    existing.utrNumber = utr;
+    existing.status = 'pending_verification';
+    existing.purchasedAt = new Date().toISOString();
+    existing.originalPrice = data.originalPrice;
+    existing.discountAmount = data.discountAmount;
+    existing.finalAmount = data.finalAmount;
+    existing.couponCodeApplied = data.couponCodeApplied;
+    if (data.studentPhone) existing.studentPhone = data.studentPhone;
+
+    try {
+      localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(purchases));
+      window.dispatchEvent(new CustomEvent('dopilot_course_purchased', { detail: existing }));
+    } catch (e) {}
+
+    // Increment coupon usage count if coupon was applied
+    if (data.couponCodeApplied) {
+      const coupons = getCourseCoupons();
+      const couponIdx = coupons.findIndex(c => c.code === data.couponCodeApplied?.trim().toUpperCase());
+      if (couponIdx !== -1) {
+        coupons[couponIdx].usedCount += 1;
+        try {
+          localStorage.setItem(COUPONS_STORAGE_KEY, JSON.stringify(coupons));
+        } catch {}
+      }
+    }
+
+    if (isSupabaseConfigured()) {
+      Promise.resolve(
+        supabase.from('course_purchases').update({
+          utr_number: utr,
+          status: 'pending_verification',
+          purchased_at: existing.purchasedAt,
+          updated_at: new Date().toISOString()
+        }).eq('id', existing.id)
+      ).catch(() => {});
+    }
+
+    return { success: true, record: existing };
   }
 
   const newRecord: CoursePurchaseRecord = {
@@ -992,22 +1234,52 @@ export const submitManualQRPurchase = (data: {
 };
 
 /**
- * Admin action: verify or reject a manual UPI purchase
+ * Admin action: verify or reject a manual UPI purchase and unlock course access
+ * Prevents duplicate enrollment and duplicate payment confirmation
  */
 export const verifyManualQRPurchase = (
   purchaseId: string,
   approved: boolean,
   adminNotes?: string
-): boolean => {
+): { success: boolean; message: string; record?: CoursePurchaseRecord } => {
   const purchases = getCoursePurchases();
   const idx = purchases.findIndex(p => p.id === purchaseId);
-  if (idx === -1) return false;
+  if (idx === -1) {
+    return { success: false, message: 'Purchase record not found.' };
+  }
 
   const record = purchases[idx];
+
   if (approved) {
+    // Prevent duplicate confirmation if already verified
+    if (record.status === 'completed' && record.accessGranted) {
+      return {
+        success: false,
+        message: 'This payment has already been verified and course access was already unlocked.',
+        record
+      };
+    }
+
+    // Prevent duplicate enrollment if student already owns access
+    const alreadyOwns = hasCourseAccess(record.studentId, record.courseId);
+    if (alreadyOwns && !record.accessGranted) {
+      record.status = 'completed';
+      record.accessGranted = true;
+      record.adminNotes = (adminNotes ? adminNotes + ' | ' : '') + 'Student already had course access; verified payment record.';
+      try {
+        localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(purchases));
+        window.dispatchEvent(new CustomEvent('dopilot_course_purchased', { detail: record }));
+      } catch {}
+      return {
+        success: true,
+        message: 'Student was already enrolled. Payment verified and record completed.',
+        record
+      };
+    }
+
     record.status = 'completed';
     record.accessGranted = true;
-    record.adminNotes = adminNotes;
+    record.adminNotes = adminNotes || 'Verified by Admin via UPI reference match';
 
     // Grant student course access in local storage key
     try {
@@ -1022,10 +1294,33 @@ export const verifyManualQRPurchase = (
       }
     } catch {}
 
+    // Update active user session if matching logged-in student
+    try {
+      const rawSession = localStorage.getItem('dopilot_student_session_v1');
+      if (rawSession) {
+        const session = JSON.parse(rawSession);
+        if (session && (session.id === record.studentId || session.email?.toLowerCase() === record.studentEmail.toLowerCase())) {
+          const enrolled = session.enrolledCourses || [];
+          if (!enrolled.includes(record.courseName)) {
+            session.enrolledCourses = [...enrolled, record.courseName];
+            localStorage.setItem('dopilot_student_session_v1', JSON.stringify(session));
+          }
+        }
+      }
+    } catch {}
+
     window.dispatchEvent(new CustomEvent('dopilot_access_granted', {
       detail: { courseId: record.courseId, studentId: record.studentId }
     }));
   } else {
+    // If rejecting
+    if (record.status === 'completed' && record.accessGranted) {
+      return {
+        success: false,
+        message: 'Cannot reject a payment that has already been verified and unlocked.',
+        record
+      };
+    }
     record.status = 'rejected';
     record.accessGranted = false;
     record.adminNotes = adminNotes || 'Payment verification rejected by admin';
@@ -1047,5 +1342,11 @@ export const verifyManualQRPurchase = (
     ).catch(() => {});
   }
 
-  return true;
+  return {
+    success: true,
+    message: approved
+      ? `Payment verified and full access unlocked for ${record.studentName}!`
+      : `Payment marked as rejected for ${record.studentName}.`,
+    record
+  };
 };
