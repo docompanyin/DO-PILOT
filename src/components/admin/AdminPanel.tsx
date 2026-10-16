@@ -1169,7 +1169,7 @@ export const AdminPanel: React.FC = () => {
     { id: 'whyUs' as SectionId, label: 'Why Choose Us', icon: ShieldCheck, tag: '4 Cards & Table' },
     { id: 'courses' as SectionId, label: 'Popular Courses', icon: BookOpen, tag: `${data.coursesSection?.courses?.length || 0} Courses` },
     { id: 'reviews' as SectionId, label: 'Student Reviews', icon: Star, tag: `${data.reviewsSection?.reviews?.length || 0} Reviews` },
-    { id: 'codeLab' as SectionId, label: 'Python Code Lab', icon: Terminal, tag: 'Interactive IDE' },
+    { id: 'codeLab' as SectionId, label: 'Python Code Lab', icon: Terminal, tag: 'IDE' },
     { id: 'liveClass' as SectionId, label: 'Live Masterclass', icon: Video, tag: 'Schedule & Host' },
     { id: 'footer' as SectionId, label: 'Footer & Links', icon: ExternalLink, tag: 'Brand & Social' },
   ];
@@ -7277,7 +7277,7 @@ export const AdminPanel: React.FC = () => {
               <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
                 adminWorkspace === 'pricingCoupons' ? 'bg-black/20 text-ink' : 'bg-white/10 text-slate'
               }`}>
-                {courseCoupons.filter(c => c.isActive).length} Active Codes
+                {courseCoupons.filter(c => c.isActive).length} Active
               </span>
             </button>
 
