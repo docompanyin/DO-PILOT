@@ -116,7 +116,7 @@ export const CoursePaidGuard: React.FC<CoursePaidGuardProps> = ({
             className="w-full py-3.5 px-6 rounded-2xl bg-primary text-ink font-jakarta font-black text-sm hover:brightness-110 shadow-xl shadow-primary/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <ShoppingBag className="w-4 h-4 shrink-0" />
-            <span>Buy Now / Enter Coupon</span>
+            <span>{pricing?.isFreeCourse ? 'Enroll Free' : 'Buy Now'}</span>
           </button>
 
           <button

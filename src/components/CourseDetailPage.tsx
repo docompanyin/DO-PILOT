@@ -731,7 +731,7 @@ export const CourseDetailPage: React.FC = () => {
                     className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs sm:text-sm hover:bg-white hover:shadow-xl hover:shadow-primary/30 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-primary/20 group"
                   >
                     <ShoppingBag className="w-4 h-4 shrink-0" />
-                    <span>Buy Now • ₹{pricing?.salePrice || 999}</span>
+                    <span>{pricing?.isFreeCourse ? 'Enroll Free' : 'Buy Now'}</span>
                     <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                   </button>
 
@@ -1169,7 +1169,7 @@ export const CourseDetailPage: React.FC = () => {
                     className="hidden sm:inline-flex justify-center px-4 py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer items-center gap-1.5 shadow-md shadow-primary/20"
                   >
                     <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
-                    <span>Buy Full Course • ₹{pricing?.salePrice || 999}</span>
+                    <span>{pricing?.isFreeCourse ? 'Enroll Free' : 'Buy Now'}</span>
                   </button>
 
                   <button
