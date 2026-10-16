@@ -4558,7 +4558,7 @@ export const AdminPanel: React.FC = () => {
                   </span>
                 )}
               </div>
-              <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
+              <h2 className="font-jakarta text-lg font-black text-paper">
                 Student Help Requests
               </h2>
               <p className="font-mono text-xs text-slate mt-1.5 max-w-2xl leading-relaxed">
@@ -5180,9 +5180,9 @@ export const AdminPanel: React.FC = () => {
               type="button"
               onClick={handleConfirmReset}
               disabled={isResettingCourse}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider hover:opacity-95 shadow-lg shadow-cyan-500/25 flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+              className="px-6 py-2.5 rounded-xl bg-primary hover:bg-white text-black font-jakarta font-black text-xs uppercase tracking-wider shadow-lg shadow-primary/30 border border-primary/50 flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50 opacity-100"
             >
-              <RotateCcw className={`w-4 h-4 ${isResettingCourse ? 'animate-spin' : ''}`} />
+              <RotateCcw className={`w-4 h-4 text-black ${isResettingCourse ? 'animate-spin' : ''}`} />
               <span>{isResettingCourse ? 'Unlocking...' : 'Reset / Unlock Course'}</span>
             </button>
           </div>
@@ -5242,7 +5242,7 @@ export const AdminPanel: React.FC = () => {
                   </span>
                 )}
               </div>
-              <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
+              <h2 className="font-jakarta text-lg font-black text-paper">
                 Course Reset
               </h2>
               <p className="font-mono text-xs text-slate mt-1">
@@ -5428,9 +5428,9 @@ export const AdminPanel: React.FC = () => {
                             setConfirmResetTarget(item);
                             setAdminResetNotes('');
                           }}
-                          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider hover:opacity-95 shadow-lg shadow-cyan-500/25 flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                          className="px-5 py-2.5 rounded-xl bg-primary hover:bg-white text-black font-jakarta font-black text-xs uppercase tracking-wider shadow-lg shadow-primary/30 border border-primary/50 flex items-center gap-2 cursor-pointer transition-all active:scale-95 opacity-100"
                         >
-                          <RotateCcw className="w-3.5 h-3.5" />
+                          <RotateCcw className="w-3.5 h-3.5 text-black" />
                           <span>Reset / Unlock Course</span>
                         </button>
                       ) : (
@@ -5845,17 +5845,17 @@ export const AdminPanel: React.FC = () => {
 
   const renderCouponModal = () => (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="max-w-lg w-full rounded-3xl bg-[#0c0d0e] border border-white/15 p-6 sm:p-8 space-y-6 shadow-2xl relative">
-        <div className="flex items-center justify-between pb-4 border-b border-white/10">
+      <div className="max-w-2xl sm:max-w-3xl w-full rounded-3xl bg-[#0c0d0e] border border-white/15 p-5 sm:p-6 space-y-4 shadow-2xl relative">
+        <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary">
-              <Tag className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary">
+              <Tag className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-jakarta font-extrabold text-lg text-paper">
+              <h3 className="font-jakarta font-bold text-base text-paper">
                 {editingCoupon ? 'Edit Coupon Code' : 'Create New Coupon'}
               </h3>
-              <p className="text-xs text-slate">Configure discount rules, course eligibility & limits</p>
+              <p className="text-xs text-slate">Configure discount rules, course eligibility &amp; limits</p>
             </div>
           </div>
           <button
@@ -5868,26 +5868,26 @@ export const AdminPanel: React.FC = () => {
         </div>
 
         <form onSubmit={handleSaveCoupon} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-slate mb-1">Coupon Code (Uppercase)</label>
-            <input
-              type="text"
-              required
-              disabled={!!editingCoupon}
-              value={couponFormCode}
-              onChange={(e) => setCouponFormCode(e.target.value.toUpperCase())}
-              placeholder="e.g. DOPILOT100 or FLAT500"
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-sm tracking-wider uppercase font-bold"
-            />
-          </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate mb-1">Coupon Code (Uppercase)</label>
+              <input
+                type="text"
+                required
+                disabled={!!editingCoupon}
+                value={couponFormCode}
+                onChange={(e) => setCouponFormCode(e.target.value.toUpperCase())}
+                placeholder="e.g. DOPILOT100 or FLAT500"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper focus:border-primary focus:outline-none font-mono text-sm tracking-wider uppercase font-bold"
+              />
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-slate mb-1">Applies To Course</label>
               <select
                 value={couponFormCourseId}
                 onChange={(e) => setCouponFormCourseId(e.target.value)}
-                className="w-full bg-black border border-white/15 rounded-xl px-3 py-2.5 text-paper focus:border-primary focus:outline-none text-xs"
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-2 text-paper focus:border-primary focus:outline-none text-xs"
               >
                 <option value="all">All Courses</option>
                 {coursePricingList.map(c => (
@@ -5895,24 +5895,24 @@ export const AdminPanel: React.FC = () => {
                 ))}
               </select>
             </div>
+          </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate mb-1">Discount Type</label>
               <select
                 value={couponFormType}
                 onChange={(e) => setCouponFormType(e.target.value as 'percentage' | 'flat')}
-                className="w-full bg-black border border-white/15 rounded-xl px-3 py-2.5 text-paper focus:border-primary focus:outline-none text-xs"
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-2 text-paper focus:border-primary focus:outline-none text-xs"
               >
                 <option value="percentage">Percentage (%)</option>
                 <option value="flat">Flat Amount (₹)</option>
               </select>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate mb-1">
-                Discount Value {couponFormType === 'percentage' ? '(100 = 100% Free ₹0)' : '(₹ Amount)'}
+                Discount Value {couponFormType === 'percentage' ? '(100 = 100% Free ₹0)' : '(₹)'}
               </label>
               <input
                 type="number"
@@ -5921,7 +5921,7 @@ export const AdminPanel: React.FC = () => {
                 required
                 value={couponFormValue}
                 onChange={(e) => setCouponFormValue(Number(e.target.value))}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-sm"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper focus:border-primary focus:outline-none font-mono text-sm"
               />
             </div>
 
@@ -5931,13 +5931,13 @@ export const AdminPanel: React.FC = () => {
                 type="number"
                 value={couponFormMaxUses}
                 onChange={(e) => setCouponFormMaxUses(Number(e.target.value))}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-sm"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper focus:border-primary focus:outline-none font-mono text-sm"
               />
             </div>
           </div>
 
           {couponFormType === 'percentage' && couponFormValue === 100 && (
-            <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-2.5 text-xs text-emerald-300">
+            <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-2 text-xs text-emerald-300">
               <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
               <span>
                 <strong>100% Free Coupon:</strong> This coupon will instantly unlock full course access for ₹0 without requiring payment gateway checkout.
@@ -5945,54 +5945,58 @@ export const AdminPanel: React.FC = () => {
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-bold text-slate mb-1">Expiry Date (Optional)</label>
-            <input
-              type="date"
-              value={couponFormExpiry}
-              onChange={(e) => setCouponFormExpiry(e.target.value)}
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none text-xs"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate mb-1">Expiry Date (Optional)</label>
+              <input
+                type="date"
+                value={couponFormExpiry}
+                onChange={(e) => setCouponFormExpiry(e.target.value)}
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-2 text-paper focus:border-primary focus:outline-none text-xs"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate mb-1">Description / Campaign Note</label>
+              <input
+                type="text"
+                value={couponFormDesc}
+                onChange={(e) => setCouponFormDesc(e.target.value)}
+                placeholder="e.g. Early Bird Launch discount for students"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper focus:border-primary focus:outline-none text-xs"
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate mb-1">Description / Campaign Note</label>
-            <input
-              type="text"
-              value={couponFormDesc}
-              onChange={(e) => setCouponFormDesc(e.target.value)}
-              placeholder="e.g. Early Bird Launch discount for students"
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none text-xs"
-            />
-          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-white/10">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="couponActiveCheckbox"
+                checked={couponFormIsActive}
+                onChange={(e) => setCouponFormIsActive(e.target.checked)}
+                className="w-4 h-4 accent-primary rounded cursor-pointer"
+              />
+              <label htmlFor="couponActiveCheckbox" className="text-xs font-bold text-paper cursor-pointer select-none">
+                Coupon is Active and usable by students
+              </label>
+            </div>
 
-          <div className="flex items-center gap-3 pt-2">
-            <input
-              type="checkbox"
-              id="couponActiveCheckbox"
-              checked={couponFormIsActive}
-              onChange={(e) => setCouponFormIsActive(e.target.checked)}
-              className="w-4 h-4 accent-primary rounded cursor-pointer"
-            />
-            <label htmlFor="couponActiveCheckbox" className="text-xs font-bold text-paper cursor-pointer select-none">
-              Coupon is Active and usable by students
-            </label>
-          </div>
-
-          <div className="flex gap-3 pt-4 border-t border-white/10">
-            <button
-              type="submit"
-              className="flex-1 py-3 rounded-xl bg-primary text-ink font-bold text-xs hover:brightness-110 shadow-lg shadow-primary/20"
-            >
-              {editingCoupon ? 'Save Changes' : 'Create Coupon'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setCouponModalOpen(false)}
-              className="px-5 py-3 rounded-xl bg-white/10 text-paper font-bold text-xs hover:bg-white/15"
-            >
-              Cancel
-            </button>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setCouponModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-white/10 text-paper font-jakarta font-bold text-xs hover:bg-white/15 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl bg-primary text-black font-jakarta font-black text-xs uppercase tracking-wider hover:bg-white transition-all shadow-lg shadow-primary/20 cursor-pointer"
+              >
+                {editingCoupon ? 'Save Changes' : 'Create Coupon'}
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -6045,10 +6049,10 @@ export const AdminPanel: React.FC = () => {
                 <span className="text-slate text-xs">•</span>
                 <span className="text-slate text-xs font-medium">Pricing, Coupons &amp; Enrollments</span>
               </div>
-              <h2 className="font-jakarta font-black text-2xl sm:text-3xl text-paper">
+              <h2 className="font-jakarta text-lg font-black text-paper">
                 Course Pricing
               </h2>
-              <p className="text-slate text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
+              <p className="text-slate text-xs mt-1 max-w-2xl leading-relaxed">
                 Set individual course pricing, toggle free course access, create coupon codes, and verify student Google Pay UPI enrollments.
               </p>
             </div>
@@ -6081,8 +6085,8 @@ export const AdminPanel: React.FC = () => {
         <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
             <div>
-              <h3 className="font-jakarta font-extrabold text-lg text-paper flex items-center gap-2">
-                <ShoppingBag className="w-5 h-5 text-primary" />
+              <h3 className="font-jakarta font-bold text-base text-paper flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4 text-primary" />
                 Course Pricing
               </h3>
               <p className="text-xs text-slate mt-0.5">
@@ -6137,7 +6141,7 @@ export const AdminPanel: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                 <div>
                   <label className="block text-xs font-bold text-slate mb-1">Regular Price (₹)</label>
                   <div className="relative">
@@ -6148,28 +6152,13 @@ export const AdminPanel: React.FC = () => {
                       required
                       value={pricingRegularInput}
                       onChange={(e) => setPricingRegularInput(Number(e.target.value))}
-                      className="w-full bg-black border border-white/15 rounded-xl pl-8 pr-4 py-2.5 text-paper font-mono text-sm focus:border-primary focus:outline-none"
+                      className="w-full h-[42px] bg-black border border-white/15 rounded-xl pl-8 pr-4 py-2 text-paper font-mono text-sm focus:border-primary focus:outline-none"
                     />
                   </div>
-                  <span className="text-[10px] text-slate/70 mt-1 block">Crossed-out anchor price shown to students</span>
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate">Sale Price (₹)</label>
-                    {/* Free Course Checkbox */}
-                    <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={pricingIsFreeCourse}
-                        onChange={(e) => setPricingIsFreeCourse(e.target.checked)}
-                        className="w-4 h-4 rounded text-emerald-400 bg-black border-white/20 focus:ring-emerald-400 focus:ring-offset-0 cursor-pointer"
-                      />
-                      <span className={`font-mono text-xs font-bold ${pricingIsFreeCourse ? 'text-emerald-400' : 'text-slate'}`}>
-                        Free Course
-                      </span>
-                    </label>
-                  </div>
+                  <label className="block text-xs font-bold text-slate mb-1">Sale Price (₹)</label>
                   <div className="relative">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-primary text-sm font-bold">₹</span>
                     <input
@@ -6178,35 +6167,49 @@ export const AdminPanel: React.FC = () => {
                       required
                       value={pricingSaleInput}
                       onChange={(e) => setPricingSaleInput(Number(e.target.value))}
-                      className={`w-full bg-black border rounded-xl pl-8 pr-4 py-2.5 text-paper font-mono text-sm font-bold focus:border-primary focus:outline-none ${
-                        pricingIsFreeCourse ? 'border-emerald-500/40 text-emerald-300' : 'border-primary/40'
-                      }`}
+                      className="w-full h-[42px] bg-black border border-white/15 rounded-xl pl-8 pr-4 py-2 text-paper font-mono text-sm font-bold focus:border-primary focus:outline-none"
                     />
                   </div>
-                  <span className="text-[10px] mt-1 block">
-                    {pricingIsFreeCourse ? (
-                      <span className="text-emerald-400 font-bold">
-                        ✓ Free Course mode: Unlocks full access for 100% free. (Configured ₹{pricingSaleInput} price is preserved)
-                      </span>
-                    ) : pricingRegularInput > pricingSaleInput ? (
-                      <span className="text-primary/80">
-                        {Math.round(((pricingRegularInput - pricingSaleInput) / pricingRegularInput) * 100)}% Discount automatically applied
-                      </span>
-                    ) : (
-                      <span className="text-slate/70">Actual payable price before coupon</span>
-                    )}
-                  </span>
                 </div>
 
-                <div className="flex flex-col justify-end">
+                <div>
+                  <label className="block text-xs font-bold text-slate mb-1">Access Type</label>
+                  <label className="h-[42px] px-4 rounded-xl bg-white/5 border border-white/15 flex items-center gap-2.5 cursor-pointer hover:bg-white/10 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={pricingIsFreeCourse}
+                      onChange={(e) => setPricingIsFreeCourse(e.target.checked)}
+                      className="w-4 h-4 accent-primary rounded cursor-pointer"
+                    />
+                    <span className={`text-xs font-bold ${pricingIsFreeCourse ? 'text-primary' : 'text-paper'}`}>
+                      Free Course
+                    </span>
+                  </label>
+                </div>
+
+                <div>
                   <button
                     type="submit"
-                    className="w-full py-2.5 px-6 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs sm:text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 cursor-pointer"
+                    className="w-full h-[42px] px-6 rounded-xl bg-primary text-black font-jakarta font-black text-xs uppercase tracking-wider hover:bg-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 cursor-pointer"
                   >
                     <Save className="w-4 h-4" />
                     <span>Save Changes</span>
                   </button>
                 </div>
+              </div>
+
+              <div className="text-[11px] text-slate">
+                {pricingIsFreeCourse ? (
+                  <span className="text-emerald-400 font-semibold">
+                    ✓ Free Course mode active: Unlocks full course access for 100% free. (Configured ₹{pricingSaleInput} price is saved)
+                  </span>
+                ) : pricingRegularInput > pricingSaleInput ? (
+                  <span className="text-primary font-semibold">
+                    {Math.round(((pricingRegularInput - pricingSaleInput) / pricingRegularInput) * 100)}% Discount automatically applied to students (Payable: ₹{pricingSaleInput})
+                  </span>
+                ) : (
+                  <span>Crossed-out regular price: ₹{pricingRegularInput} • Current student checkout price: ₹{pricingSaleInput}</span>
+                )}
               </div>
 
               <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center gap-3 text-xs text-slate">
@@ -6231,8 +6234,8 @@ export const AdminPanel: React.FC = () => {
         <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
             <div>
-              <h3 className="font-jakarta font-extrabold text-lg text-paper flex items-center gap-2">
-                <Tag className="w-5 h-5 text-primary" />
+              <h3 className="font-jakarta font-bold text-base text-paper flex items-center gap-2">
+                <Tag className="w-4 h-4 text-primary" />
                 Course Coupon Codes
               </h3>
               <p className="text-xs text-slate mt-0.5">Manage promo codes, percentage discounts, and 100% free ₹0 instant unlock codes.</p>
@@ -6240,7 +6243,7 @@ export const AdminPanel: React.FC = () => {
             <button
               type="button"
               onClick={() => handleOpenCouponModal()}
-              className="py-2.5 px-5 rounded-xl bg-primary text-ink font-bold text-xs sm:text-sm hover:brightness-110 transition-all flex items-center gap-2 shadow-lg shadow-primary/20 self-start sm:self-auto cursor-pointer"
+              className="py-2 px-4 rounded-xl bg-primary text-black font-jakarta font-black text-xs uppercase tracking-wider hover:bg-white transition-all flex items-center gap-2 shadow-lg shadow-primary/20 self-start sm:self-auto cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Create New Coupon</span>
@@ -6285,17 +6288,17 @@ export const AdminPanel: React.FC = () => {
                             )}
                           </div>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 font-mono font-bold">
                           {is100Free ? (
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold font-mono text-[10px] border border-emerald-500/40">
-                              100% FREE (₹0 Access)
+                            <span className="text-emerald-400">
+                              100% FREE (₹0)
                             </span>
                           ) : coupon.discountType === 'percentage' ? (
-                            <span className="font-mono font-bold text-amber-300">
+                            <span className="text-amber-300">
                               {coupon.discountValue}% OFF
                             </span>
                           ) : (
-                            <span className="font-mono font-bold text-amber-300">
+                            <span className="text-amber-300">
                               ₹{coupon.discountValue} OFF
                             </span>
                           )}
@@ -6635,7 +6638,7 @@ export const AdminPanel: React.FC = () => {
                 Google Pay / UPI Gateway
               </span>
             </div>
-            <h2 className="font-jakarta font-black text-xl sm:text-2xl text-paper">
+            <h2 className="font-jakarta text-lg font-black text-paper">
               Payment Settings
             </h2>
             <p className="text-xs text-slate max-w-2xl">
@@ -6663,8 +6666,8 @@ export const AdminPanel: React.FC = () => {
         <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
             <div>
-              <h3 className="font-jakarta font-extrabold text-lg text-paper flex items-center gap-2">
-                <QrCode className="w-5 h-5 text-primary" />
+              <h3 className="font-jakarta font-bold text-base text-paper flex items-center gap-2">
+                <QrCode className="w-4 h-4 text-primary" />
                 Google Pay Credentials &amp; Cloudflare QR Code
               </h3>
               <p className="text-xs text-slate mt-0.5">
