@@ -412,13 +412,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
                   </p>
                 </div>
                 {activePending.email && (
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/10 text-xs self-start sm:self-auto">
-                    {activePending.avatar ? (
-                      <img src={activePending.avatar} alt="Avatar" className="w-5 h-5 rounded-full object-cover shrink-0" />
-                    ) : (
-                      <User className="w-4 h-4 text-primary shrink-0" />
-                    )}
-                    <span className="font-mono text-[11px] text-slate/90 max-w-[150px] truncate">{activePending.email}</span>
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.05] border border-white/10 text-xs self-start sm:self-auto">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    <span className="font-mono text-xs text-white">{activePending.email}</span>
                   </div>
                 )}
               </div>
@@ -573,7 +569,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
                     <button
                       type="button"
                       onClick={handleCancelPending}
-                      className="text-xs font-mono text-slate hover:text-rose-400 transition-colors cursor-pointer"
+                      className="text-xs font-mono text-white hover:text-white/80 transition-colors cursor-pointer underline underline-offset-4"
                     >
                       Use a different Google account
                     </button>
