@@ -6772,56 +6772,13 @@ export const AdminPanel: React.FC = () => {
   };
 
   const renderPaymentSettingsSection = () => {
-    // Dynamic preview image URL
-    const previewQrSrc =
-      qrImageUrlInput && qrImageUrlInput.trim().length > 0
-        ? qrImageUrlInput.trim()
-        : `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(
-            `upi://pay?pa=${qrUpiIdInput.trim() || 'jayadevnair200518@oksbi'}&pn=${encodeURIComponent(
-              bankingNameInput.trim() || recipientNameInput.trim() || 'JAYADEV NAIR'
-            )}&cu=INR`
-          )}`;
-
     return (
-      <section className="space-y-8 animate-fadeIn">
-        {/* Workspace Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl relative overflow-hidden">
-          <div className="space-y-1 relative z-10">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
-              <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider">
-                Google Pay / UPI Gateway
-              </span>
-            </div>
-            <h2 className="font-jakarta text-lg font-black text-paper">
-              Payment Settings
-            </h2>
-            <p className="text-xs text-slate max-w-2xl">
-              Configure recipient details, bank account name, Google Pay UPI ID, and official Cloudflare QR code image. Changes are updated dynamically on the student checkout page.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5 relative z-10">
-            <span className="px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-primary font-mono text-xs font-bold flex items-center gap-2">
-              <CreditCard className="w-3.5 h-3.5" />
-              <span>Google Pay (UPI Only)</span>
-            </span>
-            <span className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold border flex items-center gap-1.5 ${
-              qrManualEnabledInput
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                : 'bg-white/5 text-slate border-white/10'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${qrManualEnabledInput ? 'bg-emerald-400' : 'bg-slate-500'}`} />
-              <span>{qrManualEnabledInput ? 'Checkout Active' : 'Checkout Disabled'}</span>
-            </span>
-          </div>
-        </div>
-
-        {/* Main Settings Card: Form & Live Preview */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+      <section className="space-y-6 animate-fadeIn">
+        {/* Main Settings Card */}
+        <div className="p-5 sm:p-6 rounded-2xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
             <div>
-              <h3 className="font-jakarta font-bold text-base text-paper flex items-center gap-2">
+              <h3 className="font-jakarta font-bold text-sm text-paper flex items-center gap-2">
                 <QrCode className="w-4 h-4 text-primary" />
                 Google Pay Credentials &amp; Cloudflare QR Code
               </h3>
@@ -6829,261 +6786,211 @@ export const AdminPanel: React.FC = () => {
                 Set recipient credentials and Cloudflare QR image URL. Verified in real-time before saving.
               </p>
             </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <span className="px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 text-primary font-mono text-[10px] font-bold flex items-center gap-1.5">
+                <CreditCard className="w-3 h-3" />
+                <span>Google Pay (UPI Only)</span>
+              </span>
+              <span className={`px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold border flex items-center gap-1.5 ${
+                qrManualEnabledInput
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                  : 'bg-white/5 text-slate border-white/10'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${qrManualEnabledInput ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+                <span>{qrManualEnabledInput ? 'Checkout Active' : 'Checkout Disabled'}</span>
+              </span>
+            </div>
           </div>
 
-          <form onSubmit={handleSavePaymentSettings} className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              
-              {/* Left Column: Form Fields (7 cols) */}
-              <div className="lg:col-span-7 space-y-5">
-                
-                {/* Row 1: Recipient Name & Banking Name */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-mono text-slate uppercase tracking-wider block">
-                      Recipient's Full Name
-                    </label>
-                    <input
-                      type="text"
-                      value={recipientNameInput}
-                      onChange={e => setRecipientNameInput(e.target.value)}
-                      placeholder="e.g. Jayadev Nair"
-                      className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm focus:border-primary focus:outline-none"
-                      required
-                    />
-                    <p className="text-[10px] text-slate">Personal recipient display name.</p>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-mono text-slate uppercase tracking-wider block">
-                      Bank Account Display Name
-                    </label>
-                    <input
-                      type="text"
-                      value={bankingNameInput}
-                      onChange={e => setBankingNameInput(e.target.value)}
-                      placeholder="e.g. JAYADEV NAIR"
-                      className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm focus:border-primary focus:outline-none uppercase"
-                      required
-                    />
-                    <p className="text-[10px] text-slate">Exact name registered with bank / UPI handle.</p>
-                  </div>
-                </div>
-
-                {/* Row 2: Phone Number & UPI ID */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-mono text-slate uppercase tracking-wider block">
-                      Phone Number
-                    </label>
-                    <input
-                      type="text"
-                      value={phoneNumberInput}
-                      onChange={e => setPhoneNumberInput(e.target.value)}
-                      placeholder="e.g. +91 97459 49326"
-                      className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm font-mono focus:border-primary focus:outline-none"
-                      required
-                    />
-                    <p className="text-[10px] text-slate">Linked phone number for Google Pay.</p>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-mono text-slate uppercase tracking-wider block">
-                      Google Pay UPI ID (VPA)
-                    </label>
-                    <input
-                      type="text"
-                      value={qrUpiIdInput}
-                      onChange={e => setQrUpiIdInput(e.target.value)}
-                      placeholder="e.g. jayadevnair200518@oksbi"
-                      className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm font-mono focus:border-primary focus:outline-none"
-                      required
-                    />
-                    <p className="text-[10px] text-slate">Students send payment to this UPI ID.</p>
-                  </div>
-                </div>
-
-                {/* Row 3: Publicly Accessible Cloudflare-hosted QR Image URL */}
-                <div className="space-y-2 p-4 rounded-2xl bg-black/40 border border-white/10">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-mono text-slate uppercase tracking-wider flex items-center gap-1.5">
-                      <ImageIcon className="w-3.5 h-3.5 text-primary" />
-                      <span>Cloudflare QR Image URL (Publicly Hosted)</span>
-                    </label>
-                    {qrImageUrlInput && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setQrImageUrlInput('');
-                          setQrUrlVerificationStatus('idle');
-                          setQrUrlVerificationMsg(null);
-                        }}
-                        className="text-[10px] font-mono text-rose-400 hover:underline cursor-pointer"
-                      >
-                        Clear URL (Use Dynamic QR)
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                    <input
-                      type="url"
-                      value={qrImageUrlInput}
-                      onChange={e => {
-                        setQrImageUrlInput(e.target.value);
-                        setQrUrlVerificationStatus('idle');
-                        setQrUrlVerificationMsg(null);
-                      }}
-                      placeholder="https://pub-...r2.dev/official-gpay-qr.png"
-                      className="flex-1 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-paper text-xs font-mono focus:border-primary focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      disabled={isVerifyingQrUrl || !qrImageUrlInput.trim()}
-                      onClick={() => handleTestQrUrl()}
-                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-paper text-xs font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingQrUrl ? 'animate-spin' : ''}`} />
-                      <span>{isVerifyingQrUrl ? 'Verifying...' : 'Verify URL'}</span>
-                    </button>
-                  </div>
-
-                  {/* Verification Status Feedback */}
-                  {qrUrlVerificationStatus === 'valid' && (
-                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-xs flex items-center gap-2">
-                      <Check className="w-3.5 h-3.5 shrink-0" />
-                      <span>{qrUrlVerificationMsg || 'Image URL verified successfully!'}</span>
-                    </div>
-                  )}
-
-                  {qrUrlVerificationStatus === 'invalid' && (
-                    <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 font-mono text-xs flex items-center gap-2">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      <span>{qrUrlVerificationMsg || 'Image failed to load. Please verify the URL.'}</span>
-                    </div>
-                  )}
-
-                  <p className="text-[10px] text-slate leading-relaxed">
-                    Paste a publicly accessible Cloudflare R2 / CDN image URL. We dynamically test that the image loads before saving without requiring separate cloud storage. If left empty, a crisp dynamic Google Pay QR is generated.
-                  </p>
-                </div>
-
-                {/* Row 4: Timeout & Instructions */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-mono text-slate uppercase tracking-wider block">
-                      Session Timer (Minutes)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="60"
-                      value={qrTimeoutMinutesInput}
-                      onChange={e => setQrTimeoutMinutesInput(Number(e.target.value))}
-                      className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm font-mono focus:border-primary focus:outline-none"
-                      required
-                    />
-                    <p className="text-[10px] text-slate">Payment expiry countdown (1 - 60 min).</p>
-                  </div>
-
-                  <div className="sm:col-span-2 space-y-1.5">
-                    <label className="text-[11px] font-mono text-slate uppercase tracking-wider block">
-                      Student Instructions
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={qrInstructionsInput}
-                      onChange={e => setQrInstructionsInput(e.target.value)}
-                      placeholder="Instructions shown on student checkout modal..."
-                      className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-paper text-xs focus:border-primary focus:outline-none resize-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Checkbox: Enable Checkout */}
-                <label className="flex items-center gap-3 p-3.5 rounded-2xl bg-white/[0.02] border border-white/10 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={qrManualEnabledInput}
-                    onChange={e => setQrManualEnabledInput(e.target.checked)}
-                    className="w-4 h-4 rounded text-primary focus:ring-primary bg-black/40 border-white/20 accent-primary cursor-pointer"
-                  />
-                  <div>
-                    <span className="text-xs font-bold text-paper block">
-                      Enable Google Pay UPI &amp; QR Checkout on Website
-                    </span>
-                    <span className="text-[10px] text-slate">
-                      When enabled, students can pay via Google Pay or scan the QR code and submit their 12-digit UTR reference for instant verification.
-                    </span>
-                  </div>
+          <form onSubmit={handleSavePaymentSettings} className="space-y-4">
+            {/* Row 1: Recipient Full Name & Banking Display Name */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate mb-1">
+                  Recipient's Full Name
                 </label>
-
+                <input
+                  type="text"
+                  value={recipientNameInput}
+                  onChange={e => setRecipientNameInput(e.target.value)}
+                  placeholder="e.g. Jayadev Nair"
+                  className="w-full px-3 py-2 rounded-xl bg-black border border-white/15 text-paper text-xs focus:border-primary focus:outline-none"
+                  required
+                />
+                <p className="text-[10px] text-slate mt-1">Personal recipient display name.</p>
               </div>
 
-              {/* Right Column: Live Student Checkout Preview (5 cols) */}
-              <div className="lg:col-span-5 flex flex-col items-center justify-between p-6 rounded-3xl bg-black/80 border border-white/15 shadow-inner space-y-4">
-                <div className="w-full text-center pb-2 border-b border-white/10">
-                  <span className="font-mono text-[10px] text-primary uppercase font-bold tracking-wider">
-                    Student Checkout Preview
-                  </span>
-                  <h4 className="text-xs font-bold text-paper mt-0.5">
-                    Live Google Pay QR Card
-                  </h4>
-                </div>
-
-                {/* QR Code Container */}
-                <div className="p-3.5 rounded-2xl bg-white flex flex-col items-center justify-center shadow-2xl">
-                  <img
-                    src={previewQrSrc}
-                    alt="Official Google Pay QR Code"
-                    className="w-44 h-44 object-contain rounded-lg"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(`upi://pay?pa=${qrUpiIdInput || 'jayadevnair200518@oksbi'}&pn=${encodeURIComponent(bankingNameInput || recipientNameInput || 'JAYADEV NAIR')}&cu=INR`)}`;
-                    }}
-                  />
-                  <p className="font-mono text-[10px] text-black/80 font-bold mt-2 tracking-wide text-center">
-                    Scan &amp; Pay using Google Pay
-                  </p>
-                </div>
-
-                {/* Recipient Details Preview Box */}
-                <div className="w-full p-3.5 rounded-2xl bg-black/60 border border-white/10 space-y-2 text-xs font-mono">
-                  <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-white/10">
-                    <span className="text-slate">Banking Name:</span>
-                    <span className="font-bold text-paper text-right">{bankingNameInput || 'JAYADEV NAIR'}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-white/10">
-                    <span className="text-slate">Recipient Name:</span>
-                    <span className="font-bold text-paper text-right">{recipientNameInput || 'Jayadev Nair'}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-white/10">
-                    <span className="text-slate">Phone Number:</span>
-                    <span className="font-bold text-paper text-right">{phoneNumberInput || '+91 97459 49326'}</span>
-                  </div>
-                  <div className="flex items-center justify-between pt-0.5">
-                    <div className="min-w-0 pr-2">
-                      <span className="text-[10px] text-slate block">Google Pay UPI ID:</span>
-                      <span className="font-bold text-primary truncate block text-xs">{qrUpiIdInput || 'jayadevnair200518@oksbi'}</span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded bg-white/10 text-slate text-[10px]">
-                      Copyable
-                    </span>
-                  </div>
-                </div>
-
-                <p className="font-mono text-[10px] text-slate/60 text-center">
-                  Preview dynamically updates as you type
-                </p>
+              <div>
+                <label className="block text-xs font-bold text-slate mb-1">
+                  Bank Account Display Name
+                </label>
+                <input
+                  type="text"
+                  value={bankingNameInput}
+                  onChange={e => setBankingNameInput(e.target.value)}
+                  placeholder="e.g. JAYADEV NAIR"
+                  className="w-full px-3 py-2 rounded-xl bg-black border border-white/15 text-paper text-xs focus:border-primary focus:outline-none uppercase"
+                  required
+                />
+                <p className="text-[10px] text-slate mt-1">Exact name registered with bank / UPI handle.</p>
               </div>
-
             </div>
 
+            {/* Row 2: Phone Number & UPI ID */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate mb-1">
+                  Phone Number
+                </label>
+                <input
+                  type="text"
+                  value={phoneNumberInput}
+                  onChange={e => setPhoneNumberInput(e.target.value)}
+                  placeholder="e.g. +91 97459 49326"
+                  className="w-full px-3 py-2 rounded-xl bg-black border border-white/15 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                  required
+                />
+                <p className="text-[10px] text-slate mt-1">Linked phone number for Google Pay.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate mb-1">
+                  Google Pay UPI ID (VPA)
+                </label>
+                <input
+                  type="text"
+                  value={qrUpiIdInput}
+                  onChange={e => setQrUpiIdInput(e.target.value)}
+                  placeholder="e.g. jayadevnair200518@oksbi"
+                  className="w-full px-3 py-2 rounded-xl bg-black border border-white/15 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                  required
+                />
+                <p className="text-[10px] text-slate mt-1">Students send payment to this UPI ID.</p>
+              </div>
+            </div>
+
+            {/* Row 3: Cloudflare QR Image URL */}
+            <div className="space-y-2 p-3.5 rounded-xl bg-black/40 border border-white/10">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5 text-primary" />
+                  <span>Cloudflare QR Image URL (Publicly Hosted)</span>
+                </label>
+                {qrImageUrlInput && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQrImageUrlInput('');
+                      setQrUrlVerificationStatus('idle');
+                      setQrUrlVerificationMsg(null);
+                    }}
+                    className="text-[10px] font-mono text-rose-400 hover:underline cursor-pointer"
+                  >
+                    Clear URL (Use Dynamic QR)
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <input
+                  type="url"
+                  value={qrImageUrlInput}
+                  onChange={e => {
+                    setQrImageUrlInput(e.target.value);
+                    setQrUrlVerificationStatus('idle');
+                    setQrUrlVerificationMsg(null);
+                  }}
+                  placeholder="https://pub-...r2.dev/official-gpay-qr.png"
+                  className="flex-1 px-3 py-2 rounded-xl bg-black border border-white/15 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                />
+                <button
+                  type="button"
+                  disabled={isVerifyingQrUrl || !qrImageUrlInput.trim()}
+                  onClick={() => handleTestQrUrl()}
+                  className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-paper text-xs font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingQrUrl ? 'animate-spin' : ''}`} />
+                  <span>{isVerifyingQrUrl ? 'Verifying...' : 'Verify URL'}</span>
+                </button>
+              </div>
+
+              {/* Verification Status Feedback */}
+              {qrUrlVerificationStatus === 'valid' && (
+                <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-xs flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 shrink-0" />
+                  <span>{qrUrlVerificationMsg || 'Image URL verified successfully!'}</span>
+                </div>
+              )}
+
+              {qrUrlVerificationStatus === 'invalid' && (
+                <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 font-mono text-xs flex items-center gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{qrUrlVerificationMsg || 'Image failed to load. Please verify the URL.'}</span>
+                </div>
+              )}
+
+              <p className="text-[10px] text-slate leading-relaxed">
+                Paste a publicly accessible Cloudflare R2 / CDN image URL. We dynamically test that the image loads before saving without requiring separate cloud storage. If left empty, a crisp dynamic Google Pay QR is generated.
+              </p>
+            </div>
+
+            {/* Row 4: Session Timer & Instructions */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate mb-1">
+                  Session Timer (Minutes)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="60"
+                  value={qrTimeoutMinutesInput}
+                  onChange={e => setQrTimeoutMinutesInput(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl bg-black border border-white/15 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                  required
+                />
+                <p className="text-[10px] text-slate mt-1">Payment expiry countdown (1 - 60 min).</p>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-slate mb-1">
+                  Student Instructions
+                </label>
+                <textarea
+                  rows={2}
+                  value={qrInstructionsInput}
+                  onChange={e => setQrInstructionsInput(e.target.value)}
+                  placeholder="Instructions shown on student checkout modal..."
+                  className="w-full px-3 py-2 rounded-xl bg-black border border-white/15 text-paper text-xs focus:border-primary focus:outline-none resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Checkbox: Enable Checkout */}
+            <label className="flex items-center gap-2.5 p-3 rounded-xl bg-white/[0.02] border border-white/10 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={qrManualEnabledInput}
+                onChange={e => setQrManualEnabledInput(e.target.checked)}
+                className="w-4 h-4 rounded text-primary focus:ring-primary bg-black/40 border-white/20 accent-primary cursor-pointer"
+              />
+              <div>
+                <span className="text-xs font-bold text-paper block">
+                  Enable Google Pay UPI &amp; QR Checkout on Website
+                </span>
+                <span className="text-[10px] text-slate">
+                  When enabled, students can pay via Google Pay or scan the QR code and submit their 12-digit UTR reference for instant verification.
+                </span>
+              </div>
+            </label>
+
             {/* Bottom Form Actions */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/10">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-white/10">
               <button
                 type="button"
                 onClick={handleResetPaymentSettingsToDefaults}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper font-mono text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper font-mono text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Reset to Defaults</span>
@@ -7092,9 +6999,9 @@ export const AdminPanel: React.FC = () => {
               <button
                 type="submit"
                 disabled={isSavingQrConfig}
-                className="w-full sm:w-auto py-3 px-8 rounded-xl bg-primary text-ink font-jakarta font-black text-xs sm:text-sm uppercase tracking-wider hover:brightness-110 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/25 cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto py-2 px-6 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider hover:brightness-110 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-primary/20 cursor-pointer disabled:opacity-50"
               >
-                <Save className="w-4 h-4" />
+                <Save className="w-3.5 h-3.5" />
                 <span>{isSavingQrConfig ? 'Saving Settings...' : 'Save Payment Settings'}</span>
               </button>
             </div>
@@ -7102,16 +7009,16 @@ export const AdminPanel: React.FC = () => {
         </div>
 
         {/* Section 2: Manual UPI Payment Verifications Queue */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+        <div className="p-5 sm:p-6 rounded-2xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-jakarta font-extrabold text-lg text-paper flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-amber-400" />
+                <h3 className="font-jakarta font-bold text-sm text-paper flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-amber-400" />
                   Manual UPI Payment Verifications Queue
                 </h3>
                 {pendingManualPayments.length > 0 && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold border border-amber-500/30">
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold border border-amber-500/30">
                     {pendingManualPayments.length} Pending
                   </span>
                 )}
@@ -7123,34 +7030,34 @@ export const AdminPanel: React.FC = () => {
           </div>
 
           {pendingManualPayments.length === 0 ? (
-            <div className="p-8 rounded-2xl bg-white/[0.02] border border-white/5 text-center space-y-2">
-              <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto opacity-80" />
-              <div className="text-sm font-bold text-paper">No Pending UPI Verifications</div>
-              <p className="text-xs text-slate max-w-md mx-auto">
+            <div className="p-6 rounded-xl bg-white/[0.02] border border-white/5 text-center space-y-1.5">
+              <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto opacity-80" />
+              <div className="text-xs font-bold text-paper">No Pending UPI Verifications</div>
+              <p className="text-[11px] text-slate max-w-md mx-auto">
                 All manual UPI payments have been verified or no new requests have been submitted. When a student submits their 12-digit UTR, it will appear here for one-click approval.
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {pendingManualPayments.map(payment => (
                 <div
                   key={payment.id}
-                  className="p-5 rounded-2xl bg-black/60 border border-amber-500/30 hover:border-amber-500/50 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg shadow-amber-500/5"
+                  className="p-3.5 rounded-xl bg-black/60 border border-amber-500/30 hover:border-amber-500/50 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md shadow-amber-500/5"
                 >
-                  <div className="space-y-1.5 min-w-[220px]">
+                  <div className="space-y-1 min-w-[200px]">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-paper text-sm">{payment.studentName}</span>
+                      <span className="font-bold text-paper text-xs">{payment.studentName}</span>
                       <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold">
                         Pending
                       </span>
                     </div>
-                    <div className="text-xs text-slate font-mono">{payment.studentEmail}</div>
+                    <div className="text-[11px] text-slate font-mono">{payment.studentEmail}</div>
                     {payment.studentPhone && (
-                      <div className="text-xs text-slate font-mono">Phone: {payment.studentPhone}</div>
+                      <div className="text-[11px] text-slate font-mono">Phone: {payment.studentPhone}</div>
                     )}
                   </div>
 
-                  <div className="space-y-1 min-w-[160px]">
+                  <div className="space-y-0.5 min-w-[150px]">
                     <div className="text-[10px] font-mono text-slate uppercase">Enrolling Course</div>
                     <div className="text-xs font-bold text-paper">{payment.courseName}</div>
                     <div className="text-xs font-mono font-bold text-emerald-400">
@@ -7158,10 +7065,10 @@ export const AdminPanel: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-1">
+                  <div className="space-y-0.5">
                     <div className="text-[10px] font-mono text-slate uppercase">12-Digit UPI UTR Reference</div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-black text-sm text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/30 tracking-wider select-all">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-bold text-xs text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/30 tracking-wider select-all">
                         {payment.utrNumber || 'No UTR provided'}
                       </span>
                       {payment.utrNumber && (
@@ -7171,10 +7078,10 @@ export const AdminPanel: React.FC = () => {
                             navigator.clipboard.writeText(payment.utrNumber || '');
                             showToast('Copied UTR to clipboard!');
                           }}
-                          className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-paper cursor-pointer"
+                          className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-paper cursor-pointer"
                           title="Copy UTR Reference"
                         >
-                          <Copy className="w-3.5 h-3.5" />
+                          <Copy className="w-3 h-3" />
                         </button>
                       )}
                     </div>
@@ -7185,19 +7092,19 @@ export const AdminPanel: React.FC = () => {
                       type="button"
                       disabled={verifyingPurchaseId === payment.id}
                       onClick={() => handleVerifyManualPayment(payment.id, true)}
-                      className="flex-1 md:flex-initial py-2 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 cursor-pointer disabled:opacity-50 transition-all"
+                      className="py-1.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer disabled:opacity-50 transition-all"
                     >
-                      <CheckCheck className="w-4 h-4" />
-                      Verify & Unlock Course
+                      <CheckCheck className="w-3.5 h-3.5" />
+                      <span>Verify & Unlock</span>
                     </button>
                     <button
                       type="button"
                       disabled={verifyingPurchaseId === payment.id}
                       onClick={() => handleVerifyManualPayment(payment.id, false)}
-                      className="py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 font-bold text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all"
+                      className="py-1.5 px-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 font-bold text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all"
                     >
-                      <XCircle className="w-4 h-4" />
-                      Reject
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>Reject</span>
                     </button>
                   </div>
                 </div>
