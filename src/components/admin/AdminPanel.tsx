@@ -1183,69 +1183,69 @@ export const AdminPanel: React.FC = () => {
 
   // Render Subcomponents
   const renderHeroSection = () => (
-    <section id="section-hero" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
+    <section id="section-hero" className="rounded-2xl bg-[#0c0d0e] border border-white/10 p-5 sm:p-6 space-y-5 shadow-2xl relative">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/10">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="font-jakarta text-lg font-black text-paper">Hero Section</h2>
-            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">01</span>
+            <h2 className="font-jakarta text-base sm:text-lg font-black text-paper">Hero Section</h2>
+            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold border border-primary/20">01</span>
           </div>
           <p className="text-xs text-slate mt-0.5">Top headline, 3 value pillars, and CTA action buttons.</p>
         </div>
       </div>
 
-      <form onSubmit={handleSaveHero} className="space-y-6 text-sm">
+      <form onSubmit={handleSaveHero} className="space-y-4 text-xs">
         {/* Headline Group */}
-        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
-          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// HEADLINE &amp; SUBTITLE</span>
+        <div className="p-4 sm:p-5 rounded-xl bg-black/40 border border-white/10 space-y-3">
+          <span className="font-mono text-[11px] text-primary font-bold uppercase tracking-wider block">// Headline &amp; Subtitle</span>
           <div>
-            <label className="block font-mono text-[11px] text-slate mb-1">Eyebrow Badge (Optional)</label>
+            <label className="block text-xs font-bold text-slate mb-1">Eyebrow Badge (Optional)</label>
             <input
               type="text"
               name="eyebrow"
               defaultValue={data.hero.eyebrow || ''}
               placeholder="e.g. // MASTER SOFTWARE ENGINEERING"
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+              className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
             />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Headline Prefix</label>
+              <label className="block text-xs font-bold text-slate mb-1">Headline Prefix</label>
               <input
                 type="text"
                 name="headlinePrefix"
                 defaultValue={data.hero.headlinePrefix ?? "Master Real Tech Skills with"}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-bold"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none font-bold"
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Glowing Highlight Word</label>
+              <label className="block text-xs font-bold text-slate mb-1">Glowing Highlight Word</label>
               <input
                 type="text"
                 name="highlightWord"
                 defaultValue={data.hero.highlightWord ?? "DO PILOT"}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-primary focus:border-primary focus:outline-none font-bold"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-primary text-xs focus:border-primary focus:outline-none font-bold"
               />
             </div>
           </div>
 
           <div>
-            <label className="block font-mono text-[11px] text-slate mb-1">Subtitle / Description</label>
+            <label className="block text-xs font-bold text-slate mb-1">Subtitle / Description</label>
             <textarea
               name="description"
               rows={2}
               defaultValue={data.hero.description}
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none resize-none leading-relaxed"
+              className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none leading-relaxed"
             />
           </div>
         </div>
 
         {/* 3 Pillars Group */}
-        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
-          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// 3 VALUE PILLARS</span>
+        <div className="p-4 sm:p-5 rounded-xl bg-black/40 border border-white/10 space-y-3">
+          <span className="font-mono text-[11px] text-primary font-bold uppercase tracking-wider block">// 3 Value Pillars</span>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block font-mono text-[10px] text-slate mb-1">Pillar 1</label>
+              <label className="block text-[11px] font-bold text-slate mb-1">Pillar 1</label>
               <input
                 type="text"
                 name="pillar1"
@@ -1254,7 +1254,7 @@ export const AdminPanel: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block font-mono text-[10px] text-slate mb-1">Pillar 2</label>
+              <label className="block text-[11px] font-bold text-slate mb-1">Pillar 2</label>
               <input
                 type="text"
                 name="pillar2"
@@ -1263,7 +1263,7 @@ export const AdminPanel: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block font-mono text-[10px] text-slate mb-1">Pillar 3</label>
+              <label className="block text-[11px] font-bold text-slate mb-1">Pillar 3</label>
               <input
                 type="text"
                 name="pillar3"
@@ -1275,11 +1275,11 @@ export const AdminPanel: React.FC = () => {
         </div>
 
         {/* Buttons & Video Group */}
-        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
-          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// CTA BUTTONS &amp; VIDEO</span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="p-4 sm:p-5 rounded-xl bg-black/40 border border-white/10 space-y-3">
+          <span className="font-mono text-[11px] text-primary font-bold uppercase tracking-wider block">// CTA Buttons &amp; Navigation</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Primary CTA Button</label>
+              <label className="block text-xs font-bold text-slate mb-1">Primary CTA Button</label>
               <input
                 type="text"
                 name="primaryCtaText"
@@ -1288,7 +1288,7 @@ export const AdminPanel: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Primary CTA Destination Link</label>
+              <label className="block text-xs font-bold text-slate mb-1">Primary CTA Destination Link</label>
               <input
                 type="text"
                 name="primaryCtaLink"
@@ -1297,7 +1297,7 @@ export const AdminPanel: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Secondary CTA Button</label>
+              <label className="block text-xs font-bold text-slate mb-1">Secondary CTA Button</label>
               <input
                 type="text"
                 name="secondaryCtaText"
@@ -1306,7 +1306,7 @@ export const AdminPanel: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Secondary CTA Destination Link</label>
+              <label className="block text-xs font-bold text-slate mb-1">Secondary CTA Destination Link</label>
               <input
                 type="text"
                 name="secondaryCtaLink"
@@ -1316,8 +1316,8 @@ export const AdminPanel: React.FC = () => {
             </div>
           </div>
 
-          <div className="pt-2">
-            <label className="block font-mono text-[11px] text-slate mb-1">Scroll Cue Text</label>
+          <div className="pt-1">
+            <label className="block text-xs font-bold text-slate mb-1">Scroll Cue Text</label>
             <input
               type="text"
               name="scrollCueText"
@@ -1330,9 +1330,9 @@ export const AdminPanel: React.FC = () => {
         <div className="flex justify-end pt-1">
           <button
             type="submit"
-            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+            className="px-5 py-2 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 hover:brightness-110 shadow-md shadow-primary/20 transition-all cursor-pointer"
           >
-            <Save className="w-4 h-4" />
+            <Save className="w-3.5 h-3.5" />
             <span>Save Hero Changes</span>
           </button>
         </div>
@@ -1341,65 +1341,65 @@ export const AdminPanel: React.FC = () => {
   );
 
   const renderWhyUsSection = () => (
-    <section id="section-whyUs" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
+    <section id="section-whyUs" className="rounded-2xl bg-[#0c0d0e] border border-white/10 p-5 sm:p-6 space-y-5 shadow-2xl relative">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/10">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="font-jakarta text-lg font-black text-paper">Why Choose Us</h2>
-            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">02</span>
+            <h2 className="font-jakarta text-base sm:text-lg font-black text-paper">Why Choose Us</h2>
+            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold border border-primary/20">02</span>
           </div>
           <p className="text-xs text-slate mt-0.5">Key advantages and side-by-side comparison matrix with legacy courses.</p>
         </div>
       </div>
 
-      <form onSubmit={handleSaveWhyUs} className="space-y-6 text-sm">
-        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
-          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// SECTION HEADER</span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <form onSubmit={handleSaveWhyUs} className="space-y-4 text-xs">
+        <div className="p-4 sm:p-5 rounded-xl bg-black/40 border border-white/10 space-y-3">
+          <span className="font-mono text-[11px] text-primary font-bold uppercase tracking-wider block">// Section Header</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Badge Text</label>
+              <label className="block text-xs font-bold text-slate mb-1">Badge Text</label>
               <input
                 type="text"
                 name="whyUsBadge"
                 defaultValue={data.whyUs?.badgeText || 'WHY CHOOSE US'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Title</label>
+              <label className="block text-xs font-bold text-slate mb-1">Title</label>
               <input
                 type="text"
                 name="whyUsTitle"
                 defaultValue={data.whyUs?.title || 'Why DO PILOT?'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
               />
             </div>
           </div>
           <div>
-            <label className="block font-mono text-[11px] text-slate mb-1">Description</label>
+            <label className="block text-xs font-bold text-slate mb-1">Description</label>
             <textarea
               name="whyUsDesc"
               rows={2}
               defaultValue={data.whyUs?.description || ''}
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
+              className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
             />
           </div>
         </div>
 
         {/* 4 Cards Grid */}
-        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
-          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// 4 FEATURE PILLARS</span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="p-4 sm:p-5 rounded-xl bg-black/40 border border-white/10 space-y-3">
+          <span className="font-mono text-[11px] text-primary font-bold uppercase tracking-wider block">// 4 Feature Pillars</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             {(data.whyUs?.features || []).map((feat, idx) => (
-              <div key={idx} className="p-4 rounded-xl bg-black border border-white/10 space-y-2">
+              <div key={idx} className="p-3.5 rounded-xl bg-black/60 border border-white/10 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs text-primary font-bold">Feature #{idx + 1}</span>
+                  <span className="font-mono text-[11px] text-primary font-bold">Feature #{idx + 1}</span>
                   <input
                     type="text"
                     name={`featHighlight_${idx}`}
                     defaultValue={feat.highlight}
                     placeholder="Badge Text"
-                    className="bg-black/60 border border-white/15 rounded-md px-2 py-0.5 text-[10px] text-paper font-mono focus:border-primary focus:outline-none"
+                    className="bg-black border border-white/15 rounded-lg px-2.5 py-1 text-[10px] text-paper font-mono focus:border-primary focus:outline-none"
                   />
                 </div>
                 <input
@@ -1407,14 +1407,14 @@ export const AdminPanel: React.FC = () => {
                   name={`featTitle_${idx}`}
                   defaultValue={feat.title}
                   placeholder="Card Title"
-                  className="w-full bg-black/60 border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                  className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
                 />
                 <textarea
                   name={`featDesc_${idx}`}
                   rows={2}
                   defaultValue={feat.description}
                   placeholder="Card Description"
-                  className="w-full bg-black/60 border border-white/15 rounded-lg px-3 py-1.5 text-xs text-slate focus:border-primary focus:outline-none resize-none"
+                  className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-slate focus:border-primary focus:outline-none resize-none"
                 />
               </div>
             ))}
@@ -1422,83 +1422,83 @@ export const AdminPanel: React.FC = () => {
         </div>
 
         {/* Comparison Table */}
-        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
-          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// COMPARISON SHOWCASE MATRIX</span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="p-4 sm:p-5 rounded-xl bg-black/40 border border-white/10 space-y-3">
+          <span className="font-mono text-[11px] text-primary font-bold uppercase tracking-wider block">// Comparison Showcase Matrix</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Matrix Title</label>
+              <label className="block text-xs font-bold text-slate mb-1">Matrix Title</label>
               <input
                 type="text"
                 name="compTitle"
                 defaultValue={data.whyUs?.comparisonsTitle || 'How DO PILOT Compares'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Matrix Subtitle</label>
+              <label className="block text-xs font-bold text-slate mb-1">Matrix Subtitle</label>
               <input
                 type="text"
                 name="compSubtitle"
                 defaultValue={data.whyUs?.comparisonsSubtitle || 'See the direct difference between regular courses and our engineering mentorship.'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
             <div>
-              <label className="block font-mono text-[10px] text-slate mb-1">Col 1 Header</label>
+              <label className="block text-[11px] font-bold text-slate mb-1">Col 1 Header</label>
               <input
                 type="text"
                 name="tableHeaderFeature"
                 defaultValue={data.whyUs?.tableHeaderFeature || 'Feature'}
-                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[10px] text-slate mb-1">Col 2 Header (Competitors)</label>
+              <label className="block text-[11px] font-bold text-slate mb-1">Col 2 Header (Competitors)</label>
               <input
                 type="text"
                 name="tableHeaderTraditional"
                 defaultValue={data.whyUs?.tableHeaderTraditional || 'Regular Online Courses'}
-                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-rose-300 font-mono focus:border-rose-400 focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-rose-300 font-mono focus:border-rose-400 focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[10px] text-slate mb-1">Col 3 Header (DO PILOT)</label>
+              <label className="block text-[11px] font-bold text-slate mb-1">Col 3 Header (DO PILOT)</label>
               <input
                 type="text"
                 name="tableHeaderDoPilot"
                 defaultValue={data.whyUs?.tableHeaderDoPilot || 'DO PILOT Platform'}
-                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-primary font-mono font-bold focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-primary font-mono font-bold focus:border-primary focus:outline-none"
               />
             </div>
           </div>
 
-          <span className="font-mono text-xs text-slate font-bold uppercase tracking-wider block pt-3">// COMPARISON ROWS</span>
-          <div className="space-y-2.5">
+          <span className="font-mono text-[11px] text-slate font-bold uppercase tracking-wider block pt-2">// Comparison Rows</span>
+          <div className="space-y-2">
             {(data.whyUs?.comparisons || []).map((comp, idx) => (
-              <div key={idx} className="p-3.5 rounded-xl bg-black border border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div key={idx} className="p-3 rounded-xl bg-black/60 border border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <input
                   type="text"
                   name={`compFeature_${idx}`}
                   defaultValue={comp.feature}
                   placeholder="Feature name"
-                  className="bg-black/60 border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                  className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
                 />
                 <input
                   type="text"
                   name={`compTrad_${idx}`}
                   defaultValue={comp.traditional}
                   placeholder="Traditional"
-                  className="bg-black/60 border border-rose-500/20 rounded-lg px-3 py-1.5 text-xs text-slate focus:border-rose-400 focus:outline-none"
+                  className="bg-black border border-rose-500/20 rounded-lg px-3 py-1.5 text-xs text-slate focus:border-rose-400 focus:outline-none"
                 />
                 <input
                   type="text"
                   name={`compDo_${idx}`}
                   defaultValue={comp.doPilot}
                   placeholder="DO PILOT"
-                  className="bg-black/60 border border-emerald-500/30 rounded-lg px-3 py-1.5 text-xs text-paper font-semibold focus:border-primary focus:outline-none"
+                  className="bg-black border border-emerald-500/30 rounded-lg px-3 py-1.5 text-xs text-paper font-semibold focus:border-primary focus:outline-none"
                 />
               </div>
             ))}
@@ -1508,9 +1508,9 @@ export const AdminPanel: React.FC = () => {
         <div className="flex justify-end pt-1">
           <button
             type="submit"
-            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+            className="px-5 py-2 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 hover:brightness-110 shadow-md shadow-primary/20 transition-all cursor-pointer"
           >
-            <Save className="w-4 h-4" />
+            <Save className="w-3.5 h-3.5" />
             <span>Save Why Us Changes</span>
           </button>
         </div>
@@ -1519,111 +1519,111 @@ export const AdminPanel: React.FC = () => {
   );
 
   const renderCoursesSection = () => (
-    <section id="section-courses" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
+    <section id="section-courses" className="rounded-2xl bg-[#0c0d0e] border border-white/10 p-5 sm:p-6 space-y-5 shadow-2xl relative">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/10">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="font-jakarta text-lg font-black text-paper">Popular Courses</h2>
-            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">03</span>
+            <h2 className="font-jakarta text-base sm:text-lg font-black text-paper">Popular Courses</h2>
+            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold border border-primary/20">03</span>
           </div>
           <p className="text-xs text-slate mt-0.5">Manage curriculum course cards, duration, difficulty, tags, and syllabus previews.</p>
         </div>
         <button
           type="button"
           onClick={handleAddCourse}
-          className="px-3.5 py-1.5 rounded-xl bg-primary/20 hover:bg-primary text-primary hover:text-ink font-mono text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+          className="py-1.5 px-3 rounded-xl bg-primary/20 hover:bg-primary text-primary hover:text-ink font-mono text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>Add Course</span>
         </button>
       </div>
 
-      <form onSubmit={handleSaveCoursesSection} className="space-y-6 text-sm">
-        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
-          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// SECTION HEADER</span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <form onSubmit={handleSaveCoursesSection} className="space-y-4 text-xs">
+        <div className="p-4 sm:p-5 rounded-xl bg-black/40 border border-white/10 space-y-3">
+          <span className="font-mono text-[11px] text-primary font-bold uppercase tracking-wider block">// Section Header</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Badge</label>
+              <label className="block text-xs font-bold text-slate mb-1">Badge</label>
               <input
                 type="text"
                 name="coursesBadge"
                 defaultValue={data.coursesSection?.badgeText || 'SKILL PATHS'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Title</label>
+              <label className="block text-xs font-bold text-slate mb-1">Title</label>
               <input
                 type="text"
                 name="coursesTitle"
                 defaultValue={data.coursesSection?.title || 'Our Courses'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
               />
             </div>
           </div>
           <div>
-            <label className="block font-mono text-[11px] text-slate mb-1">Description / Subtitle</label>
+            <label className="block text-xs font-bold text-slate mb-1">Description / Subtitle</label>
             <textarea
               name="coursesDesc"
               rows={2}
               defaultValue={data.coursesSection?.description || 'Practical courses designed to take you from fundamentals to job-ready projects.'}
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
+              className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
             />
           </div>
         </div>
 
         {/* Course Cards List */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {(data.coursesSection?.courses || []).map((c, idx) => (
-            <div key={idx} className="p-5 rounded-2xl bg-black/60 border border-white/10 space-y-4">
-              <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                <span className="font-mono text-xs text-primary font-bold">Course #{idx + 1}</span>
+            <div key={idx} className="p-4 rounded-xl bg-black/60 border border-white/10 space-y-3">
+              <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
+                <span className="font-mono text-[11px] text-primary font-bold">Course #{idx + 1}</span>
                 <button
                   type="button"
                   onClick={() => handleDeleteCourse(idx)}
                   className="p-1.5 rounded-lg text-slate hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
                   title="Remove Course"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-mono text-[10px] text-slate mb-1">Title</label>
+                  <label className="block text-[11px] font-bold text-slate mb-1">Title</label>
                   <input
                     type="text"
                     name={`courseTitle_${idx}`}
                     defaultValue={c.title?.replace(/Programming/gi, 'Course')}
-                    className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                    className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block font-mono text-[10px] text-slate mb-1">Badge (e.g. Bestseller)</label>
+                  <label className="block text-[11px] font-bold text-slate mb-1">Badge (e.g. Bestseller)</label>
                   <input
                     type="text"
                     name={`courseBadge_${idx}`}
                     defaultValue={c.badge}
-                    className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
+                    className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block font-mono text-[10px] text-slate mb-1">Duration</label>
+                    <label className="block text-[11px] font-bold text-slate mb-1">Duration</label>
                     <input
                       type="text"
                       name={`courseDuration_${idx}`}
                       defaultValue={c.duration}
-                      className="w-full bg-black border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
+                      className="w-full bg-black border border-white/15 rounded-xl px-2.5 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block font-mono text-[10px] text-slate mb-1">Level</label>
+                    <label className="block text-[11px] font-bold text-slate mb-1">Level</label>
                     <input
                       type="text"
                       name={`courseLevel_${idx}`}
                       defaultValue={c.level}
-                      className="w-full bg-black border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
+                      className="w-full bg-black border border-white/15 rounded-xl px-2.5 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
                     />
                   </div>
                 </div>
@@ -1631,32 +1631,32 @@ export const AdminPanel: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-mono text-[10px] text-slate mb-1">Tags (Comma Separated)</label>
+                  <label className="block text-[11px] font-bold text-slate mb-1">Tags (Comma Separated)</label>
                   <input
                     type="text"
                     name={`courseTags_${idx}`}
                     defaultValue={(c.tags || []).join(', ')}
-                    className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                    className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block font-mono text-[10px] text-slate mb-1">Thumbnail Image URL</label>
+                  <label className="block text-[11px] font-bold text-slate mb-1">Thumbnail Image URL</label>
                   <input
                     type="text"
                     name={`courseImage_${idx}`}
                     defaultValue={c.image}
-                    className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                    className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-mono text-[10px] text-slate mb-1">Description</label>
+                <label className="block text-[11px] font-bold text-slate mb-1">Description</label>
                 <textarea
                   name={`courseDesc_${idx}`}
                   rows={2}
                   defaultValue={c.description}
-                  className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-slate focus:border-primary focus:outline-none resize-none"
+                  className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-slate focus:border-primary focus:outline-none resize-none"
                 />
               </div>
             </div>
@@ -1666,9 +1666,9 @@ export const AdminPanel: React.FC = () => {
         <div className="flex justify-end pt-1">
           <button
             type="submit"
-            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+            className="px-5 py-2 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 hover:brightness-110 shadow-md shadow-primary/20 transition-all cursor-pointer"
           >
-            <Save className="w-4 h-4" />
+            <Save className="w-3.5 h-3.5" />
             <span>Save Courses Changes</span>
           </button>
         </div>
@@ -1677,107 +1677,119 @@ export const AdminPanel: React.FC = () => {
   );
 
   const renderReviewsSection = () => (
-    <section id="section-reviews" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
+    <section id="section-reviews" className="rounded-2xl bg-[#0c0d0e] border border-white/10 p-5 sm:p-6 space-y-5 shadow-2xl relative">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/10">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="font-jakarta text-lg font-black text-paper">Student Reviews</h2>
-            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">04</span>
+            <h2 className="font-jakarta text-base sm:text-lg font-black text-paper">Student Reviews</h2>
+            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold border border-primary/20">04</span>
           </div>
           <p className="text-xs text-slate mt-0.5">Student feedback and testimonials.</p>
         </div>
         <button
           type="button"
           onClick={handleAddReview}
-          className="px-3.5 py-1.5 rounded-xl bg-primary/20 hover:bg-primary text-primary hover:text-ink font-mono text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+          className="py-1.5 px-3 rounded-xl bg-primary/20 hover:bg-primary text-primary hover:text-ink font-mono text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>Add Review</span>
         </button>
       </div>
 
-      <form onSubmit={handleSaveReviewsSection} className="space-y-6 text-sm">
-        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
-          <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// SECTION HEADER</span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <form onSubmit={handleSaveReviewsSection} className="space-y-4 text-xs">
+        <div className="p-4 sm:p-5 rounded-xl bg-black/40 border border-white/10 space-y-3">
+          <span className="font-mono text-[11px] text-primary font-bold uppercase tracking-wider block">// Section Header</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Badge</label>
+              <label className="block text-xs font-bold text-slate mb-1">Badge</label>
               <input
                 type="text"
                 name="reviewsBadge"
                 defaultValue={data.reviewsSection?.badgeText || 'STUDENT STORIES'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Title</label>
+              <label className="block text-xs font-bold text-slate mb-1">Title</label>
               <input
                 type="text"
                 name="reviewsTitle"
                 defaultValue={data.reviewsSection?.title || 'Student Reviews'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
               />
             </div>
           </div>
 
           <div>
-            <label className="block font-mono text-[11px] text-slate mb-1">Description / Subtitle</label>
+            <label className="block text-xs font-bold text-slate mb-1">Description / Subtitle</label>
             <textarea
               name="reviewsDesc"
               rows={2}
               defaultValue={data.reviewsSection?.description || 'Real feedback from learners who gained practical skills and built their careers with DO PILOT.'}
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
+              className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
             />
           </div>
         </div>
 
         {/* Reviews List */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {(data.reviewsSection?.reviews || []).map((r, idx) => (
-            <div key={idx} className="p-5 rounded-2xl bg-black/60 border border-white/10 space-y-3">
+            <div key={idx} className="p-4 rounded-xl bg-black/60 border border-white/10 space-y-3">
               <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                <span className="font-mono text-xs text-primary font-bold">Review #{idx + 1}</span>
+                <span className="font-mono text-[11px] text-primary font-bold">Review #{idx + 1}</span>
                 <button
                   type="button"
                   onClick={() => handleDeleteReview(idx)}
                   className="p-1.5 rounded-lg text-slate hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
                   title="Remove Review"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <input
-                  type="text"
-                  name={`revName_${idx}`}
-                  defaultValue={r.name}
-                  placeholder="Student name"
-                  className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
-                />
-                <input
-                  type="text"
-                  name={`revRole_${idx}`}
-                  defaultValue={r.role}
-                  placeholder="Job title / company"
-                  className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
-                />
-                <input
-                  type="text"
-                  name={`revCourse_${idx}`}
-                  defaultValue={r.course}
-                  placeholder="Course name"
-                  className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
-                />
+                <div>
+                  <label className="block text-[11px] font-bold text-slate mb-1">Student Name</label>
+                  <input
+                    type="text"
+                    name={`revName_${idx}`}
+                    defaultValue={r.name}
+                    placeholder="Student name"
+                    className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate mb-1">Role / Company</label>
+                  <input
+                    type="text"
+                    name={`revRole_${idx}`}
+                    defaultValue={r.role}
+                    placeholder="Job title / company"
+                    className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate mb-1">Course Enrolled</label>
+                  <input
+                    type="text"
+                    name={`revCourse_${idx}`}
+                    defaultValue={r.course}
+                    placeholder="Course name"
+                    className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
+                  />
+                </div>
               </div>
 
-              <textarea
-                name={`revComment_${idx}`}
-                rows={2}
-                defaultValue={r.comment}
-                placeholder="Student testimonial"
-                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-slate focus:border-primary focus:outline-none resize-none"
-              />
+              <div>
+                <label className="block text-[11px] font-bold text-slate mb-1">Student Testimonial</label>
+                <textarea
+                  name={`revComment_${idx}`}
+                  rows={2}
+                  defaultValue={r.comment}
+                  placeholder="Student testimonial"
+                  className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-slate focus:border-primary focus:outline-none resize-none"
+                />
+              </div>
             </div>
           ))}
         </div>
@@ -1785,9 +1797,9 @@ export const AdminPanel: React.FC = () => {
         <div className="flex justify-end pt-1">
           <button
             type="submit"
-            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+            className="px-5 py-2 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 hover:brightness-110 shadow-md shadow-primary/20 transition-all cursor-pointer"
           >
-            <Save className="w-4 h-4" />
+            <Save className="w-3.5 h-3.5" />
             <span>Save Reviews Changes</span>
           </button>
         </div>
@@ -1796,55 +1808,55 @@ export const AdminPanel: React.FC = () => {
   );
 
   const renderCodeLabSection = () => (
-    <section id="section-codeLab" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
-      <div className="flex items-center justify-between pb-5 border-b border-white/10">
+    <section id="section-codeLab" className="rounded-2xl bg-[#0c0d0e] border border-white/10 p-5 sm:p-6 space-y-5 shadow-2xl relative">
+      <div className="flex items-center justify-between pb-3 border-b border-white/10">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="font-jakarta text-lg font-black text-paper">Python Code Lab</h2>
-            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">05</span>
+            <h2 className="font-jakarta text-base sm:text-lg font-black text-paper">Python Code Lab</h2>
+            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold border border-primary/20">05</span>
           </div>
           <p className="text-xs text-slate mt-0.5">In-browser live Python playground title, description, and initial code.</p>
         </div>
       </div>
 
-      <form onSubmit={handleSaveCodeLab} className="space-y-6 text-sm">
-        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <form onSubmit={handleSaveCodeLab} className="space-y-4 text-xs">
+        <div className="p-4 sm:p-5 rounded-xl bg-black/40 border border-white/10 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Badge</label>
+              <label className="block text-xs font-bold text-slate mb-1">Badge</label>
               <input
                 type="text"
                 name="codeLabBadge"
                 defaultValue={data.codeLab?.badgeText || 'CODE LAB'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Title</label>
+              <label className="block text-xs font-bold text-slate mb-1">Title</label>
               <input
                 type="text"
                 name="codeLabTitle"
                 defaultValue={data.codeLab?.title || 'Run Python Programs Instantly'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
               />
             </div>
           </div>
           <div>
-            <label className="block font-mono text-[11px] text-slate mb-1">Description</label>
+            <label className="block text-xs font-bold text-slate mb-1">Description</label>
             <textarea
               name="codeLabDesc"
               rows={2}
               defaultValue={data.codeLab?.description || 'Write, test, and execute Python 3.12 code directly in your browser.'}
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
+              className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
             />
           </div>
           <div>
-            <label className="block font-mono text-[11px] text-slate mb-1">Default Starter Python Code</label>
+            <label className="block text-xs font-bold text-slate mb-1">Default Starter Python Code</label>
             <textarea
               name="defaultCode"
               rows={5}
               defaultValue={data.codeLab?.defaultCode || 'print("Hello, World!")\n'}
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-3 text-primary font-mono text-xs focus:border-primary focus:outline-none resize-none leading-relaxed"
+              className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2.5 text-primary font-mono text-xs focus:border-primary focus:outline-none resize-none leading-relaxed"
             />
           </div>
         </div>
@@ -1852,9 +1864,9 @@ export const AdminPanel: React.FC = () => {
         <div className="flex justify-end pt-1">
           <button
             type="submit"
-            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+            className="px-5 py-2 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 hover:brightness-110 shadow-md shadow-primary/20 transition-all cursor-pointer"
           >
-            <Save className="w-4 h-4" />
+            <Save className="w-3.5 h-3.5" />
             <span>Save Code Lab</span>
           </button>
         </div>
@@ -1863,113 +1875,113 @@ export const AdminPanel: React.FC = () => {
   );
 
   const renderLiveClassSection = () => (
-    <section id="section-liveClass" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
-      <div className="flex items-center justify-between pb-5 border-b border-white/10">
+    <section id="section-liveClass" className="rounded-2xl bg-[#0c0d0e] border border-white/10 p-5 sm:p-6 space-y-5 shadow-2xl relative">
+      <div className="flex items-center justify-between pb-3 border-b border-white/10">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="font-jakarta text-lg font-black text-paper">Live Masterclass</h2>
-            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">06</span>
+            <h2 className="font-jakarta text-base sm:text-lg font-black text-paper">Live Masterclass</h2>
+            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold border border-primary/20">06</span>
           </div>
           <p className="text-xs text-slate mt-0.5">Upcoming live interactive workshop schedule, mentor name, and seat counter.</p>
         </div>
       </div>
 
-      <form onSubmit={handleSaveLiveClass} className="space-y-6 text-sm">
-        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <form onSubmit={handleSaveLiveClass} className="space-y-4 text-xs">
+        <div className="p-4 sm:p-5 rounded-xl bg-black/40 border border-white/10 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Badge</label>
+              <label className="block text-xs font-bold text-slate mb-1">Badge</label>
               <input
                 type="text"
                 name="liveClassBadge"
                 defaultValue={data.liveClass?.badgeText || 'LIVE CLASS'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Section Title</label>
+              <label className="block text-xs font-bold text-slate mb-1">Section Title</label>
               <input
                 type="text"
                 name="liveClassTitle"
                 defaultValue={data.liveClass?.title || 'Upcoming Live Class'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Spotlight Badge</label>
+              <label className="block text-xs font-bold text-slate mb-1">Spotlight Badge</label>
               <input
                 type="text"
                 name="spotlightBadge"
                 defaultValue={data.liveClass?.spotlightBadge || 'Live Workshop • Limited Seats'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-rose-400 font-mono text-xs focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-rose-400 font-mono text-xs focus:border-primary focus:outline-none"
               />
             </div>
           </div>
 
           <div>
-            <label className="block font-mono text-[11px] text-slate mb-1">Section Description / Subtitle</label>
+            <label className="block text-xs font-bold text-slate mb-1">Section Description / Subtitle</label>
             <textarea
               name="liveClassDesc"
               rows={2}
               defaultValue={data.liveClass?.description || 'Join our interactive live masterclass. Code alongside experienced engineers and ask your questions live.'}
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
+              className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Class / Masterclass Name</label>
+              <label className="block text-xs font-bold text-slate mb-1">Class / Masterclass Name</label>
               <input
                 type="text"
                 name="className"
                 defaultValue={data.liveClass?.className || 'Python & AI Assistant: Live Masterclass'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Class Description</label>
+              <label className="block text-xs font-bold text-slate mb-1">Class Description</label>
               <input
                 type="text"
                 name="classDescription"
                 defaultValue={data.liveClass?.classDescription || 'Build a functional AI assistant with Python and live API integration in a 2-hour interactive code-along.'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none"
               />
             </div>
           </div>
 
           {/* Schedule & Live Countdown Timer Configuration */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">
+              <label className="block text-xs font-bold text-slate mb-1">
                 Target Date &amp; Time (Countdown Timer)
               </label>
               <input
                 type="datetime-local"
                 name="targetDateTime"
                 defaultValue={data.liveClass?.targetDateTime || '2026-10-18T18:00'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
               />
               <span className="block font-mono text-[10px] text-slate/70 mt-1">
                 Timer automatically counts down to this exact date &amp; time.
               </span>
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Display Date (Card)</label>
+              <label className="block text-xs font-bold text-slate mb-1">Display Date (Card)</label>
               <input
                 type="text"
                 name="date"
                 defaultValue={data.liveClass?.date || 'Saturday, Oct 18, 2026'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
               />
               <span className="block font-mono text-[10px] text-slate/70 mt-1">e.g. Saturday, Oct 18, 2026</span>
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Display Time (Card)</label>
+              <label className="block text-xs font-bold text-slate mb-1">Display Time (Card)</label>
               <input
                 type="text"
                 name="time"
                 defaultValue={data.liveClass?.time || '6:00 PM – 8:00 PM IST'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
               />
               <span className="block font-mono text-[10px] text-slate/70 mt-1">e.g. 6:00 PM – 8:00 PM IST</span>
             </div>
@@ -1977,71 +1989,71 @@ export const AdminPanel: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-mono text-[10px] text-slate mb-1">Platform</label>
+              <label className="block text-[11px] font-bold text-slate mb-1">Platform</label>
               <input
                 type="text"
                 name="platform"
                 defaultValue={data.liveClass?.platform || 'Live on Google Meet / Zoom'}
-                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[10px] text-slate mb-1">Seats Remaining</label>
+              <label className="block text-[11px] font-bold text-slate mb-1">Seats Remaining</label>
               <input
                 type="text"
                 name="seatsLeft"
                 defaultValue={data.liveClass?.seatsLeft || '14 Spots Left'}
-                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-primary font-mono font-bold focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-primary font-mono font-bold focus:border-primary focus:outline-none"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
-              <label className="block font-mono text-[10px] text-slate mb-1">Mentor Name</label>
+              <label className="block text-[11px] font-bold text-slate mb-1">Mentor Name</label>
               <input
                 type="text"
                 name="mentorName"
                 defaultValue={data.liveClass?.mentorName || 'Lead Mentor'}
-                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[10px] text-slate mb-1">Mentor Role</label>
+              <label className="block text-[11px] font-bold text-slate mb-1">Mentor Role</label>
               <input
                 type="text"
                 name="mentorRole"
                 defaultValue={data.liveClass?.mentorRole || 'Senior Software Engineer at DO PILOT'}
-                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[10px] text-slate mb-1">Mentor Avatar URL</label>
+              <label className="block text-[11px] font-bold text-slate mb-1">Mentor Avatar URL</label>
               <input
                 type="text"
                 name="mentorAvatar"
                 defaultValue={data.liveClass?.mentorAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces'}
-                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[10px] text-slate mb-1">CTA Button Text</label>
+              <label className="block text-[11px] font-bold text-slate mb-1">CTA Button Text</label>
               <input
                 type="text"
                 name="buttonText"
                 defaultValue={data.liveClass?.buttonText || 'Reserve Your Free Spot'}
-                className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-primary font-bold focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-primary font-bold focus:border-primary focus:outline-none"
               />
             </div>
           </div>
 
           <div>
-            <label className="block font-mono text-[10px] text-slate mb-1">Takeaway Benefits (One per line)</label>
+            <label className="block text-[11px] font-bold text-slate mb-1">Takeaway Benefits (One per line)</label>
             <textarea
               name="benefits"
               rows={3}
               defaultValue={(data.liveClass?.benefits || []).join('\n')}
-              className="w-full bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-paper font-mono focus:border-primary focus:outline-none resize-none leading-relaxed"
+              className="w-full bg-black border border-white/15 rounded-xl px-3 py-2 text-xs text-paper font-mono focus:border-primary focus:outline-none resize-none leading-relaxed"
             />
           </div>
         </div>
@@ -2049,9 +2061,9 @@ export const AdminPanel: React.FC = () => {
         <div className="flex justify-end pt-1">
           <button
             type="submit"
-            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+            className="px-5 py-2 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 hover:brightness-110 shadow-md shadow-primary/20 transition-all cursor-pointer"
           >
-            <Save className="w-4 h-4" />
+            <Save className="w-3.5 h-3.5" />
             <span>Save Live Class</span>
           </button>
         </div>
@@ -2060,162 +2072,162 @@ export const AdminPanel: React.FC = () => {
   );
 
   const renderFooterSection = () => (
-    <section id="section-footer" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
-      <div className="flex items-center justify-between pb-5 border-b border-white/10">
+    <section id="section-footer" className="rounded-2xl bg-[#0c0d0e] border border-white/10 p-5 sm:p-6 space-y-5 shadow-2xl relative">
+      <div className="flex items-center justify-between pb-3 border-b border-white/10">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="font-jakarta text-lg font-black text-paper">Footer &amp; Links</h2>
-            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">07</span>
+            <h2 className="font-jakarta text-base sm:text-lg font-black text-paper">Footer &amp; Links</h2>
+            <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold border border-primary/20">07</span>
           </div>
           <p className="text-xs text-slate mt-0.5">Brand name, campus location, official email, phone, and social media channels.</p>
         </div>
       </div>
 
-      <form onSubmit={handleSaveFooter} className="space-y-6 text-sm">
-        <div className="p-5 rounded-2xl bg-black/50 border border-white/5 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <form onSubmit={handleSaveFooter} className="space-y-4 text-xs">
+        <div className="p-4 sm:p-5 rounded-xl bg-black/40 border border-white/10 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Company / Brand Name</label>
+              <label className="block text-xs font-bold text-slate mb-1">Company / Brand Name</label>
               <input
                 type="text"
                 name="companyName"
                 defaultValue={data.footer?.companyName || 'DO PILOT'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-bold focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Company Logo URL</label>
+              <label className="block text-xs font-bold text-slate mb-1">Company Logo URL</label>
               <input
                 type="text"
                 name="companyLogo"
                 defaultValue={data.footer?.companyLogo || data.navbar?.companyLogo || 'https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Support Email</label>
+              <label className="block text-xs font-bold text-slate mb-1">Support Email</label>
               <input
                 type="email"
                 name="footerEmail"
                 defaultValue={data.footer?.email || 'support@dopilot.com'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Phone Number</label>
+              <label className="block text-xs font-bold text-slate mb-1">Phone Number</label>
               <input
                 type="text"
                 name="footerPhone"
                 defaultValue={data.footer?.phone || '+91 97787 07336'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Campus / Location</label>
+              <label className="block text-xs font-bold text-slate mb-1">Campus / Location</label>
               <input
                 type="text"
                 name="footerAddress"
                 defaultValue={data.footer?.address || 'Online & Global Campus'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block font-mono text-[11px] text-slate mb-1">Copyright Line</label>
+              <label className="block text-xs font-bold text-slate mb-1">Copyright Line</label>
               <input
                 type="text"
                 name="copyrightText"
                 defaultValue={data.footer?.copyrightText || '© 2026 DO PILOT. All rights reserved.'}
-                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs font-mono focus:border-primary focus:outline-none"
               />
             </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-black border border-white/10 space-y-3">
-            <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">// 4 COLUMN HEADINGS</span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="p-3.5 rounded-xl bg-black/60 border border-white/10 space-y-2.5">
+            <span className="font-mono text-[11px] text-primary font-bold uppercase tracking-wider block">// 4 Column Headings</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
               <div>
-                <label className="block font-mono text-[10px] text-slate mb-1">Col 1 Title</label>
+                <label className="block text-[10px] font-bold text-slate mb-1">Col 1 Title</label>
                 <input
                   type="text"
                   name="exploreTitle"
                   defaultValue={data.footer?.exploreTitle || 'Explore'}
-                  className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                  className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block font-mono text-[10px] text-slate mb-1">Col 2 Title</label>
+                <label className="block text-[10px] font-bold text-slate mb-1">Col 2 Title</label>
                 <input
                   type="text"
                   name="coursesTitle"
                   defaultValue={data.footer?.coursesTitle || 'Popular Courses'}
-                  className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                  className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block font-mono text-[10px] text-slate mb-1">Col 3 Title</label>
+                <label className="block text-[10px] font-bold text-slate mb-1">Col 3 Title</label>
                 <input
                   type="text"
                   name="legalTitle"
                   defaultValue={data.footer?.legalTitle || 'Legal & Policies'}
-                  className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                  className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block font-mono text-[10px] text-slate mb-1">Col 4 Title</label>
+                <label className="block text-[10px] font-bold text-slate mb-1">Col 4 Title</label>
                 <input
                   type="text"
                   name="contactTitle"
                   defaultValue={data.footer?.contactTitle || 'Contact & Support'}
-                  className="w-full bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                  className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
                 />
               </div>
             </div>
           </div>
 
           <div>
-            <label className="block font-mono text-[11px] text-slate mb-1">Footer Tagline / Summary</label>
+            <label className="block text-xs font-bold text-slate mb-1">Footer Tagline / Summary</label>
             <textarea
               name="footerDesc"
               rows={2}
               defaultValue={data.footer?.description || ''}
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
+              className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none resize-none"
             />
           </div>
 
           {/* Social Links */}
-          <div className="pt-2">
-            <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block mb-2">// SOCIAL MEDIA LINKS</span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="pt-1">
+            <span className="font-mono text-[11px] text-primary font-bold uppercase tracking-wider block mb-2">// Social Media Links</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
               <input
                 type="text"
                 name="social_whatsapp_url"
                 defaultValue={data.footer?.socialLinks?.whatsapp?.url || 'https://wa.me/919778707336'}
                 placeholder="WhatsApp URL"
-                className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                className="bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
               />
               <input
                 type="text"
                 name="social_github_url"
                 defaultValue={data.footer?.socialLinks?.github?.url || ''}
                 placeholder="GitHub URL"
-                className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                className="bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
               />
               <input
                 type="text"
                 name="social_linkedin_url"
                 defaultValue={data.footer?.socialLinks?.linkedin?.url || ''}
                 placeholder="LinkedIn URL"
-                className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                className="bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
               />
               <input
                 type="text"
                 name="social_twitter_url"
                 defaultValue={data.footer?.socialLinks?.twitter?.url || ''}
                 placeholder="Twitter / X URL"
-                className="bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                className="bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
               />
             </div>
           </div>
@@ -2224,9 +2236,9 @@ export const AdminPanel: React.FC = () => {
         <div className="flex justify-end pt-1">
           <button
             type="submit"
-            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+            className="px-5 py-2 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 hover:brightness-110 shadow-md shadow-primary/20 transition-all cursor-pointer"
           >
-            <Save className="w-4 h-4" />
+            <Save className="w-3.5 h-3.5" />
             <span>Save Footer Changes</span>
           </button>
         </div>
