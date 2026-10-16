@@ -6027,57 +6027,55 @@ export const AdminPanel: React.FC = () => {
     });
 
     return (
-      <section className="space-y-8 animate-fadeIn">
-        {/* Top Header Card */}
-        <div className="p-6 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-primary/20 text-primary font-mono text-[10px] uppercase font-bold tracking-wider border border-primary/30 flex items-center gap-1.5">
-                  <Tag className="w-3 h-3" />
-                  E-Commerce &amp; Access Control
-                </span>
-                <span className="text-slate text-xs">•</span>
-                <span className="text-slate text-xs font-medium">Pricing, Coupons &amp; Enrollments</span>
-              </div>
-              <h2 className="font-jakarta text-lg font-black text-paper">
-                Course Pricing
-              </h2>
-              <p className="text-slate text-xs mt-1 max-w-2xl leading-relaxed">
-                Set individual course pricing, toggle free course access, create coupon codes, and verify student Google Pay UPI enrollments.
-              </p>
+    return (
+      <section id="section-course-pricing" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+        {/* Section Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-mono text-[10px] uppercase font-bold tracking-wider border border-primary/20 flex items-center gap-1.5">
+                <Tag className="w-3 h-3" />
+                E-Commerce &amp; Access Control
+              </span>
+              <span className="text-slate text-xs">•</span>
+              <span className="text-slate text-xs font-medium">Pricing, Coupons &amp; Enrollments</span>
             </div>
+            <h2 className="font-jakarta text-lg font-black text-paper">
+              Course Pricing
+            </h2>
+            <p className="text-xs text-slate mt-0.5">
+              Set individual course pricing, toggle free course access, create coupon codes, and verify student Google Pay UPI enrollments.
+            </p>
+          </div>
 
-            {/* Quick Metrics */}
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="p-3.5 rounded-2xl bg-black/60 border border-white/10 min-w-[110px]">
-                <div className="text-[10px] font-mono text-slate uppercase">Active Tracks</div>
-                <div className="text-xl font-black text-paper mt-0.5">4 Courses</div>
+          {/* Quick Metrics Pills */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 flex items-center gap-2">
+              <span className="text-[10px] font-mono text-slate uppercase">Active Tracks:</span>
+              <span className="text-xs font-jakarta font-bold text-paper">4 Courses</span>
+            </div>
+            <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 flex items-center gap-2">
+              <span className="text-[10px] font-mono text-slate uppercase">Active Coupons:</span>
+              <span className="text-xs font-jakarta font-bold text-primary">{activeCouponsCount} Codes</span>
+            </div>
+            {pendingPurchasesCount > 0 && (
+              <div className="px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 animate-pulse">
+                <span className="text-[10px] font-mono text-amber-400 uppercase">Pending UTRs:</span>
+                <span className="text-xs font-jakarta font-bold text-amber-300">{pendingPurchasesCount} To Verify</span>
               </div>
-              <div className="p-3.5 rounded-2xl bg-black/60 border border-white/10 min-w-[110px]">
-                <div className="text-[10px] font-mono text-slate uppercase">Active Coupons</div>
-                <div className="text-xl font-black text-primary mt-0.5">{activeCouponsCount} Codes</div>
-              </div>
-              {pendingPurchasesCount > 0 && (
-                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 min-w-[110px] animate-pulse">
-                  <div className="text-[10px] font-mono text-amber-400 uppercase">Pending UTRs</div>
-                  <div className="text-xl font-black text-amber-300 mt-0.5">{pendingPurchasesCount} To Verify</div>
-                </div>
-              )}
-              <div className="p-3.5 rounded-2xl bg-black/60 border border-white/10 min-w-[110px]">
-                <div className="text-[10px] font-mono text-slate uppercase">Enrolled</div>
-                <div className="text-xl font-black text-emerald-400 mt-0.5">{enrolledPurchasesCount} Students</div>
-              </div>
+            )}
+            <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 flex items-center gap-2">
+              <span className="text-[10px] font-mono text-slate uppercase">Enrolled:</span>
+              <span className="text-xs font-jakarta font-bold text-emerald-400">{enrolledPurchasesCount} Students</span>
             </div>
           </div>
         </div>
 
         {/* Section 1: Course Pricing */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+        <div className="p-5 rounded-2xl bg-black/40 border border-white/10 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/5">
             <div>
-              <h3 className="font-jakarta font-bold text-base text-paper flex items-center gap-2">
+              <h3 className="font-jakarta font-bold text-sm text-paper flex items-center gap-2">
                 <ShoppingBag className="w-4 h-4 text-primary" />
                 Course Pricing
               </h3>
@@ -6088,15 +6086,15 @@ export const AdminPanel: React.FC = () => {
           </div>
 
           {/* Course Selection Dropdown */}
-          <div className="max-w-md space-y-1.5">
-            <label className="block text-xs font-mono font-bold text-slate uppercase tracking-wider">
+          <div className="max-w-md space-y-1">
+            <label className="block text-[11px] font-mono font-bold text-slate uppercase tracking-wider">
               Select Course
             </label>
             <div className="relative">
               <select
                 value={selectedPricingCourseId}
                 onChange={(e) => setSelectedPricingCourseId(e.target.value)}
-                className="w-full bg-black/90 border border-white/20 rounded-xl px-4 py-3 text-paper font-jakarta font-bold text-sm focus:border-primary focus:outline-none cursor-pointer pr-10 shadow-inner"
+                className="w-full bg-black/80 border border-white/15 rounded-xl px-3.5 py-2 text-paper font-jakarta font-bold text-xs focus:border-primary focus:outline-none cursor-pointer pr-8"
               >
                 {coursePricingList.map(course => (
                   <option key={course.courseId} value={course.courseId}>
@@ -6109,10 +6107,10 @@ export const AdminPanel: React.FC = () => {
 
           {/* Pricing Form for Selected Course */}
           {activeCoursePricing && (
-            <form onSubmit={handleSaveCoursePricing} className="p-6 rounded-2xl bg-black/60 border border-white/10 space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/5">
+            <form onSubmit={handleSaveCoursePricing} className="p-4 sm:p-5 rounded-xl bg-black/60 border border-white/5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
                 <div>
-                  <h4 className="font-jakarta font-bold text-base text-paper">
+                  <h4 className="font-jakarta font-bold text-sm text-paper">
                     Editing Pricing: <span className="text-primary">{activeCoursePricing.courseName}</span>
                   </h4>
                   <p className="text-xs text-slate font-mono">Course ID: {activeCoursePricing.courseId}</p>
@@ -6122,7 +6120,7 @@ export const AdminPanel: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setPricingIsActive(!pricingIsActive)}
-                    className={`px-3 py-1 rounded-full text-xs font-bold font-mono transition-all ${
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-bold font-mono transition-all cursor-pointer ${
                       pricingIsActive
                         ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                         : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
@@ -6133,40 +6131,40 @@ export const AdminPanel: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
                 <div>
-                  <label className="block text-xs font-bold text-slate mb-1">Regular Price (₹)</label>
+                  <label className="block text-[11px] font-bold text-slate mb-1">Regular Price (₹)</label>
                   <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-slate text-sm">₹</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-slate text-xs">₹</span>
                     <input
                       type="number"
                       min="0"
                       required
                       value={pricingRegularInput}
                       onChange={(e) => setPricingRegularInput(Number(e.target.value))}
-                      className="w-full h-[42px] bg-black border border-white/15 rounded-xl pl-8 pr-4 py-2 text-paper font-mono text-sm focus:border-primary focus:outline-none"
+                      className="w-full h-[38px] bg-black border border-white/15 rounded-xl pl-7 pr-3 py-1.5 text-paper font-mono text-xs focus:border-primary focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate mb-1">Sale Price (₹)</label>
+                  <label className="block text-[11px] font-bold text-slate mb-1">Sale Price (₹)</label>
                   <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-primary text-sm font-bold">₹</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-primary text-xs font-bold">₹</span>
                     <input
                       type="number"
                       min="0"
                       required
                       value={pricingSaleInput}
                       onChange={(e) => setPricingSaleInput(Number(e.target.value))}
-                      className="w-full h-[42px] bg-black border border-white/15 rounded-xl pl-8 pr-4 py-2 text-paper font-mono text-sm font-bold focus:border-primary focus:outline-none"
+                      className="w-full h-[38px] bg-black border border-white/15 rounded-xl pl-7 pr-3 py-1.5 text-paper font-mono text-xs font-bold focus:border-primary focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate mb-1">Access Type</label>
-                  <label className="h-[42px] px-4 rounded-xl bg-white/5 border border-white/15 flex items-center gap-2.5 cursor-pointer hover:bg-white/10 transition-colors">
+                  <label className="block text-[11px] font-bold text-slate mb-1">Access Type</label>
+                  <label className="h-[38px] px-3.5 rounded-xl bg-white/5 border border-white/15 flex items-center gap-2 cursor-pointer hover:bg-white/10 transition-colors">
                     <input
                       type="checkbox"
                       checked={pricingIsFreeCourse}
@@ -6182,9 +6180,9 @@ export const AdminPanel: React.FC = () => {
                 <div>
                   <button
                     type="submit"
-                    className="w-full h-[42px] px-6 rounded-xl bg-primary text-black font-jakarta font-black text-xs uppercase tracking-wider hover:bg-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 cursor-pointer"
+                    className="w-full h-[38px] px-4 rounded-xl bg-primary text-black font-jakarta font-bold text-xs hover:bg-white transition-all flex items-center justify-center gap-1.5 shadow-md shadow-primary/20 cursor-pointer"
                   >
-                    <Save className="w-4 h-4" />
+                    <Save className="w-3.5 h-3.5" />
                     <span>Save Changes</span>
                   </button>
                 </div>
@@ -6204,7 +6202,7 @@ export const AdminPanel: React.FC = () => {
                 )}
               </div>
 
-              <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center gap-3 text-xs text-slate">
+              <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center gap-2.5 text-xs text-slate">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span>
                   {pricingIsFreeCourse ? (
@@ -6223,10 +6221,10 @@ export const AdminPanel: React.FC = () => {
         </div>
 
         {/* Section 2: Coupon Codes Management */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+        <div className="p-5 rounded-2xl bg-black/40 border border-white/10 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
             <div>
-              <h3 className="font-jakarta font-bold text-base text-paper flex items-center gap-2">
+              <h3 className="font-jakarta font-bold text-sm text-paper flex items-center gap-2">
                 <Tag className="w-4 h-4 text-primary" />
                 Course Coupon Codes
               </h3>
@@ -6235,9 +6233,9 @@ export const AdminPanel: React.FC = () => {
             <button
               type="button"
               onClick={() => handleOpenCouponModal()}
-              className="py-2 px-4 rounded-xl bg-primary text-black font-jakarta font-black text-xs uppercase tracking-wider hover:bg-white transition-all flex items-center gap-2 shadow-lg shadow-primary/20 self-start sm:self-auto cursor-pointer"
+              className="py-1.5 px-3 rounded-xl bg-primary text-black font-jakarta font-bold text-xs hover:bg-white transition-all flex items-center gap-1.5 shadow-md shadow-primary/20 self-start sm:self-auto cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               <span>Create New Coupon</span>
             </button>
           </div>
@@ -6247,19 +6245,19 @@ export const AdminPanel: React.FC = () => {
             <table className="w-full min-w-[650px] text-left text-xs text-paper">
               <thead className="bg-white/5 text-slate font-mono uppercase text-[10px] tracking-wider border-b border-white/10">
                 <tr>
-                  <th className="py-3 px-4">Coupon Code</th>
-                  <th className="py-3 px-4">Discount</th>
-                  <th className="py-3 px-4">Applies To</th>
-                  <th className="py-3 px-4">Usage Limit</th>
-                  <th className="py-3 px-4">Expiry</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th className="py-2.5 px-3">Coupon Code</th>
+                  <th className="py-2.5 px-3">Discount</th>
+                  <th className="py-2.5 px-3">Applies To</th>
+                  <th className="py-2.5 px-3">Usage Limit</th>
+                  <th className="py-2.5 px-3">Expiry</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 font-sans">
                 {courseCoupons.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate">
+                    <td colSpan={7} className="py-6 text-center text-slate">
                       No coupon codes created yet. Click "Create New Coupon" to add one.
                     </td>
                   </tr>
@@ -6268,9 +6266,9 @@ export const AdminPanel: React.FC = () => {
                     const is100Free = coupon.discountType === 'percentage' && coupon.discountValue === 100;
                     return (
                       <tr key={coupon.code} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3 px-4">
+                        <td className="py-2.5 px-3">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono font-black text-sm text-primary tracking-wider px-2 py-0.5 bg-primary/10 rounded-md border border-primary/20">
+                            <span className="font-mono font-bold text-xs text-primary tracking-wider px-2 py-0.5 bg-primary/10 rounded-md border border-primary/20">
                               {coupon.code}
                             </span>
                             {coupon.description && (
@@ -6280,7 +6278,7 @@ export const AdminPanel: React.FC = () => {
                             )}
                           </div>
                         </td>
-                        <td className="py-3 px-4 font-mono font-bold">
+                        <td className="py-2.5 px-3 font-mono font-bold">
                           {is100Free ? (
                             <span className="text-emerald-400">
                               100% FREE (₹0)
@@ -6295,25 +6293,25 @@ export const AdminPanel: React.FC = () => {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 font-mono text-slate">
+                        <td className="py-2.5 px-3 font-mono text-slate">
                           {coupon.courseId === 'all' ? (
                             <span className="text-paper font-semibold">All Courses</span>
                           ) : (
                             <span>{coursePricingList.find(c => c.courseId === coupon.courseId)?.courseName || coupon.courseId}</span>
                           )}
                         </td>
-                        <td className="py-3 px-4 font-mono">
+                        <td className="py-2.5 px-3 font-mono">
                           <span className="text-paper">{coupon.usedCount}</span>
                           <span className="text-slate"> / {coupon.maxUses && coupon.maxUses > 0 ? coupon.maxUses : 'Unlimited'}</span>
                         </td>
-                        <td className="py-3 px-4 font-mono text-slate">
+                        <td className="py-2.5 px-3 font-mono text-slate">
                           {coupon.validUntil ? new Date(coupon.validUntil).toLocaleDateString() : 'Never'}
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-2.5 px-3">
                           <button
                             type="button"
                             onClick={() => handleToggleCoupon(coupon.code)}
-                            className={`px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold transition-all cursor-pointer ${
+                            className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold transition-all cursor-pointer ${
                               coupon.isActive
                                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                                 : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
@@ -6322,7 +6320,7 @@ export const AdminPanel: React.FC = () => {
                             {coupon.isActive ? 'Active' : 'Disabled'}
                           </button>
                         </td>
-                        <td className="py-3 px-4 text-right space-x-2">
+                        <td className="py-2.5 px-3 text-right space-x-1.5">
                           <button
                             type="button"
                             onClick={() => handleOpenCouponModal(coupon)}
@@ -6350,10 +6348,10 @@ export const AdminPanel: React.FC = () => {
         </div>
 
         {/* Section 3: Purchase & Enrollment Tracking */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/10">
+        <div className="p-5 rounded-2xl bg-black/40 border border-white/10 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-white/5">
             <div>
-              <h3 className="font-jakarta font-bold text-base text-paper flex items-center gap-2">
+              <h3 className="font-jakarta font-bold text-sm text-paper flex items-center gap-2">
                 <CreditCard className="w-4 h-4 text-primary" />
                 <span>Purchase &amp; Enrollment Tracking</span>
               </h3>
@@ -6362,14 +6360,14 @@ export const AdminPanel: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 font-mono text-xs text-paper">
+              <span className="px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 font-mono text-[11px] text-paper">
                 Total: <strong>{totalPurchases}</strong>
               </span>
             </div>
           </div>
 
           {/* Payment Limitation Security Notice */}
-          <div className="p-4 rounded-2xl bg-white/[0.02] border border-cyan-500/20 flex items-start gap-3 text-xs text-slate">
+          <div className="p-3.5 rounded-xl bg-white/[0.02] border border-cyan-500/20 flex items-start gap-2.5 text-xs text-slate">
             <ShieldCheck className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
             <div className="space-y-1 leading-relaxed">
               <span className="font-bold text-cyan-300 block">Verification Protocol:</span>
@@ -6380,13 +6378,13 @@ export const AdminPanel: React.FC = () => {
           </div>
 
           {/* Search Bar & Status Filter Tabs */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
             {/* Filter Tabs */}
-            <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-2xl bg-black/60 border border-white/10 text-xs font-mono">
+            <div className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-black/60 border border-white/10 text-xs font-mono">
               <button
                 type="button"
                 onClick={() => setPurchaseStatusFilter('all')}
-                className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
                   purchaseStatusFilter === 'all'
                     ? 'bg-primary text-ink font-bold shadow'
                     : 'text-slate hover:text-paper'
@@ -6397,7 +6395,7 @@ export const AdminPanel: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setPurchaseStatusFilter('pending')}
-                className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                   purchaseStatusFilter === 'pending'
                     ? 'bg-amber-400 text-ink font-bold shadow'
                     : 'text-slate hover:text-paper'
@@ -6413,7 +6411,7 @@ export const AdminPanel: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setPurchaseStatusFilter('completed')}
-                className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
                   purchaseStatusFilter === 'completed'
                     ? 'bg-emerald-400 text-ink font-bold shadow'
                     : 'text-slate hover:text-paper'
@@ -6424,7 +6422,7 @@ export const AdminPanel: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setPurchaseStatusFilter('expired')}
-                className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
                   purchaseStatusFilter === 'expired'
                     ? 'bg-rose-400 text-ink font-bold shadow'
                     : 'text-slate hover:text-paper'
@@ -6435,7 +6433,7 @@ export const AdminPanel: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setPurchaseStatusFilter('rejected')}
-                className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
                   purchaseStatusFilter === 'rejected'
                     ? 'bg-rose-500 text-ink font-bold shadow'
                     : 'text-slate hover:text-paper'
@@ -6446,14 +6444,14 @@ export const AdminPanel: React.FC = () => {
             </div>
 
             {/* Search Input */}
-            <div className="relative min-w-[240px]">
+            <div className="relative min-w-[220px]">
               <Search className="w-3.5 h-3.5 text-slate absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Search student, course, UTR..."
                 value={purchaseSearch}
                 onChange={(e) => setPurchaseSearch(e.target.value)}
-                className="w-full bg-black/80 border border-white/15 rounded-xl pl-9 pr-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black/80 border border-white/15 rounded-xl pl-8 pr-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
               />
             </div>
           </div>
@@ -6463,19 +6461,19 @@ export const AdminPanel: React.FC = () => {
             <table className="w-full min-w-[680px] text-left text-xs text-paper">
               <thead className="bg-white/5 text-slate font-mono uppercase text-[10px] tracking-wider border-b border-white/10">
                 <tr>
-                  <th className="py-3 px-3">Student</th>
-                  <th className="py-3 px-3">Course</th>
-                  <th className="py-3 px-3">Amount</th>
-                  <th className="py-3 px-3">UPI Ref / UTR</th>
-                  <th className="py-3 px-3">Payment Status</th>
-                  <th className="py-3 px-3">Session Date</th>
-                  <th className="py-3 px-3 text-right">Actions</th>
+                  <th className="py-2.5 px-3">Student</th>
+                  <th className="py-2.5 px-3">Course</th>
+                  <th className="py-2.5 px-3">Amount</th>
+                  <th className="py-2.5 px-3">UPI Ref / UTR</th>
+                  <th className="py-2.5 px-3">Payment Status</th>
+                  <th className="py-2.5 px-3">Session Date</th>
+                  <th className="py-2.5 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 font-sans">
                 {filteredPurchases.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate font-mono text-xs">
+                    <td colSpan={7} className="py-6 text-center text-slate font-mono text-xs">
                       No transaction records match the current filter.
                     </td>
                   </tr>
@@ -6488,7 +6486,7 @@ export const AdminPanel: React.FC = () => {
 
                     return (
                       <tr key={rec.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3 px-3">
+                        <td className="py-2.5 px-3">
                           <div className="font-bold text-paper font-jakarta text-xs">{rec.studentName}</div>
                           <div className="font-mono text-[10px] text-slate truncate max-w-[170px]">{rec.studentEmail}</div>
                           {rec.studentPhone && (
@@ -6497,8 +6495,8 @@ export const AdminPanel: React.FC = () => {
                           <div className="font-mono text-[9px] text-slate/50">ID: {rec.studentId}</div>
                         </td>
 
-                        <td className="py-3 px-3">
-                          <div className="font-medium text-paper font-jakarta">{rec.courseName}</div>
+                        <td className="py-2.5 px-3">
+                          <div className="font-medium text-paper font-jakarta text-xs">{rec.courseName}</div>
                           {rec.couponCodeApplied && (
                             <span className="font-mono text-[9px] text-primary font-bold">
                               Coupon: {rec.couponCodeApplied}
@@ -6506,18 +6504,18 @@ export const AdminPanel: React.FC = () => {
                           )}
                         </td>
 
-                        <td className="py-3 px-3 font-mono">
-                          <span className="text-emerald-400 font-bold text-sm">₹{rec.finalAmount.toLocaleString()}</span>
+                        <td className="py-2.5 px-3 font-mono">
+                          <span className="text-emerald-400 font-bold text-xs">₹{rec.finalAmount.toLocaleString()}</span>
                           {rec.originalPrice !== rec.finalAmount && (
-                            <span className="text-slate line-through ml-1.5 text-[10px]">
+                            <span className="text-slate line-through ml-1 text-[10px]">
                               ₹{rec.originalPrice.toLocaleString()}
                             </span>
                           )}
                         </td>
 
-                        <td className="py-3 px-3 font-mono text-[11px]">
+                        <td className="py-2.5 px-3 font-mono text-[11px]">
                           {rec.utrNumber ? (
-                            <span className="px-2 py-1 rounded-md bg-amber-500/10 text-amber-300 font-bold border border-amber-500/20 inline-block tracking-wider">
+                            <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 font-bold border border-amber-500/20 inline-block tracking-wider">
                               {rec.utrNumber}
                             </span>
                           ) : isExpired ? (
@@ -6527,41 +6525,41 @@ export const AdminPanel: React.FC = () => {
                           )}
                         </td>
 
-                        <td className="py-3 px-3">
+                        <td className="py-2.5 px-3">
                           {rec.status === 'pending_verification' ? (
-                            <span className="px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1 w-fit animate-pulse">
+                            <span className="px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1 w-fit animate-pulse">
                               <Clock className="w-3 h-3" />
                               <span>Pending Verification</span>
                             </span>
                           ) : rec.status === 'pending' ? (
-                            <span className="px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1 w-fit">
+                            <span className="px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1 w-fit">
                               <Clock className="w-3 h-3" />
                               <span>Session Active (2m)</span>
                             </span>
                           ) : isCompleted ? (
-                            <span className="px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 w-fit">
+                            <span className="px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 w-fit">
                               <CheckCircle2 className="w-3 h-3" />
                               <span>Verified &amp; Enrolled</span>
                             </span>
                           ) : isExpired ? (
-                            <span className="px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold bg-white/10 text-slate border border-white/10 flex items-center gap-1 w-fit">
+                            <span className="px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-white/10 text-slate border border-white/10 flex items-center gap-1 w-fit">
                               <Clock className="w-3 h-3" />
                               <span>Session Expired</span>
                             </span>
                           ) : (
-                            <span className="px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1 w-fit">
+                            <span className="px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1 w-fit">
                               <XCircle className="w-3 h-3" />
                               <span>Rejected</span>
                             </span>
                           )}
                         </td>
 
-                        <td className="py-3 px-3 text-slate font-mono text-[10px]">
+                        <td className="py-2.5 px-3 text-slate font-mono text-[10px]">
                           <div>{new Date(rec.purchasedAt).toLocaleDateString()}</div>
                           <div className="text-slate/60">{new Date(rec.purchasedAt).toLocaleTimeString()}</div>
                         </td>
 
-                        <td className="py-3 px-3 text-right">
+                        <td className="py-2.5 px-3 text-right">
                           {isPending ? (
                             <button
                               type="button"
@@ -6569,13 +6567,13 @@ export const AdminPanel: React.FC = () => {
                                 setConfirmVerifyPurchaseTarget(rec);
                                 setAdminVerifyNotes('');
                               }}
-                              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:opacity-95 text-black font-jakarta font-black text-[11px] uppercase tracking-wider cursor-pointer shadow-md shadow-emerald-500/20 inline-flex items-center gap-1.5 transition-all"
+                              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:opacity-95 text-black font-jakarta font-bold text-xs uppercase tracking-wider cursor-pointer shadow-md inline-flex items-center gap-1.5 transition-all"
                             >
                               <CheckCheck className="w-3.5 h-3.5" />
                               <span>Verify &amp; Unlock Course</span>
                             </button>
                           ) : isCompleted ? (
-                            <div className="inline-flex items-center gap-1 text-emerald-400 font-mono text-[11px] font-bold">
+                            <div className="inline-flex items-center gap-1 text-emerald-400 font-mono text-xs font-bold">
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               <span>Enrolled (Access Unlocked)</span>
                             </div>
@@ -6586,7 +6584,7 @@ export const AdminPanel: React.FC = () => {
                                 setConfirmVerifyPurchaseTarget(rec);
                                 setAdminVerifyNotes('Manual verification after session expiration');
                               }}
-                              className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate hover:text-paper font-mono text-[10px] cursor-pointer inline-flex items-center gap-1"
+                              className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate hover:text-paper font-mono text-[10px] cursor-pointer inline-flex items-center gap-1"
                               title="Manually verify if student paid offline"
                             >
                               <CheckCheck className="w-3 h-3" />
