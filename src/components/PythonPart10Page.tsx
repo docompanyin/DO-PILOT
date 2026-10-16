@@ -10,6 +10,7 @@ import { useCoursePoints } from '../context/CoursePointsContext';
 import { useUserAuth } from '../context/UserAuthContext';
 import { ContactModal } from './ContactModal';
 import { NeedHelpModal } from './NeedHelpModal';
+import { recordCourseLock } from '../utils/courseResetService';
 import { 
   PART_10_SECTIONS, TheoryBlock, McqQuestion,
   getActiveQuestionsForLevelPart10, getConsecutiveFailedLevelsPart10,
@@ -254,6 +255,23 @@ export const PythonPart10Page: React.FC = () => {
     const result = recordLevelAttemptResultPart10(activeSection.id, studentId, isPassed);
     setConsecutiveFailures(result.consecutiveFailedLevels);
 
+    if (result.isLocked) {
+      recordCourseLock({
+        studentId,
+        studentName: user?.name || user?.email?.split('@')[0] || 'Enrolled Student',
+        studentEmail: user?.email || `${studentId}@student.dopilot.io`,
+        studentPhone: user?.phone,
+        collegeOrCompany: user?.collegeOrCompany,
+        courseId: 'python',
+        courseName: 'Complete Python Course',
+        partNum: 10,
+        partTitle: 'Part 10: OOP Hierarchies & Inheritance',
+        consecutiveFailures: result.consecutiveFailedLevels,
+        progressSummary: `Part 10: Failed Level ${activeSection.number} • ${points} Points`,
+        earnedPoints: points
+      });
+    }
+
     setLevelResult({
       isFinished: true,
       isPassed,
@@ -387,6 +405,31 @@ export const PythonPart10Page: React.FC = () => {
     }, 1000);
     return () => clearTimeout(t);
   }, [correctCountdown]);
+
+  // Real-time listener for Admin Course Reset / Unlock
+  useEffect(() => {
+    const handleCourseUnlocked = (e: any) => {
+      const detail = e?.detail;
+      if (!detail || detail.studentId === studentId || detail.courseId === 'python' || detail.courseId === 'all') {
+        const isLockedInStorage = localStorage.getItem(`dopilot_part10_locked_${studentId}`) === 'true';
+        if (!isLockedInStorage) {
+          setLevelResult(prev => {
+            if (prev && prev.isLocked) {
+              return { ...prev, isLocked: false, streak: 0 };
+            }
+            return prev;
+          });
+          setConsecutiveFailures(0);
+        }
+      }
+    };
+    window.addEventListener('dopilot_course_unlocked', handleCourseUnlocked);
+    window.addEventListener('storage', handleCourseUnlocked);
+    return () => {
+      window.removeEventListener('dopilot_course_unlocked', handleCourseUnlocked);
+      window.removeEventListener('storage', handleCourseUnlocked);
+    };
+  }, [studentId]);
 
   // Timer Tick: Checks every 250ms against exact target timestamp ONLY when study phase is finished!
   useEffect(() => {

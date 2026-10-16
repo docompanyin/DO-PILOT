@@ -5,7 +5,7 @@ import {
   ArrowLeft, User, CheckCircle2, 
   Edit3, LogOut, Download, Printer, 
   AlertCircle, ChevronRight, X, Play,
-  BookOpen, Trophy, IndianRupee, Check, GraduationCap
+  BookOpen, Trophy, IndianRupee, Check, GraduationCap, Clock
 } from 'lucide-react';
 import { useUserAuth } from '../../context/UserAuthContext';
 import { useCoursePoints } from '../../context/CoursePointsContext';
@@ -20,6 +20,11 @@ import {
 import { CertificateModal } from '../CertificateModal';
 import { playTwinkleSound } from '../../utils/audioEffects';
 import { getUserInitials } from '../../utils/userInitials';
+import {
+  RewardRequest,
+  submitRewardRequest,
+  getStudentRewardRequests
+} from '../../utils/rewardApprovalService';
 
 type SettingsTab = 'profile' | 'progress' | 'rewards' | 'certificates';
 
@@ -27,14 +32,6 @@ interface CashRewardTier {
   id: string;
   pointsRequired: number;
   cashAmount: number;
-}
-
-interface ClaimedCashRecord {
-  rewardId: string;
-  cashAmount: number;
-  pointsRequired: number;
-  upiId: string;
-  claimedAt: string;
 }
 
 const CASH_TIERS: CashRewardTier[] = [
@@ -63,21 +60,33 @@ export const SettingsPage: React.FC = () => {
   const [editError, setEditError] = useState<string | null>(null);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
-  // Cash Reward Redeem Modal State
-  const [redeemModalTier, setRedeemModalTier] = useState<CashRewardTier | null>(null);
-  const [upiIdInput, setUpiIdInput] = useState('');
-  const [upiError, setUpiError] = useState<string | null>(null);
+  // Milestone Approval Request State
+  const [requestModalTier, setRequestModalTier] = useState<CashRewardTier | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
+  const [rewardRequests, setRewardRequests] = useState<RewardRequest[]>(() =>
+    user ? getStudentRewardRequests(user.email) : []
+  );
 
-  // Claimed Cash Rewards State
-  const cashStorageKey = `dopilot_claimed_cash_${user?.email || 'guest'}`;
-  const [claimedCash, setClaimedCash] = useState<Record<string, ClaimedCashRecord>>(() => {
-    try {
-      const raw = localStorage.getItem(cashStorageKey);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
+  useEffect(() => {
+    if (user) {
+      setRewardRequests(getStudentRewardRequests(user.email));
     }
-  });
+  }, [user]);
+
+  useEffect(() => {
+    const handleRewardUpdate = () => {
+      if (user) {
+        setRewardRequests(getStudentRewardRequests(user.email));
+      }
+    };
+    window.addEventListener('dopilot_reward_request_update', handleRewardUpdate);
+    window.addEventListener('storage', handleRewardUpdate);
+    return () => {
+      window.removeEventListener('dopilot_reward_request_update', handleRewardUpdate);
+      window.removeEventListener('storage', handleRewardUpdate);
+    };
+  }, [user]);
 
   // Certificate Modal State
   const [certModalOpen, setCertModalOpen] = useState(false);
@@ -197,31 +206,71 @@ export const SettingsPage: React.FC = () => {
   }
 
   // =========================================================================
-  // COURSE PROGRESS DATA
+  // Helper to check if a student has saved non-empty MCQ answers
+  const hasNonEmptyAnswers = (key: string): boolean => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw && raw !== '{}') {
+        const parsed = JSON.parse(raw);
+        return Object.keys(parsed).length > 0;
+      }
+    } catch {}
+    return false;
+  };
+
+  // =========================================================================
+  // COURSE PROGRESS DATA (Accurate detection of courses actually started)
   // =========================================================================
   const getPythonProgress = () => {
     const pythonCourse = COURSES_DATA.find(c => c.id === 'python-core') || COURSES_DATA[0];
     let completedCount = 0;
-    let highestStarted = 1;
+    let highestStarted = 0;
+    let hasExplicitActivity = false;
+
     for (let i = 1; i <= 14; i++) {
       const isComp = (i === 1)
         ? (localStorage.getItem('dopilot_part1_completed') === 'true' || localStorage.getItem('dopilot_completed') === 'true')
         : (localStorage.getItem(`dopilot_part${i}_completed`) === 'true');
-      if (isComp) completedCount++;
+      if (isComp) {
+        completedCount++;
+        hasExplicitActivity = true;
+      }
 
-      const isStarted = isComp || Boolean(localStorage.getItem(i === 1 ? 'dopilot_active_section_id' : `dopilot_part${i}_active_section_id`));
-      if (isStarted && i > highestStarted) highestStarted = i;
+      const secKey = i === 1 ? 'dopilot_active_section_id' : `dopilot_part${i}_active_section_id`;
+      const ansKey = i === 1 ? 'dopilot_mcq_answers_v2' : `dopilot_part${i}_mcq_answers_v2`;
+      const isPartStarted = isComp || Boolean(localStorage.getItem(secKey)) || hasNonEmptyAnswers(ansKey);
+      if (isPartStarted) {
+        hasExplicitActivity = true;
+        if (i > highestStarted) highestStarted = i;
+      }
     }
-    const lastVisited = Number(localStorage.getItem('dopilot_python_core_last_part')) || highestStarted;
-    const resumePart = completedCount === 14 ? 14 : lastVisited;
+
+    const rawLastVisited = localStorage.getItem('dopilot_python_core_last_part');
+    const lastVisited = rawLastVisited ? Number(rawLastVisited) : null;
+    if (lastVisited && !isNaN(lastVisited) && lastVisited > 0) {
+      hasExplicitActivity = true;
+      if (lastVisited > highestStarted) highestStarted = lastVisited;
+    }
+
+    const isCompleted = completedCount >= 14 || isCourseComplete('python-core');
+    const finalCompletedCount = isCompleted ? 14 : completedCount;
+    const percentage = isCompleted ? 100 : Math.round((finalCompletedCount / 14) * 100);
+    const isStarted = hasExplicitActivity || completedCount > 0 || isCompleted;
+    const resumePart = isCompleted ? 14 : (highestStarted > 0 ? highestStarted : 1);
     const activeModuleTitle = pythonCourse.modules[resumePart - 1]?.title || `Part ${resumePart}`;
 
     return {
-      completedCount,
-      percentage: Math.round((completedCount / 14) * 100),
+      id: 'python-core',
+      title: 'Complete Python Course',
+      tag: '14 Modules',
+      category: 'Programming & Pygame',
+      color: 'text-primary',
+      isStarted,
+      completedCount: finalCompletedCount,
+      percentage,
       resumePart,
       activeModuleTitle,
-      isCompleted: completedCount === 14 || isCourseComplete('python-core'),
+      isCompleted,
       routePath: `/course/python-core/part-${resumePart}`
     };
   };
@@ -229,24 +278,51 @@ export const SettingsPage: React.FC = () => {
   const getJavaProgress = () => {
     const javaCourse = COURSES_DATA.find(c => c.id === 'java-core') || COURSES_DATA[1];
     let completedCount = 0;
-    let highestStarted = 1;
+    let highestStarted = 0;
+    let hasExplicitActivity = false;
+
     for (let i = 1; i <= 14; i++) {
       const isComp = localStorage.getItem(`dopilot_java_part${i}_completed`) === 'true';
-      if (isComp) completedCount++;
+      if (isComp) {
+        completedCount++;
+        hasExplicitActivity = true;
+      }
 
-      const isStarted = isComp || Boolean(localStorage.getItem(`dopilot_java_part${i}_active_section_id`));
-      if (isStarted && i > highestStarted) highestStarted = i;
+      const secKey = i === 1 ? 'dopilot_java_active_section_id' : `dopilot_java_part${i}_active_section_id`;
+      const ansKey = i === 1 ? 'dopilot_java_mcq_answers' : `dopilot_java_part${i}_mcq_answers`;
+      const isPartStarted = isComp || Boolean(localStorage.getItem(secKey)) || hasNonEmptyAnswers(ansKey);
+      if (isPartStarted) {
+        hasExplicitActivity = true;
+        if (i > highestStarted) highestStarted = i;
+      }
     }
-    const lastVisited = Number(localStorage.getItem('dopilot_java_core_last_part')) || highestStarted;
-    const resumePart = completedCount === 14 ? 14 : lastVisited;
+
+    const rawLastVisited = localStorage.getItem('dopilot_java_core_last_part');
+    const lastVisited = rawLastVisited ? Number(rawLastVisited) : null;
+    if (lastVisited && !isNaN(lastVisited) && lastVisited > 0) {
+      hasExplicitActivity = true;
+      if (lastVisited > highestStarted) highestStarted = lastVisited;
+    }
+
+    const isCompleted = completedCount >= 14 || isCourseComplete('java-core');
+    const finalCompletedCount = isCompleted ? 14 : completedCount;
+    const percentage = isCompleted ? 100 : Math.round((finalCompletedCount / 14) * 100);
+    const isStarted = hasExplicitActivity || completedCount > 0 || isCompleted;
+    const resumePart = isCompleted ? 14 : (highestStarted > 0 ? highestStarted : 1);
     const activeModuleTitle = javaCourse.modules[resumePart - 1]?.title || `Part ${resumePart}`;
 
     return {
-      completedCount,
-      percentage: Math.round((completedCount / 14) * 100),
+      id: 'java-core',
+      title: 'Complete Java Course',
+      tag: '14 Modules',
+      category: 'OOP & Architecture',
+      color: 'text-amber-400',
+      isStarted,
+      completedCount: finalCompletedCount,
+      percentage,
       resumePart,
       activeModuleTitle,
-      isCompleted: completedCount === 14 || isCourseComplete('java-core'),
+      isCompleted,
       routePath: `/course/complete-java-programming/part-${resumePart}`
     };
   };
@@ -254,24 +330,51 @@ export const SettingsPage: React.FC = () => {
   const getFullstackProgress = () => {
     const fsCourse = COURSES_DATA.find(c => c.id === 'fullstack-open') || COURSES_DATA[2];
     let completedCount = 0;
-    let highestStarted = 0;
+    let highestStarted = -1;
+    let hasExplicitActivity = false;
+
     for (let i = 0; i <= 13; i++) {
       const isComp = localStorage.getItem(`dopilot_fullstack_part${i}_completed`) === 'true';
-      if (isComp) completedCount++;
+      if (isComp) {
+        completedCount++;
+        hasExplicitActivity = true;
+      }
 
-      const isStarted = isComp || Boolean(localStorage.getItem(`dopilot_fullstack_part${i}_active_section_id`));
-      if (isStarted && i > highestStarted) highestStarted = i;
+      const secKey = `dopilot_fullstack_part${i}_active_section_id`;
+      const ansKey = `dopilot_fullstack_part${i}_mcq_answers`;
+      const isPartStarted = isComp || Boolean(localStorage.getItem(secKey)) || hasNonEmptyAnswers(ansKey);
+      if (isPartStarted) {
+        hasExplicitActivity = true;
+        if (i > highestStarted) highestStarted = i;
+      }
     }
-    const lastVisited = Number(localStorage.getItem('dopilot_fullstack_core_last_part')) || highestStarted;
-    const resumePart = completedCount === 14 ? 13 : lastVisited;
+
+    const rawLastVisited = localStorage.getItem('dopilot_fullstack_core_last_part');
+    const lastVisited = (rawLastVisited !== null && !isNaN(Number(rawLastVisited))) ? Number(rawLastVisited) : null;
+    if (lastVisited !== null && lastVisited >= 0) {
+      hasExplicitActivity = true;
+      if (lastVisited > highestStarted) highestStarted = lastVisited;
+    }
+
+    const isCompleted = completedCount >= 14 || isCourseComplete('fullstack-open');
+    const finalCompletedCount = isCompleted ? 14 : completedCount;
+    const percentage = isCompleted ? 100 : Math.round((finalCompletedCount / 14) * 100);
+    const isStarted = hasExplicitActivity || completedCount > 0 || isCompleted;
+    const resumePart = isCompleted ? 13 : (highestStarted >= 0 ? highestStarted : 0);
     const activeModuleTitle = fsCourse.modules[resumePart]?.title || `Part ${resumePart}`;
 
     return {
-      completedCount,
-      percentage: Math.round((completedCount / 14) * 100),
+      id: 'fullstack-open',
+      title: 'Full Stack Open Course',
+      tag: '14 Modules',
+      category: 'Modern Web & Cloud',
+      color: 'text-emerald-400',
+      isStarted,
+      completedCount: finalCompletedCount,
+      percentage,
       resumePart,
       activeModuleTitle,
-      isCompleted: completedCount === 14 || isCourseComplete('fullstack-open'),
+      isCompleted,
       routePath: `/course/fullstack-open/part-${resumePart}`
     };
   };
@@ -279,24 +382,51 @@ export const SettingsPage: React.FC = () => {
   const getCyberProgress = () => {
     const cyberCourse = COURSES_DATA.find(c => c.id === 'cyber-security') || COURSES_DATA[3];
     let completedCount = 0;
-    let highestStarted = 1;
+    let highestStarted = 0;
+    let hasExplicitActivity = false;
+
     for (let i = 1; i <= 14; i++) {
       const isComp = localStorage.getItem(`dopilot_cyber_part${i}_completed`) === 'true';
-      if (isComp) completedCount++;
+      if (isComp) {
+        completedCount++;
+        hasExplicitActivity = true;
+      }
 
-      const isStarted = isComp || Boolean(localStorage.getItem(`dopilot_cyber_part${i}_active_section_id`));
-      if (isStarted && i > highestStarted) highestStarted = i;
+      const secKey = `dopilot_cyber_part${i}_active_section_id`;
+      const ansKey = `dopilot_cyber_part${i}_mcq_answers`;
+      const isPartStarted = isComp || Boolean(localStorage.getItem(secKey)) || hasNonEmptyAnswers(ansKey);
+      if (isPartStarted) {
+        hasExplicitActivity = true;
+        if (i > highestStarted) highestStarted = i;
+      }
     }
-    const lastVisited = Number(localStorage.getItem('dopilot_cyber_core_last_part')) || highestStarted;
-    const resumePart = completedCount === 14 ? 14 : lastVisited;
+
+    const rawLastVisited = localStorage.getItem('dopilot_cyber_core_last_part');
+    const lastVisited = rawLastVisited ? Number(rawLastVisited) : null;
+    if (lastVisited && !isNaN(lastVisited) && lastVisited > 0) {
+      hasExplicitActivity = true;
+      if (lastVisited > highestStarted) highestStarted = lastVisited;
+    }
+
+    const isCompleted = completedCount >= 14 || isCourseComplete('cyber-security');
+    const finalCompletedCount = isCompleted ? 14 : completedCount;
+    const percentage = isCompleted ? 100 : Math.round((finalCompletedCount / 14) * 100);
+    const isStarted = hasExplicitActivity || completedCount > 0 || isCompleted;
+    const resumePart = isCompleted ? 14 : (highestStarted > 0 ? highestStarted : 1);
     const activeModuleTitle = cyberCourse?.modules[resumePart - 1]?.title || `Part ${resumePart}`;
 
     return {
-      completedCount,
-      percentage: Math.round((completedCount / 14) * 100),
+      id: 'cyber-security',
+      title: 'Cyber Security Course',
+      tag: '14 Modules',
+      category: 'Network Defense & Ethical Hacking',
+      color: 'text-cyan-400',
+      isStarted,
+      completedCount: finalCompletedCount,
+      percentage,
       resumePart,
       activeModuleTitle,
-      isCompleted: completedCount === 14 || isCourseComplete('cyber-security'),
+      isCompleted,
       routePath: `/course/cyber-security/part-${resumePart}`
     };
   };
@@ -306,8 +436,12 @@ export const SettingsPage: React.FC = () => {
   const fullstackProg = getFullstackProgress();
   const cyberProg = getCyberProgress();
 
+  const allCoursesList = [pythonProg, javaProg, fullstackProg, cyberProg];
+  const startedCourses = allCoursesList.filter(c => c.isStarted);
+  const activeTracksCount = startedCourses.length;
+
   // =========================================================================
-  // COMPLETED CERTIFICATES ONLY
+  // COMPLETED CERTIFICATES ONLY (GENUINELY EARNED BY FINISHING THE COURSE)
   // =========================================================================
   const allCoursesForCerts = [
     {
@@ -340,8 +474,8 @@ export const SettingsPage: React.FC = () => {
     },
   ];
 
-  // ONLY show completed courses in Certificate Hub
-  const completedCertificates = allCoursesForCerts.filter(c => c.isCompleted || Boolean(c.savedCert));
+  // ONLY show completed courses in Certificate Hub - must be genuinely completed
+  const completedCertificates = allCoursesForCerts.filter(c => c.isCompleted);
 
   // Handle Save Profile from Modal
   const handleSaveProfile = (e: React.FormEvent) => {
@@ -376,41 +510,43 @@ export const SettingsPage: React.FC = () => {
     setTimeout(() => setSaveSuccessMsg(null), 3500);
   };
 
-  // Handle Cash Reward Claim
-  const handleClaimCash = (e: React.FormEvent) => {
+  // Handle Milestone Approval Request
+  const handleSubmitApprovalRequest = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!redeemModalTier) return;
-    const cleanUpi = upiIdInput.trim();
+    if (!requestModalTier || !user) return;
 
-    if (!cleanUpi || !cleanUpi.includes('@') || cleanUpi.length < 5) {
-      setUpiError('Please enter a valid UPI ID (e.g. mobile@upi or username@okhdfcbank).');
+    setRequestSubmitting(true);
+    setRequestError(null);
+
+    const result = submitRewardRequest({
+      studentId: user.id,
+      studentName: user.name,
+      studentEmail: user.email,
+      studentPhone: user.phone,
+      collegeOrCompany: user.collegeOrCompany,
+      milestoneId: requestModalTier.id,
+      milestonePoints: requestModalTier.pointsRequired,
+      rewardAmount: requestModalTier.cashAmount,
+      pointsBalance: points
+    });
+
+    setRequestSubmitting(false);
+
+    if (!result.success) {
+      setRequestError(result.error || 'Failed to submit approval request.');
       return;
     }
 
-    const record: ClaimedCashRecord = {
-      rewardId: redeemModalTier.id,
-      cashAmount: redeemModalTier.cashAmount,
-      pointsRequired: redeemModalTier.pointsRequired,
-      upiId: cleanUpi,
-      claimedAt: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-    };
-
-    const updated = { ...claimedCash, [redeemModalTier.id]: record };
-    setClaimedCash(updated);
-    try {
-      localStorage.setItem(cashStorageKey, JSON.stringify(updated));
-    } catch {}
-
+    setRewardRequests(getStudentRewardRequests(user.email));
     playTwinkleSound();
-    setRedeemModalTier(null);
-    setUpiIdInput('');
-    setUpiError(null);
-    setSaveSuccessMsg(`₹${redeemModalTier.cashAmount} cash reward claimed! Transfer initiated to ${cleanUpi}.`);
+    setRequestModalTier(null);
+    setSaveSuccessMsg(`Milestone approval request for ₹${requestModalTier.cashAmount} submitted! Pending admin review.`);
     setTimeout(() => setSaveSuccessMsg(null), 4500);
   };
 
-  // Certificate Actions
+  // Certificate Actions - Download only if course is genuinely complete
   const handleDownloadSavedPdf = async (courseId: string) => {
+    if (!isCourseComplete(courseId)) return;
     const cert = getSavedCertificate(courseId);
     if (!cert) return;
     const config = COURSE_CERT_CONFIGS[courseId] || COURSE_CERT_CONFIGS['python-core'];
@@ -430,6 +566,7 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handlePrintSavedPdf = async (courseId: string) => {
+    if (!isCourseComplete(courseId)) return;
     const cert = getSavedCertificate(courseId);
     if (!cert) return;
     const config = COURSE_CERT_CONFIGS[courseId] || COURSE_CERT_CONFIGS['python-core'];
@@ -457,10 +594,11 @@ export const SettingsPage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="inline-flex items-center gap-2 text-xs font-mono text-slate hover:text-primary transition-colors cursor-pointer group"
+            className="inline-flex items-center gap-2 text-xs sm:text-sm font-mono text-slate hover:text-primary transition-colors cursor-pointer group"
+            aria-label="Back"
           >
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            <span>Back to Home</span>
+            <span>Back</span>
           </button>
         </div>
       </header>
@@ -488,61 +626,61 @@ export const SettingsPage: React.FC = () => {
           )}
         </AnimatePresence>
 
-        {/* 4 Clean Navigation Tabs */}
-        <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-panel border border-white/10 overflow-x-auto no-scrollbar">
+        {/* 4 Clean Navigation Tabs - Responsive 2x2 grid on mobile, horizontal row on tablet/laptop/desktop */}
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 sm:gap-2 p-1.5 rounded-2xl bg-panel border border-white/10 sm:overflow-x-auto no-scrollbar">
           
           <button
             type="button"
             onClick={() => handleTabChange('profile')}
-            className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl font-jakarta font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`w-full sm:w-auto sm:flex-1 sm:min-w-[120px] py-2.5 px-2.5 sm:px-3 rounded-xl font-jakarta font-bold text-xs transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
               activeTab === 'profile'
                 ? 'bg-primary text-ink shadow-md shadow-primary/20'
                 : 'text-slate hover:text-paper hover:bg-white/[0.04]'
             }`}
           >
-            <User className="w-3.5 h-3.5" />
-            <span>Profile</span>
+            <User className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Profile</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleTabChange('progress')}
-            className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl font-jakarta font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`w-full sm:w-auto sm:flex-1 sm:min-w-[120px] py-2.5 px-2.5 sm:px-3 rounded-xl font-jakarta font-bold text-xs transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
               activeTab === 'progress'
                 ? 'bg-primary text-ink shadow-md shadow-primary/20'
                 : 'text-slate hover:text-paper hover:bg-white/[0.04]'
             }`}
           >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>Course Progress</span>
+            <BookOpen className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Course Progress</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleTabChange('rewards')}
-            className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl font-jakarta font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`w-full sm:w-auto sm:flex-1 sm:min-w-[120px] py-2.5 px-2.5 sm:px-3 rounded-xl font-jakarta font-bold text-xs transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
               activeTab === 'rewards'
                 ? 'bg-primary text-ink shadow-md shadow-primary/20'
                 : 'text-slate hover:text-paper hover:bg-white/[0.04]'
             }`}
           >
-            <Trophy className="w-3.5 h-3.5" />
-            <span>Points &amp; Rewards</span>
+            <Trophy className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Points &amp; Rewards</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleTabChange('certificates')}
-            className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl font-jakarta font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`w-full sm:w-auto sm:flex-1 sm:min-w-[120px] py-2.5 px-2.5 sm:px-3 rounded-xl font-jakarta font-bold text-xs transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
               activeTab === 'certificates'
                 ? 'bg-primary text-ink shadow-md shadow-primary/20'
                 : 'text-slate hover:text-paper hover:bg-white/[0.04]'
             }`}
           >
-            <GraduationCap className="w-4 h-4" />
-            <span>Certificates</span>
+            <GraduationCap className="w-4 h-4 shrink-0" />
+            <span className="truncate">Certificates</span>
             {completedCertificates.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-white/20 text-[10px] font-mono">
+              <span className="px-1.5 py-0.2 rounded-full bg-white/20 text-[10px] font-mono shrink-0">
                 {completedCertificates.length}
               </span>
             )}
@@ -557,20 +695,20 @@ export const SettingsPage: React.FC = () => {
           <div className="space-y-6">
             
             {/* Profile Overview Card */}
-            <div className="rounded-3xl bg-panel border border-white/10 p-6 sm:p-8 space-y-6 shadow-xl relative overflow-hidden">
+            <div className="rounded-3xl bg-panel border border-white/10 p-5 sm:p-8 space-y-5 sm:space-y-6 shadow-xl relative overflow-hidden">
               
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pb-6 border-b border-white/10">
-                <div className="flex items-center gap-4 sm:gap-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 pb-5 sm:pb-6 border-b border-white/10">
+                <div className="flex items-center gap-3.5 sm:gap-5 min-w-0">
                   {/* User Profile shows user name letters */}
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 border border-primary/40 text-primary flex items-center justify-center font-jakarta font-black text-2xl sm:text-3xl tracking-wider shadow-lg shadow-primary/10 shrink-0">
+                  <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 border border-primary/40 text-primary flex items-center justify-center font-jakarta font-black text-xl sm:text-3xl tracking-wider shadow-lg shadow-primary/10 shrink-0">
                     {getUserInitials(user.name)}
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-0.5 sm:space-y-1 min-w-0 flex-1">
                     {/* User Name without verified badge */}
-                    <h2 className="font-jakarta font-black text-xl sm:text-2xl text-paper">
+                    <h2 className="font-jakarta font-black text-lg sm:text-2xl text-paper truncate">
                       {user.name}
                     </h2>
-                    <p className="text-slate text-xs font-mono">
+                    <p className="text-slate text-xs font-mono truncate">
                       {user.email}
                     </p>
                   </div>
@@ -580,15 +718,15 @@ export const SettingsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleOpenEditModal}
-                  className="py-2.5 px-5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-primary/20 shrink-0"
+                  className="w-full sm:w-auto py-2.5 px-5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-primary/20 shrink-0"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                   <span>Edit Profile</span>
                 </button>
               </div>
 
-              {/* Clean 3-Metric Overview Bar (Removed Completed Parts 0 / 42) */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Clean 3-Metric Overview Bar */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
                 <div className="p-3.5 rounded-2xl bg-black/40 border border-white/5 space-y-0.5">
                   <span className="font-mono text-[10px] text-slate/60 uppercase block">Total Points</span>
                   <div className="font-jakarta text-xl font-black text-amber-400">
@@ -599,7 +737,7 @@ export const SettingsPage: React.FC = () => {
                 <div className="p-3.5 rounded-2xl bg-black/40 border border-white/5 space-y-0.5">
                   <span className="font-mono text-[10px] text-slate/60 uppercase block">Active Tracks</span>
                   <div className="font-jakarta text-xl font-black text-primary">
-                    4 Tracks
+                    {activeTracksCount} {activeTracksCount === 1 ? 'Track' : 'Tracks'}
                   </div>
                 </div>
 
@@ -617,24 +755,24 @@ export const SettingsPage: React.FC = () => {
                   Student Information
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 text-xs font-mono">
                   <div className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-1">
                     <span className="text-slate/60 text-[10px] uppercase block">Mobile Phone Number</span>
-                    <span className="text-paper font-semibold">
+                    <span className="text-paper font-semibold break-words">
                       {user.phone || 'Not provided'}
                     </span>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-1">
                     <span className="text-slate/60 text-[10px] uppercase block">College / University or Company</span>
-                    <span className="text-paper font-semibold">
+                    <span className="text-paper font-semibold break-words">
                       {user.collegeOrCompany || 'Not provided'}
                     </span>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-1">
                     <span className="text-slate/60 text-[10px] uppercase block">Discovery Source</span>
-                    <span className="text-paper font-semibold">
+                    <span className="text-paper font-semibold break-words">
                       {user.whereDidYouFindUs || 'Direct / Web'}
                     </span>
                   </div>
@@ -647,35 +785,43 @@ export const SettingsPage: React.FC = () => {
                   Enrolled Tracks
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {[
-                    { id: 'python-core', title: 'Complete Python Course', prog: pythonProg, color: 'text-primary' },
-                    { id: 'java-core', title: 'Complete Java Course', prog: javaProg, color: 'text-amber-400' },
-                    { id: 'fullstack-open', title: 'Full Stack Open Course', prog: fullstackProg, color: 'text-emerald-400' },
-                    { id: 'cyber-security', title: 'Cyber Security Course', prog: cyberProg, color: 'text-cyan-400' },
-                  ].map((track) => (
-                    <div
-                      key={track.id}
-                      onClick={() => navigate(track.prog.routePath)}
-                      className="p-3.5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/20 transition-all flex items-center justify-between cursor-pointer group"
-                    >
-                      <div className="space-y-0.5">
-                        <span className="font-jakarta font-bold text-xs text-paper group-hover:text-primary transition-colors">
-                          {track.title}
-                        </span>
-                        <div className="text-[10px] font-mono text-slate/60">
-                          {track.prog.completedCount}/14 parts ({track.prog.percentage}%)
+                {startedCourses.length === 0 ? (
+                  <div className="p-4 rounded-2xl bg-black/40 border border-white/5 text-center text-xs font-mono text-slate/60">
+                    No active tracks started yet.
+                  </div>
+                ) : (
+                  <div className={`grid grid-cols-1 sm:grid-cols-2 ${startedCourses.length > 2 ? 'lg:grid-cols-4' : ''} gap-2.5 sm:gap-3`}>
+                    {startedCourses.map((track) => (
+                      <div
+                        key={track.id}
+                        onClick={() => navigate(track.routePath)}
+                        className="p-3.5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/20 transition-all flex items-center justify-between cursor-pointer group"
+                      >
+                        <div className="space-y-0.5 min-w-0 flex-1 pr-2">
+                          <span className="font-jakarta font-bold text-xs text-paper group-hover:text-primary transition-colors block truncate">
+                            {track.title}
+                          </span>
+                          {track.isCompleted || track.percentage === 100 ? (
+                            <div className="inline-flex items-center gap-1.5 text-[11px] font-mono text-emerald-400 font-semibold">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                              <span>Completed</span>
+                            </div>
+                          ) : (
+                            <div className="text-[10px] font-mono text-slate/60">
+                              {track.completedCount}/14 parts ({track.percentage}%)
+                            </div>
+                          )}
                         </div>
+                        <ChevronRight className="w-4 h-4 text-slate/60 group-hover:text-primary transition-transform group-hover:translate-x-0.5 shrink-0" />
                       </div>
-                      <ChevronRight className="w-4 h-4 text-slate/60 group-hover:text-primary transition-transform group-hover:translate-x-0.5" />
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Sign Out Action at Bottom of Profile */}
-              <div className="pt-2 border-t border-white/10 flex items-center justify-between">
-                <span className="text-[11px] font-mono text-slate/60">
+              <div className="pt-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <span className="text-[11px] font-mono text-slate/60 text-center sm:text-left">
                   Account Provider: Google Identity
                 </span>
                 <button
@@ -684,7 +830,7 @@ export const SettingsPage: React.FC = () => {
                     logout();
                     navigate('/');
                   }}
-                  className="py-2 px-4 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-300 font-jakarta font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="w-full sm:w-auto py-2.5 sm:py-2 px-4 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-300 font-jakarta font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Sign Out</span>
@@ -707,111 +853,108 @@ export const SettingsPage: React.FC = () => {
                 Course Progress
               </h3>
               <p className="text-slate text-xs mt-0.5">
-                Overview of your progress across all 4 engineering tracks.
+                Overview of your progress across your active engineering tracks.
               </p>
             </div>
 
-            {/* 4 Detailed Course Progress Cards */}
-            {[
-              {
-                id: 'python-core',
-                title: 'Complete Python Course',
-                tag: '14 Modules',
-                prog: pythonProg,
-                category: 'Programming & Pygame',
-                color: 'text-primary'
-              },
-              {
-                id: 'java-core',
-                title: 'Complete Java Course',
-                tag: '14 Modules',
-                prog: javaProg,
-                category: 'OOP & Architecture',
-                color: 'text-amber-400'
-              },
-              {
-                id: 'fullstack-open',
-                title: 'Full Stack Open Course',
-                tag: '14 Modules',
-                prog: fullstackProg,
-                category: 'Modern Web & Cloud',
-                color: 'text-emerald-400'
-              },
-              {
-                id: 'cyber-security',
-                title: 'Cyber Security Course',
-                tag: '14 Modules',
-                prog: cyberProg,
-                category: 'Network Defense & Ethical Hacking',
-                color: 'text-cyan-400'
-              }
-            ].map((course) => (
-              <div
-                key={course.id}
-                className="rounded-2xl bg-panel border border-white/10 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5 shadow-lg hover:border-white/20 transition-all"
-              >
-                <div className="space-y-2.5 flex-1 max-w-lg">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-jakarta font-bold text-base text-paper">
-                      {course.title}
-                    </h4>
-                    <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-slate/70 font-mono text-[10px]">
-                      {course.tag}
-                    </span>
-                    <span className="text-[11px] font-mono text-slate/60 hidden sm:inline">
-                      • {course.category}
-                    </span>
-                  </div>
-
-                  {/* Active Module Indicator */}
-                  <div className="text-xs font-mono text-slate/80">
-                    Active Module: <strong className="text-paper">Part {course.prog.resumePart}</strong>
-                    <span className="text-slate/60"> ({course.prog.activeModuleTitle})</span>
-                  </div>
-
-                  {/* Progress Bar & Stat */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs font-mono">
-                      <span className="text-slate">
-                        {course.prog.completedCount} of 14 parts completed
-                      </span>
-                      <span className="text-primary font-bold">
-                        {course.prog.percentage}%
-                      </span>
-                    </div>
-
-                    <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
-                      <div 
-                        className="h-full bg-primary rounded-full transition-all duration-500"
-                        style={{ width: `${course.prog.percentage}%` }}
-                      />
-                    </div>
-                  </div>
+            {startedCourses.length === 0 ? (
+              <div className="rounded-3xl bg-panel border border-white/10 p-8 sm:p-12 text-center space-y-4 shadow-xl">
+                <div className="w-14 h-14 mx-auto rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                  <BookOpen className="w-7 h-7" />
                 </div>
-
-                {/* Continue Button */}
+                <div className="max-w-md mx-auto space-y-1">
+                  <h4 className="font-jakarta font-bold text-base text-paper">
+                    No Courses Started Yet
+                  </h4>
+                  <p className="text-slate text-xs leading-relaxed">
+                    You haven't started any engineering courses yet. Explore our curriculum to begin your learning journey.
+                  </p>
+                </div>
                 <button
                   type="button"
-                  onClick={() => navigate(course.prog.routePath)}
-                  className="py-2.5 px-5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-primary/20 shrink-0"
+                  onClick={() => navigate('/#courses')}
+                  className="w-full sm:w-auto py-2.5 px-5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-md shadow-primary/20"
                 >
-                  <span>{course.prog.isCompleted ? 'Review Course' : `Continue Part ${course.prog.resumePart}`}</span>
-                  <Play className="w-3 h-3 fill-ink" />
+                  <span>Explore Courses</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
-            ))}
+            ) : (
+              startedCourses.map((course) => (
+                <div
+                  key={course.id}
+                  className="rounded-2xl bg-panel border border-white/10 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5 shadow-lg hover:border-white/20 transition-all"
+                >
+                  <div className="space-y-2.5 flex-1 max-w-lg">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="font-jakarta font-bold text-base text-paper">
+                        {course.title}
+                      </h4>
+                      <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-slate/70 font-mono text-[10px]">
+                        {course.tag}
+                      </span>
+                      <span className="text-[11px] font-mono text-slate/60 hidden sm:inline">
+                        • {course.category}
+                      </span>
+                    </div>
+
+                    {/* Active Module Indicator */}
+                    <div className="text-xs font-mono text-slate/80 break-words">
+                      Active Module: <strong className="text-paper">Part {course.resumePart}</strong>
+                      <span className="text-slate/60"> ({course.activeModuleTitle})</span>
+                    </div>
+
+                    {/* Progress Bar & Stat */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-mono">
+                        <span className="text-slate">
+                          {course.completedCount} of 14 parts completed
+                        </span>
+                        <span className={course.isCompleted ? "text-emerald-400 font-bold" : "text-primary font-bold"}>
+                          {course.percentage}%
+                        </span>
+                      </div>
+
+                      <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ${course.isCompleted ? 'bg-emerald-400' : 'bg-primary'}`}
+                          style={{ width: `${course.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Status / Continue Button */}
+                  {course.isCompleted ? (
+                    <div className="w-full sm:w-auto py-2.5 px-5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-jakarta font-bold text-xs flex items-center justify-center gap-2 shadow-sm shrink-0">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Completed</span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => navigate(course.routePath)}
+                      className="w-full sm:w-auto py-2.5 px-5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-primary/20 shrink-0"
+                    >
+                      <span>{`Continue Part ${course.resumePart}`}</span>
+                      <Play className="w-3 h-3 fill-ink" />
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
 
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 3: POINTS & CASH REWARDS                                              */}
+        {/* TAB 3: POINTS & REWARDS (MILESTONE APPROVAL WORKFLOW)                      */}
         {/* ========================================================================= */}
         {activeTab === 'rewards' && (
           <div className="space-y-6">
             
             {/* Points Balance Banner */}
-            <div className="rounded-3xl bg-panel border border-white/10 p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-5 shadow-xl">
+            <div className="rounded-3xl bg-panel border border-white/10 p-5 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-5 shadow-xl">
               <div className="space-y-1">
                 <span className="font-mono text-xs text-slate uppercase block">Your Available Balance</span>
                 <div className="font-jakarta font-black text-3xl text-amber-400 flex items-baseline gap-2">
@@ -819,7 +962,7 @@ export const SettingsPage: React.FC = () => {
                   <span className="text-sm font-mono text-slate/60 font-normal">Points Earned</span>
                 </div>
                 <p className="text-slate text-xs mt-1">
-                  Earn 1 point for each question solved. Points can be redeemed for cash rewards via UPI.
+                  Earn 1 point for each question solved. Points can be redeemed for rewards upon reaching milestones.
                 </p>
               </div>
 
@@ -828,68 +971,73 @@ export const SettingsPage: React.FC = () => {
                   <IndianRupee className="w-3.5 h-3.5 text-emerald-400" />
                   <span>1 Point = ₹1 Cash Value</span>
                 </div>
-                <p className="text-[11px] text-slate/60">
-                  Instant UPI transfers upon reaching milestones.
-                </p>
               </div>
             </div>
 
-            {/* Cash Reward Tiers Grid */}
+            {/* Milestone Reward Tiers Grid */}
             <div className="space-y-4">
               <div className="pb-1">
                 <h3 className="font-jakarta font-black text-lg text-paper">
-                  Cash Rewards
+                  Milestone Rewards
                 </h3>
                 <p className="text-slate text-xs mt-0.5">
-                  Redeem your points balance directly to your UPI ID.
+                  Request admin approval when you reach an eligible points milestone.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {CASH_TIERS.map((tier) => {
-                  const isClaimed = Boolean(claimedCash[tier.id]);
-                  const canRedeem = points >= tier.pointsRequired;
+                  const req = rewardRequests.find(r => r.milestoneId === tier.id);
+                  const isApproved = req?.status === 'approved';
+                  const isPending = req?.status === 'pending';
+                  const canRequest = points >= tier.pointsRequired && !req;
 
                   return (
                     <div
                       key={tier.id}
-                      className={`rounded-2xl border p-5 flex items-center justify-between gap-4 transition-all ${
-                        isClaimed
-                          ? 'bg-emerald-500/[0.04] border-emerald-500/30'
-                          : canRedeem
+                      className={`rounded-2xl border p-5 flex items-center justify-between gap-3 sm:gap-4 transition-all ${
+                        isApproved
+                          ? 'bg-emerald-500/[0.04] border-emerald-500/30 shadow-md'
+                          : isPending
+                          ? 'bg-amber-500/[0.04] border-amber-500/30 shadow-md'
+                          : canRequest
                           ? 'bg-panel border-amber-400/30 hover:border-amber-400/60 shadow-lg'
                           : 'bg-panel/40 border-white/10 opacity-70'
                       }`}
                     >
-                      <div className="space-y-1">
+                      <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-jakarta font-black text-xl text-paper">
+                          <span className="font-jakarta font-black text-lg sm:text-xl text-paper">
                             ₹{tier.cashAmount}
                           </span>
-                          <span className="text-xs font-mono text-slate">Cash</span>
+                          <span className="text-xs font-mono text-slate">Reward</span>
                         </div>
-                        <span className="text-[11px] font-mono text-slate/60 block">
-                          Requires {tier.pointsRequired} points
+                        <span className="text-[11px] font-mono text-slate/60 block truncate">
+                          Milestone: {tier.pointsRequired} points
                         </span>
                       </div>
 
-                      <div>
-                        {isClaimed ? (
-                          <span className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 font-mono text-xs font-bold flex items-center gap-1">
-                            <Check className="w-3.5 h-3.5" />
-                            <span>Claimed</span>
+                      <div className="shrink-0">
+                        {isApproved ? (
+                          <span className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Approved</span>
                           </span>
-                        ) : canRedeem ? (
+                        ) : isPending ? (
+                          <span className="px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                            <Clock className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                            <span>Pending Approval</span>
+                          </span>
+                        ) : canRequest ? (
                           <button
                             type="button"
                             onClick={() => {
-                              setRedeemModalTier(tier);
-                              setUpiIdInput('');
-                              setUpiError(null);
+                              setRequestModalTier(tier);
+                              setRequestError(null);
                             }}
                             className="py-2 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:opacity-95 text-black font-jakarta font-extrabold text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer"
                           >
-                            Redeem Cash
+                            Request Approval
                           </button>
                         ) : (
                           <span className="text-xs font-mono text-slate/50">
@@ -923,7 +1071,7 @@ export const SettingsPage: React.FC = () => {
 
             {completedCertificates.length === 0 ? (
               /* Clean Empty State when no course completed yet */
-              <div className="rounded-3xl bg-panel border border-white/10 p-8 sm:p-12 text-center space-y-4 shadow-xl">
+              <div className="rounded-3xl bg-panel border border-white/10 p-6 sm:p-12 text-center space-y-4 shadow-xl">
                 <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
                   <GraduationCap className="w-7 h-7" />
                 </div>
@@ -938,7 +1086,7 @@ export const SettingsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleTabChange('progress')}
-                  className="py-2.5 px-5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer inline-flex items-center gap-2 shadow-md shadow-primary/20"
+                  className="w-full sm:w-auto py-2.5 px-5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-md shadow-primary/20"
                 >
                   <span>Go to Course Progress</span>
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -952,14 +1100,14 @@ export const SettingsPage: React.FC = () => {
                     key={certItem.id}
                     className="rounded-2xl bg-panel border border-amber-500/30 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5 shadow-xl"
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-start sm:items-center gap-3.5 sm:gap-4 min-w-0">
                       {/* Left Graduation Cap Emblem */}
                       <div className="w-12 h-12 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-amber-400 shrink-0 shadow-md">
                         <GraduationCap className="w-6 h-6" />
                       </div>
 
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono text-[10px] font-bold flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3" />
                             <span>Course Completed</span>
@@ -969,12 +1117,12 @@ export const SettingsPage: React.FC = () => {
                           </span>
                         </div>
 
-                        <h4 className="font-jakarta font-black text-lg text-paper">
+                        <h4 className="font-jakarta font-black text-base sm:text-lg text-paper break-words">
                           {certItem.certTitle}
                         </h4>
 
                         {certItem.savedCert && (
-                          <p className="font-mono text-xs text-slate/70">
+                          <p className="font-mono text-xs text-slate/70 break-all sm:break-normal">
                             Credential ID: <span className="text-amber-400 font-bold">{certItem.savedCert.certificateId}</span> • Issued to {certItem.savedCert.studentName}
                           </p>
                         )}
@@ -982,13 +1130,13 @@ export const SettingsPage: React.FC = () => {
                     </div>
 
                     {/* Download & Print Buttons */}
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
                       {certItem.savedCert ? (
                         <>
                           <button
                             type="button"
                             onClick={() => handleDownloadSavedPdf(certItem.id)}
-                            className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:opacity-95 text-black font-jakarta font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20"
+                            className="flex-1 sm:flex-initial py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:opacity-95 text-black font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20"
                           >
                             <Download className="w-3.5 h-3.5" />
                             <span>Download 16:9 PDF</span>
@@ -997,7 +1145,7 @@ export const SettingsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handlePrintSavedPdf(certItem.id)}
-                            className="py-2.5 px-3 rounded-xl bg-white/[0.08] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-colors flex items-center justify-center cursor-pointer"
+                            className="py-2.5 px-3 rounded-xl bg-white/[0.08] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-colors flex items-center justify-center cursor-pointer shrink-0"
                             title="Print"
                           >
                             <Printer className="w-3.5 h-3.5" />
@@ -1010,7 +1158,7 @@ export const SettingsPage: React.FC = () => {
                             setModalCourseId(certItem.id);
                             setCertModalOpen(true);
                           }}
-                          className="py-2.5 px-5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:opacity-95 text-black font-jakarta font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-amber-500/25"
+                          className="w-full sm:w-auto py-2.5 px-5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:opacity-95 text-black font-jakarta font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-amber-500/25"
                         >
                           <Trophy className="w-4 h-4" />
                           <span>Claim Certificate</span>
@@ -1037,7 +1185,7 @@ export const SettingsPage: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-panel border border-white/15 rounded-3xl max-w-md w-full p-6 sm:p-7 space-y-4 shadow-2xl relative"
+              className="bg-panel border border-white/15 rounded-3xl max-w-md w-full p-5 sm:p-7 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between pb-3 border-b border-white/10">
                 <h3 className="font-jakarta font-black text-base text-paper">
@@ -1146,79 +1294,85 @@ export const SettingsPage: React.FC = () => {
       </AnimatePresence>
 
       {/* ========================================================================= */}
-      {/* CASH REDEEM MODAL (INPUT UPI ID)                                          */}
+      {/* MILESTONE APPROVAL REQUEST MODAL                                          */}
       {/* ========================================================================= */}
       <AnimatePresence>
-        {redeemModalTier && (
+        {requestModalTier && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-panel border border-amber-500/30 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl relative"
+              className="bg-panel border border-amber-500/30 rounded-3xl max-w-md w-full p-5 sm:p-6 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between pb-3 border-b border-white/10">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-amber-400/20 flex items-center justify-center text-amber-400">
-                    <IndianRupee className="w-4 h-4" />
+                    <Trophy className="w-4 h-4" />
                   </div>
                   <div>
                     <h3 className="font-jakarta font-bold text-base text-paper">
-                      Redeem ₹{redeemModalTier.cashAmount} Cash
+                      Request Milestone Approval
                     </h3>
                     <span className="text-[10px] font-mono text-slate/60">
-                      Cost: {redeemModalTier.pointsRequired} points
+                      ₹{requestModalTier.cashAmount} Reward • {requestModalTier.pointsRequired} Points Milestone
                     </span>
                   </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setRedeemModalTier(null)}
+                  onClick={() => setRequestModalTier(null)}
                   className="w-8 h-8 rounded-lg bg-white/[0.06] hover:bg-white/15 text-slate hover:text-paper flex items-center justify-center cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <form onSubmit={handleClaimCash} className="space-y-4">
-                <div className="space-y-1">
-                  <label className="block text-xs font-jakarta font-bold text-paper">
-                    Enter your UPI ID
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    autoFocus
-                    value={upiIdInput}
-                    onChange={(e) => setUpiIdInput(e.target.value)}
-                    placeholder="e.g. yourname@okhdfcbank or 9876543210@paytm"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-sm focus:outline-none focus:border-amber-400 font-mono"
-                  />
-                  <p className="text-[11px] text-slate/60 font-mono">
-                    Reward amount will be transferred directly to this UPI address.
-                  </p>
+              <form onSubmit={handleSubmitApprovalRequest} className="space-y-4">
+                <div className="p-3.5 rounded-2xl bg-black/40 border border-white/5 space-y-2 text-xs font-mono">
+                  <div className="flex justify-between items-center text-slate/80">
+                    <span>Student Name:</span>
+                    <strong className="text-paper">{user.name}</strong>
+                  </div>
+                  <div className="flex justify-between items-center text-slate/80">
+                    <span>Email:</span>
+                    <span className="text-paper truncate max-w-[200px]">{user.email}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate/80">
+                    <span>Your Points:</span>
+                    <strong className="text-amber-400 font-bold">{points} pts</strong>
+                  </div>
+                  <div className="flex justify-between items-center text-slate/80">
+                    <span>Milestone Required:</span>
+                    <strong className="text-primary font-bold">{requestModalTier.pointsRequired} pts</strong>
+                  </div>
                 </div>
 
-                {upiError && (
-                  <p className="text-xs text-rose-400 flex items-center gap-1">
+                <p className="text-xs text-slate/80 leading-relaxed font-sans">
+                  Your milestone achievement will be submitted to the DO PILOT admin for verification. Once approved, your status will update to <strong className="text-emerald-400 font-semibold">Approved</strong>.
+                </p>
+
+                {requestError && (
+                  <p className="text-xs text-rose-400 flex items-center gap-1 font-mono">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>{upiError}</span>
+                    <span>{requestError}</span>
                   </p>
                 )}
 
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
                   <button
                     type="button"
-                    onClick={() => setRedeemModalTier(null)}
+                    onClick={() => setRequestModalTier(null)}
                     className="px-4 py-2 rounded-xl text-xs font-mono text-slate hover:text-paper cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-black font-jakarta font-black text-xs hover:opacity-95 transition-opacity cursor-pointer shadow-md shadow-amber-500/20"
+                    disabled={requestSubmitting}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-black font-jakarta font-black text-xs hover:opacity-95 transition-opacity cursor-pointer shadow-md shadow-amber-500/20 disabled:opacity-50"
                   >
-                    Confirm &amp; Redeem
+                    {requestSubmitting ? 'Submitting...' : 'Submit Request'}
                   </button>
                 </div>
               </form>

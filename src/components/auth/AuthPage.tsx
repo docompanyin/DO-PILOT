@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, CheckCircle2, LogOut, ArrowRight, 
   BookOpen, User, Phone, Compass, AlertCircle, Settings,
@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { useUserAuth, UserProfile } from '../../context/UserAuthContext';
 import { getUserInitials } from '../../utils/userInitials';
+import successAnimationData from '../../assets/Success.json';
+import { markAppLoaded } from '../../App';
 
 interface AuthPageProps {
   mode?: 'login' | 'signup';
@@ -16,8 +18,83 @@ interface AuthPageProps {
 declare global {
   interface Window {
     google?: any;
+    lottie?: any;
   }
 }
+
+const SuccessLottie: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const animRef = useRef<any>(null);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const play = (lottieInstance: any) => {
+      if (!containerRef.current || isCancelled) return;
+      try {
+        const anim = lottieInstance.loadAnimation({
+          container: containerRef.current,
+          renderer: 'svg',
+          loop: false,
+          autoplay: true,
+          animationData: successAnimationData,
+        });
+        animRef.current = anim;
+        anim.setSpeed(1.2);
+        anim.addEventListener('complete', () => {
+          if (!isCancelled) onComplete();
+        });
+      } catch (err) {
+        console.error('Lottie play error:', err);
+        setTimeout(onComplete, 2200);
+      }
+    };
+
+    if (window.lottie) {
+      play(window.lottie);
+    } else {
+      const poll = setInterval(() => {
+        if (window.lottie) {
+          clearInterval(poll);
+          play(window.lottie);
+        }
+      }, 50);
+
+      const safetyTimer = setTimeout(() => {
+        clearInterval(poll);
+        if (!isCancelled) onComplete();
+      }, 4000);
+
+      return () => {
+        isCancelled = true;
+        clearInterval(poll);
+        clearTimeout(safetyTimer);
+        if (animRef.current) {
+          try { animRef.current.destroy(); } catch {}
+        }
+      };
+    }
+
+    const fallbackTimeout = setTimeout(() => {
+      if (!isCancelled) onComplete();
+    }, 4500);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(fallbackTimeout);
+      if (animRef.current) {
+        try { animRef.current.destroy(); } catch {}
+      }
+    };
+  }, [onComplete]);
+
+  return (
+    <div 
+      ref={containerRef} 
+      className="w-72 h-72 sm:w-96 sm:h-96 md:w-[420px] md:h-[420px] flex items-center justify-center pointer-events-none" 
+    />
+  );
+};
 
 export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
   const navigate = useNavigate();
@@ -39,6 +116,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  useEffect(() => {
+    markAppLoaded();
+  }, []);
+
+  const handleAnimationComplete = useCallback(() => {
+    markAppLoaded();
+    navigate('/', { replace: true });
+  }, [navigate]);
+
   // Active pending user requiring registration completion
   const activePending = pendingUser || (user && !user.hasCompletedDetails ? user : null);
 
@@ -50,7 +136,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const searchParams = new URLSearchParams(location.search);
-  const redirectTarget = searchParams.get('redirect') || '/settings';
+  const redirectTarget = searchParams.get('redirect') || '/';
 
   // Sync tab with url or props
   useEffect(() => {
@@ -80,11 +166,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
     }
 
     if (profile.hasCompletedDetails) {
-      // Existing registered student!
+      // Existing registered student: Show success animation, redirect happens on completion
       setLoginSuccess(true);
-      setTimeout(() => {
-        navigate(redirectTarget, { replace: true });
-      }, 900);
     } else {
       // New or incomplete student: Show registration form
       setFormName(profile.name || '');
@@ -341,10 +424,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
       return;
     }
 
+    // Show success animation, redirect happens on completion
     setLoginSuccess(true);
-    setTimeout(() => {
-      navigate(redirectTarget, { replace: true });
-    }, 900);
   };
 
   // Switch Google account handler (cancels current pending session)
@@ -360,6 +441,23 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
 
   return (
     <div className="min-h-screen bg-black text-paper flex flex-col justify-between selection:bg-primary selection:text-ink relative overflow-hidden">
+      {/* Full-Screen Login Success Animation (Success.json) */}
+      <AnimatePresence>
+        {loginSuccess && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-xl overflow-hidden pointer-events-none select-none"
+          >
+            <div className="relative flex items-center justify-center">
+              <SuccessLottie onComplete={handleAnimationComplete} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Background Ambience Glow */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] bg-primary/[0.07] blur-[150px] rounded-full pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-80 h-80 bg-teal-500/[0.04] blur-[120px] rounded-full pointer-events-none" />
@@ -641,22 +739,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
               </div>
             </div>
           ) : loginSuccess ? (
-            /* Instant Login Success Animation */
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="py-10 text-center flex flex-col items-center justify-center gap-3"
-            >
-              <div className="w-16 h-16 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center text-primary shadow-xl shadow-primary/30 animate-bounce">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-              <h3 className="font-jakarta text-2xl font-black text-paper mt-2">
-                Welcome to DO PILOT!
-              </h3>
-              <p className="font-mono text-xs text-slate">
-                Redirecting to your student dashboard...
-              </p>
-            </motion.div>
+            <div className="py-16" />
           ) : (
             /* Standard Login / Signup Initial View */
             <div className="space-y-6">

@@ -7,7 +7,10 @@ import {
   Mail, Users, FileSpreadsheet, FileText, Search,
   Trophy, Award, AlertCircle, ArrowUpDown, Phone, GraduationCap,
   X, AlertTriangle, Grid, List, Copy, Check, Calendar,
-  MessageSquare, MessageCircle
+  MessageSquare, MessageCircle, Clock, Gift,
+  RotateCcw, Unlock, KeyRound, ShieldAlert,
+  Tag, ShoppingBag, CreditCard, Percent, Edit3,
+  QrCode, CheckCheck, XCircle, Image as ImageIcon
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { useSiteData } from '../../context/DataContext';
@@ -21,6 +24,36 @@ import {
   deleteStudentHelpMessage,
   clearResolvedStudentHelpMessages
 } from '../../utils/studentHelpService';
+import {
+  RewardRequest,
+  getRewardRequests,
+  approveRewardRequest
+} from '../../utils/rewardApprovalService';
+import {
+  LockedCourseRecord,
+  CourseResetAuditEntry,
+  getLockedCourseRecords,
+  scanAndSyncLiveLocks,
+  resetStudentCourse,
+  getCourseResetAuditEntries
+} from '../../utils/courseResetService';
+import {
+  CoursePricing,
+  CourseCoupon,
+  CoursePurchaseRecord,
+  PaymentQRConfig,
+  getCoursePricingList,
+  getCourseCoupons,
+  getCoursePurchases,
+  getPaymentQRConfig,
+  updatePaymentQRConfig,
+  verifyManualQRPurchase,
+  updateCoursePricing,
+  createCourseCoupon,
+  updateCourseCoupon,
+  deleteCourseCoupon,
+  toggleCourseCouponActive
+} from '../../utils/coursePricingService';
 import { getUserInitials } from '../../utils/userInitials';
 
 export const AdminPanel: React.FC = () => {
@@ -50,15 +83,17 @@ export const AdminPanel: React.FC = () => {
 
   const adminEmails = getAdminEmails();
 
-  type AdminWorkspace = 'website' | 'students' | 'studentHelp';
+  type AdminWorkspace = 'website' | 'students' | 'studentHelp' | 'courseReset' | 'pricingCoupons';
 
   const [adminWorkspace, setAdminWorkspace] = useState<AdminWorkspace>(() => {
     try {
       const savedWs = sessionStorage.getItem('dopilot_admin_workspace');
-      if (savedWs === 'students' || savedWs === 'website' || savedWs === 'studentHelp') return savedWs as AdminWorkspace;
+      if (savedWs === 'students' || savedWs === 'website' || savedWs === 'studentHelp' || savedWs === 'courseReset' || savedWs === 'pricingCoupons') return savedWs as AdminWorkspace;
       const savedSec = sessionStorage.getItem('dopilot_admin_active_section');
       if (savedSec === 'students') return 'students';
       if (savedSec === 'studentHelp') return 'studentHelp';
+      if (savedSec === 'courseReset') return 'courseReset';
+      if (savedSec === 'pricingCoupons') return 'pricingCoupons';
     } catch (e) {}
     return 'website';
   });
@@ -91,6 +126,108 @@ export const AdminPanel: React.FC = () => {
   }, []);
 
   const pendingHelpCount = helpMessages.filter(m => m.status === 'pending').length;
+
+  // Course Assessment Reset & Lockout State
+  const [lockedRecords, setLockedRecords] = useState<LockedCourseRecord[]>(() => getLockedCourseRecords());
+  const [courseResetAuditLogs, setCourseResetAuditLogs] = useState<CourseResetAuditEntry[]>(() => getCourseResetAuditEntries());
+  const [courseResetSearch, setCourseResetSearch] = useState('');
+  const [courseResetStatusFilter, setCourseResetStatusFilter] = useState<'all' | 'locked' | 'unlocked'>('all');
+  const [courseResetCourseFilter, setCourseResetCourseFilter] = useState<string>('all');
+  const [courseResetActiveTab, setCourseResetActiveTab] = useState<'directory' | 'audit'>('directory');
+  const [confirmResetTarget, setConfirmResetTarget] = useState<LockedCourseRecord | null>(null);
+  const [adminResetNotes, setAdminResetNotes] = useState('');
+  const [isResettingCourse, setIsResettingCourse] = useState(false);
+
+  useEffect(() => {
+    const handleCourseResetUpdate = () => {
+      setLockedRecords(getLockedCourseRecords());
+      setCourseResetAuditLogs(getCourseResetAuditEntries());
+    };
+    window.addEventListener('dopilot_locked_courses_updated', handleCourseResetUpdate);
+    window.addEventListener('dopilot_course_unlocked', handleCourseResetUpdate);
+    window.addEventListener('storage', handleCourseResetUpdate);
+    return () => {
+      window.removeEventListener('dopilot_locked_courses_updated', handleCourseResetUpdate);
+      window.removeEventListener('dopilot_course_unlocked', handleCourseResetUpdate);
+      window.removeEventListener('storage', handleCourseResetUpdate);
+    };
+  }, []);
+
+  const activeLockedCount = lockedRecords.filter(r => r.lockStatus === 'locked').length;
+
+  // Course Pricing & Coupons Management State
+  const [coursePricingList, setCoursePricingList] = useState<CoursePricing[]>(() => getCoursePricingList());
+  const [selectedPricingCourseId, setSelectedPricingCourseId] = useState<string>('python-core');
+  const [courseCoupons, setCourseCoupons] = useState<CourseCoupon[]>(() => getCourseCoupons());
+  const [coursePurchases, setCoursePurchases] = useState<CoursePurchaseRecord[]>(() => getCoursePurchases());
+  const [couponSearch, setCouponSearch] = useState('');
+  const [couponCourseFilter, setCouponCourseFilter] = useState('all');
+  const [couponModalOpen, setCouponModalOpen] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<CourseCoupon | null>(null);
+
+  // Form state for creating / editing coupon
+  const [couponFormCode, setCouponFormCode] = useState('');
+  const [couponFormCourseId, setCouponFormCourseId] = useState('all');
+  const [couponFormType, setCouponFormType] = useState<'percentage' | 'flat'>('percentage');
+  const [couponFormValue, setCouponFormValue] = useState<number>(100);
+  const [couponFormMaxUses, setCouponFormMaxUses] = useState<number>(-1);
+  const [couponFormExpiry, setCouponFormExpiry] = useState<string>('');
+  const [couponFormDesc, setCouponFormDesc] = useState<string>('');
+  const [couponFormIsActive, setCouponFormIsActive] = useState<boolean>(true);
+
+  // Form state for editing course pricing
+  const activeCoursePricing = coursePricingList.find(p => p.courseId === selectedPricingCourseId) || coursePricingList[0];
+  const [pricingRegularInput, setPricingRegularInput] = useState<number>(activeCoursePricing?.regularPrice || 2999);
+  const [pricingSaleInput, setPricingSaleInput] = useState<number>(activeCoursePricing?.salePrice || 999);
+  const [pricingIsActive, setPricingIsActive] = useState<boolean>(activeCoursePricing?.isActive ?? true);
+  const [pricingIsFreeCourse, setPricingIsFreeCourse] = useState<boolean>(activeCoursePricing?.isFreeCourse ?? false);
+
+  useEffect(() => {
+    const active = coursePricingList.find(p => p.courseId === selectedPricingCourseId);
+    if (active) {
+      setPricingRegularInput(active.regularPrice);
+      setPricingSaleInput(active.salePrice);
+      setPricingIsActive(active.isActive);
+      setPricingIsFreeCourse(active.isFreeCourse ?? false);
+    }
+  }, [selectedPricingCourseId, coursePricingList]);
+
+  // Payment QR Configuration State
+  const [paymentQRConfig, setPaymentQRConfig] = useState<PaymentQRConfig>(() => getPaymentQRConfig());
+  const [qrUpiIdInput, setQrUpiIdInput] = useState<string>(paymentQRConfig.upiId);
+  const [qrPayeeNameInput, setQrPayeeNameInput] = useState<string>(paymentQRConfig.merchantName);
+  const [qrImageUrlInput, setQrImageUrlInput] = useState<string>(paymentQRConfig.qrImageUrl || '');
+  const [qrInstructionsInput, setQrInstructionsInput] = useState<string>(paymentQRConfig.paymentInstructions);
+  const [qrTimeoutMinutesInput, setQrTimeoutMinutesInput] = useState<number>(paymentQRConfig.timeoutMinutes);
+  const [qrManualEnabledInput, setQrManualEnabledInput] = useState<boolean>(paymentQRConfig.isEnabled);
+  const [isSavingQrConfig, setIsSavingQrConfig] = useState(false);
+  const [verifyingPurchaseId, setVerifyingPurchaseId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handlePricingCouponsUpdate = () => {
+      setCoursePricingList(getCoursePricingList());
+      setCourseCoupons(getCourseCoupons());
+      setCoursePurchases(getCoursePurchases());
+      const updatedQr = getPaymentQRConfig();
+      setPaymentQRConfig(updatedQr);
+    };
+    window.addEventListener('dopilot_pricing_updated', handlePricingCouponsUpdate);
+    window.addEventListener('dopilot_coupons_updated', handlePricingCouponsUpdate);
+    window.addEventListener('dopilot_course_purchased', handlePricingCouponsUpdate);
+    window.addEventListener('dopilot_payment_qr_config_updated', handlePricingCouponsUpdate);
+    window.addEventListener('dopilot_payment_qr_updated', handlePricingCouponsUpdate);
+    window.addEventListener('dopilot_access_granted', handlePricingCouponsUpdate);
+    window.addEventListener('storage', handlePricingCouponsUpdate);
+    return () => {
+      window.removeEventListener('dopilot_pricing_updated', handlePricingCouponsUpdate);
+      window.removeEventListener('dopilot_coupons_updated', handlePricingCouponsUpdate);
+      window.removeEventListener('dopilot_course_purchased', handlePricingCouponsUpdate);
+      window.removeEventListener('dopilot_payment_qr_config_updated', handlePricingCouponsUpdate);
+      window.removeEventListener('dopilot_payment_qr_updated', handlePricingCouponsUpdate);
+      window.removeEventListener('dopilot_access_granted', handlePricingCouponsUpdate);
+      window.removeEventListener('storage', handlePricingCouponsUpdate);
+    };
+  }, []);
 
   // Support Contact Numbers (Call & WhatsApp) Configuration State
   const initialSupportChannels = (() => {
@@ -404,7 +541,9 @@ export const AdminPanel: React.FC = () => {
   const [students, setStudents] = useState<StudentAdminRecord[]>(DEFAULT_STUDENT_ROSTER);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [studentSearch, setStudentSearch] = useState('');
-  const [studentFilter, setStudentFilter] = useState<'all' | 'started' | 'completed' | 'top_points' | 'low_marks' | 'registered_only'>('all');
+  const [studentFilter, setStudentFilter] = useState<'all' | 'started' | 'completed' | 'top_points' | 'low_marks' | 'registered_only' | 'rewards'>('all');
+  const [rewardRequests, setRewardRequests] = useState<RewardRequest[]>(() => getRewardRequests());
+  const [rewardStatusFilter, setRewardStatusFilter] = useState<'all' | 'pending' | 'approved'>('all');
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>('all');
   type StudentDateFilterPreset = 'all' | 'today' | '7days' | '30days' | '90days' | '1year' | 'custom';
   const [studentDatePreset, setStudentDatePreset] = useState<StudentDateFilterPreset>('all');
@@ -573,6 +712,28 @@ export const AdminPanel: React.FC = () => {
   useEffect(() => {
     fetchStudents();
   }, []);
+
+  useEffect(() => {
+    const handleRewardUpdate = () => {
+      setRewardRequests(getRewardRequests());
+    };
+    window.addEventListener('dopilot_reward_request_update', handleRewardUpdate);
+    window.addEventListener('storage', handleRewardUpdate);
+    return () => {
+      window.removeEventListener('dopilot_reward_request_update', handleRewardUpdate);
+      window.removeEventListener('storage', handleRewardUpdate);
+    };
+  }, []);
+
+  const handleApproveReward = (requestId: string, studentName: string, milestoneAmount: number) => {
+    const success = approveRewardRequest(requestId);
+    if (success) {
+      setRewardRequests(getRewardRequests());
+      showToast(`Approved ₹${milestoneAmount} milestone reward for ${studentName}!`);
+    } else {
+      showToast('Failed to approve request. Please try again.');
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -3265,6 +3426,7 @@ export const AdminPanel: React.FC = () => {
           : 0);
     const lowMarksCount = studentsInDateAndCourse.filter((s) => (s.points <= 3 && s.courseProgressStatus !== 'registered_only') || s.testsFailedCount > 0).length;
     const registeredOnlyCount = studentsInDateAndCourse.filter((s) => s.courseProgressStatus === 'registered_only' || s.courseProgressStatus === 'enrolled_not_started' || s.points === 0).length;
+    const pendingRewardCount = rewardRequests.filter((r) => r.status === 'pending').length;
 
     // 3. Multi-Criteria Filter (Course + Date + Search Query + Performance Tab)
     const filteredStudents = studentsInDateAndCourse.filter((s) => {
@@ -3449,6 +3611,229 @@ export const AdminPanel: React.FC = () => {
       }
     };
 
+    const renderRewardRequestsSection = () => {
+      const totalRewards = rewardRequests.length;
+      const pendingRewards = rewardRequests.filter((r) => r.status === 'pending');
+      const approvedRewards = rewardRequests.filter((r) => r.status === 'approved');
+
+      const filteredRewards = rewardRequests.filter((r) => {
+        if (rewardStatusFilter !== 'all' && r.status !== rewardStatusFilter) {
+          return false;
+        }
+        const q = studentSearch.toLowerCase().trim();
+        if (q) {
+          const matchName = r.studentName.toLowerCase().includes(q);
+          const matchEmail = r.studentEmail.toLowerCase().includes(q);
+          const matchPhone = (r.studentPhone || '').toLowerCase().includes(q);
+          const matchCollege = (r.collegeOrCompany || '').toLowerCase().includes(q);
+          const matchMilestone = `milestone ${r.milestonePoints}`.includes(q) || `₹${r.rewardAmount}`.includes(q);
+          const matchStatus = r.status.toLowerCase().includes(q);
+          if (!matchName && !matchEmail && !matchPhone && !matchCollege && !matchMilestone && !matchStatus) {
+            return false;
+          }
+        }
+        return true;
+      });
+
+      return (
+        <div className="space-y-6">
+          {/* Rewards Summary KPIs & Subfilters */}
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-5 rounded-2xl bg-white/[0.03] border border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                <Trophy className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-jakarta font-bold text-sm text-paper flex items-center gap-2">
+                  Milestone Reward Approval Queue
+                  {pendingRewards.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 font-mono text-[10px] font-bold">
+                      {pendingRewards.length} PENDING VERIFICATION
+                    </span>
+                  )}
+                </h4>
+                <p className="text-xs text-slate/80">
+                  Review and verify genuine student milestone achievement requests. Approvals immediately update both admin and student records.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {[
+                { id: 'all', label: 'All Requests', count: totalRewards },
+                { id: 'pending', label: 'Pending', count: pendingRewards.length },
+                { id: 'approved', label: 'Approved', count: approvedRewards.length },
+              ].map((subTab) => {
+                const active = rewardStatusFilter === subTab.id;
+                return (
+                  <button
+                    key={subTab.id}
+                    type="button"
+                    onClick={() => setRewardStatusFilter(subTab.id as any)}
+                    className={`px-3.5 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                      active
+                        ? 'bg-primary text-ink shadow-md shadow-primary/20 scale-[1.02]'
+                        : 'bg-white/5 text-slate hover:text-paper hover:bg-white/10 border border-white/5'
+                    }`}
+                  >
+                    <span>{subTab.label}</span>
+                    <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                      active ? 'bg-black/20 text-ink font-bold' : 'bg-white/10 text-slate/80'
+                    }`}>
+                      {subTab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Requests Grid */}
+          {filteredRewards.length === 0 ? (
+            <div className="p-16 text-center rounded-3xl bg-white/[0.02] border border-white/10 space-y-3">
+              <Trophy className="w-10 h-10 text-slate/40 mx-auto" />
+              <h4 className="font-jakarta font-bold text-base text-paper">No reward requests match your filter</h4>
+              <p className="text-xs text-slate max-w-sm mx-auto">
+                {rewardStatusFilter === 'pending'
+                  ? 'All pending requests have been reviewed and approved.'
+                  : 'Try adjusting your search query or switching to All Requests.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setRewardStatusFilter('all');
+                  setStudentSearch('');
+                }}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-paper font-jakarta text-xs font-bold transition-all cursor-pointer"
+              >
+                Reset Rewards Filter
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filteredRewards.map((req) => {
+                const isApproved = req.status === 'approved';
+                return (
+                  <div
+                    key={req.id}
+                    className={`rounded-3xl bg-[#0e0f12] border p-5 space-y-4 transition-all shadow-xl flex flex-col justify-between group ${
+                      isApproved
+                        ? 'border-emerald-500/20 hover:border-emerald-500/40'
+                        : 'border-amber-500/30 hover:border-amber-500/50 bg-gradient-to-b from-amber-500/[0.02] to-transparent'
+                    }`}
+                  >
+                    {/* Top: Student Header & Status Badge */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-11 h-11 rounded-2xl bg-primary/20 border border-primary/40 text-primary flex items-center justify-center font-jakarta font-black text-sm shrink-0">
+                          {getUserInitials(req.studentName)}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="font-jakarta font-bold text-sm text-paper group-hover:text-primary transition-colors truncate">
+                            {req.studentName}
+                          </h3>
+                          <span className="font-mono text-xs text-slate/70 block truncate">
+                            {req.studentEmail}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0">
+                        {isApproved ? (
+                          <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-bold flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" />
+                            APPROVED
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono text-[10px] font-bold flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            PENDING
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Student Details: Phone, College, Dates */}
+                    <div className="space-y-1.5 text-xs text-slate/70 font-mono bg-white/[0.02] p-3 rounded-2xl border border-white/5">
+                      {req.studentPhone && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-3.5 h-3.5 text-slate/40 shrink-0" />
+                          <span className="text-paper truncate">{req.studentPhone}</span>
+                        </div>
+                      )}
+                      {req.collegeOrCompany && (
+                        <div className="flex items-center gap-2">
+                          <GraduationCap className="w-3.5 h-3.5 text-slate/40 shrink-0" />
+                          <span className="text-paper truncate">{req.collegeOrCompany}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 text-[11px] text-slate/50 pt-1 border-t border-white/5">
+                        <Calendar className="w-3 h-3 shrink-0" />
+                        <span>Requested: {new Date(req.requestedAt).toLocaleString()}</span>
+                      </div>
+                      {isApproved && req.approvedAt && (
+                        <div className="flex items-center gap-2 text-[11px] text-emerald-400/90">
+                          <CheckCircle2 className="w-3 h-3 shrink-0 text-emerald-400" />
+                          <span>Approved: {new Date(req.approvedAt).toLocaleString()}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Milestone & Points Balance Details */}
+                    <div className="p-3.5 rounded-2xl bg-black/60 border border-white/10 flex items-center justify-between gap-3">
+                      <div>
+                        <span className="text-[10px] font-mono text-slate/60 uppercase tracking-wider block">Milestone Reward</span>
+                        <span className="font-jakarta font-bold text-sm text-paper flex items-center gap-1.5 mt-0.5">
+                          <Trophy className="w-4 h-4 text-amber-400" />
+                          {req.milestonePoints} Points
+                        </span>
+                        <span className="text-[11px] font-mono text-primary font-bold block mt-0.5">
+                          Reward: ₹{req.rewardAmount}
+                        </span>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] font-mono text-slate/60 uppercase tracking-wider block">Points Balance</span>
+                        <span className="font-mono font-bold text-base text-paper block mt-0.5">
+                          {req.pointsBalance} <span className="text-xs text-slate/60 font-normal">pts</span>
+                        </span>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md inline-block mt-0.5 ${
+                          req.pointsBalance >= req.milestonePoints
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                        }`}>
+                          {req.pointsBalance >= req.milestonePoints ? '✓ Eligible' : 'Under Points'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div>
+                      {isApproved ? (
+                        <div className="w-full py-2.5 px-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center font-jakarta font-bold text-xs text-emerald-400 flex items-center justify-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4" />
+                          Request Approved
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleApproveReward(req.id, req.studentName, req.rewardAmount)}
+                          className="w-full py-2.5 px-4 rounded-2xl bg-primary hover:bg-primary/90 text-ink font-jakarta font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-ink" />
+                          <span>Approve</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    };
+
     return (
       <section id="section-students" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
         {/* Section Header */}
@@ -3537,8 +3922,10 @@ export const AdminPanel: React.FC = () => {
               { id: 'completed', label: 'Completed', count: completedCount },
               { id: 'started', label: 'Course Started', count: startedCount },
               { id: 'registered_only', label: 'Registered Only', count: registeredOnlyCount },
+              { id: 'rewards', label: 'Milestone Rewards', count: pendingRewardCount, isReward: true },
             ].map((tab) => {
               const active = studentFilter === tab.id;
+              const hasPending = (tab as any).isReward && pendingRewardCount > 0;
               return (
                 <button
                   key={tab.id}
@@ -3547,12 +3934,19 @@ export const AdminPanel: React.FC = () => {
                   className={`px-3.5 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                     active
                       ? 'bg-primary text-ink shadow-md shadow-primary/20 scale-[1.02]'
+                      : hasPending
+                      ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border border-amber-500/30'
                       : 'bg-white/5 text-slate hover:text-paper hover:bg-white/10 border border-white/5'
                   }`}
                 >
+                  {(tab as any).isReward && <Trophy className="w-3.5 h-3.5 shrink-0 text-amber-400" />}
                   <span>{tab.label}</span>
                   <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
-                    active ? 'bg-black/20 text-ink font-bold' : 'bg-white/10 text-slate/80'
+                    active
+                      ? 'bg-black/20 text-ink font-bold'
+                      : hasPending
+                      ? 'bg-amber-500/20 text-amber-300 font-bold'
+                      : 'bg-white/10 text-slate/80'
                   }`}>
                     {tab.count}
                   </span>
@@ -3743,8 +4137,10 @@ export const AdminPanel: React.FC = () => {
           )}
         </div>
 
-        {/* Zero State if empty */}
-        {filteredStudents.length === 0 ? (
+        {/* Milestone Rewards Approval Queue OR Student Roster */}
+        {studentFilter === 'rewards' ? (
+          renderRewardRequestsSection()
+        ) : filteredStudents.length === 0 ? (
           <div className="p-16 text-center rounded-3xl bg-white/[0.02] border border-white/10 space-y-3">
             <Users className="w-10 h-10 text-slate/40 mx-auto" />
             <h4 className="font-jakarta font-bold text-base text-paper">No students match your filter</h4>
@@ -4621,6 +5017,1665 @@ export const AdminPanel: React.FC = () => {
     );
   };
 
+  // Course Assessment Reset Confirmation Modal
+  const renderCourseResetConfirmModal = () => {
+    if (!confirmResetTarget) return null;
+
+    const handleConfirmReset = async () => {
+      setIsResettingCourse(true);
+      try {
+        const adminName = getAdminUsername() || 'admin';
+        const res = resetStudentCourse(confirmResetTarget.id, adminName, adminResetNotes);
+        if (res.success) {
+          addAuditLog(
+            'COURSE_UNLOCKED',
+            `Admin ${adminName} unlocked ${confirmResetTarget.courseName} for student ${confirmResetTarget.studentName} (${confirmResetTarget.studentEmail}). Failure streak reset to 0.`,
+            'SUCCESS'
+          );
+          setLockedRecords(getLockedCourseRecords());
+          setCourseResetAuditLogs(getCourseResetAuditEntries());
+          showToast(`Course successfully unlocked for ${confirmResetTarget.studentName}!`);
+          setConfirmResetTarget(null);
+          setAdminResetNotes('');
+        } else {
+          showToast(res.error || 'Failed to unlock course');
+        }
+      } catch (e) {
+        showToast('Error executing course reset');
+      } finally {
+        setIsResettingCourse(false);
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="max-w-xl w-full rounded-3xl bg-[#0c0d0e] border border-white/15 p-6 sm:p-8 space-y-6 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 blur-[90px] rounded-full pointer-events-none" />
+
+          {/* Modal Header */}
+          <div className="flex items-start justify-between gap-4 relative z-10">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+                <RotateCcw className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-jakarta text-lg sm:text-xl font-black text-paper">
+                  Confirm Course Assessment Reset
+                </h3>
+                <p className="font-mono text-xs text-slate mt-0.5">
+                  Verify student and course details before approving reset
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmResetTarget(null);
+                setAdminResetNotes('');
+              }}
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper transition-all cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Target Student & Course Details */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-black/60 border border-white/10 space-y-3 relative z-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <span className="font-mono text-[10px] text-slate/70 uppercase block">Student Name</span>
+                <span className="font-jakarta font-bold text-paper text-sm">{confirmResetTarget.studentName}</span>
+              </div>
+              <div>
+                <span className="font-mono text-[10px] text-slate/70 uppercase block">Student Email</span>
+                <span className="font-mono text-paper truncate block">{confirmResetTarget.studentEmail}</span>
+              </div>
+              <div>
+                <span className="font-mono text-[10px] text-slate/70 uppercase block">Target Course</span>
+                <span className="font-jakarta font-bold text-cyan-300 block">{confirmResetTarget.courseName}</span>
+              </div>
+              <div>
+                <span className="font-mono text-[10px] text-slate/70 uppercase block">Assessment Module</span>
+                <span className="font-mono text-paper block">{confirmResetTarget.partTitle || `Part ${confirmResetTarget.partNum || 1}`}</span>
+              </div>
+            </div>
+
+            {/* Reset Scope Guarantee Box */}
+            <div className="pt-3 border-t border-white/5 space-y-2 font-mono text-[11px]">
+              <div className="flex items-center gap-2 text-emerald-400">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Failure count reset: 3 consecutive failures &rarr; 0 (Clean slate)</span>
+              </div>
+              <div className="flex items-center gap-2 text-emerald-400">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Level attempt reset: Restores Attempt 1 with fresh questions</span>
+              </div>
+              <div className="flex items-center gap-2 text-primary">
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                <span>Safe Isolation: Points ({confirmResetTarget.earnedPoints} pts) &amp; other courses preserved</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Admin Notes Field */}
+          <div className="space-y-2 relative z-10">
+            <label className="font-mono text-[11px] text-slate/80 font-bold uppercase tracking-wider block">
+              Admin Notes / Reason (Optional)
+            </label>
+            <textarea
+              rows={3}
+              value={adminResetNotes}
+              onChange={(e) => setAdminResetNotes(e.target.value)}
+              placeholder="e.g. Student reviewed concepts in 1-on-1 session and is approved to re-attempt."
+              className="w-full px-4 py-3 rounded-2xl bg-black/70 border border-white/10 text-paper font-jakarta text-xs sm:text-sm focus:outline-none focus:border-cyan-400 transition-all placeholder:text-slate/40 resize-none"
+            />
+          </div>
+
+          {/* Modal Actions */}
+          <div className="flex items-center justify-end gap-3 pt-2 relative z-10">
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmResetTarget(null);
+                setAdminResetNotes('');
+              }}
+              disabled={isResettingCourse}
+              className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper font-jakarta text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmReset}
+              disabled={isResettingCourse}
+              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider hover:opacity-95 shadow-lg shadow-cyan-500/25 flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+            >
+              <RotateCcw className={`w-4 h-4 ${isResettingCourse ? 'animate-spin' : ''}`} />
+              <span>{isResettingCourse ? 'Resetting...' : 'Approve & Reset Course'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Course Assessment Reset & Lockout Management Section
+  const renderCourseResetSection = () => {
+    const unlockedCount = lockedRecords.filter(r => r.lockStatus === 'unlocked').length;
+
+    const filteredRecords = lockedRecords.filter(r => {
+      const matchSearch =
+        courseResetSearch.trim() === '' ||
+        r.studentName.toLowerCase().includes(courseResetSearch.toLowerCase()) ||
+        r.studentEmail.toLowerCase().includes(courseResetSearch.toLowerCase()) ||
+        (r.studentPhone && r.studentPhone.toLowerCase().includes(courseResetSearch.toLowerCase())) ||
+        r.courseName.toLowerCase().includes(courseResetSearch.toLowerCase()) ||
+        (r.partTitle && r.partTitle.toLowerCase().includes(courseResetSearch.toLowerCase()));
+
+      const matchStatus =
+        courseResetStatusFilter === 'all' || r.lockStatus === courseResetStatusFilter;
+
+      const matchCourse =
+        courseResetCourseFilter === 'all' ||
+        r.courseId.toLowerCase().includes(courseResetCourseFilter.toLowerCase()) ||
+        r.courseName.toLowerCase().includes(courseResetCourseFilter.toLowerCase());
+
+      return matchSearch && matchStatus && matchCourse;
+    });
+
+    const handleRefresh = () => {
+      const live = scanAndSyncLiveLocks();
+      setLockedRecords(live);
+      setCourseResetAuditLogs(getCourseResetAuditEntries());
+      showToast('Course lock records refreshed');
+    };
+
+    return (
+      <section className="space-y-6">
+        {/* Top Header Card */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 blur-[130px] rounded-full pointer-events-none" />
+
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.05] border border-white/10 mb-3">
+                <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="font-mono text-[10px] text-cyan-300 font-bold uppercase tracking-wider">
+                  Course Assessment &amp; Lockout Control
+                </span>
+                {activeLockedCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-mono text-[10px] font-bold border border-rose-500/30 animate-pulse">
+                    {activeLockedCount} Currently Locked
+                  </span>
+                )}
+              </div>
+              <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
+                Admin Course Reset System
+              </h2>
+              <p className="font-mono text-xs text-slate mt-1.5 max-w-2xl leading-relaxed">
+                Manage students who encountered 3 consecutive assessment failures. Safely reset the failure streak and allow new attempts while keeping earned points, rewards, and other enrolled tracks fully preserved.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleRefresh}
+                className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-paper font-jakarta text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer"
+                title="Scan and refresh live locks"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Refresh Status</span>
+              </button>
+
+              <div className="flex items-center bg-black/60 border border-white/10 p-1 rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => setCourseResetActiveTab('directory')}
+                  className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all cursor-pointer ${
+                    courseResetActiveTab === 'directory'
+                      ? 'bg-cyan-500 text-ink shadow-md shadow-cyan-500/20'
+                      : 'text-slate hover:text-paper'
+                  }`}
+                >
+                  Locked Students ({lockedRecords.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCourseResetActiveTab('audit')}
+                  className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all cursor-pointer ${
+                    courseResetActiveTab === 'audit'
+                      ? 'bg-cyan-500 text-ink shadow-md shadow-cyan-500/20'
+                      : 'text-slate hover:text-paper'
+                  }`}
+                >
+                  Reset Audit Log ({courseResetAuditLogs.length})
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 4 Summary Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Currently Locked */}
+          <div className="p-5 rounded-3xl bg-[#0c0d0e] border border-rose-500/20 space-y-2 relative overflow-hidden shadow-xl">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[10px] text-rose-400 font-bold uppercase tracking-wider">
+                Currently Locked
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
+                <ShieldAlert className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-3xl font-jakarta font-black text-rose-300">
+              {activeLockedCount}
+            </div>
+            <p className="font-mono text-[11px] text-slate/80">
+              3 consecutive failures active
+            </p>
+          </div>
+
+          {/* Card 2: Restored */}
+          <div className="p-5 rounded-3xl bg-[#0c0d0e] border border-emerald-500/20 space-y-2 relative overflow-hidden shadow-xl">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+                Restored &amp; Unlocked
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <CheckCircle2 className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-3xl font-jakarta font-black text-emerald-300">
+              {unlockedCount}
+            </div>
+            <p className="font-mono text-[11px] text-slate/80">
+              Reset by admin &amp; active
+            </p>
+          </div>
+
+          {/* Card 3: Audit Entries */}
+          <div className="p-5 rounded-3xl bg-[#0c0d0e] border border-cyan-500/20 space-y-2 relative overflow-hidden shadow-xl">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[10px] text-cyan-400 font-bold uppercase tracking-wider">
+                Total Resets Performed
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                <RotateCcw className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-3xl font-jakarta font-black text-cyan-300">
+              {courseResetAuditLogs.length}
+            </div>
+            <p className="font-mono text-[11px] text-slate/80">
+              Logged in audit database
+            </p>
+          </div>
+
+          {/* Card 4: Safe Reset Guarantee */}
+          <div className="p-5 rounded-3xl bg-[#0c0d0e] border border-white/10 space-y-2 relative overflow-hidden shadow-xl">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider">
+                Safe Reset Scope
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center text-primary">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-xl font-jakarta font-black text-paper">
+              100% Isolated
+            </div>
+            <p className="font-mono text-[11px] text-slate/80">
+              Points &amp; other courses untouched
+            </p>
+          </div>
+        </div>
+
+        {/* Directory Tab View */}
+        {courseResetActiveTab === 'directory' ? (
+          <div className="space-y-4">
+            {/* Filter and Search Bar */}
+            <div className="p-4 rounded-3xl bg-[#0c0d0e] border border-white/10 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
+              <div className="relative w-full md:w-80">
+                <Search className="w-4 h-4 text-slate absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search student, email, course..."
+                  value={courseResetSearch}
+                  onChange={(e) => setCourseResetSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 rounded-xl bg-black/60 border border-white/10 text-paper font-jakarta text-xs focus:outline-none focus:border-cyan-400 placeholder:text-slate/50"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                <div className="flex items-center p-1 bg-black/60 border border-white/10 rounded-2xl">
+                  {(['all', 'locked', 'unlocked'] as const).map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setCourseResetStatusFilter(st)}
+                      className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all cursor-pointer capitalize ${
+                        courseResetStatusFilter === st
+                          ? 'bg-cyan-500 text-ink shadow-md shadow-cyan-500/20'
+                          : 'text-slate hover:text-paper'
+                      }`}
+                    >
+                      {st === 'all' && `All (${lockedRecords.length})`}
+                      {st === 'locked' && `Locked (${activeLockedCount})`}
+                      {st === 'unlocked' && `Unlocked (${unlockedCount})`}
+                    </button>
+                  ))}
+                </div>
+
+                <select
+                  value={courseResetCourseFilter}
+                  onChange={(e) => setCourseResetCourseFilter(e.target.value)}
+                  className="px-3 py-2 rounded-xl bg-black/70 border border-white/10 text-paper font-mono text-xs focus:outline-none focus:border-cyan-400 cursor-pointer"
+                >
+                  <option value="all">All Courses</option>
+                  <option value="python">Python</option>
+                  <option value="java">Java</option>
+                  <option value="fullstack">Full Stack</option>
+                  <option value="cyber">Cyber Security</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Locked Students List */}
+            {filteredRecords.length === 0 ? (
+              <div className="p-12 text-center rounded-3xl bg-[#0c0d0e] border border-white/10 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-white/5 text-slate flex items-center justify-center mx-auto">
+                  <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                </div>
+                <h4 className="font-jakarta text-base font-bold text-paper">No Locked Students Found</h4>
+                <p className="font-mono text-xs text-slate max-w-md mx-auto">
+                  {courseResetSearch || courseResetStatusFilter !== 'all' || courseResetCourseFilter !== 'all'
+                    ? 'No records match your active search or filters.'
+                    : 'All students are currently progressing without lockouts. Any 3-consecutive-failure lock will automatically appear here.'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredRecords.map((item) => {
+                  const isLocked = item.lockStatus === 'locked';
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-5 rounded-3xl bg-[#0c0d0e] border transition-all space-y-4 shadow-xl ${
+                        isLocked
+                          ? 'border-rose-500/30 hover:border-rose-500/50'
+                          : 'border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                        {/* Student and Course Info */}
+                        <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
+                            isLocked
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          }`}>
+                            {getUserInitials(item.studentName)}
+                          </div>
+
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="font-jakarta font-bold text-base text-paper truncate">
+                                {item.studentName}
+                              </h4>
+
+                              <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-slate/80 border border-white/5">
+                                ID: {item.studentId}
+                              </span>
+
+                              {isLocked ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono text-[11px] font-bold animate-pulse">
+                                  <ShieldAlert className="w-3 h-3" />
+                                  <span>Progression Locked</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono text-[11px] font-bold">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Unlocked &amp; Active</span>
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-slate">
+                              <span className="flex items-center gap-1">
+                                <Mail className="w-3 h-3 text-slate/70" />
+                                <a href={`mailto:${item.studentEmail}`} className="hover:text-cyan-300 transition-colors">
+                                  {item.studentEmail}
+                                </a>
+                              </span>
+                              {item.studentPhone && (
+                                <span className="flex items-center gap-1">
+                                  <Phone className="w-3 h-3 text-slate/70" />
+                                  <span>{item.studentPhone}</span>
+                                </span>
+                              )}
+                              {item.collegeOrCompany && (
+                                <span className="flex items-center gap-1">
+                                  <GraduationCap className="w-3 h-3 text-slate/70" />
+                                  <span>{item.collegeOrCompany}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Reset Button */}
+                        <div className="flex items-center gap-2.5 shrink-0 self-end lg:self-center">
+                          {isLocked ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setConfirmResetTarget(item);
+                                setAdminResetNotes('');
+                              }}
+                              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider hover:opacity-95 shadow-lg shadow-cyan-500/25 flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span>Reset Course</span>
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[11px] text-slate/70">
+                                Restored {item.unlockedAt ? new Date(item.unlockedAt).toLocaleDateString() : ''} by {item.unlockedBy || 'admin'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmResetTarget(item);
+                                  setAdminResetNotes('');
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper font-mono text-xs border border-white/10 transition-all cursor-pointer"
+                                title="Re-reset if needed"
+                              >
+                                Re-Reset
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Detail Metrics Bar */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-white/5">
+                        <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
+                          <span className="font-mono text-[10px] text-slate/70 uppercase block">Locked Course</span>
+                          <span className="font-jakarta font-bold text-xs text-paper block truncate">
+                            {item.courseName}
+                          </span>
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
+                          <span className="font-mono text-[10px] text-slate/70 uppercase block">Assessment Module</span>
+                          <span className="font-mono text-xs font-bold text-cyan-300 block truncate">
+                            {item.partTitle || `Part ${item.partNum || 1}`}
+                          </span>
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
+                          <span className="font-mono text-[10px] text-slate/70 uppercase block">Consecutive Failures</span>
+                          <span className="font-mono text-xs font-bold text-rose-400 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            <span>{item.consecutiveFailures} consecutive exam failures</span>
+                          </span>
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
+                          <span className="font-mono text-[10px] text-slate/70 uppercase block">Student Progress</span>
+                          <span className="font-mono text-xs text-paper block truncate">
+                            {item.progressSummary}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Admin Notes if restored */}
+                      {item.adminNotes && (
+                        <div className="p-3 rounded-2xl bg-cyan-500/5 border border-cyan-500/20 text-xs font-mono text-cyan-200">
+                          <span className="font-bold uppercase text-[10px] text-cyan-400 block mb-0.5">Admin Note:</span>
+                          <span>{item.adminNotes}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Audit Log Tab View */
+          <div className="p-6 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-jakarta font-bold text-base text-paper flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-cyan-400" />
+                <span>Historical Reset Audit Trail</span>
+              </h3>
+              <span className="font-mono text-xs text-slate">
+                {courseResetAuditLogs.length} Records Logged
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-mono">
+                <thead>
+                  <tr className="border-b border-white/10 text-slate/70 uppercase text-[10px]">
+                    <th className="py-3 px-3">Audit ID</th>
+                    <th className="py-3 px-3">Student</th>
+                    <th className="py-3 px-3">Course</th>
+                    <th className="py-3 px-3">Reset By</th>
+                    <th className="py-3 px-3">Date &amp; Time</th>
+                    <th className="py-3 px-3">Notes</th>
+                    <th className="py-3 px-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {courseResetAuditLogs.map((entry) => (
+                    <tr key={entry.id} className="hover:bg-white/[0.02]">
+                      <td className="py-3 px-3 text-cyan-400 font-bold">{entry.id}</td>
+                      <td className="py-3 px-3">
+                        <div className="font-jakarta font-bold text-paper">{entry.studentName}</div>
+                        <div className="text-slate/60 text-[10px]">{entry.studentEmail}</div>
+                      </td>
+                      <td className="py-3 px-3 text-paper">{entry.courseName}</td>
+                      <td className="py-3 px-3">
+                        <span className="px-2 py-0.5 rounded-md bg-white/5 text-paper">
+                          {entry.adminIdentifier}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-slate">
+                        {new Date(entry.resetTimestamp).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-slate/80 max-w-xs truncate">
+                        {entry.adminNotes || '—'}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">
+                          {entry.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
+    );
+  };
+
+  // ----------------------------------------------------
+  // Course Pricing & Coupons Handlers & Section
+  // ----------------------------------------------------
+  const handleSaveCoursePricing = (e: React.FormEvent) => {
+    e.preventDefault();
+    const activePricing = coursePricingList.find(p => p.courseId === selectedPricingCourseId) || coursePricingList[0];
+    if (activePricing) {
+      updateCoursePricing({
+        ...activePricing,
+        regularPrice: Number(pricingRegularInput) || 0,
+        salePrice: Number(pricingSaleInput) || 0,
+        isActive: pricingIsActive,
+        isFreeCourse: pricingIsFreeCourse,
+        updatedAt: new Date().toISOString()
+      });
+      setCoursePricingList(getCoursePricingList());
+      showToast(
+        pricingIsFreeCourse
+          ? `Saved ${activePricing.courseName} as 100% Free Course!`
+          : `Saved pricing for ${activePricing.courseName} (₹${pricingSaleInput})!`
+      );
+    }
+  };
+
+  const handleOpenCouponModal = (coupon?: CourseCoupon) => {
+    if (coupon) {
+      setEditingCoupon(coupon);
+      setCouponFormCode(coupon.code);
+      setCouponFormCourseId(coupon.courseId);
+      setCouponFormType(coupon.discountType);
+      setCouponFormValue(coupon.discountValue);
+      setCouponFormMaxUses(coupon.maxUses ?? -1);
+      setCouponFormExpiry(coupon.validUntil ? coupon.validUntil.slice(0, 10) : '');
+      setCouponFormDesc(coupon.description || '');
+      setCouponFormIsActive(coupon.isActive);
+    } else {
+      setEditingCoupon(null);
+      setCouponFormCode('');
+      setCouponFormCourseId(selectedPricingCourseId);
+      setCouponFormType('percentage');
+      setCouponFormValue(100);
+      setCouponFormMaxUses(-1);
+      setCouponFormExpiry('');
+      setCouponFormDesc('');
+      setCouponFormIsActive(true);
+    }
+    setCouponModalOpen(true);
+  };
+
+  const handleSaveCoupon = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = couponFormCode.trim().toUpperCase();
+    if (!cleanCode) {
+      alert('Please enter a valid coupon code.');
+      return;
+    }
+    const val = Number(couponFormValue) || 0;
+    const maxU = Number(couponFormMaxUses);
+    const newCouponPayload = {
+      code: cleanCode,
+      courseId: couponFormCourseId,
+      discountType: couponFormType,
+      discountValue: val,
+      maxUses: maxU > 0 ? maxU : -1,
+      isActive: couponFormIsActive,
+      validUntil: couponFormExpiry ? new Date(couponFormExpiry).toISOString() : undefined,
+      description: couponFormDesc.trim() || undefined
+    };
+
+    if (editingCoupon) {
+      updateCourseCoupon({
+        ...editingCoupon,
+        ...newCouponPayload
+      });
+      showToast(`Coupon ${cleanCode} updated!`);
+    } else {
+      createCourseCoupon(newCouponPayload);
+      showToast(`Coupon ${cleanCode} created!`);
+    }
+    setCourseCoupons(getCourseCoupons());
+    setCouponModalOpen(false);
+  };
+
+  const handleToggleCoupon = (code: string) => {
+    toggleCourseCouponActive(code);
+    setCourseCoupons(getCourseCoupons());
+    showToast(`Updated coupon status`);
+  };
+
+  const handleDeleteCoupon = (code: string) => {
+    if (window.confirm(`Are you sure you want to delete coupon ${code}?`)) {
+      deleteCourseCoupon(code);
+      setCourseCoupons(getCourseCoupons());
+      showToast(`Coupon ${code} removed`);
+    }
+  };
+
+  const handleSavePaymentQRConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingQrConfig(true);
+    const updated = updatePaymentQRConfig({
+      upiId: qrUpiIdInput.trim() || 'dopilot@upi',
+      merchantName: qrPayeeNameInput.trim() || 'DO PILOT',
+      qrImageUrl: qrImageUrlInput.trim() || '',
+      paymentInstructions: qrInstructionsInput.trim() || 'Scan using Google Pay, Paytm, PhonePe, or any UPI app. Complete the transfer and enter your 12-digit UPI Reference / UTR Number below to verify your payment.',
+      timeoutMinutes: Math.max(1, Math.min(60, Number(qrTimeoutMinutesInput) || 10)),
+      isEnabled: qrManualEnabledInput
+    });
+    setPaymentQRConfig(updated);
+    setIsSavingQrConfig(false);
+    showToast('Official UPI QR & Payment settings saved successfully!');
+  };
+
+  const handleQrImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert('Please choose an image under 2MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setQrImageUrlInput(reader.result);
+          showToast('QR Code image uploaded successfully!');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleVerifyManualPayment = (purchaseId: string, approve: boolean) => {
+    const rec = coursePurchases.find(p => p.id === purchaseId);
+    if (!rec) return;
+    const actionWord = approve ? 'approve and unlock course access for' : 'reject the payment from';
+
+    if (window.confirm(`Are you sure you want to ${actionWord} ${rec.studentName} for "${rec.courseName}"?`)) {
+      setVerifyingPurchaseId(purchaseId);
+      verifyManualQRPurchase(purchaseId, approve, adminEmails.primaryEmail || 'admin@dopilot.com');
+      setCoursePurchases(getCoursePurchases());
+      setVerifyingPurchaseId(null);
+      if (approve) {
+        showToast(`Payment approved! Full course access unlocked for ${rec.studentName}.`);
+      } else {
+        showToast(`Payment marked as rejected for ${rec.studentName}.`);
+      }
+    }
+  };
+
+  const renderCouponModal = () => (
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="max-w-lg w-full rounded-3xl bg-[#0c0d0e] border border-white/15 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+        <div className="flex items-center justify-between pb-4 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary">
+              <Tag className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-jakarta font-extrabold text-lg text-paper">
+                {editingCoupon ? 'Edit Coupon Code' : 'Create New Coupon'}
+              </h3>
+              <p className="text-xs text-slate">Configure discount rules, course eligibility & limits</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCouponModalOpen(false)}
+            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate hover:text-paper"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSaveCoupon} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate mb-1">Coupon Code (Uppercase)</label>
+            <input
+              type="text"
+              required
+              disabled={!!editingCoupon}
+              value={couponFormCode}
+              onChange={(e) => setCouponFormCode(e.target.value.toUpperCase())}
+              placeholder="e.g. DOPILOT100 or FLAT500"
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-sm tracking-wider uppercase font-bold"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate mb-1">Applies To Course</label>
+              <select
+                value={couponFormCourseId}
+                onChange={(e) => setCouponFormCourseId(e.target.value)}
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-2.5 text-paper focus:border-primary focus:outline-none text-xs"
+              >
+                <option value="all">All Courses</option>
+                {coursePricingList.map(c => (
+                  <option key={c.courseId} value={c.courseId}>{c.courseName}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate mb-1">Discount Type</label>
+              <select
+                value={couponFormType}
+                onChange={(e) => setCouponFormType(e.target.value as 'percentage' | 'flat')}
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-2.5 text-paper focus:border-primary focus:outline-none text-xs"
+              >
+                <option value="percentage">Percentage (%)</option>
+                <option value="flat">Flat Amount (₹)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate mb-1">
+                Discount Value {couponFormType === 'percentage' ? '(100 = 100% Free ₹0)' : '(₹ Amount)'}
+              </label>
+              <input
+                type="number"
+                min="1"
+                max={couponFormType === 'percentage' ? 100 : 100000}
+                required
+                value={couponFormValue}
+                onChange={(e) => setCouponFormValue(Number(e.target.value))}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate mb-1">Max Uses (-1 for Unlimited)</label>
+              <input
+                type="number"
+                value={couponFormMaxUses}
+                onChange={(e) => setCouponFormMaxUses(Number(e.target.value))}
+                className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-sm"
+              />
+            </div>
+          </div>
+
+          {couponFormType === 'percentage' && couponFormValue === 100 && (
+            <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-2.5 text-xs text-emerald-300">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                <strong>100% Free Coupon:</strong> This coupon will instantly unlock full course access for ₹0 without requiring payment gateway checkout.
+              </span>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-slate mb-1">Expiry Date (Optional)</label>
+            <input
+              type="date"
+              value={couponFormExpiry}
+              onChange={(e) => setCouponFormExpiry(e.target.value)}
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none text-xs"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate mb-1">Description / Campaign Note</label>
+            <input
+              type="text"
+              value={couponFormDesc}
+              onChange={(e) => setCouponFormDesc(e.target.value)}
+              placeholder="e.g. Early Bird Launch discount for students"
+              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none text-xs"
+            />
+          </div>
+
+          <div className="flex items-center gap-3 pt-2">
+            <input
+              type="checkbox"
+              id="couponActiveCheckbox"
+              checked={couponFormIsActive}
+              onChange={(e) => setCouponFormIsActive(e.target.checked)}
+              className="w-4 h-4 accent-primary rounded cursor-pointer"
+            />
+            <label htmlFor="couponActiveCheckbox" className="text-xs font-bold text-paper cursor-pointer select-none">
+              Coupon is Active and usable by students
+            </label>
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-white/10">
+            <button
+              type="submit"
+              className="flex-1 py-3 rounded-xl bg-primary text-ink font-bold text-xs hover:brightness-110 shadow-lg shadow-primary/20"
+            >
+              {editingCoupon ? 'Save Changes' : 'Create Coupon'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCouponModalOpen(false)}
+              className="px-5 py-3 rounded-xl bg-white/10 text-paper font-bold text-xs hover:bg-white/15"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  const renderCoursePricingAndCouponsSection = () => {
+    const totalPurchases = coursePurchases.length;
+    const activeCouponsCount = courseCoupons.filter(c => c.isActive).length;
+    const freeCouponsCount = courseCoupons.filter(c => c.isActive && c.discountType === 'percentage' && c.discountValue === 100).length;
+    const pendingManualPayments = coursePurchases.filter(p => p.paymentMethod === 'manual_upi_qr' && p.status === 'pending_verification');
+    const pendingManualCount = pendingManualPayments.length;
+
+    return (
+      <section className="space-y-8 animate-fadeIn">
+        {/* Top Header Card */}
+        <div className="p-6 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-primary/20 text-primary font-mono text-[10px] uppercase font-bold tracking-wider border border-primary/30 flex items-center gap-1.5">
+                  <Tag className="w-3 h-3" />
+                  E-Commerce & Access Control
+                </span>
+                <span className="text-slate text-xs">•</span>
+                <span className="text-slate text-xs font-medium">Independent Course Pricing, UPI QR & Coupon Rules</span>
+              </div>
+              <h2 className="font-jakarta font-black text-2xl sm:text-3xl text-paper">
+                Course Pricing, UPI QR & Coupons
+              </h2>
+              <p className="text-slate text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
+                Set individual pricing for each of the 4 courses, configure official UPI QR code & instructions, verify student UTR reference payments, and manage promo coupons.
+              </p>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="p-3.5 rounded-2xl bg-black/60 border border-white/10 min-w-[110px]">
+                <div className="text-[10px] font-mono text-slate uppercase">Active Tracks</div>
+                <div className="text-xl font-black text-paper mt-0.5">4 Courses</div>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-black/60 border border-white/10 min-w-[110px]">
+                <div className="text-[10px] font-mono text-slate uppercase">Active Coupons</div>
+                <div className="text-xl font-black text-primary mt-0.5">{activeCouponsCount} Codes</div>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-black/60 border border-emerald-500/20 bg-emerald-500/5 min-w-[110px]">
+                <div className="text-[10px] font-mono text-emerald-400 uppercase">100% Free Codes</div>
+                <div className="text-xl font-black text-emerald-300 mt-0.5">{freeCouponsCount} Active</div>
+              </div>
+              {pendingManualCount > 0 && (
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 min-w-[110px] animate-pulse">
+                  <div className="text-[10px] font-mono text-amber-400 uppercase">Pending UTRs</div>
+                  <div className="text-xl font-black text-amber-300 mt-0.5">{pendingManualCount} To Verify</div>
+                </div>
+              )}
+              <div className="p-3.5 rounded-2xl bg-black/60 border border-white/10 min-w-[110px]">
+                <div className="text-[10px] font-mono text-slate uppercase">Enrollments</div>
+                <div className="text-xl font-black text-paper mt-0.5">{totalPurchases} Students</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 1: Course Price Management */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+            <div>
+              <h3 className="font-jakarta font-extrabold text-lg text-paper flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5 text-primary" />
+                Individual Course Pricing
+              </h3>
+              <p className="text-xs text-slate mt-0.5">Select a course to modify its regular price, offer price, and purchase availability.</p>
+            </div>
+          </div>
+
+          {/* Course Selector Tabs */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {coursePricingList.map(course => {
+              const isSelected = course.courseId === selectedPricingCourseId;
+              return (
+                <button
+                  key={course.courseId}
+                  type="button"
+                  onClick={() => setSelectedPricingCourseId(course.courseId)}
+                  className={`p-4 rounded-2xl text-left transition-all border ${
+                    isSelected
+                      ? 'bg-primary/10 border-primary text-paper shadow-lg shadow-primary/10'
+                      : 'bg-black/40 border-white/10 text-slate hover:text-paper hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-mono text-[10px] uppercase text-primary font-bold px-1.5 py-0.5 bg-primary/10 rounded">
+                      {course.courseId}
+                    </span>
+                    <span className={`w-2 h-2 rounded-full ${course.isActive ? 'bg-emerald-400' : 'bg-rose-500'}`} />
+                  </div>
+                  <div className="font-jakarta font-bold text-sm text-paper truncate">{course.courseName}</div>
+                  {course.isFreeCourse ? (
+                    <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                      <span className="font-mono font-black text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        FREE COURSE
+                      </span>
+                      <span className="font-mono text-[11px] text-slate/50 line-through">₹{course.salePrice}</span>
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex items-baseline gap-2">
+                      <span className="font-mono font-extrabold text-base text-primary">₹{course.salePrice}</span>
+                      <span className="font-mono text-xs text-slate line-through">₹{course.regularPrice}</span>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Pricing Form for Selected Course */}
+          {activeCoursePricing && (
+            <form onSubmit={handleSaveCoursePricing} className="p-6 rounded-2xl bg-black/60 border border-white/10 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/5">
+                <div>
+                  <h4 className="font-jakarta font-bold text-base text-paper">
+                    Editing Pricing: <span className="text-primary">{activeCoursePricing.courseName}</span>
+                  </h4>
+                  <p className="text-xs text-slate font-mono">Course Identifier: {activeCoursePricing.courseId}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate">Status:</span>
+                  <button
+                    type="button"
+                    onClick={() => setPricingIsActive(!pricingIsActive)}
+                    className={`px-3 py-1 rounded-full text-xs font-bold font-mono transition-all ${
+                      pricingIsActive
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                        : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                    }`}
+                  >
+                    {pricingIsActive ? 'Active for Enrollment' : 'Enrollments Paused'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-xs font-bold text-slate mb-1">Regular M.R.P. Price (₹)</label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-slate text-sm">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={pricingRegularInput}
+                      onChange={(e) => setPricingRegularInput(Number(e.target.value))}
+                      className="w-full bg-black border border-white/15 rounded-xl pl-8 pr-4 py-2.5 text-paper font-mono text-sm focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate/70 mt-1 block">Crossed-out anchor price shown to students</span>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate">Sale / Offer Price (₹)</label>
+                    {/* Free Course Checkbox */}
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={pricingIsFreeCourse}
+                        onChange={(e) => setPricingIsFreeCourse(e.target.checked)}
+                        className="w-4 h-4 rounded text-emerald-400 bg-black border-white/20 focus:ring-emerald-400 focus:ring-offset-0 cursor-pointer"
+                      />
+                      <span className={`font-mono text-xs font-bold ${pricingIsFreeCourse ? 'text-emerald-400' : 'text-slate'}`}>
+                        Free Course
+                      </span>
+                    </label>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-primary text-sm font-bold">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={pricingSaleInput}
+                      onChange={(e) => setPricingSaleInput(Number(e.target.value))}
+                      className={`w-full bg-black border rounded-xl pl-8 pr-4 py-2.5 text-paper font-mono text-sm font-bold focus:border-primary focus:outline-none ${
+                        pricingIsFreeCourse ? 'border-emerald-500/40 text-emerald-300' : 'border-primary/40'
+                      }`}
+                    />
+                  </div>
+                  <span className="text-[10px] mt-1 block">
+                    {pricingIsFreeCourse ? (
+                      <span className="text-emerald-400 font-bold">
+                        ✓ Free Course mode: All students get 100% free full access. (Configured ₹{pricingSaleInput} is preserved)
+                      </span>
+                    ) : pricingRegularInput > pricingSaleInput ? (
+                      <span className="text-primary/80">
+                        {Math.round(((pricingRegularInput - pricingSaleInput) / pricingRegularInput) * 100)}% Discount automatically applied
+                      </span>
+                    ) : (
+                      <span className="text-slate/70">Actual payable price before coupon</span>
+                    )}
+                  </span>
+                </div>
+
+                <div className="flex flex-col justify-end">
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 px-6 rounded-xl bg-primary text-ink font-bold text-xs sm:text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" />
+                    Save Pricing Changes
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center gap-3 text-xs text-slate">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>
+                  {pricingIsFreeCourse ? (
+                    <>
+                      <strong className="text-emerald-300">Free Course Active:</strong> {activeCoursePricing.courseName} is 100% free for all students. All 14 modules, assessments, and verified certificates are unlocked without requiring payment or coupons.
+                    </>
+                  ) : (
+                    <>
+                      <strong>Paid Course Rule:</strong> Part 1 of {activeCoursePricing.courseName} is 100% free to try. Parts 2 to 14 require purchasing at ₹{pricingSaleInput} or redeeming a valid coupon code.
+                    </>
+                  )}
+                </span>
+              </div>
+            </form>
+          )}
+        </div>
+
+        {/* Section 2: Coupon Codes Management */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+            <div>
+              <h3 className="font-jakarta font-extrabold text-lg text-paper flex items-center gap-2">
+                <Tag className="w-5 h-5 text-primary" />
+                Course Coupon Codes
+              </h3>
+              <p className="text-xs text-slate mt-0.5">Manage promo codes, percentage discounts, and 100% free ₹0 instant unlock codes.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleOpenCouponModal()}
+              className="py-2.5 px-5 rounded-xl bg-primary text-ink font-bold text-xs sm:text-sm hover:brightness-110 transition-all flex items-center gap-2 shadow-lg shadow-primary/20 self-start sm:self-auto cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              Create New Coupon
+            </button>
+          </div>
+
+          {/* Coupon Codes Table */}
+          <div className="overflow-x-auto rounded-2xl border border-white/10">
+            <table className="w-full text-left text-xs text-paper">
+              <thead className="bg-white/5 text-slate font-mono uppercase text-[10px] tracking-wider border-b border-white/10">
+                <tr>
+                  <th className="py-3 px-4">Coupon Code</th>
+                  <th className="py-3 px-4">Discount</th>
+                  <th className="py-3 px-4">Applies To</th>
+                  <th className="py-3 px-4">Usage Limit</th>
+                  <th className="py-3 px-4">Expiry</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 font-sans">
+                {courseCoupons.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate">
+                      No coupon codes created yet. Click "Create New Coupon" to add one.
+                    </td>
+                  </tr>
+                ) : (
+                  courseCoupons.map(coupon => {
+                    const is100Free = coupon.discountType === 'percentage' && coupon.discountValue === 100;
+                    return (
+                      <tr key={coupon.code} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-sm text-primary tracking-wider px-2 py-0.5 bg-primary/10 rounded-md border border-primary/20">
+                              {coupon.code}
+                            </span>
+                            {coupon.description && (
+                              <span className="text-[10px] text-slate truncate max-w-[150px]" title={coupon.description}>
+                                {coupon.description}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          {is100Free ? (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold font-mono text-[10px] border border-emerald-500/40">
+                              100% FREE (₹0 Access)
+                            </span>
+                          ) : coupon.discountType === 'percentage' ? (
+                            <span className="font-mono font-bold text-amber-300">
+                              {coupon.discountValue}% OFF
+                            </span>
+                          ) : (
+                            <span className="font-mono font-bold text-amber-300">
+                              ₹{coupon.discountValue} OFF
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-slate">
+                          {coupon.courseId === 'all' ? (
+                            <span className="text-paper font-semibold">All Courses</span>
+                          ) : (
+                            <span>{coursePricingList.find(c => c.courseId === coupon.courseId)?.courseName || coupon.courseId}</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 font-mono">
+                          <span className="text-paper">{coupon.usedCount}</span>
+                          <span className="text-slate"> / {coupon.maxUses ? coupon.maxUses : 'Unlimited'}</span>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-slate">
+                          {coupon.validUntil ? new Date(coupon.validUntil).toLocaleDateString() : 'Never'}
+                        </td>
+                        <td className="py-3 px-4">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCoupon(coupon.code)}
+                            className={`px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold transition-all cursor-pointer ${
+                              coupon.isActive
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                            }`}
+                          >
+                            {coupon.isActive ? 'Active' : 'Disabled'}
+                          </button>
+                        </td>
+                        <td className="py-3 px-4 text-right space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCouponModal(coupon)}
+                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate hover:text-paper cursor-pointer"
+                            title="Edit Coupon"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCoupon(coupon.code)}
+                            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 cursor-pointer"
+                            title="Delete Coupon"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Section 3: Official UPI Payment QR & Checkout Settings */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+            <div>
+              <h3 className="font-jakarta font-extrabold text-lg text-paper flex items-center gap-2">
+                <QrCode className="w-5 h-5 text-primary" />
+                Official UPI Payment QR & Checkout Settings
+              </h3>
+              <p className="text-xs text-slate mt-0.5">
+                Upload your official UPI QR code image or configure UPI ID, custom instructions, and countdown expiration timer.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`px-2.5 py-1 rounded-full font-mono text-[10px] font-bold border ${
+                qrManualEnabledInput
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                  : 'bg-white/5 text-slate border-white/10'
+              }`}>
+                {qrManualEnabledInput ? 'UPI QR Checkout Active' : 'UPI QR Checkout Disabled'}
+              </span>
+            </div>
+          </div>
+
+          <form onSubmit={handleSavePaymentQRConfig} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {/* UPI ID */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-mono text-slate uppercase tracking-wider">
+                  Official UPI ID (VPA)
+                </label>
+                <input
+                  type="text"
+                  value={qrUpiIdInput}
+                  onChange={e => setQrUpiIdInput(e.target.value)}
+                  placeholder="e.g. dopilot@upi or yourname@okhdfcbank"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm font-mono focus:border-primary focus:outline-none"
+                  required
+                />
+                <p className="text-[10px] text-slate">Payments will be addressed to this UPI handle.</p>
+              </div>
+
+              {/* Payee Name */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-mono text-slate uppercase tracking-wider">
+                  Official Payee / Merchant Name
+                </label>
+                <input
+                  type="text"
+                  value={qrPayeeNameInput}
+                  onChange={e => setQrPayeeNameInput(e.target.value)}
+                  placeholder="e.g. DO PILOT LEARNING"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm focus:border-primary focus:outline-none"
+                  required
+                />
+                <p className="text-[10px] text-slate">Business or account name shown inside UPI apps.</p>
+              </div>
+
+              {/* Session Expiry Timeout */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-mono text-slate uppercase tracking-wider">
+                  Payment Expiry Timer (Minutes)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="60"
+                  value={qrTimeoutMinutesInput}
+                  onChange={e => setQrTimeoutMinutesInput(Number(e.target.value))}
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm font-mono focus:border-primary focus:outline-none"
+                  required
+                />
+                <p className="text-[10px] text-slate">Checkout countdown expires after this duration (1 - 60 min).</p>
+              </div>
+            </div>
+
+            {/* QR Code Upload & Live Preview */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 p-5 rounded-2xl bg-black/40 border border-white/5 items-center">
+              <div className="md:col-span-8 space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-mono text-slate uppercase tracking-wider flex items-center gap-2">
+                    <ImageIcon className="w-3.5 h-3.5 text-primary" />
+                    Custom QR Code Image (Upload or URL)
+                  </label>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <input
+                      type="url"
+                      value={qrImageUrlInput}
+                      onChange={e => setQrImageUrlInput(e.target.value)}
+                      placeholder="Paste image URL (or upload from computer below)"
+                      className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                    />
+                    <label className="px-4 py-2.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors whitespace-nowrap">
+                      <Upload className="w-3.5 h-3.5" />
+                      Upload QR File
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleQrImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    {qrImageUrlInput && (
+                      <button
+                        type="button"
+                        onClick={() => setQrImageUrlInput('')}
+                        className="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs cursor-pointer"
+                        title="Remove custom image and use dynamic QR"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate">
+                    Upload your official PhonePe, Google Pay, or Paytm merchant QR code. If left blank, a dynamic UPI QR code is automatically generated.
+                  </p>
+                </div>
+
+                {/* Payment Instructions Textarea */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-mono text-slate uppercase tracking-wider">
+                    Student Instructions & Verification Guidance
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={qrInstructionsInput}
+                    onChange={e => setQrInstructionsInput(e.target.value)}
+                    placeholder="Enter instructions for students on how to scan and submit reference..."
+                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-xs focus:border-primary focus:outline-none resize-none"
+                  />
+                  <p className="text-[10px] text-slate">This note is displayed on the student checkout modal above the UTR input.</p>
+                </div>
+              </div>
+
+              {/* QR Preview Box */}
+              <div className="md:col-span-4 flex flex-col items-center justify-center p-4 rounded-2xl bg-white/[0.02] border border-white/10 text-center">
+                <span className="text-[10px] font-mono text-slate uppercase tracking-wider mb-2">Student QR Preview</span>
+                <div className="w-36 h-36 p-2 rounded-xl bg-white flex items-center justify-center shadow-lg">
+                  {qrImageUrlInput ? (
+                    <img
+                      src={qrImageUrlInput}
+                      alt="Official Payment QR"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <img
+                      src={`https://chart.googleapis.com/chart?chs=180x180&cht=qr&chl=${encodeURIComponent(`upi://pay?pa=${qrUpiIdInput}&pn=${encodeURIComponent(qrPayeeNameInput)}&cu=INR`)}`}
+                      alt="Generated UPI QR"
+                      className="w-full h-full object-contain"
+                    />
+                  )}
+                </div>
+                <span className="text-[11px] font-mono font-bold text-primary mt-2">{qrUpiIdInput}</span>
+                <span className="text-[10px] text-slate">{qrPayeeNameInput}</span>
+              </div>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-3 border-t border-white/10">
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={qrManualEnabledInput}
+                  onChange={e => setQrManualEnabledInput(e.target.checked)}
+                  className="w-4 h-4 rounded text-primary focus:ring-primary bg-black/40 border-white/20 accent-primary cursor-pointer"
+                />
+                <div>
+                  <span className="text-xs font-bold text-paper">Allow Scan UPI QR Checkout on Website</span>
+                  <p className="text-[10px] text-slate">Students will be able to scan the QR code and submit their 12-digit UTR reference for admin verification.</p>
+                </div>
+              </label>
+
+              <button
+                type="submit"
+                disabled={isSavingQrConfig}
+                className="py-2.5 px-6 rounded-xl bg-primary text-ink font-bold text-xs sm:text-sm hover:brightness-110 transition-all flex items-center gap-2 shadow-lg shadow-primary/20 cursor-pointer disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                {isSavingQrConfig ? 'Saving...' : 'Save QR & Payment Settings'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Section 4: Manual UPI Payment Verifications Queue */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-jakarta font-extrabold text-lg text-paper flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-amber-400" />
+                  Manual UPI Payment Verifications
+                </h3>
+                {pendingManualPayments.length > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold border border-amber-500/30">
+                    {pendingManualPayments.length} Pending
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate mt-0.5">
+                Verify student-submitted 12-digit UPI UTR transaction reference numbers. Approving immediately unlocks full lifetime course access.
+              </p>
+            </div>
+          </div>
+
+          {pendingManualPayments.length === 0 ? (
+            <div className="p-8 rounded-2xl bg-white/[0.02] border border-white/5 text-center space-y-2">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto opacity-80" />
+              <div className="text-sm font-bold text-paper">No Pending UPI Verifications</div>
+              <p className="text-xs text-slate max-w-md mx-auto">
+                All manual UPI payments have been verified or no new requests have been submitted. When a student submits their 12-digit UTR, it will appear here for one-click approval.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {pendingManualPayments.map(payment => (
+                <div
+                  key={payment.id}
+                  className="p-5 rounded-2xl bg-black/60 border border-amber-500/30 hover:border-amber-500/50 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg shadow-amber-500/5"
+                >
+                  <div className="space-y-1.5 min-w-[220px]">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-paper text-sm">{payment.studentName}</span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold">
+                        Pending
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate font-mono">{payment.studentEmail}</div>
+                    {payment.studentPhone && (
+                      <div className="text-xs text-slate font-mono">Phone: {payment.studentPhone}</div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1 min-w-[160px]">
+                    <div className="text-[10px] font-mono text-slate uppercase">Enrolling Course</div>
+                    <div className="text-xs font-bold text-paper">{payment.courseName}</div>
+                    <div className="text-xs font-mono font-bold text-emerald-400">
+                      Amount: ₹{payment.finalAmount}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-mono text-slate uppercase">12-Digit UPI UTR Reference</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-sm text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/30 tracking-wider select-all">
+                        {payment.utrNumber || 'No UTR provided'}
+                      </span>
+                      {payment.utrNumber && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(payment.utrNumber || '');
+                            showToast('Copied UTR to clipboard!');
+                          }}
+                          className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper cursor-pointer transition-colors"
+                          title="Copy UTR Reference"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-slate font-mono">
+                      Submitted: {new Date(payment.purchasedAt).toLocaleString()}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 w-full md:w-auto justify-end pt-2 md:pt-0 border-t md:border-t-0 border-white/10">
+                    <button
+                      type="button"
+                      disabled={verifyingPurchaseId === payment.id}
+                      onClick={() => handleVerifyManualPayment(payment.id, true)}
+                      className="flex-1 md:flex-initial py-2 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 cursor-pointer disabled:opacity-50 transition-all"
+                    >
+                      <CheckCheck className="w-4 h-4" />
+                      Verify & Unlock Course
+                    </button>
+                    <button
+                      type="button"
+                      disabled={verifyingPurchaseId === payment.id}
+                      onClick={() => handleVerifyManualPayment(payment.id, false)}
+                      className="py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 font-bold text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Section 5: Course Purchases & Enrollments Audit Table */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-white/10">
+            <div>
+              <h3 className="font-jakarta font-extrabold text-base text-paper flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-primary" />
+                Purchases & Enrollments Audit ({coursePurchases.length})
+              </h3>
+              <p className="text-xs text-slate">Complete audit of all enrolled purchases, UPI verifications, discounts applied, and paid orders.</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-white/10">
+            <table className="w-full text-left text-xs text-paper">
+              <thead className="bg-white/5 text-slate font-mono uppercase text-[10px] tracking-wider border-b border-white/10">
+                <tr>
+                  <th className="py-3 px-3">Student</th>
+                  <th className="py-3 px-3">Course</th>
+                  <th className="py-3 px-3">Coupon</th>
+                  <th className="py-3 px-3">Paid / Price</th>
+                  <th className="py-3 px-3">Payment Method & Status</th>
+                  <th className="py-3 px-3">UTR / Reference</th>
+                  <th className="py-3 px-3">Date</th>
+                  <th className="py-3 px-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 font-sans">
+                {coursePurchases.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-6 text-center text-slate">
+                      No course purchases recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  coursePurchases.map(rec => (
+                    <tr key={rec.id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="py-3 px-3">
+                        <div className="font-bold text-paper">{rec.studentName}</div>
+                        <div className="font-mono text-[10px] text-slate">{rec.studentEmail}</div>
+                      </td>
+                      <td className="py-3 px-3 font-medium text-paper">
+                        {rec.courseName}
+                      </td>
+                      <td className="py-3 px-3">
+                        {rec.couponCodeApplied ? (
+                          <span className="font-mono font-bold text-primary px-2 py-0.5 bg-primary/10 rounded border border-primary/20 text-[10px]">
+                            {rec.couponCodeApplied}
+                          </span>
+                        ) : (
+                          <span className="text-slate font-mono">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 font-mono">
+                        <span className="text-emerald-400 font-bold">₹{rec.finalAmount}</span>
+                        {rec.originalPrice !== rec.finalAmount && (
+                          <span className="text-slate line-through ml-1.5 text-[10px]">₹{rec.originalPrice}</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3">
+                        {rec.status === 'pending_verification' ? (
+                          <span className="px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            Pending UPI Verification
+                          </span>
+                        ) : rec.status === 'rejected' ? (
+                          <span className="px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                            Rejected
+                          </span>
+                        ) : rec.paymentMethod === 'coupon_free_unlock' ? (
+                          <span className="px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            100% Free Coupon
+                          </span>
+                        ) : rec.paymentMethod === 'manual_upi_qr' ? (
+                          <span className="px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            Verified (UPI QR)
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-primary/20 text-primary border border-primary/30">
+                            Paid Gateway
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 font-mono text-[11px]">
+                        {rec.utrNumber ? (
+                          <span className="text-amber-300 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                            {rec.utrNumber}
+                          </span>
+                        ) : rec.paymentId ? (
+                          <span className="text-slate">{rec.paymentId}</span>
+                        ) : rec.orderId ? (
+                          <span className="text-slate">{rec.orderId}</span>
+                        ) : (
+                          <span className="text-slate">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-slate font-mono text-[10px]">
+                        {new Date(rec.purchasedAt).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        {rec.status === 'pending_verification' && (
+                          <button
+                            type="button"
+                            onClick={() => handleVerifyManualPayment(rec.id, true)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-[10px] cursor-pointer inline-flex items-center gap-1 shadow-sm"
+                          >
+                            <CheckCheck className="w-3 h-3" />
+                            Verify
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-black text-paper flex flex-col font-sans selection:bg-primary selection:text-ink relative overflow-hidden select-none">
       
@@ -4762,6 +6817,48 @@ export const AdminPanel: React.FC = () => {
                 {helpMessages.length} Requests {pendingHelpCount > 0 ? `(${pendingHelpCount} New)` : ''}
               </span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => switchWorkspace('courseReset')}
+              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-jakarta text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+                adminWorkspace === 'courseReset'
+                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black scale-[1.01]'
+                  : 'text-slate hover:text-paper hover:bg-white/5'
+              }`}
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>4. Course Reset</span>
+              <span className={`font-mono text-[10px] px-2 py-0.5 rounded-md font-bold ${
+                adminWorkspace === 'courseReset'
+                  ? 'bg-black/20 text-ink'
+                  : activeLockedCount > 0
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-pulse'
+                  : 'bg-white/10 text-slate'
+              }`}>
+                {activeLockedCount > 0 ? `${activeLockedCount} Locked` : '0 Locked'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => switchWorkspace('pricingCoupons')}
+              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-jakarta text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+                adminWorkspace === 'pricingCoupons'
+                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black scale-[1.01]'
+                  : 'text-slate hover:text-paper hover:bg-white/5'
+              }`}
+            >
+              <Tag className="w-4 h-4" />
+              <span>5. Pricing & Coupons</span>
+              <span className={`font-mono text-[10px] px-2 py-0.5 rounded-md font-bold ${
+                adminWorkspace === 'pricingCoupons'
+                  ? 'bg-black/20 text-ink'
+                  : 'bg-white/10 text-slate'
+              }`}>
+                {courseCoupons.filter(c => c.isActive).length} Active Codes
+              </span>
+            </button>
           </div>
         </div>
       </div>
@@ -4883,6 +6980,16 @@ export const AdminPanel: React.FC = () => {
         <div className="flex-1 max-w-[1650px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
           {renderStudentHelpSection()}
         </div>
+      ) : adminWorkspace === 'courseReset' ? (
+        /* Course Reset Workspace: Full-width, dedicated lockout & reset management */
+        <div className="flex-1 max-w-[1650px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
+          {renderCourseResetSection()}
+        </div>
+      ) : adminWorkspace === 'pricingCoupons' ? (
+        /* Course Pricing & Coupons Workspace: Full-width, dedicated pricing & discounts management */
+        <div className="flex-1 max-w-[1650px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
+          {renderCoursePricingAndCouponsSection()}
+        </div>
       ) : (
         /* Students Workspace: Full-width, clean, dedicated, zero congestion */
         <div className="flex-1 max-w-[1650px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
@@ -4892,6 +6999,12 @@ export const AdminPanel: React.FC = () => {
 
       {/* Root-Level Full-Screen Student Inspect Modal (Guaranteed Above all Headers & Navbars) */}
       {selectedStudentForReport && renderStudentInspectModal()}
+
+      {/* Root-Level Course Reset Confirmation Modal */}
+      {confirmResetTarget && renderCourseResetConfirmModal()}
+
+      {/* Root-Level Course Coupon Creation/Edit Modal */}
+      {couponModalOpen && renderCouponModal()}
 
       {/* Dual Email OTP Modal */}
       {showEmailOtpModal && (

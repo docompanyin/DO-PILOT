@@ -3,13 +3,16 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, ArrowRight, Star, Users, Clock, ShieldCheck, CheckCircle2, 
-  ChevronDown, BookOpen, Sparkles, Layers, Play, RotateCcw, Award, HelpCircle, Lock
+  ChevronDown, BookOpen, Sparkles, Layers, Play, RotateCcw, Award, HelpCircle, Lock,
+  Tag, ShoppingBag, CreditCard
 } from 'lucide-react';
 import { COURSES_DATA, getCourseById } from '../data/coursesData';
 import { useUserAuth } from '../context/UserAuthContext';
 import { ContactModal } from './ContactModal';
 import { CertificateModal } from './CertificateModal';
 import { NeedHelpModal } from './NeedHelpModal';
+import { CoursePurchaseModal } from './checkout/CoursePurchaseModal';
+import { hasCourseAccess, getCoursePricing, CoursePricing } from '../utils/coursePricingService';
 import { getUserInitials } from '../utils/userInitials';
 
 interface PythonResumeInfo {
@@ -271,12 +274,13 @@ const getCyberSecurityResumeInfo = (): CyberSecurityResumeInfo => {
 export const CourseDetailPage: React.FC = () => {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
-  const { user, isLoggedIn } = useUserAuth();
+  const { user, isLoggedIn, enrollInCourse } = useUserAuth();
 
   const [openModules, setOpenModules] = useState<number[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [certModalOpen, setCertModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
+  const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
   const [resumeInfo, setResumeInfo] = useState<PythonResumeInfo>(() => getPythonResumeInfo());
   const [javaResumeInfo, setJavaResumeInfo] = useState<JavaResumeInfo>(() => getJavaResumeInfo());
   const [fullstackResumeInfo, setFullstackResumeInfo] = useState<FullStackResumeInfo>(() => getFullStackResumeInfo());
@@ -284,6 +288,29 @@ export const CourseDetailPage: React.FC = () => {
 
   // Find course by id or slug
   const course = courseId ? getCourseById(courseId) : COURSES_DATA[0];
+  const safeCourseId = course?.id || courseId || 'python-core';
+
+  // Pricing & Course Access state
+  const [pricing, setPricing] = useState<CoursePricing | undefined>(() => getCoursePricing(safeCourseId));
+  const [isPurchased, setIsPurchased] = useState<boolean>(() => {
+    return hasCourseAccess(safeCourseId, user?.id || user?.email);
+  });
+
+  useEffect(() => {
+    const checkAccess = () => {
+      setIsPurchased(hasCourseAccess(safeCourseId, user?.id || user?.email));
+      setPricing(getCoursePricing(safeCourseId));
+    };
+    checkAccess();
+    window.addEventListener('dopilot_course_purchased', checkAccess);
+    window.addEventListener('dopilot_pricing_updated', checkAccess);
+    window.addEventListener('storage', checkAccess);
+    return () => {
+      window.removeEventListener('dopilot_course_purchased', checkAccess);
+      window.removeEventListener('dopilot_pricing_updated', checkAccess);
+      window.removeEventListener('storage', checkAccess);
+    };
+  }, [course, user?.id, user?.email]);
 
   useEffect(() => {
     const updateProgress = () => {
@@ -300,6 +327,25 @@ export const CourseDetailPage: React.FC = () => {
       window.removeEventListener('storage', updateProgress);
     };
   }, [courseId]);
+
+  const handleTryPart1 = () => {
+    if (!course) return;
+    if (course.id === 'python-core') {
+      localStorage.setItem('dopilot_python_core_last_part', '1');
+      navigate('/course/python-core/part-1');
+    } else if (course.id === 'java-core' || course.slug === 'complete-java-programming') {
+      localStorage.setItem('dopilot_java_core_last_part', '1');
+      navigate('/course/complete-java-programming/part-1');
+    } else if (course.id === 'fullstack-open' || course.slug === 'fullstack-open') {
+      localStorage.setItem('dopilot_fullstack_core_last_part', '0');
+      navigate('/course/fullstack-open/part-0');
+    } else if (course.id === 'cyber-security' || course.slug === 'cyber-security-core') {
+      localStorage.setItem('dopilot_cyber_core_last_part', '1');
+      navigate('/course/cyber-security/part-1');
+    } else {
+      navigate('/#courses');
+    }
+  };
 
   const handleStartOrResume = () => {
     if (course && course.id === 'python-core') {
@@ -471,16 +517,72 @@ export const CourseDetailPage: React.FC = () => {
                   partUrl = `/course/cyber-security/part-${partNum}`;
                 }
 
+                // If user has not purchased the course, lock Part 2 to 14
+                if (!isPurchased && globalIdx >= 1) {
+                  return (
+                    <div className="pt-3 mt-3 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-amber-400 font-bold">
+                        <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>Locked • Full Course Access Required</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPurchaseModalOpen(true)}
+                        className="w-full sm:w-auto px-4 py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-primary/20"
+                      >
+                        <ShoppingBag className="w-3 h-3" />
+                        <span>Buy Course to Unlock</span>
+                      </button>
+                    </div>
+                  );
+                }
+
+                // If user has not purchased the course, Part 1 is free to try
+                if (!isPurchased && globalIdx === 0) {
+                  if (isCompleted) {
+                    return (
+                      <div className="pt-3 mt-3 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-emerald-400 font-bold">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span>Part {partNum} (Free Trial) Completed</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => navigate(partUrl)}
+                          className="w-full sm:w-auto px-3.5 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/10 border border-white/10 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <span>Review Free Trial Part</span>
+                        </button>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="pt-3 mt-3 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <span className="font-mono text-[11px] text-primary font-bold">
+                        Part {partNum} • 100% Free Trial Part
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => navigate(partUrl)}
+                        className="w-full sm:w-auto px-4 py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-primary/20"
+                      >
+                        <Play className="w-3 h-3 fill-current" />
+                        <span>{isStarted ? `Continue Part ${partNum} (Free Trial)` : `Try Part ${partNum} Free`}</span>
+                      </button>
+                    </div>
+                  );
+                }
+
                 if (isCurrent) {
                   return (
-                    <div className="pt-3 mt-3 border-t border-white/5 flex items-center justify-between">
+                    <div className="pt-3 mt-3 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                       <span className="font-mono text-[11px] text-primary font-bold">
                         Part {partNum} • Current In-Progress Part
                       </span>
                       <button
                         type="button"
                         onClick={() => navigate(partUrl)}
-                        className="px-4 py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-primary/20"
+                        className="w-full sm:w-auto px-4 py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-primary/20"
                       >
                         <Play className="w-3 h-3 fill-current" />
                         <span>{isStarted ? `Continue Part ${partNum}` : `Start Part ${partNum}`}</span>
@@ -491,15 +593,15 @@ export const CourseDetailPage: React.FC = () => {
 
                 if (isCompleted) {
                   return (
-                    <div className="pt-3 mt-3 border-t border-white/5 flex items-center justify-between">
+                    <div className="pt-3 mt-3 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-emerald-400 font-bold">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                         <span>Part {partNum} Completed</span>
                       </span>
                       <button
                         type="button"
                         onClick={() => navigate(partUrl)}
-                        className="px-3.5 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/10 border border-white/10 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5"
+                        className="w-full sm:w-auto px-3.5 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/10 border border-white/10 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
                       >
                         <span>Review Part {partNum}</span>
                       </button>
@@ -511,7 +613,7 @@ export const CourseDetailPage: React.FC = () => {
                 return (
                   <div className="pt-3 mt-3 border-t border-white/5 flex items-center justify-between">
                     <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-slate/50">
-                      <Lock className="w-3.5 h-3.5 text-slate/40" />
+                      <Lock className="w-3.5 h-3.5 text-slate/40 shrink-0" />
                       <span>Locked — Complete Part {prevPartNum} first</span>
                     </span>
                   </div>
@@ -531,48 +633,36 @@ export const CourseDetailPage: React.FC = () => {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/10 blur-[160px] pointer-events-none rounded-full" />
 
       {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-white/10 px-4 sm:px-8 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-white/10 px-4 sm:px-8 py-3 sm:py-3.5 flex items-center justify-between">
+        <div className="flex items-center gap-3 sm:gap-4">
           <button
             onClick={() => navigate('/#courses')}
             className="flex items-center gap-2 py-1.5 px-3 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">All Courses</span>
+            <span>All Courses</span>
           </button>
-
-          <Link to="/" className="flex items-center gap-2.5">
-            <img
-              src="https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png"
-              alt="DO PILOT"
-              className="h-7 w-auto object-contain filter drop-shadow-[0_2px_8px_rgba(0,255,157,0.3)]"
-            />
-            <span className="font-jakarta font-black text-sm tracking-wider text-paper">
-              DO PILOT
-            </span>
-          </Link>
         </div>
 
         {/* User Status / Auth */}
-        <div className="flex items-center gap-3">
-
+        <div className="flex items-center gap-2 sm:gap-3">
           {isLoggedIn && user ? (
             <button
               onClick={() => navigate('/settings')}
-              className="flex items-center gap-2 py-1.5 px-3 rounded-full bg-panel border border-white/15 text-paper hover:border-primary/50 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 sm:gap-2 py-1.5 px-2.5 sm:px-3 rounded-full bg-panel border border-white/15 text-paper hover:border-primary/50 transition-colors cursor-pointer"
               title="Student Portal & Learning Progress"
             >
               <div className="w-5 h-5 rounded-full bg-primary/20 border border-primary/50 text-primary flex items-center justify-center font-jakarta font-black text-[9px] tracking-tight shrink-0">
                 {getUserInitials(user.name)}
               </div>
-              <span className="font-jakarta text-xs font-bold max-w-[90px] truncate">
+              <span className="font-jakarta text-xs font-bold max-w-[70px] sm:max-w-[90px] truncate">
                 {user.name.split(' ')[0]}
               </span>
             </button>
           ) : (
             <button
               onClick={() => navigate(`/login?redirect=/course/${course.id}`)}
-              className="py-1.5 px-4 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-paper font-jakarta text-xs font-bold transition-all cursor-pointer"
+              className="py-1.5 px-3 sm:px-4 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-paper font-jakarta text-xs font-bold transition-all cursor-pointer"
             >
               Sign In
             </button>
@@ -582,10 +672,10 @@ export const CourseDetailPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setHelpModalOpen(true)}
-              className="relative group inline-flex items-center gap-2 py-1.5 px-4 rounded-full bg-gradient-to-r from-emerald-500/10 via-white/[0.05] to-primary/10 hover:from-emerald-500/20 hover:via-white/[0.09] hover:to-primary/25 border border-emerald-500/30 hover:border-primary/60 text-paper font-jakarta text-xs font-bold transition-all duration-300 shadow-[0_0_15px_rgba(0,255,157,0.12)] hover:shadow-[0_0_25px_rgba(0,255,157,0.35)] cursor-pointer"
+              className="relative group inline-flex items-center gap-1.5 sm:gap-2 py-1.5 px-3 sm:px-4 rounded-full bg-gradient-to-r from-emerald-500/10 via-white/[0.05] to-primary/10 hover:from-emerald-500/20 hover:via-white/[0.09] hover:to-primary/25 border border-emerald-500/30 hover:border-primary/60 text-paper font-jakarta text-xs font-bold transition-all duration-300 shadow-[0_0_15px_rgba(0,255,157,0.12)] hover:shadow-[0_0_25px_rgba(0,255,157,0.35)] cursor-pointer shrink-0"
               title="Academic & Technical Mentor Support"
             >
-              <HelpCircle className="w-3.5 h-3.5 text-primary group-hover:scale-110 group-hover:rotate-12 transition-transform duration-300" />
+              <HelpCircle className="w-3.5 h-3.5 text-primary group-hover:scale-110 group-hover:rotate-12 transition-transform duration-300 shrink-0" />
               <span className="tracking-wide">Need Help</span>
             </button>
           ) : (
@@ -600,52 +690,79 @@ export const CourseDetailPage: React.FC = () => {
       </header>
 
       {/* Main Course Content Container: Utilizing Full Width (max-w-7xl) */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 relative z-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-12 relative z-10">
         
         {/* Header Hero Section */}
-        <div className="mb-10 pb-8 border-b border-white/10">
-          <div className="flex flex-wrap items-center gap-2.5 mb-4">
+        <div className="mb-8 sm:mb-10 pb-6 sm:pb-8 border-b border-white/10">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 mb-3 sm:mb-4">
             <span className={`font-mono text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border-0 backdrop-blur-md ${course.badgeColor.replace(/border\S+/g, '')}`}>
               {course.badge}
             </span>
-            <span className="font-mono text-xs text-slate/70">
-              • {course.level}
+            {pricing?.isFreeCourse && (
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                100% Free Course
+              </span>
+            )}
+            <span className="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-slate font-mono text-xs">
+              {course.level}
             </span>
-            <span className="font-mono text-xs text-slate/70 flex items-center gap-1">
-              • <Clock className="w-3.5 h-3.5 text-primary inline" /> {course.duration}
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-slate font-mono text-xs">
+              <Clock className="w-3.5 h-3.5 text-primary inline shrink-0" />
+              <span>Self-Paced • 14 Modules</span>
             </span>
           </div>
 
-          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 sm:gap-6">
             <div className="max-w-4xl">
-              <h1 className="font-jakarta text-3xl sm:text-5xl font-black text-paper tracking-tight leading-tight">
+              <h1 className="font-jakarta text-2xl sm:text-5xl font-black text-paper tracking-tight leading-tight">
                 {course.title}
               </h1>
-              <p className="mt-4 text-slate text-base sm:text-lg font-normal leading-relaxed">
+              <p className="mt-3 sm:mt-4 text-slate text-sm sm:text-lg font-normal leading-relaxed">
                 {course.headline}
               </p>
             </div>
 
-            <div className="shrink-0 flex items-center gap-3">
-              {course.id === 'python-core' ? (
+            <div className="shrink-0 flex items-center gap-3 w-full sm:w-auto">
+              {!isPurchased ? (
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setPurchaseModalOpen(true)}
+                    className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs sm:text-sm hover:bg-white hover:shadow-xl hover:shadow-primary/30 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-primary/20 group"
+                  >
+                    <ShoppingBag className="w-4 h-4 shrink-0" />
+                    <span>Buy Now • ₹{pricing?.salePrice || 999}</span>
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleTryPart1}
+                    className="w-full sm:w-auto px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs sm:text-sm transition-all cursor-pointer flex items-center justify-center gap-2 group"
+                  >
+                    <Play className="w-3.5 h-3.5 text-primary fill-primary shrink-0" />
+                    <span>Try Part 1 (Free Trial)</span>
+                  </button>
+                </div>
+              ) : course.id === 'python-core' ? (
                 resumeInfo.status === 'all_completed' ? (
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                     <button
                       type="button"
                       onClick={() => setCertModalOpen(true)}
-                      className="px-8 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-sm hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center gap-2.5 shadow-lg shadow-amber-500/20 group"
+                      className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-xs sm:text-sm hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-amber-500/20 group"
                     >
-                      <Award className="w-5 h-5 text-black" />
+                      <Award className="w-5 h-5 text-black shrink-0" />
                       <span>Claim Official Certificate</span>
-                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                     </button>
 
                     <button
                       type="button"
                       onClick={() => navigate('/course/python-core/part-1')}
-                      className="px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center gap-2"
+                      className="w-full sm:w-auto px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
-                      <RotateCcw className="w-3.5 h-3.5 text-primary" />
+                      <RotateCcw className="w-3.5 h-3.5 text-primary shrink-0" />
                       <span>Review Course</span>
                     </button>
                   </div>
@@ -653,36 +770,40 @@ export const CourseDetailPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleStartOrResume}
-                    className="px-8 py-3.5 rounded-full bg-primary text-ink font-jakarta font-black text-sm hover:bg-white hover:shadow-xl hover:shadow-primary/30 transition-all cursor-pointer flex items-center gap-2.5 shadow-lg shadow-primary/20 group"
+                    className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs sm:text-sm hover:bg-white hover:shadow-xl hover:shadow-primary/30 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-primary/20 group"
                   >
                     {resumeInfo.status === 'in_progress' ? (
-                      <RotateCcw className="w-4 h-4 transition-transform group-hover:-rotate-45" />
+                      <RotateCcw className="w-4 h-4 transition-transform group-hover:-rotate-45 shrink-0" />
                     ) : (
-                      <Play className="w-4 h-4 fill-current" />
+                      <Play className="w-4 h-4 fill-current shrink-0" />
                     )}
-                    <span>{resumeInfo.heroButtonText}</span>
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                    <span>
+                      {pricing?.isFreeCourse && resumeInfo.status === 'not_started'
+                        ? 'Start Free Course'
+                        : resumeInfo.heroButtonText}
+                    </span>
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                   </button>
                 )
               ) : course.id === 'java-core' ? (
                 javaResumeInfo.status === 'all_completed' ? (
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                     <button
                       type="button"
                       onClick={() => setCertModalOpen(true)}
-                      className="px-8 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-sm hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center gap-2.5 shadow-lg shadow-amber-500/20 group"
+                      className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-xs sm:text-sm hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-amber-500/20 group"
                     >
-                      <Award className="w-5 h-5 text-black" />
+                      <Award className="w-5 h-5 text-black shrink-0" />
                       <span>Claim Official Certificate</span>
-                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                     </button>
 
                     <button
                       type="button"
                       onClick={() => navigate('/course/complete-java-programming/part-1')}
-                      className="px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center gap-2"
+                      className="w-full sm:w-auto px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
-                      <RotateCcw className="w-3.5 h-3.5 text-primary" />
+                      <RotateCcw className="w-3.5 h-3.5 text-primary shrink-0" />
                       <span>Review Course</span>
                     </button>
                   </div>
@@ -690,36 +811,40 @@ export const CourseDetailPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleStartOrResume}
-                    className="px-8 py-3.5 rounded-full bg-primary text-ink font-jakarta font-black text-sm hover:bg-white hover:shadow-xl hover:shadow-primary/30 transition-all cursor-pointer flex items-center gap-2.5 shadow-lg shadow-primary/20 group"
+                    className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs sm:text-sm hover:bg-white hover:shadow-xl hover:shadow-primary/30 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-primary/20 group"
                   >
                     {javaResumeInfo.status === 'in_progress' ? (
-                      <RotateCcw className="w-4 h-4 transition-transform group-hover:-rotate-45" />
+                      <RotateCcw className="w-4 h-4 transition-transform group-hover:-rotate-45 shrink-0" />
                     ) : (
-                      <Play className="w-4 h-4 fill-current" />
+                      <Play className="w-4 h-4 fill-current shrink-0" />
                     )}
-                    <span>{javaResumeInfo.heroButtonText}</span>
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                    <span>
+                      {pricing?.isFreeCourse && javaResumeInfo.status === 'not_started'
+                        ? 'Start Free Course'
+                        : javaResumeInfo.heroButtonText}
+                    </span>
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                   </button>
                 )
               ) : (course.id === 'fullstack-open' || course.slug === 'fullstack-open') ? (
                 fullstackResumeInfo.status === 'all_completed' ? (
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                     <button
                       type="button"
                       onClick={() => setCertModalOpen(true)}
-                      className="px-8 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-sm hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center gap-2.5 shadow-lg shadow-amber-500/20 group"
+                      className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-xs sm:text-sm hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-amber-500/20 group"
                     >
-                      <Award className="w-5 h-5 text-black" />
+                      <Award className="w-5 h-5 text-black shrink-0" />
                       <span>Claim Official Certificate</span>
-                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                     </button>
 
                     <button
                       type="button"
                       onClick={() => navigate('/course/fullstack-open/part-0')}
-                      className="px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center gap-2"
+                      className="w-full sm:w-auto px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
-                      <RotateCcw className="w-3.5 h-3.5 text-primary" />
+                      <RotateCcw className="w-3.5 h-3.5 text-primary shrink-0" />
                       <span>Review Course</span>
                     </button>
                   </div>
@@ -727,36 +852,40 @@ export const CourseDetailPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleStartOrResume}
-                    className="px-8 py-3.5 rounded-full bg-primary text-ink font-jakarta font-black text-sm hover:bg-white hover:shadow-xl hover:shadow-primary/30 transition-all cursor-pointer flex items-center gap-2.5 shadow-lg shadow-primary/20 group"
+                    className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs sm:text-sm hover:bg-white hover:shadow-xl hover:shadow-primary/30 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-primary/20 group"
                   >
                     {fullstackResumeInfo.status === 'in_progress' ? (
-                      <RotateCcw className="w-4 h-4 transition-transform group-hover:-rotate-45" />
+                      <RotateCcw className="w-4 h-4 transition-transform group-hover:-rotate-45 shrink-0" />
                     ) : (
-                      <Play className="w-4 h-4 fill-current" />
+                      <Play className="w-4 h-4 fill-current shrink-0" />
                     )}
-                    <span>{fullstackResumeInfo.heroButtonText}</span>
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                    <span>
+                      {pricing?.isFreeCourse && fullstackResumeInfo.status === 'not_started'
+                        ? 'Start Free Course'
+                        : fullstackResumeInfo.heroButtonText}
+                    </span>
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                   </button>
                 )
               ) : (course.id === 'cyber-security' || course.slug === 'cyber-security-core') ? (
                 cyberResumeInfo.status === 'all_completed' ? (
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                     <button
                       type="button"
                       onClick={() => setCertModalOpen(true)}
-                      className="px-8 py-3.5 rounded-full bg-gradient-to-r from-cyan-400 via-primary to-emerald-400 text-black font-jakarta font-black text-sm hover:opacity-95 hover:shadow-xl hover:shadow-cyan-500/25 transition-all cursor-pointer flex items-center gap-2.5 shadow-lg shadow-cyan-500/20 group"
+                      className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-gradient-to-r from-cyan-400 via-primary to-emerald-400 text-black font-jakarta font-black text-xs sm:text-sm hover:opacity-95 hover:shadow-xl hover:shadow-cyan-500/25 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-cyan-500/20 group"
                     >
-                      <Award className="w-5 h-5 text-black" />
+                      <Award className="w-5 h-5 text-black shrink-0" />
                       <span>Claim Cyber Security Certificate</span>
-                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                     </button>
 
                     <button
                       type="button"
                       onClick={() => navigate('/course/cyber-security/part-1')}
-                      className="px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center gap-2"
+                      className="w-full sm:w-auto px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
-                      <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+                      <RotateCcw className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                       <span>Review Course</span>
                     </button>
                   </div>
@@ -764,15 +893,19 @@ export const CourseDetailPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleStartOrResume}
-                    className="px-8 py-3.5 rounded-full bg-cyan-500 text-ink font-jakarta font-black text-sm hover:bg-white hover:shadow-xl hover:shadow-cyan-500/30 transition-all cursor-pointer flex items-center gap-2.5 shadow-lg shadow-cyan-500/20 group"
+                    className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-cyan-500 text-ink font-jakarta font-black text-xs sm:text-sm hover:bg-white hover:shadow-xl hover:shadow-cyan-500/30 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-cyan-500/20 group"
                   >
                     {cyberResumeInfo.status === 'in_progress' ? (
-                      <RotateCcw className="w-4 h-4 transition-transform group-hover:-rotate-45" />
+                      <RotateCcw className="w-4 h-4 transition-transform group-hover:-rotate-45 shrink-0" />
                     ) : (
-                      <Play className="w-4 h-4 fill-current" />
+                      <Play className="w-4 h-4 fill-current shrink-0" />
                     )}
-                    <span>{cyberResumeInfo.heroButtonText}</span>
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                    <span>
+                      {pricing?.isFreeCourse && cyberResumeInfo.status === 'not_started'
+                        ? 'Start Free Course'
+                        : cyberResumeInfo.heroButtonText}
+                    </span>
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                   </button>
                 )
               ) : (
@@ -780,16 +913,16 @@ export const CourseDetailPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setHelpModalOpen(true)}
-                    className="group px-6 py-3 rounded-full bg-gradient-to-r from-emerald-500/15 via-primary/20 to-teal-500/15 hover:from-emerald-500/25 hover:via-primary/30 hover:to-teal-500/25 border border-primary/40 hover:border-primary text-paper font-jakarta font-extrabold text-xs transition-all cursor-pointer flex items-center gap-2 shadow-[0_0_20px_rgba(0,255,157,0.15)]"
+                    className="w-full sm:w-auto group px-6 py-3 rounded-full bg-gradient-to-r from-emerald-500/15 via-primary/20 to-teal-500/15 hover:from-emerald-500/25 hover:via-primary/30 hover:to-teal-500/25 border border-primary/40 hover:border-primary text-paper font-jakarta font-extrabold text-xs transition-all cursor-pointer flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,255,157,0.15)]"
                   >
-                    <HelpCircle className="w-4 h-4 text-primary group-hover:scale-110 group-hover:rotate-12 transition-transform" />
+                    <HelpCircle className="w-4 h-4 text-primary group-hover:scale-110 group-hover:rotate-12 transition-transform shrink-0" />
                     <span>Need Help</span>
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={() => setModalOpen(true)}
-                    className="px-6 py-3 rounded-full bg-primary text-ink font-jakarta font-extrabold text-xs hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
+                    className="w-full sm:w-auto px-6 py-3 rounded-full bg-primary text-ink font-jakarta font-extrabold text-xs hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer justify-center"
                   >
                     Get in Touch
                   </button>
@@ -799,18 +932,18 @@ export const CourseDetailPage: React.FC = () => {
           </div>
 
           {/* Factual Metrics Bar */}
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-6 pt-6 border-t border-white/5 font-mono text-xs text-slate">
-            <div className="flex items-center gap-1.5 text-paper font-semibold">
-              <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-              <span>{course.rating}</span>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-6 mt-5 sm:mt-6 pt-5 sm:pt-6 border-t border-white/5 font-mono text-xs text-slate">
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <Star className="w-4 h-4 text-amber-400 fill-amber-400 shrink-0" />
+              <span className="text-paper font-semibold">{course.rating}</span>
               <span className="text-slate/60 font-normal">({course.reviewsCount} reviews)</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-primary" />
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <Users className="w-4 h-4 text-primary shrink-0" />
               <span>{course.studentsCount.toLocaleString()} Students Enrolled</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <BookOpen className="w-4 h-4 text-secondary" />
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <BookOpen className="w-4 h-4 text-secondary shrink-0" />
               <span>{course.modules.length} Detailed Modules</span>
             </div>
           </div>
@@ -821,7 +954,7 @@ export const CourseDetailPage: React.FC = () => {
           
           {/* Left Column: About & Tech Stack */}
           <div className="lg:col-span-6 flex flex-col">
-            <section className="bg-panel border border-white/10 rounded-3xl p-6 sm:p-7 flex-1 flex flex-col justify-between">
+            <section className="bg-panel border border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-7 flex-1 flex flex-col justify-between">
               <div>
                 <h3 className="font-jakarta text-lg font-black text-paper flex items-center gap-2 mb-3">
                   <BookOpen className="w-4 h-4 text-primary" />
@@ -864,7 +997,7 @@ export const CourseDetailPage: React.FC = () => {
 
           {/* Right Column: What You Will Master */}
           <div className="lg:col-span-6 flex flex-col">
-            <section className="bg-panel border border-white/10 rounded-3xl p-6 sm:p-7 flex-1">
+            <section className="bg-panel border border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-7 flex-1">
               <h3 className="font-jakarta text-lg font-black text-paper flex items-center gap-2 mb-4">
                 <Sparkles className="w-4 h-4 text-primary" />
                 <span>What You Will Master</span>
@@ -873,10 +1006,10 @@ export const CourseDetailPage: React.FC = () => {
                 {course.outcomes.map((outcome, idx) => (
                   <div 
                     key={idx}
-                    className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 flex items-start gap-3 hover:border-primary/30 transition-colors"
+                    className="p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-white/[0.02] border border-white/5 flex items-start gap-3 hover:border-primary/30 transition-colors"
                   >
                     <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                    <span className="text-xs text-slate/90 leading-relaxed font-sans">{outcome}</span>
+                    <span className="text-xs text-slate/90 leading-relaxed font-sans break-words">{outcome}</span>
                   </div>
                 ))}
               </div>
@@ -887,11 +1020,11 @@ export const CourseDetailPage: React.FC = () => {
 
         {/* Full Course Completion Celebration & Certificate Banner */}
         {course.id === 'python-core' && resumeInfo.status === 'all_completed' && (
-          <div className="mb-10 p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-amber-500/10 via-primary/10 to-amber-500/10 border border-amber-500/30 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl relative overflow-hidden backdrop-blur-xl animate-fade-in">
+          <div className="mb-8 sm:mb-10 p-5 sm:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-500/10 via-primary/10 to-amber-500/10 border border-amber-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 sm:gap-6 shadow-2xl relative overflow-hidden backdrop-blur-xl animate-fade-in">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-primary to-amber-400" />
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-500/20">
-                <Award className="w-7 h-7" />
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3.5 sm:gap-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-500/20">
+                <Award className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -914,22 +1047,22 @@ export const CourseDetailPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setCertModalOpen(true)}
-              className="px-7 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-xs uppercase tracking-wider hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center gap-2 shrink-0 shadow-lg shadow-amber-500/20"
+              className="w-full md:w-auto px-6 sm:px-7 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-xs uppercase tracking-wider hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 shadow-lg shadow-amber-500/20"
             >
-              <Award className="w-4 h-4 text-black" />
+              <Award className="w-4 h-4 text-black shrink-0" />
               <span>Get Certificate (PDF)</span>
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4 shrink-0" />
             </button>
           </div>
         )}
 
         {/* Full Course Completion Celebration & Certificate Banner for Java */}
         {course.id === 'java-core' && javaResumeInfo.status === 'all_completed' && (
-          <div className="mb-10 p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-amber-500/10 via-primary/10 to-amber-500/10 border border-amber-500/30 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl relative overflow-hidden backdrop-blur-xl animate-fade-in">
+          <div className="mb-8 sm:mb-10 p-5 sm:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-500/10 via-primary/10 to-amber-500/10 border border-amber-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 sm:gap-6 shadow-2xl relative overflow-hidden backdrop-blur-xl animate-fade-in">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-primary to-amber-400" />
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-500/20">
-                <Award className="w-7 h-7" />
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3.5 sm:gap-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-500/20">
+                <Award className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -952,22 +1085,22 @@ export const CourseDetailPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setCertModalOpen(true)}
-              className="px-7 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-xs uppercase tracking-wider hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center gap-2 shrink-0 shadow-lg shadow-amber-500/20"
+              className="w-full md:w-auto px-6 sm:px-7 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-xs uppercase tracking-wider hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 shadow-lg shadow-amber-500/20"
             >
-              <Award className="w-4 h-4 text-black" />
+              <Award className="w-4 h-4 text-black shrink-0" />
               <span>Get Certificate (PDF)</span>
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4 shrink-0" />
             </button>
           </div>
         )}
 
         {/* Full Course Completion Celebration & Certificate Banner for Full Stack Open */}
         {(course.id === 'fullstack-open' || course.slug === 'fullstack-open') && fullstackResumeInfo.status === 'all_completed' && (
-          <div className="mb-10 p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-amber-500/10 via-emerald-400/10 to-amber-500/10 border border-amber-500/30 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl relative overflow-hidden backdrop-blur-xl animate-fade-in">
+          <div className="mb-8 sm:mb-10 p-5 sm:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-500/10 via-emerald-400/10 to-amber-500/10 border border-amber-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 sm:gap-6 shadow-2xl relative overflow-hidden backdrop-blur-xl animate-fade-in">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-emerald-400 to-amber-400" />
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-500/20">
-                <Award className="w-7 h-7" />
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3.5 sm:gap-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-500/20">
+                <Award className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -990,25 +1123,25 @@ export const CourseDetailPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setCertModalOpen(true)}
-              className="px-7 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-xs uppercase tracking-wider hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center gap-2 shrink-0 shadow-lg shadow-amber-500/20"
+              className="w-full md:w-auto px-6 sm:px-7 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-xs uppercase tracking-wider hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 shadow-lg shadow-amber-500/20"
             >
-              <Award className="w-4 h-4 text-black" />
+              <Award className="w-4 h-4 text-black shrink-0" />
               <span>Get Certificate (PDF)</span>
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4 shrink-0" />
             </button>
           </div>
         )}
 
         {/* 14-Part Curriculum & Modules: Full-Width 2-Column Split */}
-        <section className="bg-panel border border-white/10 rounded-3xl p-6 sm:p-8 mb-10">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-5 border-b border-white/10">
+        <section className="bg-panel border border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-8 mb-10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-5 sm:mb-6 pb-4 sm:pb-5 border-b border-white/10">
             <div>
-              <h3 className="font-jakarta text-xl font-black text-paper flex items-center gap-2">
+              <h3 className="font-jakarta text-lg sm:text-xl font-black text-paper flex items-center gap-2">
                 <Layers className="w-5 h-5 text-primary" />
                 <span>Curriculum Roadmap</span>
               </h3>
               <p className="text-slate text-xs font-mono mt-1">
-                {course.modules.length} Comprehensive Parts • {course.duration}
+                14 Structured Modules • Step-by-Step Curriculum
                 {course.id === 'python-core' && resumeInfo.completedCount > 0 && (
                   <span className="text-primary ml-2 font-semibold">
                     • {resumeInfo.completedCount}/14 Completed
@@ -1027,50 +1160,105 @@ export const CourseDetailPage: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
-              {course.id === 'python-core' && (
-                <button
-                  type="button"
-                  onClick={handleStartOrResume}
-                  className="px-4 py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-primary/20"
-                >
-                  {resumeInfo.status === 'in_progress' ? (
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  ) : (
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                  )}
-                  <span>{resumeInfo.buttonText}</span>
-                </button>
-              )}
+            <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto">
+              {!isPurchased ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setPurchaseModalOpen(true)}
+                    className="hidden sm:inline-flex justify-center px-4 py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer items-center gap-1.5 shadow-md shadow-primary/20"
+                  >
+                    <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
+                    <span>Buy Full Course • ₹{pricing?.salePrice || 999}</span>
+                  </button>
 
-              {course.id === 'java-core' && (
-                <button
-                  type="button"
-                  onClick={handleStartOrResume}
-                  className="px-4 py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-primary/20"
-                >
-                  {javaResumeInfo.status === 'in_progress' ? (
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  ) : (
-                    <Play className="w-3.5 h-3.5 fill-current" />
+                  <button
+                    type="button"
+                    onClick={handleTryPart1}
+                    className="w-full sm:w-auto justify-center px-4 py-2 sm:py-1.5 rounded-full bg-white/[0.08] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Play className="w-3.5 h-3.5 text-primary fill-primary shrink-0" />
+                    <span>Try Part 1 Free</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  {course.id === 'python-core' && (
+                    <button
+                      type="button"
+                      onClick={handleStartOrResume}
+                      className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-primary/20"
+                    >
+                      {resumeInfo.status === 'in_progress' ? (
+                        <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5 fill-current shrink-0" />
+                      )}
+                      <span>
+                        {pricing?.isFreeCourse && resumeInfo.status === 'not_started'
+                          ? 'Start Free Course'
+                          : resumeInfo.buttonText}
+                      </span>
+                    </button>
                   )}
-                  <span>{javaResumeInfo.buttonText}</span>
-                </button>
-              )}
 
-              {(course.id === 'fullstack-open' || course.slug === 'fullstack-open') && (
-                <button
-                  type="button"
-                  onClick={handleStartOrResume}
-                  className="px-4 py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-primary/20"
-                >
-                  {fullstackResumeInfo.status === 'in_progress' ? (
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  ) : (
-                    <Play className="w-3.5 h-3.5 fill-current" />
+                  {course.id === 'java-core' && (
+                    <button
+                      type="button"
+                      onClick={handleStartOrResume}
+                      className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-primary/20"
+                    >
+                      {javaResumeInfo.status === 'in_progress' ? (
+                        <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5 fill-current shrink-0" />
+                      )}
+                      <span>
+                        {pricing?.isFreeCourse && javaResumeInfo.status === 'not_started'
+                          ? 'Start Free Course'
+                          : javaResumeInfo.buttonText}
+                      </span>
+                    </button>
                   )}
-                  <span>{fullstackResumeInfo.buttonText}</span>
-                </button>
+
+                  {(course.id === 'fullstack-open' || course.slug === 'fullstack-open') && (
+                    <button
+                      type="button"
+                      onClick={handleStartOrResume}
+                      className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-primary/20"
+                    >
+                      {fullstackResumeInfo.status === 'in_progress' ? (
+                        <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5 fill-current shrink-0" />
+                      )}
+                      <span>
+                        {pricing?.isFreeCourse && fullstackResumeInfo.status === 'not_started'
+                          ? 'Start Free Course'
+                          : fullstackResumeInfo.buttonText}
+                      </span>
+                    </button>
+                  )}
+
+                  {(course.id === 'cyber-security' || course.slug === 'cyber-security-core') && (
+                    <button
+                      type="button"
+                      onClick={handleStartOrResume}
+                      className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1.5 rounded-full bg-cyan-500 text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-cyan-500/20"
+                    >
+                      {cyberResumeInfo.status === 'in_progress' ? (
+                        <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5 fill-current shrink-0" />
+                      )}
+                      <span>
+                        {pricing?.isFreeCourse && cyberResumeInfo.status === 'not_started'
+                          ? 'Start Free Course'
+                          : cyberResumeInfo.buttonText}
+                      </span>
+                    </button>
+                  )}
+                </>
               )}
 
               <button
@@ -1082,7 +1270,7 @@ export const CourseDetailPage: React.FC = () => {
                     setOpenModules(course.modules.map((_, i) => i));
                   }
                 }}
-                className="px-4 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
+                className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
               >
                 {openModules.length === course.modules.length ? 'Collapse All' : 'Expand All'}
               </button>
@@ -1116,7 +1304,7 @@ export const CourseDetailPage: React.FC = () => {
         </section>
 
         {/* Minimal Bottom Inquiries Bar */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-panel border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="p-5 sm:p-8 rounded-2xl sm:rounded-3xl bg-panel border border-white/10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
           <div>
             <h4 className="font-jakarta font-bold text-base sm:text-lg text-paper">
               Have questions about this track?
@@ -1128,7 +1316,7 @@ export const CourseDetailPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setHelpModalOpen(true)}
-            className="px-6 py-2.5 rounded-full bg-primary text-ink font-jakarta font-extrabold text-xs hover:bg-white hover:text-ink transition-all cursor-pointer shrink-0 flex items-center gap-2 shadow-lg shadow-primary/20"
+            className="w-full sm:w-auto px-6 py-2.5 rounded-full bg-primary text-ink font-jakarta font-extrabold text-xs hover:bg-white hover:text-ink transition-all cursor-pointer shrink-0 flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
           >
             <HelpCircle className="w-4 h-4 text-ink shrink-0" />
             <span className="font-extrabold text-ink tracking-wide">Need Help</span>
@@ -1138,21 +1326,6 @@ export const CourseDetailPage: React.FC = () => {
 
       </main>
 
-      {/* =========================================================================
-          TEMPORARY CERTIFICATE TESTER BUTTON (REMOVE LATER)
-          Allows testing the PDF certificate download without having to complete all 14 parts.
-          ========================================================================= */}
-      <div className="fixed bottom-6 left-6 z-40">
-        <button
-          type="button"
-          onClick={() => setCertModalOpen(true)}
-          className="px-4 py-2.5 rounded-full bg-amber-400 hover:bg-amber-300 text-black font-jakarta font-black text-xs uppercase tracking-wider shadow-2xl flex items-center gap-2 border-2 border-amber-500/50 cursor-pointer shadow-amber-500/30 hover:scale-105 transition-all"
-          title="Temporary Certificate Tester — Click to test certificate generation & download without completing the course"
-        >
-          <Award className="w-4 h-4 text-black" />
-          <span>🧪 Test Certificate PDF</span>
-        </button>
-      </div>
 
       {/* Shared Enrollment / Consultation Modal */}
       <ContactModal
@@ -1175,6 +1348,21 @@ export const CourseDetailPage: React.FC = () => {
         courseTitle={course.title}
         courseId={course.id}
       />
+
+      {/* Course Purchase & Coupon Modal */}
+      {pricing && (
+        <CoursePurchaseModal
+          isOpen={purchaseModalOpen}
+          onClose={() => setPurchaseModalOpen(false)}
+          courseId={course.id}
+          courseTitle={course.title}
+          pricing={pricing}
+          onSuccess={() => {
+            setIsPurchased(true);
+            enrollInCourse(course.title);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -35,6 +35,8 @@ export const Preloader: React.FC<PreloaderProps> = ({ onComplete }) => {
     return () => clearInterval(interval);
   }, [onComplete]);
 
+  if (isDone) return null;
+
   return (
     <AnimatePresence>
       {!isDone && (

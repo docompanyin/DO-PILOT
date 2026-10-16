@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, Clock, ArrowUpRight } from 'lucide-react';
 import { useUserAuth } from '../context/UserAuthContext';
 import { useSiteData } from '../context/DataContext';
+import { getCoursePricing } from '../utils/coursePricingService';
 
 interface CourseItem {
   id: string;
@@ -27,6 +28,19 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
   const cardRef = useRef<HTMLDivElement>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
+  const [pricing, setPricing] = useState(() => getCoursePricing(course.id));
+
+  React.useEffect(() => {
+    const handleUpdate = () => {
+      setPricing(getCoursePricing(course.id));
+    };
+    window.addEventListener('dopilot_pricing_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('dopilot_pricing_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, [course.id]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!cardRef.current) return;
@@ -125,9 +139,20 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
 
       {/* Bottom Card Footer */}
       <div className="px-4 pb-4 sm:px-5 sm:pb-5 pt-2 flex items-center justify-between border-t border-white/5 relative z-10">
-        <span className="font-mono text-[11px] text-slate/70">
-          {course.level}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[11px] text-slate/70">
+            {course.level}
+          </span>
+          {pricing?.isFreeCourse ? (
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
+              FREE
+            </span>
+          ) : (
+            <span className="font-mono text-xs font-bold text-primary">
+              ₹{pricing?.salePrice || 999}
+            </span>
+          )}
+        </div>
 
         <button
           onClick={(e) => {
@@ -136,7 +161,7 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
           }}
           className="px-4 py-2 rounded-full bg-primary text-ink font-jakarta font-extrabold text-xs hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all flex items-center gap-1 cursor-pointer min-h-[36px]"
         >
-          <span>Enroll</span>
+          <span>{pricing?.isFreeCourse ? 'Start Free' : 'Enroll'}</span>
           <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
         </button>
       </div>

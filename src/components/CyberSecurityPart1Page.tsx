@@ -10,6 +10,7 @@ import { useCoursePoints } from '../context/CoursePointsContext';
 import { useUserAuth } from '../context/UserAuthContext';
 import { ContactModal } from './ContactModal';
 import { NeedHelpModal } from './NeedHelpModal';
+import { recordCourseLock } from '../utils/courseResetService';
 import { 
   PART_1_SECTIONS, TheoryBlock, McqQuestion,
   getActiveQuestionsForLevel, getConsecutiveFailedLevels,
@@ -266,6 +267,23 @@ export const CyberSecurityPart1Page: React.FC = () => {
       } catch {}
     }
 
+    if (result.isLocked) {
+      recordCourseLock({
+        studentId,
+        studentName: user?.name || user?.email?.split('@')[0] || 'Enrolled Student',
+        studentEmail: user?.email || `${studentId}@student.dopilot.io`,
+        studentPhone: user?.phone,
+        collegeOrCompany: user?.collegeOrCompany,
+        courseId: 'cyber',
+        courseName: 'Cyber Security & Ethical Hacking',
+        partNum: 1,
+        partTitle: 'Part 1: Networking & Threat Modeling',
+        consecutiveFailures: result.consecutiveFailedLevels,
+        progressSummary: `Part 1: Failed Level ${activeSection.number} • ${points} Points`,
+        earnedPoints: points
+      });
+    }
+
     setLevelResult({
       isFinished: true,
       isPassed,
@@ -389,6 +407,31 @@ export const CyberSecurityPart1Page: React.FC = () => {
     }, 1000);
     return () => clearTimeout(t);
   }, [correctCountdown]);
+
+  // Real-time listener for Admin Course Reset / Unlock
+  useEffect(() => {
+    const handleCourseUnlocked = (e: any) => {
+      const detail = e?.detail;
+      if (!detail || detail.studentId === studentId || detail.courseId === 'cyber' || detail.courseId === 'all') {
+        const isLockedInStorage = localStorage.getItem(`dopilot_cyber_locked_${studentId}`) === 'true';
+        if (!isLockedInStorage) {
+          setLevelResult(prev => {
+            if (prev && prev.isLocked) {
+              return { ...prev, isLocked: false, streak: 0 };
+            }
+            return prev;
+          });
+          setConsecutiveFailures(0);
+        }
+      }
+    };
+    window.addEventListener('dopilot_course_unlocked', handleCourseUnlocked);
+    window.addEventListener('storage', handleCourseUnlocked);
+    return () => {
+      window.removeEventListener('dopilot_course_unlocked', handleCourseUnlocked);
+      window.removeEventListener('storage', handleCourseUnlocked);
+    };
+  }, [studentId]);
 
   // Main 30-Second Countdown Timer Loop
   useEffect(() => {
