@@ -5221,36 +5221,31 @@ export const AdminPanel: React.FC = () => {
     };
 
     return (
-      <section className="space-y-6">
-        {/* Top Header Card */}
-        <div className="p-6 sm:p-7 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-cyan-500/10 blur-[100px] rounded-full pointer-events-none" />
-
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.05] border border-white/10 mb-2">
-                <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="font-mono text-[10px] text-cyan-300 font-bold uppercase tracking-wider">
-                  Course Reset &amp; Unlock
+      <section id="section-course-reset" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+        {/* Section Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-jakarta text-lg font-black text-paper">Course Reset</h2>
+              <span className="font-mono text-[10px] text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full font-bold">
+                Course Reset &amp; Unlock
+              </span>
+              {activeLockedCount > 0 && (
+                <span className="font-mono text-[10px] text-rose-300 bg-rose-500/20 px-2 py-0.5 rounded-full font-bold border border-rose-500/30">
+                  {activeLockedCount} Locked
                 </span>
-                {activeLockedCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-mono text-[10px] font-bold border border-rose-500/30">
-                    {activeLockedCount} Locked
-                  </span>
-                )}
-              </div>
-              <h2 className="font-jakarta text-lg font-black text-paper">
-                Course Reset
-              </h2>
-              <p className="font-mono text-xs text-slate mt-1">
-                Unlock students whose progression is locked after 3 consecutive assessment failures.
-              </p>
+              )}
             </div>
+            <p className="text-xs text-slate mt-0.5">
+              Unlock students whose progression is locked after 3 consecutive assessment failures.
+            </p>
+          </div>
 
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleRefresh}
-              className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-paper font-jakarta text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer shrink-0"
+              className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-paper font-jakarta text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
               title="Refresh locked student records"
             >
               <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
@@ -5260,62 +5255,62 @@ export const AdminPanel: React.FC = () => {
         </div>
 
         {/* Essential Metrics: Locked Courses and Unlocked Status */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="p-5 rounded-3xl bg-[#0c0d0e] border border-rose-500/20 space-y-1.5 relative overflow-hidden shadow-xl">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[10px] text-rose-400 font-bold uppercase tracking-wider">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="p-3.5 rounded-2xl bg-black/40 border border-rose-500/20 flex items-center justify-between gap-3">
+            <div>
+              <span className="font-mono text-[10px] text-rose-400 font-bold uppercase tracking-wider block">
                 Locked Courses
               </span>
-              <div className="w-8 h-8 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
-                <ShieldAlert className="w-4 h-4" />
+              <div className="text-lg font-jakarta font-black text-rose-300 leading-none mt-1">
+                {activeLockedCount}
               </div>
+              <p className="font-mono text-[10px] text-slate/70 mt-0.5">
+                Locked after 3 consecutive failures
+              </p>
             </div>
-            <div className="text-2xl font-jakarta font-black text-rose-300">
-              {activeLockedCount}
+            <div className="w-8 h-8 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+              <ShieldAlert className="w-4 h-4" />
             </div>
-            <p className="font-mono text-[11px] text-slate/70">
-              Locked after 3 consecutive failures
-            </p>
           </div>
 
-          <div className="p-5 rounded-3xl bg-[#0c0d0e] border border-emerald-500/20 space-y-1.5 relative overflow-hidden shadow-xl">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+          <div className="p-3.5 rounded-2xl bg-black/40 border border-emerald-500/20 flex items-center justify-between gap-3">
+            <div>
+              <span className="font-mono text-[10px] text-emerald-400 font-bold uppercase tracking-wider block">
                 Unlocked
               </span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                <CheckCircle2 className="w-4 h-4" />
+              <div className="text-lg font-jakarta font-black text-emerald-300 leading-none mt-1">
+                {unlockedCount}
               </div>
+              <p className="font-mono text-[10px] text-slate/70 mt-0.5">
+                Reset by admin &amp; active
+              </p>
             </div>
-            <div className="text-2xl font-jakarta font-black text-emerald-300">
-              {unlockedCount}
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+              <CheckCircle2 className="w-4 h-4" />
             </div>
-            <p className="font-mono text-[11px] text-slate/70">
-              Reset by admin &amp; active
-            </p>
           </div>
         </div>
 
         {/* Search & Filter Bar */}
-        <div className="p-4 rounded-3xl bg-[#0c0d0e] border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
           <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 text-slate absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-slate absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search student, email, course..."
               value={courseResetSearch}
               onChange={(e) => setCourseResetSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-black/60 border border-white/10 text-paper font-jakarta text-xs focus:outline-none focus:border-cyan-400 placeholder:text-slate/50"
+              className="w-full pl-9 pr-4 py-2 rounded-xl bg-black/50 border border-white/10 text-paper font-jakarta text-xs focus:outline-none focus:border-cyan-400 placeholder:text-slate/50"
             />
           </div>
 
-          <div className="flex items-center p-1 bg-black/60 border border-white/10 rounded-2xl w-full sm:w-auto justify-center">
+          <div className="flex items-center p-1 bg-black/50 border border-white/10 rounded-xl w-full sm:w-auto justify-center">
             {(['all', 'locked', 'unlocked'] as const).map((st) => (
               <button
                 key={st}
                 type="button"
                 onClick={() => setCourseResetStatusFilter(st)}
-                className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all cursor-pointer capitalize ${
+                className={`px-3 py-1.5 rounded-lg font-jakarta text-xs font-bold transition-all cursor-pointer capitalize ${
                   courseResetStatusFilter === st
                     ? 'bg-cyan-500 text-ink shadow-md shadow-cyan-500/20'
                     : 'text-slate hover:text-paper'
@@ -5331,11 +5326,11 @@ export const AdminPanel: React.FC = () => {
 
         {/* Locked Courses List */}
         {filteredRecords.length === 0 ? (
-          <div className="p-12 text-center rounded-3xl bg-[#0c0d0e] border border-white/10 space-y-3">
-            <div className="w-12 h-12 rounded-full bg-white/5 text-slate flex items-center justify-center mx-auto">
-              <ShieldCheck className="w-6 h-6 text-emerald-400" />
+          <div className="p-8 text-center rounded-2xl bg-black/30 border border-white/10 space-y-2">
+            <div className="w-10 h-10 rounded-full bg-white/5 text-slate flex items-center justify-center mx-auto">
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
             </div>
-            <h4 className="font-jakarta text-base font-bold text-paper">No Locked Students Found</h4>
+            <h4 className="font-jakarta text-sm font-bold text-paper">No Locked Students Found</h4>
             <p className="font-mono text-xs text-slate max-w-md mx-auto">
               {courseResetSearch || courseResetStatusFilter !== 'all'
                 ? 'No records match your active search or filter.'
@@ -5352,16 +5347,16 @@ export const AdminPanel: React.FC = () => {
               return (
                 <div
                   key={item.id}
-                  className={`p-5 rounded-3xl bg-[#0c0d0e] border transition-all space-y-4 shadow-xl ${
+                  className={`p-4 rounded-2xl bg-black/40 border transition-all space-y-3 shadow-lg ${
                     isLocked
                       ? 'border-rose-500/30 hover:border-rose-500/50'
                       : 'border-white/10 hover:border-white/20'
                   }`}
                 >
-                  <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     {/* Student Info & Details */}
-                    <div className="flex items-start gap-3.5 min-w-0 flex-1">
-                      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
                         isLocked
                           ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                           : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
@@ -5371,21 +5366,21 @@ export const AdminPanel: React.FC = () => {
 
                       <div className="min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="font-jakarta font-bold text-base text-paper truncate">
+                          <h4 className="font-jakarta font-bold text-xs text-paper truncate">
                             {item.studentName}
                           </h4>
 
-                          <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-slate/80 border border-white/5">
+                          <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate/70 border border-white/5">
                             ID: {item.studentId}
                           </span>
 
                           {isLocked ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono text-[11px] font-bold">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30 font-mono text-[10px] font-bold">
                               <ShieldAlert className="w-3 h-3" />
                               <span>Locked (3 Failures)</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono text-[11px] font-bold">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono text-[10px] font-bold">
                               <CheckCircle2 className="w-3 h-3" />
                               <span>Unlocked</span>
                             </span>
@@ -5393,22 +5388,22 @@ export const AdminPanel: React.FC = () => {
                         </div>
 
                         {/* Relevant Details: Email, Phone, College */}
-                        <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-slate">
+                        <div className="flex flex-wrap items-center gap-3 font-mono text-[11px] text-slate">
                           <span className="flex items-center gap-1">
-                            <Mail className="w-3 h-3 text-slate/70" />
+                            <Mail className="w-3 h-3 text-slate/60 shrink-0" />
                             <a href={`mailto:${item.studentEmail}`} className="hover:text-cyan-300 transition-colors">
                               {item.studentEmail}
                             </a>
                           </span>
                           {item.studentPhone && (
                             <span className="flex items-center gap-1">
-                              <Phone className="w-3 h-3 text-slate/70" />
+                              <Phone className="w-3 h-3 text-slate/60 shrink-0" />
                               <span>{item.studentPhone}</span>
                             </span>
                           )}
                           {item.collegeOrCompany && (
                             <span className="flex items-center gap-1">
-                              <GraduationCap className="w-3 h-3 text-slate/70" />
+                              <GraduationCap className="w-3 h-3 text-slate/60 shrink-0" />
                               <span>{item.collegeOrCompany}</span>
                             </span>
                           )}
@@ -5417,7 +5412,7 @@ export const AdminPanel: React.FC = () => {
                     </div>
 
                     {/* Single Reset / Unlock Course Button */}
-                    <div className="flex items-center gap-2.5 shrink-0 self-end lg:self-center">
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                       {isLocked ? (
                         <button
                           type="button"
@@ -5425,14 +5420,14 @@ export const AdminPanel: React.FC = () => {
                             setConfirmResetTarget(item);
                             setAdminResetNotes('');
                           }}
-                          className="px-5 py-2.5 rounded-xl bg-primary hover:bg-white text-black font-jakarta font-black text-xs uppercase tracking-wider shadow-lg shadow-primary/30 border border-primary/50 flex items-center gap-2 cursor-pointer transition-all active:scale-95 opacity-100"
+                          className="px-3.5 py-2 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-primary/20 transition-all active:scale-95"
                         >
-                          <RotateCcw className="w-3.5 h-3.5 text-black" />
+                          <RotateCcw className="w-3.5 h-3.5 text-ink" />
                           <span>Reset / Unlock Course</span>
                         </button>
                       ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-[11px] text-emerald-400 flex items-center gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-emerald-400 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             <span>Unlocked</span>
                             {item.unlockedAt && (
@@ -5447,24 +5442,24 @@ export const AdminPanel: React.FC = () => {
                   </div>
 
                   {/* Course Details: Course Name, Failed Part, Failed Section */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-white/5">
-                    <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
-                      <span className="font-mono text-[10px] text-slate/70 uppercase block">Course Name</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2.5 border-t border-white/5">
+                    <div className="p-2.5 rounded-xl bg-black/60 border border-white/5 min-w-0">
+                      <span className="font-mono text-[10px] text-slate/50 uppercase block">Course Name</span>
                       <span className="font-jakarta font-bold text-xs text-paper block truncate">
                         {item.courseName}
                       </span>
                     </div>
 
-                    <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
-                      <span className="font-mono text-[10px] text-slate/70 uppercase block">Failed Part</span>
+                    <div className="p-2.5 rounded-xl bg-black/60 border border-white/5 min-w-0">
+                      <span className="font-mono text-[10px] text-slate/50 uppercase block">Failed Part</span>
                       <span className="font-mono text-xs font-bold text-cyan-300 block truncate">
                         {failedPart}
                       </span>
                     </div>
 
-                    <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
-                      <span className="font-mono text-[10px] text-slate/70 uppercase block">Failed Section</span>
-                      <span className="font-mono text-rose-300 block truncate">
+                    <div className="p-2.5 rounded-xl bg-black/60 border border-white/5 min-w-0">
+                      <span className="font-mono text-[10px] text-slate/50 uppercase block">Failed Section</span>
+                      <span className="font-mono text-xs text-rose-300 block truncate">
                         {failedSection}
                       </span>
                     </div>
