@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ArrowRight, CheckCircle2, User, Mail, Phone, BookOpen, MessageSquare, ChevronDown, Check } from 'lucide-react';
+import { X, ArrowRight, CheckCircle2, User, Mail, Phone, BookOpen, MessageSquare, ChevronDown } from 'lucide-react';
 import { useSiteData } from '../context/DataContext';
 
 interface ContactModalProps {
@@ -9,36 +9,12 @@ interface ContactModalProps {
   selectedCourse?: string;
 }
 
-interface CourseGroup {
-  label: string;
-  options: string[];
-}
-
-const COURSE_GROUPS: CourseGroup[] = [
-  {
-    label: 'Our Courses',
-    options: [
-      'Complete Python Course',
-      'Complete Java Course',
-      'Full Stack Development',
-      'Cyber Security Course'
-    ]
-  },
-  {
-    label: 'Other & General',
-    options: [
-      'General Enrollment',
-      'Other Courses'
-    ]
-  }
-];
-
 const COURSE_OPTIONS: string[] = [
+  'General Enrollment',
   'Complete Python Course',
   'Complete Java Course',
   'Full Stack Development',
   'Cyber Security Course',
-  'General Enrollment',
   'Other Courses'
 ];
 
@@ -64,9 +40,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, sel
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [course, setCourse] = useState('General Enrollment');
-  const [otherCourseText, setOtherCourseText] = useState('');
   const [message, setMessage] = useState('');
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -77,8 +51,6 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, sel
   const [nameTouched, setNameTouched] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
   const [phoneTouched, setPhoneTouched] = useState(false);
-
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Sync selectedCourse prop with dropdown
   useEffect(() => {
@@ -96,17 +68,6 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, sel
       setCourse('General Enrollment');
     }
   }, [selectedCourse, isOpen]);
-
-  // Click outside to close dropdown
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   // Live Phone Validation Handler
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -228,16 +189,12 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, sel
 
     setIsSubmitting(true);
 
-    const finalCourseTrack = (course === 'Other Courses' && otherCourseText.trim())
-      ? `Other Courses (${otherCourseText.trim()})`
-      : course;
-
     // Save locally to site messages
     addMessage({
       name,
       email,
-      subject: `Enrollment: ${finalCourseTrack}`,
-      message: `Phone: +91 ${cleanPhone}\nTrack: ${finalCourseTrack}\nNotes: ${message || 'No additional notes'}`
+      subject: `Enrollment: ${course}`,
+      message: `Phone: +91 ${cleanPhone}\nTrack: ${course}\nNotes: ${message || 'No additional notes'}`
     });
 
     // Send Instant Telegram Notification
@@ -254,7 +211,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, sel
           `👤 <b>Student Name:</b> ${escapeHtml(name.trim())}\n` +
           `📞 <b>Phone:</b> <a href="tel:+91${cleanPhone}">+91 ${cleanPhone}</a>\n` +
           `📧 <b>Email:</b> ${escapeHtml(email.trim())}\n` +
-          `📚 <b>Selected Track:</b> ${escapeHtml(finalCourseTrack)}\n` +
+          `📚 <b>Selected Track:</b> ${escapeHtml(course)}\n` +
           `💬 <b>Message:</b> ${escapeHtml(message.trim() || 'No additional notes')}\n\n` +
           `🕒 <b>Time:</b> ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`;
 
@@ -465,98 +422,32 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, sel
                   </div>
                 </div>
 
-                {/* Select Skill Track (Custom Dark Dropdown) */}
-                <div ref={dropdownRef} className="relative">
+                {/* Select Skill Track (Responsive Native Select) */}
+                <div>
                   <label className="block font-mono text-[11px] text-slate mb-1 font-medium">
                     Select Skill Track / Class
                   </label>
-
-                  {/* Dropdown Trigger */}
-                  <button
-                    type="button"
-                    onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className={`w-full bg-white/[0.03] border ${
-                      dropdownOpen ? 'border-primary/60 bg-white/[0.06] shadow-lg shadow-primary/10' : 'border-white/10 hover:border-white/25'
-                    } rounded-xl px-3.5 py-2.5 flex items-center justify-between text-left transition-all cursor-pointer`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                      <BookOpen className="w-3.5 h-3.5 text-primary shrink-0" />
-                      <span className="text-paper text-xs sm:text-sm font-jakarta font-semibold truncate">
-                        {course}
-                      </span>
-                    </div>
-                    <ChevronDown
-                      className={`w-4 h-4 text-slate shrink-0 transition-transform duration-200 ${
-                        dropdownOpen ? 'rotate-180 text-primary' : ''
-                      }`}
-                    />
-                  </button>
-
-                  {/* Dropdown Menu Popover */}
-                  <AnimatePresence>
-                    {dropdownOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                        transition={{ duration: 0.16, ease: 'easeOut' }}
-                        onWheel={(e) => e.stopPropagation()}
-                        className="absolute top-full left-0 right-0 mt-1.5 bg-[#0f1115] border border-white/20 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.95)] p-2 z-[100] max-h-64 overflow-y-auto overscroll-contain space-y-2 backdrop-blur-2xl touch-pan-y [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.2)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent"
-                      >
-                        {COURSE_GROUPS.map((group, groupIdx) => (
-                          <div key={group.label} className={groupIdx > 0 ? 'pt-1.5 border-t border-white/10' : ''}>
-                            <div className="px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-slate/60">
-                              {group.label}
-                            </div>
-                            <div className="space-y-0.5 mt-0.5">
-                              {group.options.map((item) => {
-                                const isSelected = course === item;
-                                return (
-                                  <button
-                                    key={item}
-                                    type="button"
-                                    onClick={() => {
-                                      setCourse(item);
-                                      setDropdownOpen(false);
-                                    }}
-                                    className={`w-full px-3.5 py-2 rounded-xl text-left flex items-center justify-between gap-3 transition-all cursor-pointer ${
-                                      isSelected
-                                        ? 'bg-primary/15 text-primary border border-primary/30 font-semibold'
-                                        : 'text-paper hover:bg-white/[0.08] hover:text-primary border border-transparent'
-                                    }`}
-                                  >
-                                    <span className="text-xs truncate">{item}</span>
-                                    {isSelected ? (
-                                      <Check className="w-3.5 h-3.5 text-primary shrink-0" />
-                                    ) : (
-                                      <div className="w-3.5 h-3.5 shrink-0" />
-                                    )}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Optional input if Other Courses is selected */}
-                {course === 'Other Courses' && (
-                  <div className="space-y-1 animate-fade-in">
-                    <label className="block font-mono text-[11px] text-slate font-medium">
-                      Specify Course / Skill Needed
-                    </label>
-                    <input
-                      type="text"
-                      value={otherCourseText}
-                      onChange={(e) => setOtherCourseText(e.target.value)}
-                      placeholder="e.g. AI / Machine Learning, Flutter, DevOps, etc."
-                      className="w-full bg-white/[0.03] border border-white/10 focus:border-primary/60 rounded-xl px-3.5 py-2.5 text-paper placeholder:text-slate/30 text-xs sm:text-sm focus:outline-none transition-all font-mono"
-                    />
+                  <div className="relative">
+                    <BookOpen className="w-3.5 h-3.5 text-primary absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
+                    <select
+                      value={course}
+                      onChange={(e) => setCourse(e.target.value)}
+                      className="w-full bg-[#12141a] border border-white/10 hover:border-white/25 focus:border-primary/60 focus:bg-[#161822] rounded-xl pl-9 pr-9 py-2.5 text-paper text-xs sm:text-sm font-jakarta font-semibold focus:outline-none transition-all cursor-pointer appearance-none"
+                    >
+                      {COURSE_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt} className="bg-[#12141a] text-paper py-2">
+                          {opt}
+                        </option>
+                      ))}
+                      {!COURSE_OPTIONS.includes(course) && (
+                        <option value={course} className="bg-[#12141a] text-paper py-2">
+                          {course}
+                        </option>
+                      )}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
                   </div>
-                )}
+                </div>
 
                 {/* Message / Questions */}
                 <div>

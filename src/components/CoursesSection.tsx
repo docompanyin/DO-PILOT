@@ -39,17 +39,17 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
 
   return (
     <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.94 }}
+      layout="position"
+      initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.94 }}
-      transition={{ duration: 0.32, ease: 'easeOut' }}
+      exit={{ opacity: 0, scale: 0.96 }}
+      transition={{ duration: 0.22, ease: 'easeOut' }}
       ref={cardRef}
       onMouseMove={handleMouseMove}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={() => onEnrollCourse(course)}
-      className="group relative rounded-2xl bg-panel border border-white/10 overflow-hidden transition-all duration-300 hover:border-primary/40 flex flex-col justify-between cursor-pointer"
+      className="group relative rounded-2xl bg-panel border border-white/10 overflow-hidden hover:border-primary/40 hover:shadow-xl hover:shadow-primary/5 transition-colors duration-300 flex flex-col justify-between cursor-pointer"
     >
       {/* Dynamic Cursor Spotlight Glow (Option 2) */}
       <div
@@ -75,13 +75,14 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
       />
 
       <div className="relative z-10">
-        {/* Course Image Header with Smooth Zoom */}
-        <div className="relative aspect-[16/10] w-full overflow-hidden bg-black/60">
+        {/* Course Image Header with Aspect Ratio Lock */}
+        <div className="relative aspect-[16/10] w-full overflow-hidden bg-black/60 shrink-0" style={{ aspectRatio: '16/10' }}>
           <img
             src={course.image}
             alt={course.title}
-            className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ease-out"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
             loading="lazy"
+            style={{ aspectRatio: '16/10' }}
           />
           {/* Subtle Image Gradient Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-panel via-panel/20 to-transparent" />
@@ -342,12 +343,9 @@ export const CoursesSection: React.FC<CoursesSectionProps> = ({ onEnroll }) => {
           </div>
         </div>
 
-        {/* Fluid Animated Course Grid */}
-        <motion.div
-          layout
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
-        >
-          <AnimatePresence mode="popLayout">
+        {/* Course Grid with Stable Dimensions */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <AnimatePresence>
             {filteredCourses.map((course) => (
               <SpotlightCard
                 key={course.id}
@@ -356,7 +354,7 @@ export const CoursesSection: React.FC<CoursesSectionProps> = ({ onEnroll }) => {
               />
             ))}
           </AnimatePresence>
-        </motion.div>
+        </div>
 
       </div>
     </section>

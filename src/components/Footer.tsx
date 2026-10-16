@@ -122,21 +122,6 @@ export const Footer: React.FC = () => {
 
   return (
     <footer className="relative bg-black text-slate border-t border-white/10 pt-12 sm:pt-16 pb-10 sm:pb-12 select-none overflow-hidden">
-      {/* Background Glowing Particles Video Overlay */}
-      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="w-full h-full object-cover opacity-40 mix-blend-screen"
-        >
-          <source src="/video/footer-particles.mp4" type="video/mp4" />
-        </video>
-        {/* Soft edge blend for smooth integration */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black/80" />
-      </div>
-
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Main Footer Columns: Mathematically Aligned 12-Column Grid */}

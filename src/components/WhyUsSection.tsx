@@ -155,44 +155,68 @@ export const WhyUsSection: React.FC = () => {
             </p>
           </div>
 
-          {/* Mobile Comparison Cards (Shown on small screens for comfortable touch reading) */}
-          <div className="md:hidden space-y-3">
-            {comparisons.map((row, index) => (
-              <div key={index} className="p-4 rounded-xl bg-black/40 border border-white/10 space-y-2.5">
-                <div className="font-jakarta font-bold text-sm text-paper">
-                  {row.feature}
-                </div>
-                <div className="grid grid-cols-1 gap-2 text-xs">
-                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-red-500/[0.04] border border-red-500/15 text-slate">
-                    <X className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-[10px] uppercase font-mono text-red-400/90 block font-semibold mb-0.5">
-                        {whyUs?.tableHeaderTraditional || 'Regular Online Courses'}
-                      </span>
-                      <span className="text-slate-300 leading-snug">{row.traditional}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-primary/[0.05] border border-primary/20 text-paper">
-                    <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-[10px] uppercase font-mono text-primary block font-semibold mb-0.5">
-                        {whyUs?.tableHeaderDoPilot || 'DO PILOT Platform'}
-                      </span>
-                      <span className="text-paper font-medium leading-snug">{row.doPilot}</span>
-                    </div>
-                  </div>
-                </div>
+          {/* Mobile View: All Wrong Things First, Then All Right Things (Clean, Neutral, Matching Desktop View) */}
+          <div className="md:hidden space-y-4">
+            {/* Panel 1: Regular Online Courses */}
+            <div className="rounded-xl bg-black/40 border border-white/10 p-4 min-[360px]:p-5">
+              <div className="flex items-center gap-2 pb-3 mb-3 border-b border-white/10">
+                <X className="w-4 h-4 text-red-400 shrink-0" />
+                <h4 className="font-jakarta text-xs sm:text-sm font-bold text-slate/90 font-mono uppercase tracking-wide">
+                  {whyUs?.tableHeaderTraditional || 'Regular Online Courses'}
+                </h4>
               </div>
-            ))}
+
+              <div className="space-y-3">
+                {comparisons.map((row, idx) => (
+                  <div key={idx} className="flex items-start gap-2.5">
+                    <X className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-jakarta text-[11px] font-bold text-paper">
+                        {row.feature}
+                      </div>
+                      <div className="text-slate text-xs leading-snug mt-0.5">
+                        {row.traditional}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Panel 2: DO PILOT Platform */}
+            <div className="rounded-xl bg-black/40 border border-white/10 p-4 min-[360px]:p-5">
+              <div className="flex items-center gap-2 pb-3 mb-3 border-b border-white/10">
+                <Check className="w-4 h-4 text-primary shrink-0" />
+                <h4 className="font-jakarta text-xs sm:text-sm font-bold text-slate/90 font-mono uppercase tracking-wide">
+                  {whyUs?.tableHeaderDoPilot || 'DO PILOT Platform'}
+                </h4>
+              </div>
+
+              <div className="space-y-3">
+                {comparisons.map((row, idx) => (
+                  <div key={idx} className="flex items-start gap-2.5">
+                    <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-jakarta text-[11px] font-bold text-paper">
+                        {row.feature}
+                      </div>
+                      <div className="text-slate text-xs leading-snug mt-0.5">
+                        {row.doPilot}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
-          {/* Desktop & Tablet Comparison Table (Hidden on small mobile) */}
+          {/* Desktop & Tablet Table (Hidden on small mobile where stacked panels fit full window) */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-sm border-collapse min-w-[600px]">
               <thead>
                 <tr className="border-b border-white/10 text-xs font-mono uppercase text-slate">
                   <th className="py-3 px-4">{whyUs?.tableHeaderFeature || 'Feature'}</th>
-                  <th className="py-3 px-4 text-slate/70">{whyUs?.tableHeaderTraditional || 'Regular Online Courses'}</th>
+                  <th className="py-3 px-4 text-red-400/90 font-bold">{whyUs?.tableHeaderTraditional || 'Regular Online Courses'}</th>
                   <th className="py-3 px-4 text-primary font-bold">{whyUs?.tableHeaderDoPilot || 'DO PILOT Platform'}</th>
                 </tr>
               </thead>
@@ -202,14 +226,16 @@ export const WhyUsSection: React.FC = () => {
                     <td className="py-4 px-4 font-bold text-paper font-jakarta">
                       {row.feature}
                     </td>
-                    <td className="py-4 px-4 text-slate flex items-center gap-2">
-                      <X className="w-4 h-4 text-red-400 shrink-0" />
-                      <span>{row.traditional}</span>
+                    <td className="py-4 px-4 text-slate">
+                      <div className="flex items-start gap-2">
+                        <X className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                        <span className="text-slate-300 leading-snug">{row.traditional}</span>
+                      </div>
                     </td>
                     <td className="py-4 px-4 text-paper font-medium">
-                      <div className="flex items-center gap-2 text-primary">
-                        <Check className="w-4 h-4 text-primary shrink-0" />
-                        <span className="text-paper">{row.doPilot}</span>
+                      <div className="flex items-start gap-2 text-primary">
+                        <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                        <span className="text-paper leading-snug">{row.doPilot}</span>
                       </div>
                     </td>
                   </tr>
