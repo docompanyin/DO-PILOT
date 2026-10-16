@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, Check, Sparkles, Tag, ArrowRight, AlertCircle, Award, CheckCircle2,
-  QrCode, Clock, Copy, RefreshCw, Smartphone, ShieldCheck
+  X, Check, Sparkles, Tag, ArrowRight, ArrowLeft, AlertCircle, Award, CheckCircle2,
+  QrCode, Clock, Copy, RefreshCw, ShieldCheck
 } from 'lucide-react';
 import { useUserAuth } from '../../context/UserAuthContext';
 import {
@@ -15,10 +15,6 @@ import {
   CourseCoupon,
   CoursePricing
 } from '../../utils/coursePricingService';
-import {
-  processPaymentWithGateway,
-  getPaymentGatewayConfig
-} from '../../utils/paymentGateway';
 
 export interface CoursePurchaseModalProps {
   isOpen: boolean;
@@ -29,6 +25,8 @@ export interface CoursePurchaseModalProps {
   pricing?: CoursePricing;
   onSuccess?: () => void;
 }
+
+const PAYMENT_COUNTDOWN_SECONDS = 120; // 2 minutes
 
 export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
   isOpen,
@@ -59,13 +57,14 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [purchaseCompleted, setPurchaseCompleted] = useState(false);
 
-  // Payment Mode ('upi_pay' | 'upi_qr')
-  const [paymentMode, setPaymentMode] = useState<'upi_pay' | 'upi_qr'>('upi_pay');
+  // Step: 'checkout' (course info & "Pay ₹999") | 'qr_page' (separate clean QR payment page)
+  const [paymentStep, setPaymentStep] = useState<'checkout' | 'qr_page'>('checkout');
 
-  // QR Code Configuration & Session Timer State
+  // QR Code Configuration & 2-Minute Session Timer State
   const [qrConfig, setQrConfig] = useState<PaymentQRConfig>(() => getPaymentQRConfig());
-  const [timeLeft, setTimeLeft] = useState<number>(() => (getPaymentQRConfig().timeoutMinutes || 10) * 60);
+  const [timeLeft, setTimeLeft] = useState<number>(PAYMENT_COUNTDOWN_SECONDS);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [qrImageLoadFailed, setQrImageLoadFailed] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
 
   // Manual UTR Verification State
@@ -106,9 +105,10 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
 
       const cfg = getPaymentQRConfig();
       setQrConfig(cfg);
-      setTimeLeft((cfg.timeoutMinutes || 10) * 60);
+      setTimeLeft(PAYMENT_COUNTDOWN_SECONDS);
       setSessionExpired(false);
-      setPaymentMode('upi_pay');
+      setPaymentStep('checkout');
+      setQrImageLoadFailed(false);
       setUtrInput('');
       setUtrError(null);
       setVerificationSubmitted(false);
@@ -116,9 +116,9 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
     }
   }, [isOpen, courseId, propPricing]);
 
-  // QR Code Timer Countdown
+  // 2-Minute QR Code Timer Countdown (Active only on qr_page)
   useEffect(() => {
-    if (!isOpen || verificationSubmitted || sessionExpired || finalAmount === 0) {
+    if (!isOpen || paymentStep !== 'qr_page' || verificationSubmitted || sessionExpired || finalAmount === 0) {
       return;
     }
 
@@ -134,7 +134,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isOpen, verificationSubmitted, sessionExpired, finalAmount]);
+  }, [isOpen, paymentStep, verificationSubmitted, sessionExpired, finalAmount]);
 
   if (!isOpen) return null;
 
@@ -147,10 +147,11 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
   };
 
   const handleResetSession = () => {
-    setTimeLeft((qrConfig.timeoutMinutes || 10) * 60);
+    setTimeLeft(PAYMENT_COUNTDOWN_SECONDS);
     setSessionExpired(false);
     setUtrError(null);
     setUtrInput('');
+    setQrImageLoadFailed(false);
   };
 
   const handleCopyUpiId = () => {
@@ -250,92 +251,6 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
     }
   };
 
-  // UPI payment intent / gateway checkout
-  const handleUpiPaymentAction = async () => {
-    const studentId = user?.id || user?.email || 'guest_student';
-    const studentName = user?.name || user?.email?.split('@')[0] || 'Enrolled Student';
-    const studentEmail = user?.email || `${studentId}@student.dopilot.io`;
-    const studentPhone = user?.phone || '';
-
-    const gwConfig = getPaymentGatewayConfig();
-
-    // If online gateway is configured with credentials, launch standard checkout
-    if (gwConfig.isConfigured && gwConfig.keyId) {
-      setIsProcessing(true);
-      await processPaymentWithGateway({
-        amountInRupees: finalAmount,
-        courseId,
-        courseName: resolvedCourseName,
-        studentId,
-        studentName,
-        studentEmail,
-        studentPhone,
-        onSuccess: (paymentDetails) => {
-          const result = recordCoursePurchase({
-            studentId,
-            studentName,
-            studentEmail,
-            studentPhone,
-            courseId,
-            courseName: resolvedCourseName,
-            originalPrice: pricing.regularPrice,
-            discountAmount,
-            finalAmount,
-            couponCodeApplied: appliedCoupon?.code,
-            paymentMethod: 'razorpay',
-            paymentId: paymentDetails.paymentId,
-            orderId: paymentDetails.orderId,
-            status: 'completed'
-          });
-
-          if (result.success) {
-            if (isLoggedIn) {
-              enrollInCourse(resolvedCourseName);
-            }
-            setPurchaseCompleted(true);
-            setTimeout(() => {
-              if (onSuccess) onSuccess();
-              onClose();
-            }, 1600);
-          }
-          setIsProcessing(false);
-        },
-        onError: () => {
-          setIsProcessing(false);
-          // Seamlessly switch to UPI QR mode if gateway fails
-          setPaymentMode('upi_qr');
-        },
-        onDismiss: () => {
-          setIsProcessing(false);
-        }
-      });
-      return;
-    }
-
-    // Google Pay UPI Intent Deep Link
-    const activeUpiId = qrConfig.upiId || 'jayadevnair200518@oksbi';
-    const activePayee = qrConfig.bankingName || qrConfig.merchantName || qrConfig.recipientName || 'JAYADEV NAIR';
-    const gpayLink = `gpay://upi/pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activePayee)}&am=${finalAmount}&cu=INR&tn=${encodeURIComponent(resolvedCourseName)}`;
-    const standardUpiLink = `upi://pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activePayee)}&am=${finalAmount}&cu=INR&tn=${encodeURIComponent(resolvedCourseName)}`;
-    
-    // Attempt opening Google Pay app directly
-    try {
-      window.location.href = gpayLink;
-      setTimeout(() => {
-        try {
-          window.location.href = standardUpiLink;
-        } catch (e) {}
-      }, 600);
-    } catch (e) {
-      try {
-        window.location.href = standardUpiLink;
-      } catch (err) {}
-    }
-
-    // Switch to QR view so student can see QR code or enter UTR
-    setPaymentMode('upi_qr');
-  };
-
   // Submit manual QR payment with 12-digit UTR for Admin Verification
   const handleSubmitManualQRPayment = () => {
     const utr = utrInput.trim();
@@ -376,13 +291,12 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
     }
   };
 
-  // Dynamic QR Code URL (custom uploaded URL or dynamic UPI link)
-  const qrImageSrc =
-    qrConfig.qrImageUrl && qrConfig.qrImageUrl.trim().length > 0
-      ? qrConfig.qrImageUrl.trim()
-      : `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(
-          `upi://pay?pa=${qrConfig.upiId || 'jayadevnair200518@oksbi'}&pn=${encodeURIComponent(qrConfig.bankingName || qrConfig.merchantName || qrConfig.recipientName || 'JAYADEV NAIR')}&am=${finalAmount}&cu=INR`
-        )}`;
+  // Determine if valid admin-configured QR image exists
+  const hasAdminQr = Boolean(
+    qrConfig.qrImageUrl &&
+    qrConfig.qrImageUrl.trim().length > 0 &&
+    !qrImageLoadFailed
+  );
 
   return (
     <AnimatePresence>
@@ -398,23 +312,45 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
           <div className="absolute top-0 right-0 w-80 h-80 bg-primary/10 blur-[100px] rounded-full pointer-events-none" />
 
           {/* Modal Header */}
-          <div className="flex items-start justify-between gap-4 pb-4 border-b border-white/10 relative z-10">
-            <div className="space-y-1">
-              <span className="text-primary text-[11px] font-mono font-bold uppercase tracking-wider block">
-                Full Lifetime Access
-              </span>
-              <h3 className="font-jakarta text-xl sm:text-2xl font-black text-paper leading-tight">
-                Unlock {resolvedCourseName}
-              </h3>
-              <p className="text-xs text-slate font-sans">
-                Full 14-module curriculum, interactive coding labs, and official certificate.
-              </p>
-            </div>
+          <div className="flex items-center justify-between gap-4 pb-4 border-b border-white/10 relative z-10">
+            {paymentStep === 'qr_page' ? (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPaymentStep('checkout')}
+                  className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-paper font-mono text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-white/10"
+                  aria-label="Back to course checkout"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back</span>
+                </button>
+                <div>
+                  <h3 className="font-jakarta text-base sm:text-lg font-black text-paper leading-tight">
+                    Scan Google Pay QR
+                  </h3>
+                  <p className="text-[11px] text-slate font-sans truncate max-w-[200px] sm:max-w-md">
+                    {resolvedCourseName}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <span className="text-primary text-[11px] font-mono font-bold uppercase tracking-wider block">
+                  Full Lifetime Access
+                </span>
+                <h3 className="font-jakarta text-xl sm:text-2xl font-black text-paper leading-tight">
+                  Unlock {resolvedCourseName}
+                </h3>
+                <p className="text-xs text-slate font-sans">
+                  Full 14-module curriculum, interactive coding labs, and official certificate.
+                </p>
+              </div>
+            )}
 
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper transition-all cursor-pointer"
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper transition-all cursor-pointer shrink-0"
               aria-label="Close dialog"
             >
               <X className="w-4 h-4" />
@@ -487,8 +423,176 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
                 Close &amp; Check Later
               </button>
             </motion.div>
+          ) : paymentStep === 'qr_page' ? (
+            /* VIEW 3: Separate Clean QR Payment Page */
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="py-4 space-y-5 relative z-10 flex flex-col items-center text-center max-w-lg mx-auto"
+            >
+              {/* Top Bar: Back Action, Payable Amount & Countdown Timer */}
+              <div className="w-full flex items-center justify-between p-4 rounded-2xl bg-black/40 border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setPaymentStep('checkout')}
+                  className="px-3.5 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-paper font-mono text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-white/10"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back</span>
+                </button>
+
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 font-mono text-xs">
+                  <Clock className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-slate">Timer:</span>
+                  <span className={`font-bold ${sessionExpired ? 'text-rose-400' : 'text-primary'}`}>
+                    {sessionExpired ? '00:00' : formatTimer(timeLeft)}
+                  </span>
+                </div>
+
+                <div className="text-right">
+                  <span className="font-mono text-[10px] text-slate uppercase tracking-wider block">
+                    Payable Amount
+                  </span>
+                  <span className="font-jakarta text-xl sm:text-2xl font-black text-primary">
+                    ₹{finalAmount.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              {sessionExpired ? (
+                /* Expired Session State: QR disabled, clear message & action buttons */
+                <div className="w-full p-6 sm:p-8 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-center space-y-4">
+                  <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center justify-center mx-auto">
+                    <Clock className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h4 className="font-jakarta font-bold text-base sm:text-lg text-paper">
+                      Payment Session Expired
+                    </h4>
+                    <p className="text-slate font-mono text-xs leading-relaxed max-w-sm mx-auto">
+                      The 2-minute payment session has timed out. For security, the QR code has been disabled.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleResetSession}
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer hover:bg-white shadow-lg shadow-primary/20"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Retry Payment</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentStep('checkout')}
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-paper font-jakarta font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>Back to Course</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Active Session State */
+                <>
+                  {/* Admin Configured QR Code OR Clear Message */}
+                  {hasAdminQr ? (
+                    <div className="p-4 sm:p-5 rounded-2xl bg-white border border-white/20 flex flex-col items-center justify-center shadow-xl">
+                      <img
+                        src={qrConfig.qrImageUrl.trim()}
+                        alt="Scan Google Pay QR to Pay"
+                        onError={() => setQrImageLoadFailed(true)}
+                        className="w-48 h-48 sm:w-56 sm:h-56 object-contain rounded-lg"
+                      />
+                      <p className="font-mono text-[11px] text-black/80 font-bold mt-2.5 tracking-wide uppercase">
+                        Scan &amp; Pay using Google Pay
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="w-full p-6 sm:p-8 rounded-2xl bg-white/[0.03] border border-amber-500/30 text-center space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto">
+                        <AlertCircle className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <h5 className="font-jakarta font-bold text-base text-paper">
+                          Payment QR Code Not Configured
+                        </h5>
+                        <p className="text-slate font-mono text-xs leading-relaxed max-w-sm mx-auto">
+                          No official Google Pay QR code has been configured by the admin yet. Please contact support or try again later.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment Verification Form */}
+                  {hasAdminQr && (
+                    <div className="w-full space-y-3 text-left">
+                      {qrConfig.upiId && (
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-black/40 border border-white/10 font-mono text-xs">
+                          <span className="text-slate text-[11px]">Google Pay UPI ID:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-paper text-xs">{qrConfig.upiId}</span>
+                            <button
+                              type="button"
+                              onClick={handleCopyUpiId}
+                              className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-[10px] text-paper transition-all cursor-pointer flex items-center gap-1"
+                            >
+                              <Copy className="w-3 h-3" />
+                              <span>{copiedUpi ? 'Copied' : 'Copy'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-1.5">
+                        <label className="font-mono text-[11px] text-slate font-bold uppercase tracking-wider block">
+                          Enter 12-Digit Google Pay UPI Ref / UTR
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 423589102345"
+                          value={utrInput}
+                          onChange={(e) => {
+                            setUtrInput(e.target.value.trim());
+                            setUtrError(null);
+                          }}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-mono text-xs focus:outline-none focus:border-primary"
+                        />
+                        {utrError && (
+                          <p className="font-mono text-[11px] text-rose-400 flex items-center gap-1 pt-0.5">
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            <span>{utrError}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSubmitManualQRPayment}
+                        disabled={isProcessing}
+                        className="w-full py-3.5 px-4 rounded-full font-jakarta font-black text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg bg-primary text-ink hover:bg-white shadow-primary/25 disabled:opacity-50"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>{isProcessing ? 'Submitting...' : 'Submit Payment for Verification'}</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Back to Course details link */}
+                  <button
+                    type="button"
+                    onClick={() => setPaymentStep('checkout')}
+                    className="text-slate hover:text-paper font-mono text-xs flex items-center gap-1.5 transition-colors cursor-pointer pt-1"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Back to Course Details</span>
+                  </button>
+                </>
+              )}
+            </motion.div>
           ) : (
-            /* VIEW 3: Standard Purchase Flow */
+            /* VIEW 4: Standard Course Checkout */
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6 pt-5 relative z-10">
               {/* Left Column: What You Get */}
               <div className="md:col-span-5 space-y-5 md:space-y-0 md:flex md:flex-col md:justify-between">
@@ -646,174 +750,37 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
                     </button>
                   </div>
                 ) : (
-                  /* Case B: Paid Course with UPI Payment & Scan QR Flow */
+                  /* Case B: Paid Course with Scan Google Pay QR as the only option */
                   <div className="space-y-3 pt-2 border-t border-white/10">
-                    {/* Method Selector Tabs */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setPaymentMode('upi_pay')}
-                        className={`p-2.5 rounded-xl border text-xs font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                          paymentMode === 'upi_pay'
-                            ? 'bg-primary/15 border-primary text-primary shadow-md shadow-primary/10'
-                            : 'bg-black/40 border-white/10 text-slate hover:text-paper hover:bg-white/5'
-                        }`}
-                      >
-                        <Smartphone className="w-3.5 h-3.5" />
-                        <span>Pay with Google Pay</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPaymentMode('upi_qr');
-                          if (sessionExpired) handleResetSession();
-                        }}
-                        className={`p-2.5 rounded-xl border text-xs font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                          paymentMode === 'upi_qr'
-                            ? 'bg-primary/15 border-primary text-primary shadow-md shadow-primary/10'
-                            : 'bg-black/40 border-white/10 text-slate hover:text-paper hover:bg-white/5'
-                        }`}
-                      >
-                        <QrCode className="w-3.5 h-3.5" />
-                        <span>Scan Google Pay QR</span>
-                      </button>
+                    {/* Displayed normally without green oval border or decoration */}
+                    <div
+                      onClick={() => {
+                        handleResetSession();
+                        setPaymentStep('qr_page');
+                      }}
+                      className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/10 text-paper font-mono text-xs cursor-pointer hover:bg-white/[0.06] transition-colors"
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <QrCode className="w-4 h-4 text-slate" />
+                        <span className="font-semibold text-paper">Scan Google Pay QR</span>
+                      </div>
+                      <ArrowRight className="w-3.5 h-3.5 text-slate" />
                     </div>
 
-                    {/* Mode 1: Pay with Google Pay Direct Action */}
-                    {paymentMode === 'upi_pay' ? (
-                      <div className="space-y-3 pt-1">
-                        <button
-                          type="button"
-                          onClick={handleUpiPaymentAction}
-                          disabled={isProcessing}
-                          className="w-full py-3.5 px-4 rounded-full font-jakarta font-black text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg bg-primary text-ink hover:bg-white shadow-primary/25 disabled:opacity-50"
-                        >
-                          <Smartphone className="w-4 h-4" />
-                          <span>{isProcessing ? 'Opening Google Pay...' : `Pay ₹${finalAmount.toLocaleString()} with Google Pay`}</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </button>
-
-                        <p className="font-mono text-[10px] text-slate/60 text-center">
-                          Instant checkout via Google Pay UPI
-                        </p>
-                      </div>
-                    ) : (
-                      /* Mode 2: Scan QR Code & Enter UTR */
-                      <div className="space-y-3 pt-1">
-                        {/* Countdown Timer */}
-                        <div className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/10 font-mono text-xs">
-                          <div className="flex items-center gap-1.5 text-slate">
-                            <Clock className="w-3.5 h-3.5 text-primary" />
-                            <span>Session Time:</span>
-                          </div>
-                          <span className={`font-bold ${sessionExpired ? 'text-rose-400 animate-pulse' : 'text-primary'}`}>
-                            {sessionExpired ? 'EXPIRED' : `${formatTimer(timeLeft)} remaining`}
-                          </span>
-                        </div>
-
-                        {sessionExpired ? (
-                          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-center space-y-2">
-                            <h5 className="font-jakarta font-bold text-sm text-paper">Payment Session Expired</h5>
-                            <p className="text-slate font-mono text-[11px]">
-                              The session has timed out. Click below to refresh the timer.
-                            </p>
-                            <button
-                              type="button"
-                              onClick={handleResetSession}
-                              className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-paper font-mono text-xs font-bold transition-all flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
-                            >
-                              <RefreshCw className="w-3.5 h-3.5" />
-                              <span>Retry Payment</span>
-                            </button>
-                          </div>
-                        ) : (
-                          <>
-                            {/* QR Code */}
-                            <div className="p-3.5 rounded-2xl bg-white border border-white/20 flex flex-col items-center justify-center shadow-lg">
-                              <img
-                                src={qrImageSrc}
-                                alt="Scan Google Pay QR Code to Pay"
-                                className="w-44 h-44 object-contain rounded-lg"
-                              />
-                              <p className="font-mono text-[10px] text-black/80 font-bold mt-2 tracking-wide">
-                                Scan &amp; Pay using Google Pay
-                              </p>
-                            </div>
-
-                            {/* Verified Recipient Details */}
-                            <div className="p-3 rounded-2xl bg-black/60 border border-white/10 space-y-2 font-mono text-xs">
-                              <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-white/10">
-                                <span className="text-slate">Banking Name:</span>
-                                <span className="font-bold text-paper text-right">{qrConfig.bankingName || qrConfig.merchantName || 'JAYADEV NAIR'}</span>
-                              </div>
-                              <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-white/10">
-                                <span className="text-slate">Recipient Name:</span>
-                                <span className="font-bold text-paper text-right">{qrConfig.recipientName || 'Jayadev Nair'}</span>
-                              </div>
-                              <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-white/10">
-                                <span className="text-slate">Phone Number:</span>
-                                <span className="font-bold text-paper text-right">{qrConfig.phoneNumber || '+91 97459 49326'}</span>
-                              </div>
-                              <div className="flex items-center justify-between pt-0.5">
-                                <div className="min-w-0 pr-2">
-                                  <span className="text-[10px] text-slate block">Google Pay UPI ID:</span>
-                                  <span className="font-bold text-primary truncate block text-xs">{qrConfig.upiId}</span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={handleCopyUpiId}
-                                  className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-paper text-[11px] transition-all cursor-pointer shrink-0 flex items-center gap-1"
-                                >
-                                  <Copy className="w-3 h-3" />
-                                  <span>{copiedUpi ? 'Copied!' : 'Copy'}</span>
-                                </button>
-                              </div>
-                            </div>
-
-                            {qrConfig.paymentInstructions && (
-                              <p className="font-mono text-[10px] text-slate/80 leading-relaxed bg-white/[0.03] p-2.5 rounded-xl border border-white/5">
-                                {qrConfig.paymentInstructions}
-                              </p>
-                            )}
-
-                            {/* 12-Digit UTR Input */}
-                            <div className="space-y-1.5">
-                              <label className="font-mono text-[11px] text-slate font-bold uppercase tracking-wider block">
-                                Enter 12-Digit Google Pay UPI Ref / UTR
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="e.g. 423589102345"
-                                value={utrInput}
-                                onChange={(e) => {
-                                  setUtrInput(e.target.value.trim());
-                                  setUtrError(null);
-                                }}
-                                className="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/15 text-paper font-mono text-xs focus:outline-none focus:border-primary"
-                              />
-                              {utrError && (
-                                <p className="font-mono text-[11px] text-rose-400 flex items-center gap-1 pt-0.5">
-                                  <AlertCircle className="w-3 h-3 shrink-0" />
-                                  <span>{utrError}</span>
-                                </p>
-                              )}
-                            </div>
-
-                            {/* Submit for Verification Button */}
-                            <button
-                              type="button"
-                              onClick={handleSubmitManualQRPayment}
-                              disabled={isProcessing}
-                              className="w-full py-3.5 px-4 rounded-full font-jakarta font-black text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg bg-primary text-ink hover:bg-white shadow-primary/25 disabled:opacity-50"
-                            >
-                              <Check className="w-4 h-4" />
-                              <span>{isProcessing ? 'Submitting...' : 'Submit Payment for Verification'}</span>
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
+                    {/* Simplified Payment Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleResetSession();
+                        setPaymentStep('qr_page');
+                      }}
+                      className="w-full py-3.5 px-4 rounded-full font-jakarta font-black text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg bg-primary text-ink hover:bg-white shadow-primary/25"
+                    >
+                      <span>Pay ₹{finalAmount.toLocaleString()}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
                   </div>
                 )}
               </div>
