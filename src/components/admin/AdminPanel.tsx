@@ -7206,7 +7206,7 @@ export const AdminPanel: React.FC = () => {
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <GraduationCap className="w-4 h-4 shrink-0" />
-                <span className="font-jakarta text-xs font-semibold truncate">Student Data &amp; Analytics</span>
+                <span className="font-jakarta text-xs font-semibold truncate">Student Data</span>
               </div>
               <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
                 adminWorkspace === 'students' ? 'bg-black/20 text-ink' : 'bg-primary/20 text-primary'
