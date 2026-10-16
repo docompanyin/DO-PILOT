@@ -569,9 +569,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
                     <button
                       type="button"
                       onClick={handleCancelPending}
-                      className="text-xs font-mono text-white hover:text-white/80 transition-colors cursor-pointer underline underline-offset-4"
+                      className="text-xs font-jakarta font-medium text-white hover:opacity-70 transition-opacity cursor-pointer"
                     >
-                      Use a different Google account
+                      Switch Google account
                     </button>
                   </div>
                 </div>
