@@ -143,15 +143,6 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
           <span className="font-mono text-[11px] text-slate/70">
             {course.level}
           </span>
-          {pricing?.isFreeCourse ? (
-            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
-              FREE
-            </span>
-          ) : (
-            <span className="font-mono text-xs font-bold text-primary">
-              ₹{pricing?.salePrice || 999}
-            </span>
-          )}
         </div>
 
         <button
