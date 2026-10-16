@@ -47,7 +47,7 @@ const CASH_TIERS: CashRewardTier[] = [
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, isLoggedIn, logout, updateUserProfile } = useUserAuth();
+  const { user, pendingUser, isLoggedIn, isPendingRegistration, logout, updateUserProfile } = useUserAuth();
   const { points } = useCoursePoints();
 
   // Active Tab from query param (defaults to 'profile')
@@ -116,6 +116,49 @@ export const SettingsPage: React.FC = () => {
     setEditError(null);
     setIsEditModalOpen(true);
   };
+
+  // If registration is pending, require completion before accessing settings
+  if (isPendingRegistration && pendingUser) {
+    return (
+      <div className="min-h-screen bg-black text-paper flex flex-col justify-center items-center px-4 select-none relative overflow-hidden">
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-primary/15 blur-[120px] rounded-full pointer-events-none" />
+        <div className="max-w-md w-full p-8 rounded-3xl bg-panel border border-white/10 text-center space-y-5 shadow-2xl relative z-10 backdrop-blur-xl">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mx-auto">
+            <User className="w-7 h-7" />
+          </div>
+          <div>
+            <h2 className="font-jakarta font-black text-2xl text-paper">
+              Complete Registration Required
+            </h2>
+            <p className="text-slate text-xs sm:text-sm mt-1">
+              Welcome, <span className="text-paper font-semibold">{pendingUser.name}</span>! Please complete your registration form to activate your student workspace and access settings.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/signup?redirect=/settings')}
+            className="w-full py-3.5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider transition-all duration-300 shadow-lg shadow-primary/20 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <span>Finish Registration Now</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
+          <div>
+            <button
+              type="button"
+              onClick={() => {
+                logout();
+                navigate('/');
+              }}
+              className="inline-flex items-center gap-1.5 text-xs font-mono text-slate hover:text-red-400 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Cancel &amp; Sign Out</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // If not logged in, prompt sign-in
   if (!isLoggedIn || !user) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -7,7 +7,6 @@ import {
   GraduationCap, ShieldCheck
 } from 'lucide-react';
 import { useUserAuth, UserProfile } from '../../context/UserAuthContext';
-import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { getUserInitials } from '../../utils/userInitials';
 
 interface AuthPageProps {
@@ -25,10 +24,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
   const location = useLocation();
   const { 
     user, 
+    pendingUser,
     isLoggedIn, 
+    isPendingRegistration,
     loginWithGoogleCredential, 
     loginWithGoogleDirect, 
     completeOnboardingAndLogin,
+    clearPendingRegistration,
     logout 
   } = useUserAuth();
 
@@ -37,14 +39,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Pending Google profile waiting for minimal details
-  const [pendingProfile, setPendingProfile] = useState<UserProfile | null>(null);
+  // Active pending user requiring registration completion
+  const activePending = pendingUser || (user && !user.hasCompletedDetails ? user : null);
 
   // User details form fields
-  const [formName, setFormName] = useState('');
-  const [formPhone, setFormPhone] = useState('');
-  const [formWhereDidYouFindUs, setFormWhereDidYouFindUs] = useState('');
-  const [formCollege, setFormCollege] = useState('');
+  const [formName, setFormName] = useState(activePending?.name || '');
+  const [formPhone, setFormPhone] = useState(activePending?.phone || '');
+  const [formWhereDidYouFindUs, setFormWhereDidYouFindUs] = useState(activePending?.whereDidYouFindUs || '');
+  const [formCollege, setFormCollege] = useState(activePending?.collegeOrCompany || '');
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const searchParams = new URLSearchParams(location.search);
@@ -59,7 +61,91 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
     }
   }, [location.pathname]);
 
-  // Load Google Identity Services and setup One-Tap
+  // Keep form fields synced if activePending changes
+  useEffect(() => {
+    if (activePending) {
+      if (!formName && activePending.name) setFormName(activePending.name);
+      if (!formPhone && activePending.phone) setFormPhone(activePending.phone);
+      if (!formCollege && activePending.collegeOrCompany) setFormCollege(activePending.collegeOrCompany);
+      if (!formWhereDidYouFindUs && activePending.whereDidYouFindUs) setFormWhereDidYouFindUs(activePending.whereDidYouFindUs);
+    }
+  }, [activePending]);
+
+  // Handler for successful profile acquisition from Google (either token or credential)
+  const handleProfileAcquired = useCallback(async (profile: UserProfile | null) => {
+    setLoading(false);
+    if (!profile) {
+      setErrorMsg('Could not process Google profile. Please try again.');
+      return;
+    }
+
+    if (profile.hasCompletedDetails) {
+      // Existing registered student!
+      setLoginSuccess(true);
+      setTimeout(() => {
+        navigate(redirectTarget, { replace: true });
+      }, 900);
+    } else {
+      // New or incomplete student: Show registration form
+      setFormName(profile.name || '');
+      setFormPhone(profile.phone || '');
+      setFormCollege(profile.collegeOrCompany || '');
+      setFormWhereDidYouFindUs(profile.whereDidYouFindUs || '');
+      setFormErrors({});
+      setErrorMsg(null);
+    }
+  }, [navigate, redirectTarget]);
+
+  // Handle URL redirect callback (e.g. mobile browsers returning via URL hash or query params)
+  useEffect(() => {
+    const handleUrlCallback = async () => {
+      // Check for OAuth hash tokens: #access_token=...
+      if (window.location.hash && window.location.hash.includes('access_token=')) {
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        const token = hashParams.get('access_token');
+        if (token) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          setLoading(true);
+          try {
+            const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+              const info = await res.json();
+              if (info && info.email) {
+                const profile = await loginWithGoogleDirect({
+                  id: info.sub,
+                  name: info.name || info.given_name || info.email.split('@')[0],
+                  email: info.email,
+                  avatar: info.picture
+                });
+                await handleProfileAcquired(profile);
+                return;
+              }
+            }
+          } catch (e) {
+            console.error('Failed to parse URL hash access_token:', e);
+            setErrorMsg('Could not verify Google authentication redirect.');
+          } finally {
+            setLoading(false);
+          }
+        }
+      }
+
+      // Check for URL query error or credential
+      const params = new URLSearchParams(window.location.search);
+      const urlError = params.get('error');
+      if (urlError) {
+        setErrorMsg(`Google Sign-In was cancelled or rejected: ${urlError}`);
+        params.delete('error');
+        window.history.replaceState(null, '', window.location.pathname + (params.toString() ? `?${params.toString()}` : ''));
+      }
+    };
+
+    handleUrlCallback();
+  }, [loginWithGoogleDirect, handleProfileAcquired]);
+
+  // Load Google Identity Services One-Tap
   useEffect(() => {
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!googleClientId) return;
@@ -70,13 +156,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
           client_id: googleClientId,
           callback: async (res: any) => {
             if (res.credential) {
-              const profile = loginWithGoogleCredential(res.credential);
-              if (profile) {
-                await handleProfileAcquired(profile);
-              } else {
-                setLoading(false);
-                setErrorMsg('Failed to process Google credentials.');
-              }
+              setLoading(true);
+              const profile = await loginWithGoogleCredential(res.credential);
+              await handleProfileAcquired(profile);
             }
           }
         });
@@ -94,80 +176,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
       }, 150);
       return () => clearInterval(interval);
     }
-  }, [loginWithGoogleCredential]);
+  }, [loginWithGoogleCredential, handleProfileAcquired]);
 
-  // Processes Google Profile: If already has details, log in directly. Otherwise, show details form.
-  const handleProfileAcquired = async (profile: UserProfile) => {
-    setLoading(false);
-
-    // Check if student profile already exists in Supabase
-    if (isSupabaseConfigured() && profile.email) {
-      try {
-        const { data } = await supabase
-          .from('student_profiles')
-          .select('*')
-          .eq('email', profile.email)
-          .maybeSingle();
-
-        if (data && data.has_completed_details) {
-          const fullProfile: UserProfile = {
-            id: data.id || profile.id,
-            name: data.name || profile.name,
-            email: data.email,
-            avatar: data.avatar || profile.avatar,
-            provider: 'google',
-            phone: data.phone || undefined,
-            whereDidYouFindUs: data.where_did_you_find_us || undefined,
-            collegeOrCompany: data.college_or_company || undefined,
-            learningGoal: data.learning_goal || undefined,
-            hasCompletedDetails: true,
-            enrolledCourses: data.enrolled_courses || ['Complete Python Course'],
-            joinedLiveClass: Boolean(data.joined_live_class),
-            createdAt: data.created_at || profile.createdAt
-          };
-          completeOnboardingAndLogin(fullProfile);
-          setLoginSuccess(true);
-          setTimeout(() => navigate(redirectTarget), 1000);
-          return;
-        }
-      } catch (err) {
-        console.warn('Supabase profile query failed:', err);
-      }
-    }
-
-    if (profile.hasCompletedDetails) {
-      completeOnboardingAndLogin(profile);
-      setLoginSuccess(true);
-      setTimeout(() => navigate(redirectTarget), 1000);
-    } else {
-      // Prompt user for minimal onboarding details
-      setPendingProfile(profile);
-      setFormName(profile.name || '');
-      setFormPhone(profile.phone || '');
-      setFormWhereDidYouFindUs(profile.whereDidYouFindUs || '');
-      setFormCollege(profile.collegeOrCompany || '');
-      setFormErrors({});
-
-      // Record newly registered student immediately in Supabase so Admin Panel tracks them
-      if (isSupabaseConfigured() && profile.email) {
-        Promise.resolve(
-          supabase.from('student_profiles').upsert({
-            id: profile.id,
-            email: profile.email,
-            name: profile.name,
-            avatar: profile.avatar,
-            has_completed_details: false,
-            enrolled_courses: profile.enrolledCourses || ['Complete Python Course'],
-            joined_live_class: false,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-        ).catch(() => {});
-      }
-    }
-  };
-
-  // Real Google OAuth Flow
+  // Real Google OAuth Flow via Token Client
   const handleRealGoogleAuth = () => {
     setLoading(true);
     setErrorMsg(null);
@@ -189,7 +200,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
         } else if (attempts > 20) {
           clearInterval(checkInterval);
           setLoading(false);
-          setErrorMsg('Google services are still loading. Please check your internet connection or ad-blocker.');
+          setErrorMsg('Google authentication services are still loading. Please check your internet connection or ad-blocker.');
         }
       }, 150);
       return;
@@ -206,7 +217,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
         callback: async (tokenResponse: any) => {
           if (tokenResponse.error) {
             setLoading(false);
-            if (tokenResponse.error === 'access_denied') return;
+            if (tokenResponse.error === 'access_denied') {
+              setErrorMsg('Sign-in cancelled. Please allow account access to continue.');
+              return;
+            }
             setErrorMsg(`Google Authentication Error: ${tokenResponse.error_description || tokenResponse.error}`);
             return;
           }
@@ -226,16 +240,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
                 throw new Error('No verified email returned from Google.');
               }
 
-              const profile = loginWithGoogleDirect({
+              const profile = await loginWithGoogleDirect({
                 id: info.sub,
                 name: info.name || info.given_name || info.email.split('@')[0],
                 email: info.email,
                 avatar: info.picture
               });
 
-              if (profile) {
-                await handleProfileAcquired(profile);
-              }
+              await handleProfileAcquired(profile);
               return;
             } catch (err: any) {
               console.error('Error fetching Google userinfo:', err);
@@ -250,12 +262,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
         },
         error_callback: (err: any) => {
           setLoading(false);
-          if (err.type === 'popup_closed') return;
+          if (err.type === 'popup_closed') {
+            setErrorMsg('Sign-in popup was closed before completion. Tap "Continue with Google" to try again.');
+            return;
+          }
           if (err.type === 'popup_failed_to_open') {
             setErrorMsg('Google Sign-In popup was blocked by your browser. Please allow popups for this site.');
             return;
           }
-          setErrorMsg(`Google popup error: ${err.message || err.type || 'Please check Authorized JavaScript Origins in Google Cloud Console.'}`);
+          setErrorMsg(`Google Sign-In error: ${err.message || err.type || 'Connection failed'}`);
         }
       });
 
@@ -267,44 +282,38 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
     }
   };
 
-  // Main Google button click handler - Pure Real Google OAuth
-  const handleGoogleAuth = () => {
-    handleRealGoogleAuth();
-  };
-
-  // Validate and submit minimal details form
-  const handleSaveMinimalDetails = (e: React.FormEvent) => {
+  // Validate and submit registration form
+  const handleSaveRegistrationDetails = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pendingProfile) return;
+    if (!activePending) return;
 
     const errors: Record<string, string> = {};
     const trimmedName = formName.trim();
     const digitsOnly = formPhone.replace(/\D/g, '');
 
-    // Name validation: required, min 2 chars
+    // Name validation
     if (!trimmedName || trimmedName.length < 2) {
       errors.name = 'Please enter your full name (at least 2 characters).';
     } else if (!/^[a-zA-Z\s.'-]+$/.test(trimmedName)) {
-      errors.name = 'Please enter a valid name using letters.';
+      errors.name = 'Please enter a valid legal name using letters.';
     }
 
-    // Phone validation: EXACTLY 10 digits only
+    // Phone validation: EXACTLY 10 digits
     if (!formPhone) {
       errors.phone = 'Phone number is required.';
     } else if (digitsOnly.length !== 10) {
       errors.phone = 'Phone number must be exactly 10 digits.';
     }
 
-    // College / Organization validation: COMPULSORY
+    // College / Organization
     const trimmedCollege = formCollege.trim();
     if (!trimmedCollege || trimmedCollege.length < 2) {
-      errors.college = 'College/University or Company name is required.';
+      errors.college = 'College / University or Company name is required.';
     }
 
-    // Where did you find us: COMPULSORY
-    const trimmedSource = formWhereDidYouFindUs.trim();
-    if (!trimmedSource) {
-      errors.whereDidYouFindUs = 'Please select where you found us.';
+    // Where did you find us
+    if (!formWhereDidYouFindUs) {
+      errors.whereDidYouFindUs = 'Please select how you heard about DO PILOT.';
     }
 
     if (Object.keys(errors).length > 0) {
@@ -312,32 +321,48 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
       return;
     }
 
-    // Validation passed: Complete registration and log in
-    const finalizedUser: UserProfile = {
-      ...pendingProfile,
+    setLoading(true);
+    setErrorMsg(null);
+
+    const updatedProfile: UserProfile = {
+      ...activePending,
       name: trimmedName,
       phone: digitsOnly,
-      whereDidYouFindUs: trimmedSource,
       collegeOrCompany: trimmedCollege,
-      hasCompletedDetails: true,
-      enrolledCourses: pendingProfile.enrolledCourses?.length ? pendingProfile.enrolledCourses : ['Complete Python Course']
+      whereDidYouFindUs: formWhereDidYouFindUs,
+      hasCompletedDetails: true
     };
 
-    completeOnboardingAndLogin(finalizedUser);
-    setPendingProfile(null);
+    const result = await completeOnboardingAndLogin(updatedProfile);
+    setLoading(false);
+
+    if (!result.success) {
+      setErrorMsg(result.error || 'Failed to complete registration. Please try again.');
+      return;
+    }
+
     setLoginSuccess(true);
     setTimeout(() => {
-      navigate(redirectTarget);
-    }, 1000);
+      navigate(redirectTarget, { replace: true });
+    }, 900);
+  };
+
+  // Switch Google account handler (cancels current pending session)
+  const handleCancelPending = () => {
+    clearPendingRegistration();
+    setFormName('');
+    setFormPhone('');
+    setFormCollege('');
+    setFormWhereDidYouFindUs('');
+    setFormErrors({});
+    setErrorMsg(null);
   };
 
   return (
-    <div className="min-h-screen bg-black text-paper relative flex flex-col justify-between selection:bg-primary selection:text-ink overflow-hidden select-none">
-      
-      {/* Background Radial Glow Spotlight */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] sm:w-[900px] h-[450px] pointer-events-none z-0 opacity-20">
-        <div className="w-full h-full bg-gradient-to-tr from-primary/30 via-secondary/20 to-transparent blur-[140px] rounded-full" />
-      </div>
+    <div className="min-h-screen bg-black text-paper flex flex-col justify-between selection:bg-primary selection:text-ink relative overflow-hidden">
+      {/* Background Ambience Glow */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] bg-primary/[0.07] blur-[150px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-80 h-80 bg-teal-500/[0.04] blur-[120px] rounded-full pointer-events-none" />
 
       {/* Subtle Grid Pattern */}
       <div 
@@ -361,33 +386,52 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
       </header>
 
       {/* Center Auth / Profile Card */}
-      <main className={`relative z-10 w-full mx-auto px-4 my-auto transition-all duration-300 ${pendingProfile && !loginSuccess ? 'max-w-2xl sm:max-w-3xl' : 'max-w-md'}`}>
+      <main className={`relative z-10 w-full mx-auto px-4 my-auto transition-all duration-300 ${activePending && !loginSuccess ? 'max-w-xl sm:max-w-2xl' : 'max-w-md'}`}>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
           className={`rounded-3xl bg-panel border border-white/15 shadow-2xl backdrop-blur-xl relative overflow-hidden ${
-            pendingProfile && !loginSuccess ? 'p-5 sm:p-7' : 'p-6 sm:p-8'
+            activePending && !loginSuccess ? 'p-5 sm:p-7' : 'p-6 sm:p-8'
           }`}
         >
           {/* Top Corner Glow */}
           <div className="absolute top-0 right-0 w-36 h-36 bg-primary/10 rounded-full blur-2xl pointer-events-none" />
 
-          {/* STEP 1: Minimal Details Form after Google Auth */}
-          {pendingProfile && !loginSuccess ? (
+          {/* STEP 1: Registration Form (Shown whenever registration is pending) */}
+          {activePending && !loginSuccess ? (
             <div className="space-y-4">
               {/* Form Header */}
-              <div className="pb-3 border-b border-white/10">
-                <h3 className="font-jakarta text-xl sm:text-2xl font-black text-paper">
-                  Complete Student Profile
-                </h3>
-                <p className="text-slate text-xs font-sans mt-0.5">
-                  Please enter your contact details below to activate your student workspace.
-                </p>
+              <div className="pb-3 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-jakarta text-xl sm:text-2xl font-black text-paper">
+                    Complete Student Registration
+                  </h3>
+                  <p className="text-slate text-xs font-sans mt-0.5">
+                    Finish your registration to activate your student workspace.
+                  </p>
+                </div>
+                {activePending.email && (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/10 text-xs self-start sm:self-auto">
+                    {activePending.avatar ? (
+                      <img src={activePending.avatar} alt="Avatar" className="w-5 h-5 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <User className="w-4 h-4 text-primary shrink-0" />
+                    )}
+                    <span className="font-mono text-[11px] text-slate/90 max-w-[150px] truncate">{activePending.email}</span>
+                  </div>
+                )}
               </div>
 
-              {/* Minimal Form: 2-column wide grid, decreased height, all compulsory */}
-              <form onSubmit={handleSaveMinimalDetails} className="space-y-4">
+              {errorMsg && (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+
+              {/* Minimal Form: 2-column wide grid */}
+              <form onSubmit={handleSaveRegistrationDetails} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Full Name - Compulsory */}
                   <div className="space-y-1">
@@ -515,14 +559,25 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
                   </div>
                 </div>
 
-                <div className="pt-2">
+                <div className="pt-2 space-y-2">
                   <button
                     type="submit"
-                    className="w-full py-3 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider transition-all duration-300 shadow-lg shadow-primary/20 flex items-center justify-center gap-2 cursor-pointer"
+                    disabled={loading}
+                    className="w-full py-3 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider transition-all duration-300 shadow-lg shadow-primary/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
-                    <span>Complete &amp; Enter Dashboard</span>
+                    <span>{loading ? 'Saving Registration...' : 'Complete & Enter Workspace'}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
+
+                  <div className="text-center pt-1">
+                    <button
+                      type="button"
+                      onClick={handleCancelPending}
+                      className="text-xs font-mono text-slate hover:text-rose-400 transition-colors cursor-pointer"
+                    >
+                      Use a different Google account
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
@@ -557,11 +612,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
               <div className="space-y-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => navigate('/settings')}
+                  onClick={() => navigate(redirectTarget)}
                   className="w-full py-3.5 px-4 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs tracking-wide hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Settings className="w-4 h-4" />
-                  <span>Open User Settings &amp; Course Progress</span>
+                  <span>Go to Student Workspace</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
 
@@ -657,7 +712,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
               {/* Genuine Google OAuth Button */}
               <button
                 type="button"
-                onClick={handleGoogleAuth}
+                onClick={handleRealGoogleAuth}
                 disabled={loading}
                 className="w-full py-3 px-4 rounded-xl bg-white hover:bg-slate-100 text-black font-jakarta font-bold text-sm tracking-wide transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 cursor-pointer group disabled:opacity-50 active:scale-[0.99]"
               >

@@ -15,6 +15,7 @@ import { AdminLoginPage } from './components/admin/AdminLoginPage';
 import { AdminPanel } from './components/admin/AdminPanel';
 import { EmergencyRecoveryPage } from './components/admin/EmergencyRecoveryPage';
 import { AuthPage } from './components/auth/AuthPage';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { SettingsPage } from './components/settings/SettingsPage';
 import { CourseDetailPage } from './components/CourseDetailPage';
 import { LegalPage } from './components/legal/LegalPage';
@@ -330,8 +331,8 @@ export const App: React.FC = () => {
             <Route path="/" element={<MainHome />} />
             <Route path="/login" element={<AuthPage mode="login" />} />
             <Route path="/signup" element={<AuthPage mode="signup" />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/profile" element={<SettingsPage />} />
+            <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="/admin" element={<AdminLoginPage />} />
             <Route path="/admin/dashboard" element={<AdminPanel />} />
             <Route path="/admin/emergency-recovery" element={<EmergencyRecoveryPage />} />
