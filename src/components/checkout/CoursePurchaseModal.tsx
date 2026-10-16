@@ -296,14 +296,22 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
       return;
     }
 
-    // Direct UPI Deep Link for mobile or UPI apps
-    const upiLink = `upi://pay?pa=${encodeURIComponent(qrConfig.upiId)}&pn=${encodeURIComponent(qrConfig.merchantName)}&am=${finalAmount}&cu=INR&tn=${encodeURIComponent(resolvedCourseName)}`;
+    // Google Pay UPI Intent Deep Link
+    const gpayLink = `gpay://upi/pay?pa=${encodeURIComponent(qrConfig.upiId)}&pn=${encodeURIComponent(qrConfig.merchantName)}&am=${finalAmount}&cu=INR&tn=${encodeURIComponent(resolvedCourseName)}`;
+    const standardUpiLink = `upi://pay?pa=${encodeURIComponent(qrConfig.upiId)}&pn=${encodeURIComponent(qrConfig.merchantName)}&am=${finalAmount}&cu=INR&tn=${encodeURIComponent(resolvedCourseName)}`;
     
-    // Attempt opening UPI app directly
+    // Attempt opening Google Pay app directly
     try {
-      window.location.href = upiLink;
+      window.location.href = gpayLink;
+      setTimeout(() => {
+        try {
+          window.location.href = standardUpiLink;
+        } catch (e) {}
+      }, 600);
     } catch (e) {
-      // Fallback
+      try {
+        window.location.href = standardUpiLink;
+      } catch (err) {}
     }
 
     // Switch to QR view so student can see QR code or enter UTR
@@ -374,10 +382,9 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
           {/* Modal Header */}
           <div className="flex items-start justify-between gap-4 pb-4 border-b border-white/10 relative z-10">
             <div className="space-y-1">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/15 border border-primary/30 text-primary text-[10px] font-mono font-bold uppercase tracking-wider">
-                <Sparkles className="w-3 h-3" />
-                <span>Full Lifetime Access</span>
-              </div>
+              <span className="text-primary text-[11px] font-mono font-bold uppercase tracking-wider block">
+                Full Lifetime Access
+              </span>
               <h3 className="font-jakarta text-xl sm:text-2xl font-black text-paper leading-tight">
                 Unlock {resolvedCourseName}
               </h3>
@@ -466,12 +473,12 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
             /* VIEW 3: Standard Purchase Flow */
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6 pt-5 relative z-10">
               {/* Left Column: What You Get */}
-              <div className="md:col-span-5 space-y-5">
-                <div className="space-y-3">
+              <div className="md:col-span-5 space-y-5 md:space-y-0 md:flex md:flex-col md:justify-between">
+                <div className="space-y-3 md:space-y-4">
                   <h4 className="font-mono text-[11px] uppercase tracking-wider text-slate font-bold">
                     What You Get
                   </h4>
-                  <div className="space-y-2.5 font-sans text-xs text-paper">
+                  <div className="space-y-2.5 md:space-y-4 font-sans text-xs text-paper">
                     <div className="flex items-start gap-2.5 text-slate/90">
                       <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                       <span>All 14 Comprehensive Course Modules</span>
@@ -491,8 +498,8 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
                   </div>
                 </div>
 
-                {/* Trust badge */}
-                <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+                {/* Trust badge with increased desktop spacing */}
+                <div className="p-3.5 md:p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1 md:mt-8">
                   <div className="flex items-center gap-2 text-primary font-mono text-xs font-bold">
                     <ShieldCheck className="w-4 h-4" />
                     <span>Verified Enrollment</span>
@@ -635,7 +642,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
                         }`}
                       >
                         <Smartphone className="w-3.5 h-3.5" />
-                        <span>Pay with UPI</span>
+                        <span>Pay with Google Pay</span>
                       </button>
 
                       <button
@@ -651,11 +658,11 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
                         }`}
                       >
                         <QrCode className="w-3.5 h-3.5" />
-                        <span>Scan UPI QR</span>
+                        <span>Scan Google Pay QR</span>
                       </button>
                     </div>
 
-                    {/* Mode 1: Pay with UPI Direct Action */}
+                    {/* Mode 1: Pay with Google Pay Direct Action */}
                     {paymentMode === 'upi_pay' ? (
                       <div className="space-y-3 pt-1">
                         <button
@@ -665,12 +672,12 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
                           className="w-full py-3.5 px-4 rounded-full font-jakarta font-black text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg bg-primary text-ink hover:bg-white shadow-primary/25 disabled:opacity-50"
                         >
                           <Smartphone className="w-4 h-4" />
-                          <span>{isProcessing ? 'Launching Payment...' : `Pay ₹${finalAmount.toLocaleString()} with UPI`}</span>
+                          <span>{isProcessing ? 'Opening Google Pay...' : `Pay ₹${finalAmount.toLocaleString()} with Google Pay`}</span>
                           <ArrowRight className="w-4 h-4" />
                         </button>
 
                         <p className="font-mono text-[10px] text-slate/60 text-center">
-                          Supports Google Pay, Paytm, PhonePe &amp; all UPI apps
+                          Instant checkout via Google Pay UPI
                         </p>
                       </div>
                     ) : (
@@ -705,21 +712,21 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
                         ) : (
                           <>
                             {/* QR Code */}
-                            <div className="p-3 rounded-2xl bg-white flex flex-col items-center justify-center">
+                            <div className="p-3.5 rounded-2xl bg-white border border-white/20 flex flex-col items-center justify-center shadow-lg">
                               <img
                                 src={qrImageSrc}
-                                alt="Scan UPI QR Code to Pay"
+                                alt="Scan Google Pay QR Code to Pay"
                                 className="w-44 h-44 object-contain rounded-lg"
                               />
-                              <p className="font-mono text-[10px] text-black/70 font-bold mt-1">
-                                Scan with Google Pay, Paytm, or any UPI App
+                              <p className="font-mono text-[10px] text-black/80 font-bold mt-2 tracking-wide">
+                                Scan &amp; Pay using Google Pay
                               </p>
                             </div>
 
                             {/* Merchant UPI ID */}
                             <div className="flex items-center justify-between p-2.5 rounded-xl bg-black/60 border border-white/10 font-mono text-xs">
                               <div className="min-w-0 pr-2">
-                                <span className="text-[10px] text-slate block">Merchant UPI ID:</span>
+                                <span className="text-[10px] text-slate block">Google Pay UPI ID:</span>
                                 <span className="font-bold text-paper truncate block">{qrConfig.upiId}</span>
                               </div>
                               <button
@@ -735,7 +742,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
                             {/* 12-Digit UTR Input */}
                             <div className="space-y-1.5">
                               <label className="font-mono text-[11px] text-slate font-bold uppercase tracking-wider block">
-                                Enter 12-Digit UPI Reference / UTR
+                                Enter 12-Digit Google Pay UPI Ref / UTR
                               </label>
                               <input
                                 type="text"
