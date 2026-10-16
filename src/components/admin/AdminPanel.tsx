@@ -35,7 +35,9 @@ import {
   getLockedCourseRecords,
   scanAndSyncLiveLocks,
   resetStudentCourse,
-  getCourseResetAuditEntries
+  getCourseResetAuditEntries,
+  getRecordFailedPart,
+  getRecordFailedSection
 } from '../../utils/courseResetService';
 import {
   CoursePricing,
@@ -5068,6 +5070,9 @@ export const AdminPanel: React.FC = () => {
       }
     };
 
+    const targetFailedPart = getRecordFailedPart(confirmResetTarget);
+    const targetFailedSection = getRecordFailedSection(confirmResetTarget);
+
     return (
       <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
         <div className="max-w-xl w-full rounded-3xl bg-[#0c0d0e] border border-white/15 p-6 sm:p-8 space-y-6 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -5081,10 +5086,10 @@ export const AdminPanel: React.FC = () => {
               </div>
               <div>
                 <h3 className="font-jakarta text-lg sm:text-xl font-black text-paper">
-                  Confirm Course Assessment Reset
+                  Reset / Unlock Course
                 </h3>
                 <p className="font-mono text-xs text-slate mt-0.5">
-                  Verify student and course details before approving reset
+                  Confirm reset of failure state and unlock course progression
                 </p>
               </div>
             </div>
@@ -5111,44 +5116,43 @@ export const AdminPanel: React.FC = () => {
                 <span className="font-mono text-[10px] text-slate/70 uppercase block">Student Email</span>
                 <span className="font-mono text-paper truncate block">{confirmResetTarget.studentEmail}</span>
               </div>
+              {confirmResetTarget.studentPhone && (
+                <div>
+                  <span className="font-mono text-[10px] text-slate/70 uppercase block">Phone</span>
+                  <span className="font-mono text-paper block">{confirmResetTarget.studentPhone}</span>
+                </div>
+              )}
               <div>
-                <span className="font-mono text-[10px] text-slate/70 uppercase block">Target Course</span>
+                <span className="font-mono text-[10px] text-slate/70 uppercase block">Course</span>
                 <span className="font-jakarta font-bold text-cyan-300 block">{confirmResetTarget.courseName}</span>
               </div>
               <div>
-                <span className="font-mono text-[10px] text-slate/70 uppercase block">Assessment Module</span>
-                <span className="font-mono text-paper block">{confirmResetTarget.partTitle || `Part ${confirmResetTarget.partNum || 1}`}</span>
+                <span className="font-mono text-[10px] text-slate/70 uppercase block">Failed Part</span>
+                <span className="font-mono text-paper font-bold block">{targetFailedPart}</span>
+              </div>
+              <div>
+                <span className="font-mono text-[10px] text-slate/70 uppercase block">Failed Section</span>
+                <span className="font-mono text-rose-300 font-bold block">{targetFailedSection}</span>
               </div>
             </div>
 
-            {/* Reset Scope Guarantee Box */}
-            <div className="pt-3 border-t border-white/5 space-y-2 font-mono text-[11px]">
-              <div className="flex items-center gap-2 text-emerald-400">
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>Failure count reset: 3 consecutive failures &rarr; 0 (Clean slate)</span>
-              </div>
-              <div className="flex items-center gap-2 text-emerald-400">
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>Level attempt reset: Restores Attempt 1 with fresh questions</span>
-              </div>
-              <div className="flex items-center gap-2 text-primary">
-                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                <span>Safe Isolation: Points ({confirmResetTarget.earnedPoints} pts) &amp; other courses preserved</span>
-              </div>
+            <div className="pt-3 border-t border-white/5 font-mono text-[11px] text-emerald-400 flex items-center gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <span>Resets 3 consecutive failures to 0 and unlocks {confirmResetTarget.courseName}</span>
             </div>
           </div>
 
           {/* Admin Notes Field */}
           <div className="space-y-2 relative z-10">
             <label className="font-mono text-[11px] text-slate/80 font-bold uppercase tracking-wider block">
-              Admin Notes / Reason (Optional)
+              Admin Notes (Optional)
             </label>
-            <textarea
-              rows={3}
+            <input
+              type="text"
               value={adminResetNotes}
               onChange={(e) => setAdminResetNotes(e.target.value)}
-              placeholder="e.g. Student reviewed concepts in 1-on-1 session and is approved to re-attempt."
-              className="w-full px-4 py-3 rounded-2xl bg-black/70 border border-white/10 text-paper font-jakarta text-xs sm:text-sm focus:outline-none focus:border-cyan-400 transition-all placeholder:text-slate/40 resize-none"
+              placeholder="e.g. Concept reviewed with mentor, approved for retake"
+              className="w-full px-4 py-2.5 rounded-xl bg-black/70 border border-white/10 text-paper font-jakarta text-xs sm:text-sm focus:outline-none focus:border-cyan-400 transition-all placeholder:text-slate/40"
             />
           </div>
 
@@ -5172,7 +5176,7 @@ export const AdminPanel: React.FC = () => {
               className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider hover:opacity-95 shadow-lg shadow-cyan-500/25 flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
             >
               <RotateCcw className={`w-4 h-4 ${isResettingCourse ? 'animate-spin' : ''}`} />
-              <span>{isResettingCourse ? 'Resetting...' : 'Approve & Reset Course'}</span>
+              <span>{isResettingCourse ? 'Unlocking...' : 'Reset / Unlock Course'}</span>
             </button>
           </div>
         </div>
@@ -5185,6 +5189,7 @@ export const AdminPanel: React.FC = () => {
     const unlockedCount = lockedRecords.filter(r => r.lockStatus === 'unlocked').length;
 
     const filteredRecords = lockedRecords.filter(r => {
+      // Show only students whose courses are locked after 3 consecutive failures (or show unlocked if filter matches)
       const matchSearch =
         courseResetSearch.trim() === '' ||
         r.studentName.toLowerCase().includes(courseResetSearch.toLowerCase()) ||
@@ -5214,76 +5219,48 @@ export const AdminPanel: React.FC = () => {
     return (
       <section className="space-y-6">
         {/* Top Header Card */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 blur-[130px] rounded-full pointer-events-none" />
+        <div className="p-6 sm:p-7 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-cyan-500/10 blur-[100px] rounded-full pointer-events-none" />
 
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.05] border border-white/10 mb-3">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.05] border border-white/10 mb-2">
                 <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
                 <span className="font-mono text-[10px] text-cyan-300 font-bold uppercase tracking-wider">
-                  Course Assessment &amp; Lockout Control
+                  Course Reset &amp; Unlock
                 </span>
                 {activeLockedCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-mono text-[10px] font-bold border border-rose-500/30 animate-pulse">
-                    {activeLockedCount} Currently Locked
+                  <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-mono text-[10px] font-bold border border-rose-500/30">
+                    {activeLockedCount} Locked
                   </span>
                 )}
               </div>
               <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
-                Admin Course Reset System
+                Course Reset
               </h2>
-              <p className="font-mono text-xs text-slate mt-1.5 max-w-2xl leading-relaxed">
-                Manage students who encountered 3 consecutive assessment failures. Safely reset the failure streak and allow new attempts while keeping earned points, rewards, and other enrolled tracks fully preserved.
+              <p className="font-mono text-xs text-slate mt-1">
+                Unlock students whose progression is locked after 3 consecutive assessment failures.
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-              <button
-                type="button"
-                onClick={handleRefresh}
-                className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-paper font-jakarta text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer"
-                title="Scan and refresh live locks"
-              >
-                <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Refresh Status</span>
-              </button>
-
-              <div className="flex items-center bg-black/60 border border-white/10 p-1 rounded-2xl">
-                <button
-                  type="button"
-                  onClick={() => setCourseResetActiveTab('directory')}
-                  className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all cursor-pointer ${
-                    courseResetActiveTab === 'directory'
-                      ? 'bg-cyan-500 text-ink shadow-md shadow-cyan-500/20'
-                      : 'text-slate hover:text-paper'
-                  }`}
-                >
-                  Locked Students ({lockedRecords.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCourseResetActiveTab('audit')}
-                  className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all cursor-pointer ${
-                    courseResetActiveTab === 'audit'
-                      ? 'bg-cyan-500 text-ink shadow-md shadow-cyan-500/20'
-                      : 'text-slate hover:text-paper'
-                  }`}
-                >
-                  Reset Audit Log ({courseResetAuditLogs.length})
-                </button>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-paper font-jakarta text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer shrink-0"
+              title="Refresh locked student records"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Refresh Status</span>
+            </button>
           </div>
         </div>
 
-        {/* 4 Summary Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Card 1: Currently Locked */}
-          <div className="p-5 rounded-3xl bg-[#0c0d0e] border border-rose-500/20 space-y-2 relative overflow-hidden shadow-xl">
+        {/* Essential Metrics: Locked Courses and Unlocked Status */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="p-5 rounded-3xl bg-[#0c0d0e] border border-rose-500/20 space-y-1.5 relative overflow-hidden shadow-xl">
             <div className="flex items-center justify-between">
               <span className="font-mono text-[10px] text-rose-400 font-bold uppercase tracking-wider">
-                Currently Locked
+                Locked Courses
               </span>
               <div className="w-8 h-8 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
                 <ShieldAlert className="w-4 h-4" />
@@ -5292,16 +5269,15 @@ export const AdminPanel: React.FC = () => {
             <div className="text-3xl font-jakarta font-black text-rose-300">
               {activeLockedCount}
             </div>
-            <p className="font-mono text-[11px] text-slate/80">
-              3 consecutive failures active
+            <p className="font-mono text-[11px] text-slate/70">
+              Locked after 3 consecutive failures
             </p>
           </div>
 
-          {/* Card 2: Restored */}
-          <div className="p-5 rounded-3xl bg-[#0c0d0e] border border-emerald-500/20 space-y-2 relative overflow-hidden shadow-xl">
+          <div className="p-5 rounded-3xl bg-[#0c0d0e] border border-emerald-500/20 space-y-1.5 relative overflow-hidden shadow-xl">
             <div className="flex items-center justify-between">
               <span className="font-mono text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
-                Restored &amp; Unlocked
+                Unlocked
               </span>
               <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
                 <CheckCircle2 className="w-4 h-4" />
@@ -5310,318 +5286,188 @@ export const AdminPanel: React.FC = () => {
             <div className="text-3xl font-jakarta font-black text-emerald-300">
               {unlockedCount}
             </div>
-            <p className="font-mono text-[11px] text-slate/80">
+            <p className="font-mono text-[11px] text-slate/70">
               Reset by admin &amp; active
-            </p>
-          </div>
-
-          {/* Card 3: Audit Entries */}
-          <div className="p-5 rounded-3xl bg-[#0c0d0e] border border-cyan-500/20 space-y-2 relative overflow-hidden shadow-xl">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[10px] text-cyan-400 font-bold uppercase tracking-wider">
-                Total Resets Performed
-              </span>
-              <div className="w-8 h-8 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-                <RotateCcw className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-3xl font-jakarta font-black text-cyan-300">
-              {courseResetAuditLogs.length}
-            </div>
-            <p className="font-mono text-[11px] text-slate/80">
-              Logged in audit database
-            </p>
-          </div>
-
-          {/* Card 4: Safe Reset Guarantee */}
-          <div className="p-5 rounded-3xl bg-[#0c0d0e] border border-white/10 space-y-2 relative overflow-hidden shadow-xl">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider">
-                Safe Reset Scope
-              </span>
-              <div className="w-8 h-8 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center text-primary">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-xl font-jakarta font-black text-paper">
-              100% Isolated
-            </div>
-            <p className="font-mono text-[11px] text-slate/80">
-              Points &amp; other courses untouched
             </p>
           </div>
         </div>
 
-        {/* Directory Tab View */}
-        {courseResetActiveTab === 'directory' ? (
-          <div className="space-y-4">
-            {/* Filter and Search Bar */}
-            <div className="p-4 rounded-3xl bg-[#0c0d0e] border border-white/10 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
-              <div className="relative w-full md:w-80">
-                <Search className="w-4 h-4 text-slate absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search student, email, course..."
-                  value={courseResetSearch}
-                  onChange={(e) => setCourseResetSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 rounded-xl bg-black/60 border border-white/10 text-paper font-jakarta text-xs focus:outline-none focus:border-cyan-400 placeholder:text-slate/50"
-                />
-              </div>
+        {/* Search & Filter Bar */}
+        <div className="p-4 rounded-3xl bg-[#0c0d0e] border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl">
+          <div className="relative w-full sm:w-80">
+            <Search className="w-4 h-4 text-slate absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search student, email, course..."
+              value={courseResetSearch}
+              onChange={(e) => setCourseResetSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 rounded-xl bg-black/60 border border-white/10 text-paper font-jakarta text-xs focus:outline-none focus:border-cyan-400 placeholder:text-slate/50"
+            />
+          </div>
 
-              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                <div className="flex items-center p-1 bg-black/60 border border-white/10 rounded-2xl">
-                  {(['all', 'locked', 'unlocked'] as const).map((st) => (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => setCourseResetStatusFilter(st)}
-                      className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all cursor-pointer capitalize ${
-                        courseResetStatusFilter === st
-                          ? 'bg-cyan-500 text-ink shadow-md shadow-cyan-500/20'
-                          : 'text-slate hover:text-paper'
-                      }`}
-                    >
-                      {st === 'all' && `All (${lockedRecords.length})`}
-                      {st === 'locked' && `Locked (${activeLockedCount})`}
-                      {st === 'unlocked' && `Unlocked (${unlockedCount})`}
-                    </button>
-                  ))}
-                </div>
+          <div className="flex items-center p-1 bg-black/60 border border-white/10 rounded-2xl w-full sm:w-auto justify-center">
+            {(['all', 'locked', 'unlocked'] as const).map((st) => (
+              <button
+                key={st}
+                type="button"
+                onClick={() => setCourseResetStatusFilter(st)}
+                className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all cursor-pointer capitalize ${
+                  courseResetStatusFilter === st
+                    ? 'bg-cyan-500 text-ink shadow-md shadow-cyan-500/20'
+                    : 'text-slate hover:text-paper'
+                }`}
+              >
+                {st === 'all' && `All (${lockedRecords.length})`}
+                {st === 'locked' && `Locked (${activeLockedCount})`}
+                {st === 'unlocked' && `Unlocked (${unlockedCount})`}
+              </button>
+            ))}
+          </div>
+        </div>
 
-                <select
-                  value={courseResetCourseFilter}
-                  onChange={(e) => setCourseResetCourseFilter(e.target.value)}
-                  className="px-3 py-2 rounded-xl bg-black/70 border border-white/10 text-paper font-mono text-xs focus:outline-none focus:border-cyan-400 cursor-pointer"
-                >
-                  <option value="all">All Courses</option>
-                  <option value="python">Python</option>
-                  <option value="java">Java</option>
-                  <option value="fullstack">Full Stack</option>
-                  <option value="cyber">Cyber Security</option>
-                </select>
-              </div>
+        {/* Locked Courses List */}
+        {filteredRecords.length === 0 ? (
+          <div className="p-12 text-center rounded-3xl bg-[#0c0d0e] border border-white/10 space-y-3">
+            <div className="w-12 h-12 rounded-full bg-white/5 text-slate flex items-center justify-center mx-auto">
+              <ShieldCheck className="w-6 h-6 text-emerald-400" />
             </div>
+            <h4 className="font-jakarta text-base font-bold text-paper">No Locked Students Found</h4>
+            <p className="font-mono text-xs text-slate max-w-md mx-auto">
+              {courseResetSearch || courseResetStatusFilter !== 'all'
+                ? 'No records match your active search or filter.'
+                : 'All students are currently progressing without lockouts.'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredRecords.map((item) => {
+              const isLocked = item.lockStatus === 'locked';
+              const failedPart = getRecordFailedPart(item);
+              const failedSection = getRecordFailedSection(item);
 
-            {/* Locked Students List */}
-            {filteredRecords.length === 0 ? (
-              <div className="p-12 text-center rounded-3xl bg-[#0c0d0e] border border-white/10 space-y-3">
-                <div className="w-12 h-12 rounded-full bg-white/5 text-slate flex items-center justify-center mx-auto">
-                  <ShieldCheck className="w-6 h-6 text-emerald-400" />
-                </div>
-                <h4 className="font-jakarta text-base font-bold text-paper">No Locked Students Found</h4>
-                <p className="font-mono text-xs text-slate max-w-md mx-auto">
-                  {courseResetSearch || courseResetStatusFilter !== 'all' || courseResetCourseFilter !== 'all'
-                    ? 'No records match your active search or filters.'
-                    : 'All students are currently progressing without lockouts. Any 3-consecutive-failure lock will automatically appear here.'}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {filteredRecords.map((item) => {
-                  const isLocked = item.lockStatus === 'locked';
-
-                  return (
-                    <div
-                      key={item.id}
-                      className={`p-5 rounded-3xl bg-[#0c0d0e] border transition-all space-y-4 shadow-xl ${
+              return (
+                <div
+                  key={item.id}
+                  className={`p-5 rounded-3xl bg-[#0c0d0e] border transition-all space-y-4 shadow-xl ${
+                    isLocked
+                      ? 'border-rose-500/30 hover:border-rose-500/50'
+                      : 'border-white/10 hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                    {/* Student Info & Details */}
+                    <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
                         isLocked
-                          ? 'border-rose-500/30 hover:border-rose-500/50'
-                          : 'border-white/10 hover:border-white/20'
-                      }`}
-                    >
-                      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                        {/* Student and Course Info */}
-                        <div className="flex items-start gap-3.5 min-w-0 flex-1">
-                          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
-                            isLocked
-                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          }`}>
-                            {getUserInitials(item.studentName)}
-                          </div>
+                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                          : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      }`}>
+                        {getUserInitials(item.studentName)}
+                      </div>
 
-                          <div className="min-w-0 space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h4 className="font-jakarta font-bold text-base text-paper truncate">
-                                {item.studentName}
-                              </h4>
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-jakarta font-bold text-base text-paper truncate">
+                            {item.studentName}
+                          </h4>
 
-                              <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-slate/80 border border-white/5">
-                                ID: {item.studentId}
-                              </span>
+                          <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-slate/80 border border-white/5">
+                            ID: {item.studentId}
+                          </span>
 
-                              {isLocked ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono text-[11px] font-bold animate-pulse">
-                                  <ShieldAlert className="w-3 h-3" />
-                                  <span>Progression Locked</span>
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono text-[11px] font-bold">
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  <span>Unlocked &amp; Active</span>
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-slate">
-                              <span className="flex items-center gap-1">
-                                <Mail className="w-3 h-3 text-slate/70" />
-                                <a href={`mailto:${item.studentEmail}`} className="hover:text-cyan-300 transition-colors">
-                                  {item.studentEmail}
-                                </a>
-                              </span>
-                              {item.studentPhone && (
-                                <span className="flex items-center gap-1">
-                                  <Phone className="w-3 h-3 text-slate/70" />
-                                  <span>{item.studentPhone}</span>
-                                </span>
-                              )}
-                              {item.collegeOrCompany && (
-                                <span className="flex items-center gap-1">
-                                  <GraduationCap className="w-3 h-3 text-slate/70" />
-                                  <span>{item.collegeOrCompany}</span>
-                                </span>
-                              )}
-                            </div>
-                          </div>
+                          {isLocked ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono text-[11px] font-bold">
+                              <ShieldAlert className="w-3 h-3" />
+                              <span>Locked (3 Failures)</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono text-[11px] font-bold">
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Unlocked</span>
+                            </span>
+                          )}
                         </div>
 
-                        {/* Action Reset Button */}
-                        <div className="flex items-center gap-2.5 shrink-0 self-end lg:self-center">
-                          {isLocked ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setConfirmResetTarget(item);
-                                setAdminResetNotes('');
-                              }}
-                              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider hover:opacity-95 shadow-lg shadow-cyan-500/25 flex items-center gap-2 cursor-pointer transition-all active:scale-95"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                              <span>Reset Course</span>
-                            </button>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-[11px] text-slate/70">
-                                Restored {item.unlockedAt ? new Date(item.unlockedAt).toLocaleDateString() : ''} by {item.unlockedBy || 'admin'}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setConfirmResetTarget(item);
-                                  setAdminResetNotes('');
-                                }}
-                                className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper font-mono text-xs border border-white/10 transition-all cursor-pointer"
-                                title="Re-reset if needed"
-                              >
-                                Re-Reset
-                              </button>
-                            </div>
+                        {/* Relevant Details: Email, Phone, College */}
+                        <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-slate">
+                          <span className="flex items-center gap-1">
+                            <Mail className="w-3 h-3 text-slate/70" />
+                            <a href={`mailto:${item.studentEmail}`} className="hover:text-cyan-300 transition-colors">
+                              {item.studentEmail}
+                            </a>
+                          </span>
+                          {item.studentPhone && (
+                            <span className="flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-slate/70" />
+                              <span>{item.studentPhone}</span>
+                            </span>
+                          )}
+                          {item.collegeOrCompany && (
+                            <span className="flex items-center gap-1">
+                              <GraduationCap className="w-3 h-3 text-slate/70" />
+                              <span>{item.collegeOrCompany}</span>
+                            </span>
                           )}
                         </div>
                       </div>
+                    </div>
 
-                      {/* Detail Metrics Bar */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-white/5">
-                        <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
-                          <span className="font-mono text-[10px] text-slate/70 uppercase block">Locked Course</span>
-                          <span className="font-jakarta font-bold text-xs text-paper block truncate">
-                            {item.courseName}
+                    {/* Single Reset / Unlock Course Button */}
+                    <div className="flex items-center gap-2.5 shrink-0 self-end lg:self-center">
+                      {isLocked ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConfirmResetTarget(item);
+                            setAdminResetNotes('');
+                          }}
+                          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider hover:opacity-95 shadow-lg shadow-cyan-500/25 flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Reset / Unlock Course</span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[11px] text-emerald-400 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Unlocked</span>
+                            {item.unlockedAt && (
+                              <span className="text-slate/60 text-[10px]">
+                                ({new Date(item.unlockedAt).toLocaleDateString()})
+                              </span>
+                            )}
                           </span>
-                        </div>
-
-                        <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
-                          <span className="font-mono text-[10px] text-slate/70 uppercase block">Assessment Module</span>
-                          <span className="font-mono text-xs font-bold text-cyan-300 block truncate">
-                            {item.partTitle || `Part ${item.partNum || 1}`}
-                          </span>
-                        </div>
-
-                        <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
-                          <span className="font-mono text-[10px] text-slate/70 uppercase block">Consecutive Failures</span>
-                          <span className="font-mono text-xs font-bold text-rose-400 flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3" />
-                            <span>{item.consecutiveFailures} consecutive exam failures</span>
-                          </span>
-                        </div>
-
-                        <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
-                          <span className="font-mono text-[10px] text-slate/70 uppercase block">Student Progress</span>
-                          <span className="font-mono text-xs text-paper block truncate">
-                            {item.progressSummary}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Admin Notes if restored */}
-                      {item.adminNotes && (
-                        <div className="p-3 rounded-2xl bg-cyan-500/5 border border-cyan-500/20 text-xs font-mono text-cyan-200">
-                          <span className="font-bold uppercase text-[10px] text-cyan-400 block mb-0.5">Admin Note:</span>
-                          <span>{item.adminNotes}</span>
                         </div>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ) : (
-          /* Audit Log Tab View */
-          <div className="p-6 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-jakarta font-bold text-base text-paper flex items-center gap-2">
-                <RotateCcw className="w-4 h-4 text-cyan-400" />
-                <span>Historical Reset Audit Trail</span>
-              </h3>
-              <span className="font-mono text-xs text-slate">
-                {courseResetAuditLogs.length} Records Logged
-              </span>
-            </div>
+                  </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs font-mono">
-                <thead>
-                  <tr className="border-b border-white/10 text-slate/70 uppercase text-[10px]">
-                    <th className="py-3 px-3">Audit ID</th>
-                    <th className="py-3 px-3">Student</th>
-                    <th className="py-3 px-3">Course</th>
-                    <th className="py-3 px-3">Reset By</th>
-                    <th className="py-3 px-3">Date &amp; Time</th>
-                    <th className="py-3 px-3">Notes</th>
-                    <th className="py-3 px-3">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {courseResetAuditLogs.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-white/[0.02]">
-                      <td className="py-3 px-3 text-cyan-400 font-bold">{entry.id}</td>
-                      <td className="py-3 px-3">
-                        <div className="font-jakarta font-bold text-paper">{entry.studentName}</div>
-                        <div className="text-slate/60 text-[10px]">{entry.studentEmail}</div>
-                      </td>
-                      <td className="py-3 px-3 text-paper">{entry.courseName}</td>
-                      <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded-md bg-white/5 text-paper">
-                          {entry.adminIdentifier}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-slate">
-                        {new Date(entry.resetTimestamp).toLocaleString()}
-                      </td>
-                      <td className="py-3 px-3 text-slate/80 max-w-xs truncate">
-                        {entry.adminNotes || '—'}
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">
-                          {entry.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  {/* Course Details: Course Name, Failed Part, Failed Section */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-white/5">
+                    <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
+                      <span className="font-mono text-[10px] text-slate/70 uppercase block">Course Name</span>
+                      <span className="font-jakarta font-bold text-xs text-paper block truncate">
+                        {item.courseName}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
+                      <span className="font-mono text-[10px] text-slate/70 uppercase block">Failed Part</span>
+                      <span className="font-mono text-xs font-bold text-cyan-300 block truncate">
+                        {failedPart}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
+                      <span className="font-mono text-[10px] text-slate/70 uppercase block">Failed Section</span>
+                      <span className="font-mono text-rose-300 block truncate">
+                        {failedSection}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </section>

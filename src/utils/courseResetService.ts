@@ -11,6 +11,8 @@ export interface LockedCourseRecord {
   courseName: string;
   partNum?: number;
   partTitle?: string;
+  failedPart?: string;
+  failedSection?: string;
   consecutiveFailures: number;
   lockStatus: 'locked' | 'unlocked';
   lockedAt: string;       // ISO date string
@@ -51,6 +53,8 @@ const INITIAL_DEMO_LOCKED_COURSES: LockedCourseRecord[] = [
     courseName: 'Complete Python Course',
     partNum: 10,
     partTitle: 'Part 10: OOP Hierarchies & Inheritance',
+    failedPart: 'Part 10',
+    failedSection: 'OOP Hierarchies & Inheritance',
     consecutiveFailures: 3,
     lockStatus: 'locked',
     lockedAt: new Date(Date.now() - 3 * 3600000).toISOString(),
@@ -68,6 +72,8 @@ const INITIAL_DEMO_LOCKED_COURSES: LockedCourseRecord[] = [
     courseName: 'Complete Python Course',
     partNum: 2,
     partTitle: 'Part 2: Variables & Data Types',
+    failedPart: 'Part 2',
+    failedSection: 'Variables & Data Types',
     consecutiveFailures: 3,
     lockStatus: 'locked',
     lockedAt: new Date(Date.now() - 18 * 3600000).toISOString(),
@@ -85,6 +91,8 @@ const INITIAL_DEMO_LOCKED_COURSES: LockedCourseRecord[] = [
     courseName: 'Complete Java Course',
     partNum: 4,
     partTitle: 'Part 4: Methods, Signatures & Return Types',
+    failedPart: 'Part 4',
+    failedSection: 'Methods, Signatures & Return Types',
     consecutiveFailures: 3,
     lockStatus: 'locked',
     lockedAt: new Date(Date.now() - 26 * 3600000).toISOString(),
@@ -102,6 +110,8 @@ const INITIAL_DEMO_LOCKED_COURSES: LockedCourseRecord[] = [
     courseName: 'Cyber Security & Ethical Hacking',
     partNum: 1,
     partTitle: 'Part 1: Networking & Threat Modeling',
+    failedPart: 'Part 1',
+    failedSection: 'Networking & Threat Modeling',
     consecutiveFailures: 3,
     lockStatus: 'unlocked',
     lockedAt: new Date(Date.now() - 48 * 3600000).toISOString(),
@@ -204,6 +214,8 @@ export const scanAndSyncLiveLocks = (): LockedCourseRecord[] => {
             courseName,
             partNum,
             partTitle: `Part ${partNum}`,
+            failedPart: `Part ${partNum}`,
+            failedSection: 'Compulsory Level Assessment',
             consecutiveFailures: 3,
             lockStatus: 'locked',
             lockedAt: new Date().toISOString(),
@@ -227,6 +239,25 @@ export const scanAndSyncLiveLocks = (): LockedCourseRecord[] => {
   } catch {}
 
   return records;
+};
+
+/**
+ * Helper to get clean failed part display
+ */
+export const getRecordFailedPart = (r: LockedCourseRecord): string => {
+  if (r.failedPart) return r.failedPart;
+  if (r.partNum) return `Part ${r.partNum}`;
+  if (r.partTitle && r.partTitle.includes(':')) return r.partTitle.split(':')[0].trim();
+  return r.partTitle || 'Part 1';
+};
+
+/**
+ * Helper to get clean failed section display
+ */
+export const getRecordFailedSection = (r: LockedCourseRecord): string => {
+  if (r.failedSection) return r.failedSection;
+  if (r.partTitle && r.partTitle.includes(':')) return r.partTitle.split(':')[1].trim();
+  return r.partTitle || 'Compulsory Level Assessment';
 };
 
 /**
@@ -270,6 +301,8 @@ export const recordCourseLock = (params: {
   courseName: string;
   partNum?: number;
   partTitle?: string;
+  failedPart?: string;
+  failedSection?: string;
   consecutiveFailures?: number;
   progressSummary?: string;
   earnedPoints?: number;
@@ -289,6 +322,8 @@ export const recordCourseLock = (params: {
       lockedAt: new Date().toISOString(),
       partNum: params.partNum ?? current[existingIdx].partNum,
       partTitle: params.partTitle ?? current[existingIdx].partTitle,
+      failedPart: params.failedPart ?? current[existingIdx].failedPart,
+      failedSection: params.failedSection ?? current[existingIdx].failedSection,
       progressSummary: params.progressSummary ?? current[existingIdx].progressSummary,
       earnedPoints: params.earnedPoints ?? current[existingIdx].earnedPoints,
       unlockedAt: undefined,
@@ -307,6 +342,8 @@ export const recordCourseLock = (params: {
       courseName: params.courseName,
       partNum: params.partNum,
       partTitle: params.partTitle,
+      failedPart: params.failedPart || (params.partNum ? `Part ${params.partNum}` : undefined),
+      failedSection: params.failedSection || (params.partTitle && params.partTitle.includes(':') ? params.partTitle.split(':')[1]?.trim() : 'Compulsory Level Assessment'),
       consecutiveFailures: params.consecutiveFailures || 3,
       lockStatus: 'locked',
       lockedAt: new Date().toISOString(),
