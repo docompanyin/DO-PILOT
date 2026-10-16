@@ -74,6 +74,22 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
   const [verificationSubmitted, setVerificationSubmitted] = useState(false);
   const [submittedUtr, setSubmittedUtr] = useState('');
 
+  // Dynamically sync when admin updates payment settings
+  useEffect(() => {
+    const handleConfigChange = () => {
+      const cfg = getPaymentQRConfig();
+      setQrConfig(cfg);
+    };
+    window.addEventListener('dopilot_payment_qr_updated', handleConfigChange);
+    window.addEventListener('dopilot_payment_qr_config_updated', handleConfigChange);
+    window.addEventListener('storage', handleConfigChange);
+    return () => {
+      window.removeEventListener('dopilot_payment_qr_updated', handleConfigChange);
+      window.removeEventListener('dopilot_payment_qr_config_updated', handleConfigChange);
+      window.removeEventListener('storage', handleConfigChange);
+    };
+  }, []);
+
   // Reset state on open
   useEffect(() => {
     if (isOpen) {
@@ -297,8 +313,10 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
     }
 
     // Google Pay UPI Intent Deep Link
-    const gpayLink = `gpay://upi/pay?pa=${encodeURIComponent(qrConfig.upiId)}&pn=${encodeURIComponent(qrConfig.merchantName)}&am=${finalAmount}&cu=INR&tn=${encodeURIComponent(resolvedCourseName)}`;
-    const standardUpiLink = `upi://pay?pa=${encodeURIComponent(qrConfig.upiId)}&pn=${encodeURIComponent(qrConfig.merchantName)}&am=${finalAmount}&cu=INR&tn=${encodeURIComponent(resolvedCourseName)}`;
+    const activeUpiId = qrConfig.upiId || 'jayadevnair200518@oksbi';
+    const activePayee = qrConfig.bankingName || qrConfig.merchantName || qrConfig.recipientName || 'JAYADEV NAIR';
+    const gpayLink = `gpay://upi/pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activePayee)}&am=${finalAmount}&cu=INR&tn=${encodeURIComponent(resolvedCourseName)}`;
+    const standardUpiLink = `upi://pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activePayee)}&am=${finalAmount}&cu=INR&tn=${encodeURIComponent(resolvedCourseName)}`;
     
     // Attempt opening Google Pay app directly
     try {
@@ -361,9 +379,9 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
   // Dynamic QR Code URL (custom uploaded URL or dynamic UPI link)
   const qrImageSrc =
     qrConfig.qrImageUrl && qrConfig.qrImageUrl.trim().length > 0
-      ? qrConfig.qrImageUrl
+      ? qrConfig.qrImageUrl.trim()
       : `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(
-          `upi://pay?pa=${qrConfig.upiId}&pn=${encodeURIComponent(qrConfig.merchantName)}&am=${finalAmount}&cu=INR`
+          `upi://pay?pa=${qrConfig.upiId || 'jayadevnair200518@oksbi'}&pn=${encodeURIComponent(qrConfig.bankingName || qrConfig.merchantName || qrConfig.recipientName || 'JAYADEV NAIR')}&am=${finalAmount}&cu=INR`
         )}`;
 
   return (
@@ -723,21 +741,41 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
                               </p>
                             </div>
 
-                            {/* Merchant UPI ID */}
-                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-black/60 border border-white/10 font-mono text-xs">
-                              <div className="min-w-0 pr-2">
-                                <span className="text-[10px] text-slate block">Google Pay UPI ID:</span>
-                                <span className="font-bold text-paper truncate block">{qrConfig.upiId}</span>
+                            {/* Verified Recipient Details */}
+                            <div className="p-3 rounded-2xl bg-black/60 border border-white/10 space-y-2 font-mono text-xs">
+                              <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-white/10">
+                                <span className="text-slate">Banking Name:</span>
+                                <span className="font-bold text-paper text-right">{qrConfig.bankingName || qrConfig.merchantName || 'JAYADEV NAIR'}</span>
                               </div>
-                              <button
-                                type="button"
-                                onClick={handleCopyUpiId}
-                                className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-paper text-[11px] transition-all cursor-pointer shrink-0 flex items-center gap-1"
-                              >
-                                <Copy className="w-3 h-3" />
-                                <span>{copiedUpi ? 'Copied!' : 'Copy'}</span>
-                              </button>
+                              <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-white/10">
+                                <span className="text-slate">Recipient Name:</span>
+                                <span className="font-bold text-paper text-right">{qrConfig.recipientName || 'Jayadev Nair'}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-white/10">
+                                <span className="text-slate">Phone Number:</span>
+                                <span className="font-bold text-paper text-right">{qrConfig.phoneNumber || '+91 97459 49326'}</span>
+                              </div>
+                              <div className="flex items-center justify-between pt-0.5">
+                                <div className="min-w-0 pr-2">
+                                  <span className="text-[10px] text-slate block">Google Pay UPI ID:</span>
+                                  <span className="font-bold text-primary truncate block text-xs">{qrConfig.upiId}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={handleCopyUpiId}
+                                  className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-paper text-[11px] transition-all cursor-pointer shrink-0 flex items-center gap-1"
+                                >
+                                  <Copy className="w-3 h-3" />
+                                  <span>{copiedUpi ? 'Copied!' : 'Copy'}</span>
+                                </button>
+                              </div>
                             </div>
+
+                            {qrConfig.paymentInstructions && (
+                              <p className="font-mono text-[10px] text-slate/80 leading-relaxed bg-white/[0.03] p-2.5 rounded-xl border border-white/5">
+                                {qrConfig.paymentInstructions}
+                              </p>
+                            )}
 
                             {/* 12-Digit UTR Input */}
                             <div className="space-y-1.5">

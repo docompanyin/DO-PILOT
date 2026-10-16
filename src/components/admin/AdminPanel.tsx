@@ -42,6 +42,8 @@ import {
   CourseCoupon,
   CoursePurchaseRecord,
   PaymentQRConfig,
+  DEFAULT_PAYMENT_QR_CONFIG,
+  verifyImageUrl,
   getCoursePricingList,
   getCourseCoupons,
   getCoursePurchases,
@@ -83,17 +85,18 @@ export const AdminPanel: React.FC = () => {
 
   const adminEmails = getAdminEmails();
 
-  type AdminWorkspace = 'website' | 'students' | 'studentHelp' | 'courseReset' | 'pricingCoupons';
+  type AdminWorkspace = 'website' | 'students' | 'studentHelp' | 'courseReset' | 'pricingCoupons' | 'paymentSettings';
 
   const [adminWorkspace, setAdminWorkspace] = useState<AdminWorkspace>(() => {
     try {
       const savedWs = sessionStorage.getItem('dopilot_admin_workspace');
-      if (savedWs === 'students' || savedWs === 'website' || savedWs === 'studentHelp' || savedWs === 'courseReset' || savedWs === 'pricingCoupons') return savedWs as AdminWorkspace;
+      if (savedWs === 'students' || savedWs === 'website' || savedWs === 'studentHelp' || savedWs === 'courseReset' || savedWs === 'pricingCoupons' || savedWs === 'paymentSettings') return savedWs as AdminWorkspace;
       const savedSec = sessionStorage.getItem('dopilot_admin_active_section');
       if (savedSec === 'students') return 'students';
       if (savedSec === 'studentHelp') return 'studentHelp';
       if (savedSec === 'courseReset') return 'courseReset';
       if (savedSec === 'pricingCoupons') return 'pricingCoupons';
+      if (savedSec === 'paymentSettings') return 'paymentSettings';
     } catch (e) {}
     return 'website';
   });
@@ -192,16 +195,27 @@ export const AdminPanel: React.FC = () => {
     }
   }, [selectedPricingCourseId, coursePricingList]);
 
-  // Payment QR Configuration State
+  // Payment Settings (Google Pay UPI Only) State
   const [paymentQRConfig, setPaymentQRConfig] = useState<PaymentQRConfig>(() => getPaymentQRConfig());
-  const [qrUpiIdInput, setQrUpiIdInput] = useState<string>(paymentQRConfig.upiId);
-  const [qrPayeeNameInput, setQrPayeeNameInput] = useState<string>(paymentQRConfig.merchantName);
+  const [recipientNameInput, setRecipientNameInput] = useState<string>(paymentQRConfig.recipientName || 'Jayadev Nair');
+  const [bankingNameInput, setBankingNameInput] = useState<string>(paymentQRConfig.bankingName || paymentQRConfig.merchantName || 'JAYADEV NAIR');
+  const [phoneNumberInput, setPhoneNumberInput] = useState<string>(paymentQRConfig.phoneNumber || '+91 97459 49326');
+  const [qrUpiIdInput, setQrUpiIdInput] = useState<string>(paymentQRConfig.upiId || 'jayadevnair200518@oksbi');
   const [qrImageUrlInput, setQrImageUrlInput] = useState<string>(paymentQRConfig.qrImageUrl || '');
-  const [qrInstructionsInput, setQrInstructionsInput] = useState<string>(paymentQRConfig.paymentInstructions);
-  const [qrTimeoutMinutesInput, setQrTimeoutMinutesInput] = useState<number>(paymentQRConfig.timeoutMinutes);
-  const [qrManualEnabledInput, setQrManualEnabledInput] = useState<boolean>(paymentQRConfig.isEnabled);
+  const [qrInstructionsInput, setQrInstructionsInput] = useState<string>(
+    paymentQRConfig.paymentInstructions || 'Scan using Google Pay or any UPI app. Complete the payment and enter your 12-digit UPI Reference / UTR Number below to verify your enrollment.'
+  );
+  const [qrTimeoutMinutesInput, setQrTimeoutMinutesInput] = useState<number>(paymentQRConfig.timeoutMinutes || 10);
+  const [qrManualEnabledInput, setQrManualEnabledInput] = useState<boolean>(paymentQRConfig.isEnabled !== false);
   const [isSavingQrConfig, setIsSavingQrConfig] = useState(false);
   const [verifyingPurchaseId, setVerifyingPurchaseId] = useState<string | null>(null);
+
+  // Live Cloudflare QR Image Verification State
+  const [isVerifyingQrUrl, setIsVerifyingQrUrl] = useState(false);
+  const [qrUrlVerificationStatus, setQrUrlVerificationStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
+  const [qrUrlVerificationMsg, setQrUrlVerificationMsg] = useState<string | null>(null);
+
+  const pendingManualPayments = coursePurchases.filter(p => p.paymentMethod === 'manual_upi_qr' && p.status === 'pending_verification');
 
   useEffect(() => {
     const handlePricingCouponsUpdate = () => {
@@ -210,6 +224,13 @@ export const AdminPanel: React.FC = () => {
       setCoursePurchases(getCoursePurchases());
       const updatedQr = getPaymentQRConfig();
       setPaymentQRConfig(updatedQr);
+      setRecipientNameInput(updatedQr.recipientName || 'Jayadev Nair');
+      setBankingNameInput(updatedQr.bankingName || updatedQr.merchantName || 'JAYADEV NAIR');
+      setPhoneNumberInput(updatedQr.phoneNumber || '+91 97459 49326');
+      setQrUpiIdInput(updatedQr.upiId || 'jayadevnair200518@oksbi');
+      setQrImageUrlInput(updatedQr.qrImageUrl || '');
+      setQrTimeoutMinutesInput(updatedQr.timeoutMinutes || 10);
+      setQrManualEnabledInput(updatedQr.isEnabled !== false);
     };
     window.addEventListener('dopilot_pricing_updated', handlePricingCouponsUpdate);
     window.addEventListener('dopilot_coupons_updated', handlePricingCouponsUpdate);
@@ -5704,37 +5725,92 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  const handleSavePaymentQRConfig = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSavingQrConfig(true);
-    const updated = updatePaymentQRConfig({
-      upiId: qrUpiIdInput.trim() || 'dopilot@upi',
-      merchantName: qrPayeeNameInput.trim() || 'DO PILOT',
-      qrImageUrl: qrImageUrlInput.trim() || '',
-      paymentInstructions: qrInstructionsInput.trim() || 'Scan using Google Pay, Paytm, PhonePe, or any UPI app. Complete the transfer and enter your 12-digit UPI Reference / UTR Number below to verify your payment.',
-      timeoutMinutes: Math.max(1, Math.min(60, Number(qrTimeoutMinutesInput) || 10)),
-      isEnabled: qrManualEnabledInput
-    });
-    setPaymentQRConfig(updated);
-    setIsSavingQrConfig(false);
-    showToast('Official UPI QR & Payment settings saved successfully!');
+  const handleTestQrUrl = async (urlToTest?: string): Promise<boolean> => {
+    const targetUrl = (urlToTest !== undefined ? urlToTest : qrImageUrlInput).trim();
+    if (!targetUrl) {
+      setQrUrlVerificationStatus('valid');
+      setQrUrlVerificationMsg('No custom image URL provided (dynamic Google Pay QR code will be generated automatically).');
+      return true;
+    }
+
+    setIsVerifyingQrUrl(true);
+    setQrUrlVerificationStatus('idle');
+    setQrUrlVerificationMsg(null);
+
+    const testResult = await verifyImageUrl(targetUrl);
+    setIsVerifyingQrUrl(false);
+
+    if (testResult.valid) {
+      setQrUrlVerificationStatus('valid');
+      setQrUrlVerificationMsg('Cloudflare QR Image URL is valid, accessible, and ready for use!');
+      return true;
+    } else {
+      setQrUrlVerificationStatus('invalid');
+      setQrUrlVerificationMsg(testResult.error || 'Failed to load image from this URL. Please verify that the Cloudflare URL is public.');
+      return false;
+    }
   };
 
-  const handleQrImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert('Please choose an image under 2MB.');
+  const handleSavePaymentSettings = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+
+    if (!qrUpiIdInput.trim()) {
+      showToast('Please enter a valid Google Pay UPI ID.');
+      return;
+    }
+
+    if (!bankingNameInput.trim()) {
+      showToast('Please enter the Banking / Account Display Name.');
+      return;
+    }
+
+    if (qrImageUrlInput.trim()) {
+      setIsSavingQrConfig(true);
+      const isOk = await handleTestQrUrl(qrImageUrlInput);
+      if (!isOk) {
+        setIsSavingQrConfig(false);
+        showToast('Image URL verification failed. Please check the URL before saving.');
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setQrImageUrlInput(reader.result);
-          showToast('QR Code image uploaded successfully!');
-        }
-      };
-      reader.readAsDataURL(file);
+    }
+
+    setIsSavingQrConfig(true);
+    const updated = updatePaymentQRConfig({
+      recipientName: recipientNameInput.trim() || 'Jayadev Nair',
+      bankingName: bankingNameInput.trim() || 'JAYADEV NAIR',
+      merchantName: bankingNameInput.trim() || 'JAYADEV NAIR',
+      phoneNumber: phoneNumberInput.trim() || '+91 97459 49326',
+      upiId: qrUpiIdInput.trim() || 'jayadevnair200518@oksbi',
+      qrImageUrl: qrImageUrlInput.trim(),
+      paymentInstructions: qrInstructionsInput.trim() || 'Scan using Google Pay or any UPI app. Complete the payment and enter your 12-digit UPI Reference / UTR Number below to verify your enrollment.',
+      timeoutMinutes: Math.max(1, Math.min(60, Number(qrTimeoutMinutesInput) || 10)),
+      isEnabled: qrManualEnabledInput,
+      paymentMethod: 'google_pay_upi'
+    });
+
+    setPaymentQRConfig(updated);
+    setIsSavingQrConfig(false);
+    showToast('Payment settings saved and updated across student website!');
+  };
+
+  const handleResetPaymentSettingsToDefaults = () => {
+    if (window.confirm('Reset all Google Pay payment credentials to default settings?')) {
+      const resetConfig = updatePaymentQRConfig({
+        ...DEFAULT_PAYMENT_QR_CONFIG,
+        updatedAt: new Date().toISOString()
+      });
+      setPaymentQRConfig(resetConfig);
+      setRecipientNameInput(resetConfig.recipientName);
+      setBankingNameInput(resetConfig.bankingName);
+      setPhoneNumberInput(resetConfig.phoneNumber);
+      setQrUpiIdInput(resetConfig.upiId);
+      setQrImageUrlInput(resetConfig.qrImageUrl || '');
+      setQrInstructionsInput(resetConfig.paymentInstructions || '');
+      setQrTimeoutMinutesInput(resetConfig.timeoutMinutes);
+      setQrManualEnabledInput(resetConfig.isEnabled);
+      setQrUrlVerificationStatus('idle');
+      setQrUrlVerificationMsg(null);
+      showToast('Google Pay payment settings reset to defaults.');
     }
   };
 
@@ -6265,296 +6341,42 @@ export const AdminPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* Section 3: Official UPI Payment QR & Checkout Settings */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
-            <div>
-              <h3 className="font-jakarta font-extrabold text-lg text-paper flex items-center gap-2">
-                <QrCode className="w-5 h-5 text-primary" />
-                Official UPI Payment QR & Checkout Settings
-              </h3>
-              <p className="text-xs text-slate mt-0.5">
-                Upload your official UPI QR code image or configure UPI ID, custom instructions, and countdown expiration timer.
-              </p>
+        {/* Google Pay Payment Settings Shortcut Banner */}
+        <div className="p-6 rounded-3xl bg-gradient-to-r from-primary/10 via-black/40 to-primary/5 border border-primary/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-primary/20 text-primary flex items-center justify-center shrink-0 border border-primary/30">
+              <CreditCard className="w-6 h-6" />
             </div>
-            <div className="flex items-center gap-2">
-              <span className={`px-2.5 py-1 rounded-full font-mono text-[10px] font-bold border ${
-                qrManualEnabledInput
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                  : 'bg-white/5 text-slate border-white/10'
-              }`}>
-                {qrManualEnabledInput ? 'UPI QR Checkout Active' : 'UPI QR Checkout Disabled'}
-              </span>
-            </div>
-          </div>
-
-          <form onSubmit={handleSavePaymentQRConfig} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {/* UPI ID */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-mono text-slate uppercase tracking-wider">
-                  Official UPI ID (VPA)
-                </label>
-                <input
-                  type="text"
-                  value={qrUpiIdInput}
-                  onChange={e => setQrUpiIdInput(e.target.value)}
-                  placeholder="e.g. dopilot@upi or yourname@okhdfcbank"
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm font-mono focus:border-primary focus:outline-none"
-                  required
-                />
-                <p className="text-[10px] text-slate">Payments will be addressed to this UPI handle.</p>
-              </div>
-
-              {/* Payee Name */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-mono text-slate uppercase tracking-wider">
-                  Official Payee / Merchant Name
-                </label>
-                <input
-                  type="text"
-                  value={qrPayeeNameInput}
-                  onChange={e => setQrPayeeNameInput(e.target.value)}
-                  placeholder="e.g. DO PILOT LEARNING"
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm focus:border-primary focus:outline-none"
-                  required
-                />
-                <p className="text-[10px] text-slate">Business or account name shown inside UPI apps.</p>
-              </div>
-
-              {/* Session Expiry Timeout */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-mono text-slate uppercase tracking-wider">
-                  Payment Expiry Timer (Minutes)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="60"
-                  value={qrTimeoutMinutesInput}
-                  onChange={e => setQrTimeoutMinutesInput(Number(e.target.value))}
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm font-mono focus:border-primary focus:outline-none"
-                  required
-                />
-                <p className="text-[10px] text-slate">Checkout countdown expires after this duration (1 - 60 min).</p>
-              </div>
-            </div>
-
-            {/* QR Code Upload & Live Preview */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 p-5 rounded-2xl bg-black/40 border border-white/5 items-center">
-              <div className="md:col-span-8 space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-mono text-slate uppercase tracking-wider flex items-center gap-2">
-                    <ImageIcon className="w-3.5 h-3.5 text-primary" />
-                    Custom QR Code Image (Upload or URL)
-                  </label>
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                    <input
-                      type="url"
-                      value={qrImageUrlInput}
-                      onChange={e => setQrImageUrlInput(e.target.value)}
-                      placeholder="Paste image URL (or upload from computer below)"
-                      className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-xs font-mono focus:border-primary focus:outline-none"
-                    />
-                    <label className="px-4 py-2.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors whitespace-nowrap">
-                      <Upload className="w-3.5 h-3.5" />
-                      Upload QR File
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleQrImageUpload}
-                        className="hidden"
-                      />
-                    </label>
-                    {qrImageUrlInput && (
-                      <button
-                        type="button"
-                        onClick={() => setQrImageUrlInput('')}
-                        className="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs cursor-pointer"
-                        title="Remove custom image and use dynamic QR"
-                      >
-                        Reset
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-slate">
-                    Upload your official PhonePe, Google Pay, or Paytm merchant QR code. If left blank, a dynamic UPI QR code is automatically generated.
-                  </p>
-                </div>
-
-                {/* Payment Instructions Textarea */}
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-mono text-slate uppercase tracking-wider">
-                    Student Instructions & Verification Guidance
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={qrInstructionsInput}
-                    onChange={e => setQrInstructionsInput(e.target.value)}
-                    placeholder="Enter instructions for students on how to scan and submit reference..."
-                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-xs focus:border-primary focus:outline-none resize-none"
-                  />
-                  <p className="text-[10px] text-slate">This note is displayed on the student checkout modal above the UTR input.</p>
-                </div>
-              </div>
-
-              {/* QR Preview Box */}
-              <div className="md:col-span-4 flex flex-col items-center justify-center p-4 rounded-2xl bg-white/[0.02] border border-white/10 text-center">
-                <span className="text-[10px] font-mono text-slate uppercase tracking-wider mb-2">Student QR Preview</span>
-                <div className="w-36 h-36 p-2 rounded-xl bg-white flex items-center justify-center shadow-lg">
-                  {qrImageUrlInput ? (
-                    <img
-                      src={qrImageUrlInput}
-                      alt="Official Payment QR"
-                      className="w-full h-full object-contain"
-                    />
-                  ) : (
-                    <img
-                      src={`https://chart.googleapis.com/chart?chs=180x180&cht=qr&chl=${encodeURIComponent(`upi://pay?pa=${qrUpiIdInput}&pn=${encodeURIComponent(qrPayeeNameInput)}&cu=INR`)}`}
-                      alt="Generated UPI QR"
-                      className="w-full h-full object-contain"
-                    />
-                  )}
-                </div>
-                <span className="text-[11px] font-mono font-bold text-primary mt-2">{qrUpiIdInput}</span>
-                <span className="text-[10px] text-slate">{qrPayeeNameInput}</span>
-              </div>
-            </div>
-
-            {/* Bottom Actions */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-3 border-t border-white/10">
-              <label className="flex items-center gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={qrManualEnabledInput}
-                  onChange={e => setQrManualEnabledInput(e.target.checked)}
-                  className="w-4 h-4 rounded text-primary focus:ring-primary bg-black/40 border-white/20 accent-primary cursor-pointer"
-                />
-                <div>
-                  <span className="text-xs font-bold text-paper">Allow Scan UPI QR Checkout on Website</span>
-                  <p className="text-[10px] text-slate">Students will be able to scan the QR code and submit their 12-digit UTR reference for admin verification.</p>
-                </div>
-              </label>
-
-              <button
-                type="submit"
-                disabled={isSavingQrConfig}
-                className="py-2.5 px-6 rounded-xl bg-primary text-ink font-bold text-xs sm:text-sm hover:brightness-110 transition-all flex items-center gap-2 shadow-lg shadow-primary/20 cursor-pointer disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                {isSavingQrConfig ? 'Saving...' : 'Save QR & Payment Settings'}
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* Section 4: Manual UPI Payment Verifications Queue */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
-            <div>
+            <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <h3 className="font-jakarta font-extrabold text-lg text-paper flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-amber-400" />
-                  Manual UPI Payment Verifications
-                </h3>
+                <h4 className="font-jakarta font-bold text-sm text-paper">
+                  Google Pay &amp; UPI Payment Settings
+                </h4>
+                <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary text-[10px] font-mono font-bold">
+                  Dedicated Tab 6
+                </span>
                 {pendingManualPayments.length > 0 && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold border border-amber-500/30">
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold animate-pulse">
                     {pendingManualPayments.length} Pending
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate mt-0.5">
-                Verify student-submitted 12-digit UPI UTR transaction reference numbers. Approving immediately unlocks full lifetime course access.
+              <p className="text-xs text-slate">
+                Recipient name, banking name, phone number, Google Pay UPI ID, Cloudflare QR URL, and pending student UTR verifications are managed in the Payment Settings workspace.
               </p>
             </div>
           </div>
 
-          {pendingManualPayments.length === 0 ? (
-            <div className="p-8 rounded-2xl bg-white/[0.02] border border-white/5 text-center space-y-2">
-              <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto opacity-80" />
-              <div className="text-sm font-bold text-paper">No Pending UPI Verifications</div>
-              <p className="text-xs text-slate max-w-md mx-auto">
-                All manual UPI payments have been verified or no new requests have been submitted. When a student submits their 12-digit UTR, it will appear here for one-click approval.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {pendingManualPayments.map(payment => (
-                <div
-                  key={payment.id}
-                  className="p-5 rounded-2xl bg-black/60 border border-amber-500/30 hover:border-amber-500/50 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg shadow-amber-500/5"
-                >
-                  <div className="space-y-1.5 min-w-[220px]">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-paper text-sm">{payment.studentName}</span>
-                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold">
-                        Pending
-                      </span>
-                    </div>
-                    <div className="text-xs text-slate font-mono">{payment.studentEmail}</div>
-                    {payment.studentPhone && (
-                      <div className="text-xs text-slate font-mono">Phone: {payment.studentPhone}</div>
-                    )}
-                  </div>
-
-                  <div className="space-y-1 min-w-[160px]">
-                    <div className="text-[10px] font-mono text-slate uppercase">Enrolling Course</div>
-                    <div className="text-xs font-bold text-paper">{payment.courseName}</div>
-                    <div className="text-xs font-mono font-bold text-emerald-400">
-                      Amount: ₹{payment.finalAmount}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-mono text-slate uppercase">12-Digit UPI UTR Reference</div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-black text-sm text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/30 tracking-wider select-all">
-                        {payment.utrNumber || 'No UTR provided'}
-                      </span>
-                      {payment.utrNumber && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(payment.utrNumber || '');
-                            showToast('Copied UTR to clipboard!');
-                          }}
-                          className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper cursor-pointer transition-colors"
-                          title="Copy UTR Reference"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                    <div className="text-[10px] text-slate font-mono">
-                      Submitted: {new Date(payment.purchasedAt).toLocaleString()}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2.5 w-full md:w-auto justify-end pt-2 md:pt-0 border-t md:border-t-0 border-white/10">
-                    <button
-                      type="button"
-                      disabled={verifyingPurchaseId === payment.id}
-                      onClick={() => handleVerifyManualPayment(payment.id, true)}
-                      className="flex-1 md:flex-initial py-2 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 cursor-pointer disabled:opacity-50 transition-all"
-                    >
-                      <CheckCheck className="w-4 h-4" />
-                      Verify & Unlock Course
-                    </button>
-                    <button
-                      type="button"
-                      disabled={verifyingPurchaseId === payment.id}
-                      onClick={() => handleVerifyManualPayment(payment.id, false)}
-                      className="py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 font-bold text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => switchWorkspace('paymentSettings')}
+            className="py-2.5 px-5 rounded-xl bg-primary text-ink font-jakarta font-black text-xs uppercase tracking-wider hover:brightness-110 transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20 shrink-0"
+          >
+            <span>Open Payment Settings</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
         </div>
+
 
         {/* Section 5: Course Purchases & Enrollments Audit Table */}
         <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-4">
@@ -6671,6 +6493,444 @@ export const AdminPanel: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      </section>
+    );
+  };
+
+  const renderPaymentSettingsSection = () => {
+    // Dynamic preview image URL
+    const previewQrSrc =
+      qrImageUrlInput && qrImageUrlInput.trim().length > 0
+        ? qrImageUrlInput.trim()
+        : `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(
+            `upi://pay?pa=${qrUpiIdInput.trim() || 'jayadevnair200518@oksbi'}&pn=${encodeURIComponent(
+              bankingNameInput.trim() || recipientNameInput.trim() || 'JAYADEV NAIR'
+            )}&cu=INR`
+          )}`;
+
+    return (
+      <section className="space-y-8 animate-fadeIn">
+        {/* Workspace Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl relative overflow-hidden">
+          <div className="space-y-1 relative z-10">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
+              <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider">
+                Google Pay / UPI Gateway
+              </span>
+            </div>
+            <h2 className="font-jakarta font-black text-xl sm:text-2xl text-paper">
+              Payment Settings
+            </h2>
+            <p className="text-xs text-slate max-w-2xl">
+              Configure recipient details, bank account name, Google Pay UPI ID, and official Cloudflare QR code image. Changes are updated dynamically on the student checkout page.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 relative z-10">
+            <span className="px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-primary font-mono text-xs font-bold flex items-center gap-2">
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Google Pay (UPI Only)</span>
+            </span>
+            <span className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold border flex items-center gap-1.5 ${
+              qrManualEnabledInput
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                : 'bg-white/5 text-slate border-white/10'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${qrManualEnabledInput ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+              <span>{qrManualEnabledInput ? 'Checkout Active' : 'Checkout Disabled'}</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Main Settings Card: Form & Live Preview */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+            <div>
+              <h3 className="font-jakarta font-extrabold text-lg text-paper flex items-center gap-2">
+                <QrCode className="w-5 h-5 text-primary" />
+                Google Pay Credentials &amp; Cloudflare QR Code
+              </h3>
+              <p className="text-xs text-slate mt-0.5">
+                Set recipient credentials and Cloudflare QR image URL. Verified in real-time before saving.
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSavePaymentSettings} className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              
+              {/* Left Column: Form Fields (7 cols) */}
+              <div className="lg:col-span-7 space-y-5">
+                
+                {/* Row 1: Recipient Name & Banking Name */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-mono text-slate uppercase tracking-wider block">
+                      Recipient's Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={recipientNameInput}
+                      onChange={e => setRecipientNameInput(e.target.value)}
+                      placeholder="e.g. Jayadev Nair"
+                      className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm focus:border-primary focus:outline-none"
+                      required
+                    />
+                    <p className="text-[10px] text-slate">Personal recipient display name.</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-mono text-slate uppercase tracking-wider block">
+                      Bank Account Display Name
+                    </label>
+                    <input
+                      type="text"
+                      value={bankingNameInput}
+                      onChange={e => setBankingNameInput(e.target.value)}
+                      placeholder="e.g. JAYADEV NAIR"
+                      className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm focus:border-primary focus:outline-none uppercase"
+                      required
+                    />
+                    <p className="text-[10px] text-slate">Exact name registered with bank / UPI handle.</p>
+                  </div>
+                </div>
+
+                {/* Row 2: Phone Number & UPI ID */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-mono text-slate uppercase tracking-wider block">
+                      Phone Number
+                    </label>
+                    <input
+                      type="text"
+                      value={phoneNumberInput}
+                      onChange={e => setPhoneNumberInput(e.target.value)}
+                      placeholder="e.g. +91 97459 49326"
+                      className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm font-mono focus:border-primary focus:outline-none"
+                      required
+                    />
+                    <p className="text-[10px] text-slate">Linked phone number for Google Pay.</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-mono text-slate uppercase tracking-wider block">
+                      Google Pay UPI ID (VPA)
+                    </label>
+                    <input
+                      type="text"
+                      value={qrUpiIdInput}
+                      onChange={e => setQrUpiIdInput(e.target.value)}
+                      placeholder="e.g. jayadevnair200518@oksbi"
+                      className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm font-mono focus:border-primary focus:outline-none"
+                      required
+                    />
+                    <p className="text-[10px] text-slate">Students send payment to this UPI ID.</p>
+                  </div>
+                </div>
+
+                {/* Row 3: Publicly Accessible Cloudflare-hosted QR Image URL */}
+                <div className="space-y-2 p-4 rounded-2xl bg-black/40 border border-white/10">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-mono text-slate uppercase tracking-wider flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-primary" />
+                      <span>Cloudflare QR Image URL (Publicly Hosted)</span>
+                    </label>
+                    {qrImageUrlInput && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQrImageUrlInput('');
+                          setQrUrlVerificationStatus('idle');
+                          setQrUrlVerificationMsg(null);
+                        }}
+                        className="text-[10px] font-mono text-rose-400 hover:underline cursor-pointer"
+                      >
+                        Clear URL (Use Dynamic QR)
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <input
+                      type="url"
+                      value={qrImageUrlInput}
+                      onChange={e => {
+                        setQrImageUrlInput(e.target.value);
+                        setQrUrlVerificationStatus('idle');
+                        setQrUrlVerificationMsg(null);
+                      }}
+                      placeholder="https://pub-...r2.dev/official-gpay-qr.png"
+                      className="flex-1 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-paper text-xs font-mono focus:border-primary focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      disabled={isVerifyingQrUrl || !qrImageUrlInput.trim()}
+                      onClick={() => handleTestQrUrl()}
+                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-paper text-xs font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingQrUrl ? 'animate-spin' : ''}`} />
+                      <span>{isVerifyingQrUrl ? 'Verifying...' : 'Verify URL'}</span>
+                    </button>
+                  </div>
+
+                  {/* Verification Status Feedback */}
+                  {qrUrlVerificationStatus === 'valid' && (
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-xs flex items-center gap-2">
+                      <Check className="w-3.5 h-3.5 shrink-0" />
+                      <span>{qrUrlVerificationMsg || 'Image URL verified successfully!'}</span>
+                    </div>
+                  )}
+
+                  {qrUrlVerificationStatus === 'invalid' && (
+                    <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 font-mono text-xs flex items-center gap-2">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{qrUrlVerificationMsg || 'Image failed to load. Please verify the URL.'}</span>
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-slate leading-relaxed">
+                    Paste a publicly accessible Cloudflare R2 / CDN image URL. We dynamically test that the image loads before saving without requiring separate cloud storage. If left empty, a crisp dynamic Google Pay QR is generated.
+                  </p>
+                </div>
+
+                {/* Row 4: Timeout & Instructions */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-mono text-slate uppercase tracking-wider block">
+                      Session Timer (Minutes)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="60"
+                      value={qrTimeoutMinutesInput}
+                      onChange={e => setQrTimeoutMinutesInput(Number(e.target.value))}
+                      className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm font-mono focus:border-primary focus:outline-none"
+                      required
+                    />
+                    <p className="text-[10px] text-slate">Payment expiry countdown (1 - 60 min).</p>
+                  </div>
+
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <label className="text-[11px] font-mono text-slate uppercase tracking-wider block">
+                      Student Instructions
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={qrInstructionsInput}
+                      onChange={e => setQrInstructionsInput(e.target.value)}
+                      placeholder="Instructions shown on student checkout modal..."
+                      className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-paper text-xs focus:border-primary focus:outline-none resize-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Checkbox: Enable Checkout */}
+                <label className="flex items-center gap-3 p-3.5 rounded-2xl bg-white/[0.02] border border-white/10 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={qrManualEnabledInput}
+                    onChange={e => setQrManualEnabledInput(e.target.checked)}
+                    className="w-4 h-4 rounded text-primary focus:ring-primary bg-black/40 border-white/20 accent-primary cursor-pointer"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-paper block">
+                      Enable Google Pay UPI &amp; QR Checkout on Website
+                    </span>
+                    <span className="text-[10px] text-slate">
+                      When enabled, students can pay via Google Pay or scan the QR code and submit their 12-digit UTR reference for instant verification.
+                    </span>
+                  </div>
+                </label>
+
+              </div>
+
+              {/* Right Column: Live Student Checkout Preview (5 cols) */}
+              <div className="lg:col-span-5 flex flex-col items-center justify-between p-6 rounded-3xl bg-black/80 border border-white/15 shadow-inner space-y-4">
+                <div className="w-full text-center pb-2 border-b border-white/10">
+                  <span className="font-mono text-[10px] text-primary uppercase font-bold tracking-wider">
+                    Student Checkout Preview
+                  </span>
+                  <h4 className="text-xs font-bold text-paper mt-0.5">
+                    Live Google Pay QR Card
+                  </h4>
+                </div>
+
+                {/* QR Code Container */}
+                <div className="p-3.5 rounded-2xl bg-white flex flex-col items-center justify-center shadow-2xl">
+                  <img
+                    src={previewQrSrc}
+                    alt="Official Google Pay QR Code"
+                    className="w-44 h-44 object-contain rounded-lg"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(`upi://pay?pa=${qrUpiIdInput || 'jayadevnair200518@oksbi'}&pn=${encodeURIComponent(bankingNameInput || recipientNameInput || 'JAYADEV NAIR')}&cu=INR`)}`;
+                    }}
+                  />
+                  <p className="font-mono text-[10px] text-black/80 font-bold mt-2 tracking-wide text-center">
+                    Scan &amp; Pay using Google Pay
+                  </p>
+                </div>
+
+                {/* Recipient Details Preview Box */}
+                <div className="w-full p-3.5 rounded-2xl bg-black/60 border border-white/10 space-y-2 text-xs font-mono">
+                  <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-white/10">
+                    <span className="text-slate">Banking Name:</span>
+                    <span className="font-bold text-paper text-right">{bankingNameInput || 'JAYADEV NAIR'}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-white/10">
+                    <span className="text-slate">Recipient Name:</span>
+                    <span className="font-bold text-paper text-right">{recipientNameInput || 'Jayadev Nair'}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-white/10">
+                    <span className="text-slate">Phone Number:</span>
+                    <span className="font-bold text-paper text-right">{phoneNumberInput || '+91 97459 49326'}</span>
+                  </div>
+                  <div className="flex items-center justify-between pt-0.5">
+                    <div className="min-w-0 pr-2">
+                      <span className="text-[10px] text-slate block">Google Pay UPI ID:</span>
+                      <span className="font-bold text-primary truncate block text-xs">{qrUpiIdInput || 'jayadevnair200518@oksbi'}</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded bg-white/10 text-slate text-[10px]">
+                      Copyable
+                    </span>
+                  </div>
+                </div>
+
+                <p className="font-mono text-[10px] text-slate/60 text-center">
+                  Preview dynamically updates as you type
+                </p>
+              </div>
+
+            </div>
+
+            {/* Bottom Form Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/10">
+              <button
+                type="button"
+                onClick={handleResetPaymentSettingsToDefaults}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper font-mono text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset to Defaults</span>
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSavingQrConfig}
+                className="w-full sm:w-auto py-3 px-8 rounded-xl bg-primary text-ink font-jakarta font-black text-xs sm:text-sm uppercase tracking-wider hover:brightness-110 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/25 cursor-pointer disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSavingQrConfig ? 'Saving Settings...' : 'Save Payment Settings'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Section 2: Manual UPI Payment Verifications Queue */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-jakarta font-extrabold text-lg text-paper flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-amber-400" />
+                  Manual UPI Payment Verifications Queue
+                </h3>
+                {pendingManualPayments.length > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold border border-amber-500/30">
+                    {pendingManualPayments.length} Pending
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate mt-0.5">
+                Verify student-submitted 12-digit UPI UTR transaction reference numbers. Approving immediately unlocks full lifetime course access.
+              </p>
+            </div>
+          </div>
+
+          {pendingManualPayments.length === 0 ? (
+            <div className="p-8 rounded-2xl bg-white/[0.02] border border-white/5 text-center space-y-2">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto opacity-80" />
+              <div className="text-sm font-bold text-paper">No Pending UPI Verifications</div>
+              <p className="text-xs text-slate max-w-md mx-auto">
+                All manual UPI payments have been verified or no new requests have been submitted. When a student submits their 12-digit UTR, it will appear here for one-click approval.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {pendingManualPayments.map(payment => (
+                <div
+                  key={payment.id}
+                  className="p-5 rounded-2xl bg-black/60 border border-amber-500/30 hover:border-amber-500/50 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg shadow-amber-500/5"
+                >
+                  <div className="space-y-1.5 min-w-[220px]">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-paper text-sm">{payment.studentName}</span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold">
+                        Pending
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate font-mono">{payment.studentEmail}</div>
+                    {payment.studentPhone && (
+                      <div className="text-xs text-slate font-mono">Phone: {payment.studentPhone}</div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1 min-w-[160px]">
+                    <div className="text-[10px] font-mono text-slate uppercase">Enrolling Course</div>
+                    <div className="text-xs font-bold text-paper">{payment.courseName}</div>
+                    <div className="text-xs font-mono font-bold text-emerald-400">
+                      Amount: ₹{payment.finalAmount}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-mono text-slate uppercase">12-Digit UPI UTR Reference</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-sm text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/30 tracking-wider select-all">
+                        {payment.utrNumber || 'No UTR provided'}
+                      </span>
+                      {payment.utrNumber && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(payment.utrNumber || '');
+                            showToast('Copied UTR to clipboard!');
+                          }}
+                          className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-paper cursor-pointer"
+                          title="Copy UTR Reference"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      disabled={verifyingPurchaseId === payment.id}
+                      onClick={() => handleVerifyManualPayment(payment.id, true)}
+                      className="flex-1 md:flex-initial py-2 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 cursor-pointer disabled:opacity-50 transition-all"
+                    >
+                      <CheckCheck className="w-4 h-4" />
+                      Verify & Unlock Course
+                    </button>
+                    <button
+                      type="button"
+                      disabled={verifyingPurchaseId === payment.id}
+                      onClick={() => handleVerifyManualPayment(payment.id, false)}
+                      className="py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 font-bold text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
     );
@@ -6859,6 +7119,28 @@ export const AdminPanel: React.FC = () => {
                 {courseCoupons.filter(c => c.isActive).length} Active Codes
               </span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => switchWorkspace('paymentSettings')}
+              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-jakarta text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+                adminWorkspace === 'paymentSettings'
+                  ? 'bg-primary text-ink shadow-lg shadow-primary/25 font-black scale-[1.01]'
+                  : 'text-slate hover:text-paper hover:bg-white/5'
+              }`}
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>6. Payment Settings</span>
+              {pendingManualPayments.length > 0 && (
+                <span className={`font-mono text-[10px] px-2 py-0.5 rounded-md font-bold ${
+                  adminWorkspace === 'paymentSettings'
+                    ? 'bg-black/20 text-ink'
+                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                }`}>
+                  {pendingManualPayments.length} Pending
+                </span>
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -6989,6 +7271,11 @@ export const AdminPanel: React.FC = () => {
         /* Course Pricing & Coupons Workspace: Full-width, dedicated pricing & discounts management */
         <div className="flex-1 max-w-[1650px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
           {renderCoursePricingAndCouponsSection()}
+        </div>
+      ) : adminWorkspace === 'paymentSettings' ? (
+        /* Payment Settings Workspace: Full-width, Google Pay UPI & Cloudflare QR settings */
+        <div className="flex-1 max-w-[1650px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
+          {renderPaymentSettingsSection()}
         </div>
       ) : (
         /* Students Workspace: Full-width, clean, dedicated, zero congestion */

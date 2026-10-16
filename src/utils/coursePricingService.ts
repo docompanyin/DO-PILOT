@@ -757,25 +757,90 @@ export const recordCoursePurchase = (
 };
 
 export interface PaymentQRConfig {
+  recipientName: string;
+  bankingName: string;
+  merchantName: string; // compatibility alias to bankingName
+  phoneNumber: string;
   upiId: string;
-  merchantName: string;
   qrImageUrl: string;
-  paymentInstructions: string;
+  paymentInstructions?: string;
   timeoutMinutes: number;
   isEnabled: boolean;
+  paymentMethod?: 'google_pay_upi';
   updatedAt: string;
 }
 
 export const PAYMENT_QR_CONFIG_KEY = 'dopilot_payment_qr_config_v1';
 
 export const DEFAULT_PAYMENT_QR_CONFIG: PaymentQRConfig = {
-  upiId: 'dopilot@upi',
-  merchantName: 'DO PILOT',
+  recipientName: 'Jayadev Nair',
+  bankingName: 'JAYADEV NAIR',
+  merchantName: 'JAYADEV NAIR',
+  phoneNumber: '+91 97459 49326',
+  upiId: 'jayadevnair200518@oksbi',
   qrImageUrl: '',
-  paymentInstructions: 'Scan using Google Pay, Paytm, PhonePe, or any UPI app. Complete the transfer and enter your 12-digit UPI Reference / UTR Number below to verify your payment.',
+  paymentInstructions: 'Scan with Google Pay or any UPI app. After completing the payment, enter your 12-digit UPI Reference / UTR Number to verify your enrollment.',
   timeoutMinutes: 10,
   isEnabled: true,
+  paymentMethod: 'google_pay_upi',
   updatedAt: new Date().toISOString()
+};
+
+/**
+ * Verify whether an image URL is valid and loads successfully via an HTML Image object
+ */
+export const verifyImageUrl = (url: string): Promise<{ valid: boolean; error?: string }> => {
+  return new Promise((resolve) => {
+    if (!url || !url.trim()) {
+      resolve({ valid: true }); // Blank is permissible
+      return;
+    }
+
+    const cleanUrl = url.trim();
+
+    // Basic URL validation
+    try {
+      const parsed = new URL(cleanUrl);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        resolve({ valid: false, error: 'Image URL must use HTTPS.' });
+        return;
+      }
+    } catch {
+      resolve({ valid: false, error: 'Please enter a valid web URL.' });
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      resolve({ valid: true });
+      return;
+    }
+
+    const img = new Image();
+    let isSettled = false;
+
+    img.onload = () => {
+      if (!isSettled) {
+        isSettled = true;
+        resolve({ valid: true });
+      }
+    };
+
+    img.onerror = () => {
+      if (!isSettled) {
+        isSettled = true;
+        resolve({ valid: false, error: 'Failed to load image from the specified URL. Please check the link or CORS headers.' });
+      }
+    };
+
+    img.src = cleanUrl;
+
+    setTimeout(() => {
+      if (!isSettled) {
+        isSettled = true;
+        resolve({ valid: false, error: 'Image verification timed out. Please check if the link is publicly accessible.' });
+      }
+    }, 6000);
+  });
 };
 
 export const getPaymentQRConfig = (): PaymentQRConfig => {
@@ -783,7 +848,16 @@ export const getPaymentQRConfig = (): PaymentQRConfig => {
     const raw = localStorage.getItem(PAYMENT_QR_CONFIG_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return { ...DEFAULT_PAYMENT_QR_CONFIG, ...parsed };
+      return {
+        ...DEFAULT_PAYMENT_QR_CONFIG,
+        ...parsed,
+        recipientName: parsed.recipientName || DEFAULT_PAYMENT_QR_CONFIG.recipientName,
+        bankingName: parsed.bankingName || parsed.merchantName || DEFAULT_PAYMENT_QR_CONFIG.bankingName,
+        merchantName: parsed.bankingName || parsed.merchantName || DEFAULT_PAYMENT_QR_CONFIG.merchantName,
+        phoneNumber: parsed.phoneNumber || DEFAULT_PAYMENT_QR_CONFIG.phoneNumber,
+        upiId: parsed.upiId && parsed.upiId !== 'dopilot@upi' ? parsed.upiId : DEFAULT_PAYMENT_QR_CONFIG.upiId,
+        paymentMethod: 'google_pay_upi'
+      };
     }
   } catch (e) {
     console.error('Failed to read payment QR config:', e);
@@ -793,14 +867,18 @@ export const getPaymentQRConfig = (): PaymentQRConfig => {
 
 export const updatePaymentQRConfig = (config: Partial<PaymentQRConfig>): PaymentQRConfig => {
   const current = getPaymentQRConfig();
+  const bankingName = config.bankingName || config.merchantName || current.bankingName;
   const updated: PaymentQRConfig = {
     ...current,
     ...config,
+    bankingName,
+    merchantName: bankingName,
     updatedAt: new Date().toISOString()
   };
   try {
     localStorage.setItem(PAYMENT_QR_CONFIG_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent('dopilot_payment_qr_updated', { detail: updated }));
+    window.dispatchEvent(new CustomEvent('dopilot_payment_qr_config_updated', { detail: updated }));
   } catch (e) {
     console.error('Failed to save payment QR config:', e);
   }
