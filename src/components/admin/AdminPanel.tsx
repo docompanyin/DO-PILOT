@@ -6201,13 +6201,9 @@ export const AdminPanel: React.FC = () => {
         {/* Section Header */}
         <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
           <div>
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-mono text-[10px] uppercase font-bold tracking-wider border border-primary/20 flex items-center gap-1.5">
-                <Tag className="w-3 h-3" />
-                E-Commerce &amp; Access Control
-              </span>
-              <span className="text-slate text-xs">•</span>
-              <span className="text-slate text-xs font-medium">Pricing, Coupons &amp; Enrollments</span>
+            <div className="flex items-center gap-1.5 mb-1 text-primary font-mono text-[10px] uppercase font-bold tracking-wider">
+              <Tag className="w-3 h-3" />
+              <span>E-Commerce &amp; Access Control</span>
             </div>
             <h2 className="font-jakarta text-lg font-black text-paper">
               Course Pricing
