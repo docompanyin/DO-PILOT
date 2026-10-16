@@ -182,6 +182,16 @@ export const AdminPanel: React.FC = () => {
   const [couponFormExpiry, setCouponFormExpiry] = useState<string>('');
   const [couponFormDesc, setCouponFormDesc] = useState<string>('');
   const [couponFormIsActive, setCouponFormIsActive] = useState<boolean>(true);
+  const [couponFormTimerMode, setCouponFormTimerMode] = useState<'none' | '30m' | '1h' | '2h' | '6h' | '24h' | 'custom'>('none');
+  const [couponFormTimerMinutes, setCouponFormTimerMinutes] = useState<number>(30);
+  const [, setCouponTicker] = useState<number>(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCouponTicker(t => t + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Form state for editing course pricing
   const activeCoursePricing = coursePricingList.find(p => p.courseId === selectedPricingCourseId) || coursePricingList[0];
@@ -5505,9 +5515,31 @@ export const AdminPanel: React.FC = () => {
       setCouponFormType(coupon.discountType);
       setCouponFormValue(coupon.discountValue);
       setCouponFormMaxUses(coupon.maxUses ?? -1);
-      setCouponFormExpiry(coupon.validUntil ? coupon.validUntil.slice(0, 10) : '');
       setCouponFormDesc(coupon.description || '');
       setCouponFormIsActive(coupon.isActive);
+
+      if (coupon.validUntil) {
+        const diffMs = new Date(coupon.validUntil).getTime() - Date.now();
+        if (diffMs > 0 && diffMs <= 48 * 3600 * 1000) {
+          const mins = Math.max(1, Math.round(diffMs / 60000));
+          if (mins === 30) setCouponFormTimerMode('30m');
+          else if (mins === 60) setCouponFormTimerMode('1h');
+          else if (mins === 120) setCouponFormTimerMode('2h');
+          else if (mins === 360) setCouponFormTimerMode('6h');
+          else if (mins === 1440) setCouponFormTimerMode('24h');
+          else setCouponFormTimerMode('custom');
+          setCouponFormTimerMinutes(mins);
+          setCouponFormExpiry('');
+        } else {
+          setCouponFormTimerMode('none');
+          setCouponFormTimerMinutes(30);
+          setCouponFormExpiry(coupon.validUntil ? coupon.validUntil.slice(0, 10) : '');
+        }
+      } else {
+        setCouponFormTimerMode('none');
+        setCouponFormTimerMinutes(30);
+        setCouponFormExpiry('');
+      }
     } else {
       setEditingCoupon(null);
       setCouponFormCode('');
@@ -5518,6 +5550,8 @@ export const AdminPanel: React.FC = () => {
       setCouponFormExpiry('');
       setCouponFormDesc('');
       setCouponFormIsActive(true);
+      setCouponFormTimerMode('none');
+      setCouponFormTimerMinutes(30);
     }
     setCouponModalOpen(true);
   };
@@ -5531,6 +5565,14 @@ export const AdminPanel: React.FC = () => {
     }
     const val = Number(couponFormValue) || 0;
     const maxU = Number(couponFormMaxUses);
+
+    let calculatedValidUntil: string | undefined = undefined;
+    if (couponFormTimerMode !== 'none' && couponFormTimerMinutes > 0) {
+      calculatedValidUntil = new Date(Date.now() + couponFormTimerMinutes * 60 * 1000).toISOString();
+    } else if (couponFormExpiry) {
+      calculatedValidUntil = new Date(`${couponFormExpiry}T23:59:59.999Z`).toISOString();
+    }
+
     const newCouponPayload = {
       code: cleanCode,
       courseId: couponFormCourseId,
@@ -5538,7 +5580,7 @@ export const AdminPanel: React.FC = () => {
       discountValue: val,
       maxUses: maxU > 0 ? maxU : -1,
       isActive: couponFormIsActive,
-      validUntil: couponFormExpiry ? new Date(couponFormExpiry).toISOString() : undefined,
+      validUntil: calculatedValidUntil,
       description: couponFormDesc.trim() || undefined
     };
 
@@ -5554,6 +5596,58 @@ export const AdminPanel: React.FC = () => {
     }
     setCourseCoupons(getCourseCoupons());
     setCouponModalOpen(false);
+  };
+
+  const getCouponExpiryDisplay = (coupon: CourseCoupon) => {
+    if (!coupon.validUntil) {
+      return <span className="text-slate">Never</span>;
+    }
+
+    const expiryTime = new Date(coupon.validUntil).getTime();
+    const diffMs = expiryTime - Date.now();
+
+    if (diffMs <= 0) {
+      return (
+        <span className="inline-flex items-center gap-1 text-rose-400 font-bold px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-[10px]">
+          <Clock className="w-3 h-3" />
+          <span>Expired</span>
+        </span>
+      );
+    }
+
+    // If expiring within 48 hours, show live countdown
+    if (diffMs <= 48 * 3600 * 1000) {
+      const hours = Math.floor(diffMs / (3600 * 1000));
+      const mins = Math.floor((diffMs % (3600 * 1000)) / (60 * 1000));
+      const secs = Math.floor((diffMs % (60 * 1000)) / 1000);
+
+      let timeText = '';
+      if (hours > 0) {
+        timeText = `${hours}h ${mins}m`;
+      } else if (mins > 0) {
+        timeText = `${mins}m ${secs}s`;
+      } else {
+        timeText = `${secs}s`;
+      }
+
+      return (
+        <div className="space-y-0.5">
+          <span className="inline-flex items-center gap-1 text-amber-300 font-bold px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px]">
+            <Clock className="w-3 h-3 animate-pulse text-amber-400" />
+            <span>{timeText} left</span>
+          </span>
+          <span className="block text-[9px] text-slate/60 font-mono">
+            Ends {new Date(coupon.validUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
+      );
+    }
+
+    return (
+      <span className="text-paper">
+        {new Date(coupon.validUntil).toLocaleDateString()}
+      </span>
+    );
   };
 
   const handleToggleCoupon = (code: string) => {
@@ -5937,27 +6031,103 @@ export const AdminPanel: React.FC = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate mb-1">Expiry Date (Optional)</label>
-              <input
-                type="date"
-                value={couponFormExpiry}
-                onChange={(e) => setCouponFormExpiry(e.target.value)}
-                className="w-full bg-black border border-white/15 rounded-xl px-3 py-2 text-paper focus:border-primary focus:outline-none text-xs"
-              />
+          {/* Description / Campaign Note */}
+          <div>
+            <label className="block text-xs font-bold text-slate mb-1">Description / Campaign Note</label>
+            <input
+              type="text"
+              value={couponFormDesc}
+              onChange={(e) => setCouponFormDesc(e.target.value)}
+              placeholder="e.g. 30-minute flash sale, Early bird special"
+              className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper focus:border-primary focus:outline-none text-xs"
+            />
+          </div>
+
+          {/* Limited-Time Offer Timer (Admin Only) */}
+          <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-400" />
+                <label className="text-xs font-bold text-paper">Limited-Time Offer Timer <span className="text-[10px] font-normal text-slate">(Optional • Admin Only)</span></label>
+              </div>
+              <span className="text-[10px] text-slate/80">Timer is hidden from students; coupon strictly expires upon timeout</span>
             </div>
 
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-bold text-slate mb-1">Description / Campaign Note</label>
-              <input
-                type="text"
-                value={couponFormDesc}
-                onChange={(e) => setCouponFormDesc(e.target.value)}
-                placeholder="e.g. Early Bird Launch discount for students"
-                className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper focus:border-primary focus:outline-none text-xs"
-              />
+            {/* Timer Presets */}
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { id: 'none', label: 'No Timer' },
+                { id: '30m', label: '30 Mins', mins: 30 },
+                { id: '1h', label: '1 Hour', mins: 60 },
+                { id: '2h', label: '2 Hours', mins: 120 },
+                { id: '6h', label: '6 Hours', mins: 360 },
+                { id: '24h', label: '24 Hours', mins: 1440 },
+                { id: 'custom', label: 'Custom' }
+              ].map(preset => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    setCouponFormTimerMode(preset.id as any);
+                    if (preset.mins) {
+                      setCouponFormTimerMinutes(preset.mins);
+                      setCouponFormExpiry('');
+                    } else if (preset.id === 'none') {
+                      // reset
+                    } else if (preset.id === 'custom') {
+                      setCouponFormExpiry('');
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-jakarta font-bold transition-all cursor-pointer ${
+                    couponFormTimerMode === preset.id
+                      ? 'bg-amber-400 text-black shadow-md shadow-amber-400/20'
+                      : 'bg-white/5 text-slate hover:bg-white/10 hover:text-paper border border-white/10'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
+
+            {/* Custom Minutes Input */}
+            {couponFormTimerMode === 'custom' && (
+              <div className="flex items-center gap-3 pt-1">
+                <label className="text-xs font-mono text-slate whitespace-nowrap">Duration in Minutes:</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10080"
+                  value={couponFormTimerMinutes}
+                  onChange={(e) => setCouponFormTimerMinutes(Math.max(1, Number(e.target.value)))}
+                  className="w-32 bg-black border border-white/15 rounded-xl px-3 py-1.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                  placeholder="e.g. 45"
+                />
+                <span className="text-xs text-slate">({Math.floor(couponFormTimerMinutes / 60)}h {couponFormTimerMinutes % 60}m)</span>
+              </div>
+            )}
+
+            {/* Active Timer Preview Banner */}
+            {couponFormTimerMode !== 'none' ? (
+              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs text-amber-300">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 animate-pulse text-amber-400 shrink-0" />
+                  <span>
+                    Expires in <strong>{couponFormTimerMinutes} minutes</strong> from saving (around {new Date(Date.now() + couponFormTimerMinutes * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                  </span>
+                </div>
+                <span className="text-[10px] text-amber-200/70 font-mono hidden sm:inline">Admin-only countdown</span>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-bold text-slate mb-1">Standard Expiry Date (Optional Calendar Date)</label>
+                <input
+                  type="date"
+                  value={couponFormExpiry}
+                  onChange={(e) => setCouponFormExpiry(e.target.value)}
+                  className="w-full sm:w-64 bg-black border border-white/15 rounded-xl px-3 py-2 text-paper focus:border-primary focus:outline-none text-xs"
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-white/10">
@@ -6026,7 +6196,6 @@ export const AdminPanel: React.FC = () => {
       return true;
     });
 
-    return (
     return (
       <section id="section-course-pricing" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
         {/* Section Header */}
@@ -6305,7 +6474,7 @@ export const AdminPanel: React.FC = () => {
                           <span className="text-slate"> / {coupon.maxUses && coupon.maxUses > 0 ? coupon.maxUses : 'Unlimited'}</span>
                         </td>
                         <td className="py-2.5 px-3 font-mono text-slate">
-                          {coupon.validUntil ? new Date(coupon.validUntil).toLocaleDateString() : 'Never'}
+                          {getCouponExpiryDisplay(coupon)}
                         </td>
                         <td className="py-2.5 px-3">
                           <button
