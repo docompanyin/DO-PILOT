@@ -22,7 +22,6 @@ interface UserAuthContextType {
   isLoggedIn: boolean;
   loginWithGoogleCredential: (credential: string) => UserProfile | null;
   loginWithGoogleDirect: (profileData?: { name?: string; email?: string; avatar?: string; id?: string }) => UserProfile | null;
-  loginWithTestGoogleAccount: (customName?: string, customEmail?: string) => UserProfile;
   completeOnboardingAndLogin: (profile: UserProfile) => void;
   updateUserProfile: (details: Partial<UserProfile>) => void;
   logout: () => void;
@@ -61,6 +60,7 @@ const getInitialUserSession = (): UserProfile | null => {
         !parsed.email ||
         parsed.email === 'learner@gmail.com' ||
         parsed.email === 'student@gmail.com' ||
+        parsed.email === 'bimal.kumar.test@gmail.com' ||
         parsed.name === 'DO PILOT Learner' ||
         parsed.name === 'New Student'
       ) {
@@ -162,31 +162,6 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return profile;
   };
 
-  // --- TEMPORARY TEST GOOGLE LOGIN ---
-  const loginWithTestGoogleAccount = (customName?: string, customEmail?: string): UserProfile => {
-    const testName = customName || 'Bimal Kumar';
-    const testEmail = customEmail || 'bimal.kumar.test@gmail.com';
-
-    const existing = getInitialUserSession();
-    if (existing && existing.email === testEmail && existing.hasCompletedDetails) {
-      saveUserSession(existing);
-      return existing;
-    }
-
-    const profile: UserProfile = {
-      id: `google-test-${Date.now()}`,
-      name: testName,
-      email: testEmail,
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=faces',
-      provider: 'google',
-      hasCompletedDetails: false,
-      enrolledCourses: ['Complete Python Course'],
-      joinedLiveClass: false,
-      createdAt: new Date().toISOString()
-    };
-    return profile;
-  };
-
   // Finalizes registration after user fills basic details form with validation
   const completeOnboardingAndLogin = (profile: UserProfile) => {
     const finalized: UserProfile = {
@@ -230,7 +205,6 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         isLoggedIn: !!user && !!user.hasCompletedDetails,
         loginWithGoogleCredential,
         loginWithGoogleDirect,
-        loginWithTestGoogleAccount,
         completeOnboardingAndLogin,
         updateUserProfile,
         logout,
