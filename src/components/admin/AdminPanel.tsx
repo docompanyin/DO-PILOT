@@ -8465,27 +8465,6 @@ export const AdminPanel: React.FC = () => {
 
                 return (
                   <div className="space-y-3.5 text-xs">
-                    {/* Clean Stepper */}
-                    <div className="grid grid-cols-2 gap-2 text-center font-jakarta text-xs">
-                      <div
-                        className={`p-2 rounded-xl border transition-all ${
-                          emailChangeStep === 1
-                            ? 'bg-primary/10 border-primary text-primary font-bold'
-                            : 'bg-white/5 border-white/10 text-paper font-semibold'
-                        }`}
-                      >
-                        <span>1. Authorize</span>
-                      </div>
-                      <div
-                        className={`p-2 rounded-xl border transition-all ${
-                          emailChangeStep === 2
-                            ? 'bg-primary/10 border-primary text-primary font-bold'
-                            : 'bg-black/30 border-white/5 text-slate/40'
-                        }`}
-                      >
-                        <span>2. Confirm New</span>
-                      </div>
-                    </div>
 
                     {/* STEP 1: Verify Other Email */}
                     {emailChangeStep === 1 && (
