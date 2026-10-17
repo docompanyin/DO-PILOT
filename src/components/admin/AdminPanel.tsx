@@ -3183,41 +3183,213 @@ export const AdminPanel: React.FC = () => {
   };
 
   const handleExportAllStudentCSV = () => {
-    const headers = [
-      '#',
-      'Student Name',
-      'Email Address',
-      'Phone Number',
-      'College / Organization',
-      'Enrolled Courses',
-      'Where Did You Find Us',
-      'Total Points',
-      'Learning Status',
-      'Registered Date'
-    ];
+    try {
+      if (!students || !students.length) {
+        showToast('No student records available to export.');
+        return;
+      }
 
-    const rows = students.map((s, idx) => [
-      idx + 1,
-      `"${(s.name || '').replace(/"/g, '""')}"`,
-      `"${(s.email || '').replace(/"/g, '""')}"`,
-      `"${(s.phone && s.phone !== 'Phone not added' ? s.phone : 'N/A').replace(/"/g, '""')}"`,
-      `"${(s.collegeOrCompany || 'N/A').replace(/"/g, '""')}"`,
-      `"${(s.enrolledCourses?.join(', ') || 'None').replace(/"/g, '""')}"`,
-      `"${(s.whereDidYouFindUs || 'N/A').replace(/"/g, '""')}"`,
-      s.points || 0,
-      `"${(s.courseProgressStatus || 'registered').replace(/"/g, '""')}"`,
-      `"${new Date(s.createdAt).toLocaleDateString()}"`
-    ]);
+      const headers = [
+        '#',
+        'Student ID',
+        'Student Name',
+        'Verified Email Address',
+        'Phone Number',
+        'College / Organization',
+        'Learning Goal',
+        'Enrolled Courses',
+        'Enrolled Courses Count',
+        'Where Did You Find Us',
+        'Total Points / Score',
+        'Solved Tasks Count',
+        'Tests Attempted',
+        'Tests Passed',
+        'Tests Failed',
+        'Has Certificate',
+        'Certificate ID',
+        'Learning Progress Status',
+        'Profile Completed',
+        'Registration Date & Time'
+      ];
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `DO_PILOT_Students_Contact_Data_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast(`Extracted and downloaded ${students.length} student records as CSV!`);
+      const rows = students.map((s, idx) => [
+        idx + 1,
+        `"${(s.id || '').replace(/"/g, '""')}"`,
+        `"${(s.name || '').replace(/"/g, '""')}"`,
+        `"${(s.email || '').replace(/"/g, '""')}"`,
+        `"${(s.phone && s.phone !== 'Phone not added' ? s.phone : 'Not added').replace(/"/g, '""')}"`,
+        `"${(s.collegeOrCompany || 'N/A').replace(/"/g, '""')}"`,
+        `"${(s.learningGoal || 'General Tech Mastery').replace(/"/g, '""')}"`,
+        `"${(Array.isArray(s.enrolledCourses) && s.enrolledCourses.length > 0 ? s.enrolledCourses.join('; ') : 'None').replace(/"/g, '""')}"`,
+        Array.isArray(s.enrolledCourses) ? s.enrolledCourses.length : 0,
+        `"${(s.whereDidYouFindUs || 'N/A').replace(/"/g, '""')}"`,
+        s.points || 0,
+        s.solvedTasksCount || 0,
+        s.testsAttemptedCount || 0,
+        s.testsPassedCount || 0,
+        s.testsFailedCount || 0,
+        s.hasCertificate ? 'YES' : 'NO',
+        `"${(s.certificateId || 'N/A').replace(/"/g, '""')}"`,
+        `"${(s.courseProgressStatus || 'registered').replace(/"/g, '""')}"`,
+        s.hasCompletedDetails ? 'YES' : 'NO',
+        `"${s.createdAt ? new Date(s.createdAt).toLocaleString() : 'N/A'}"`
+      ]);
+
+      const csvString = [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+      const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
+      const filename = `DO_PILOT_Students_Master_Data_${new Date().toISOString().slice(0, 10)}.csv`;
+
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 300);
+
+      showToast(`Exported ${students.length} complete student records to CSV!`);
+    } catch (err: any) {
+      console.error('Failed to export CSV:', err);
+      showToast('Error exporting CSV spreadsheet.');
+    }
+  };
+
+  const handleExportAllStudentPDF = () => {
+    try {
+      if (!students || !students.length) {
+        showToast('No student records available to export.');
+        return;
+      }
+
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      const drawHeader = (pageNum: number) => {
+        // Dark Banner
+        doc.setFillColor(12, 13, 14);
+        doc.rect(0, 0, pageWidth, 52, 'F');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.setTextColor(0, 255, 157);
+        doc.text('DO PILOT', 35, 26);
+
+        doc.setFontSize(9.5);
+        doc.setTextColor(240, 240, 240);
+        doc.text('Student Master Directory & Enrolled Courses Report', 35, 42);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(160, 160, 160);
+        doc.text(
+          `Total Students: ${students.length} | Exported: ${new Date().toLocaleString()} | Page ${pageNum}`,
+          pageWidth - 280,
+          34
+        );
+
+        // Table Column Header Bar
+        const tableY = 62;
+        doc.setFillColor(24, 25, 27);
+        doc.rect(30, tableY, pageWidth - 60, 22, 'F');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(0, 255, 157);
+
+        doc.text('#', 38, tableY + 14);
+        doc.text('STUDENT NAME', 62, tableY + 14);
+        doc.text('VERIFIED EMAIL', 180, tableY + 14);
+        doc.text('PHONE', 325, tableY + 14);
+        doc.text('COLLEGE / ORG', 415, tableY + 14);
+        doc.text('ENROLLED COURSES', 535, tableY + 14);
+        doc.text('SCORE', 710, tableY + 14);
+        doc.text('STATUS', 755, tableY + 14);
+      };
+
+      let pageNumber = 1;
+      drawHeader(pageNumber);
+
+      let currentY = 92;
+      const rowHeight = 24;
+
+      students.forEach((s, idx) => {
+        if (currentY > pageHeight - 35) {
+          doc.addPage();
+          pageNumber++;
+          drawHeader(pageNumber);
+          currentY = 92;
+        }
+
+        if (idx % 2 === 0) {
+          doc.setFillColor(250, 250, 252);
+          doc.rect(30, currentY - 14, pageWidth - 60, rowHeight, 'F');
+        }
+
+        doc.setDrawColor(230, 230, 235);
+        doc.line(30, currentY + 9, pageWidth - 30, currentY + 9);
+
+        // #
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(120, 120, 120);
+        doc.text(String(idx + 1), 38, currentY);
+
+        // Name
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(20, 20, 20);
+        const nameText = s.name.length > 22 ? s.name.substring(0, 20) + '...' : s.name;
+        doc.text(nameText, 62, currentY);
+
+        // Email
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(60, 60, 60);
+        const emailText = s.email.length > 28 ? s.email.substring(0, 26) + '...' : s.email;
+        doc.text(emailText, 180, currentY);
+
+        // Phone
+        const phoneText = s.phone && s.phone !== 'Phone not added' ? s.phone : 'Not added';
+        doc.text(phoneText, 325, currentY);
+
+        // College
+        const collegeText = s.collegeOrCompany || 'N/A';
+        const truncatedCollege = collegeText.length > 22 ? collegeText.substring(0, 20) + '...' : collegeText;
+        doc.text(truncatedCollege, 415, currentY);
+
+        // Enrolled Courses
+        const coursesText = Array.isArray(s.enrolledCourses) && s.enrolledCourses.length > 0
+          ? s.enrolledCourses.join(', ')
+          : 'None';
+        const truncatedCourses = coursesText.length > 38 ? coursesText.substring(0, 36) + '...' : coursesText;
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        doc.text(truncatedCourses, 535, currentY);
+
+        // Points
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(5, 150, 105);
+        doc.text(`${s.points || 0} pts`, 710, currentY);
+
+        // Status
+        doc.setTextColor(70, 70, 70);
+        const statusText = s.courseProgressStatus || 'registered';
+        doc.text(statusText.replace(/_/g, ' '), 755, currentY);
+
+        currentY += rowHeight;
+      });
+
+      doc.save(`DO_PILOT_Students_Master_Directory_${new Date().toISOString().slice(0, 10)}.pdf`);
+      showToast(`Exported ${students.length} student records as PDF report!`);
+    } catch (err: any) {
+      console.error('Failed to export PDF report:', err);
+      showToast('Error generating PDF directory.');
+    }
   };
 
   const handleCopyAllEmails = () => {
@@ -3277,10 +3449,20 @@ export const AdminPanel: React.FC = () => {
               type="button"
               onClick={handleExportAllStudentCSV}
               className="px-3 py-1.5 rounded-lg bg-primary hover:bg-white text-ink font-jakarta font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
-              title="Download CSV spreadsheet with all complete student details"
+              title="Download full CSV spreadsheet with complete student details & enrolled courses"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>EXPORT CSV</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportAllStudentPDF}
+              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-paper border border-white/15 font-jakarta font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+              title="Download complete student master directory as printable PDF report"
+            >
+              <FileText className="w-3.5 h-3.5 text-primary" />
+              <span>EXPORT PDF</span>
             </button>
 
             <button
