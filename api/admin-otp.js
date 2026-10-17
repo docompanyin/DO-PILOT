@@ -156,6 +156,32 @@ async function dispatchEmailToRecipient({ to, otp, purpose }) {
 }
 
 export default async function handler(req, res) {
+  // Ensure Express-style response helpers exist across all Node / Vercel / Vite dev runtimes
+  if (typeof res.status !== 'function') {
+    res.status = function(code) {
+      res.statusCode = code;
+      return res;
+    };
+  }
+  if (typeof res.json !== 'function') {
+    res.json = function(data) {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(data));
+      return res;
+    };
+  }
+  if (typeof res.send !== 'function') {
+    res.send = function(data) {
+      if (typeof data === 'object') {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(data));
+      } else {
+        res.end(String(data));
+      }
+      return res;
+    };
+  }
+
   // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -177,8 +203,8 @@ export default async function handler(req, res) {
         supabaseAuth: true
       },
       headersSpec: {
-        from: process.env.SENDER_EMAIL || process.env.VITE_SENDER_EMAIL || 'security@dopilot.in',
-        replyTo: process.env.SUPPORT_EMAIL || process.env.VITE_SUPPORT_EMAIL || 'support@docompany.dev'
+        from: process.env.SENDER_EMAIL || process.env.VITE_SENDER_EMAIL || 'security@dopilot.online',
+        replyTo: process.env.SUPPORT_EMAIL || process.env.VITE_SUPPORT_EMAIL || 'support@dopilot.online'
       }
     });
   }
@@ -188,7 +214,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { action, target, email, otp, purpose, adminUsername } = req.body || {};
+    let parsedBody = req.body;
+    if (typeof parsedBody === 'string') {
+      try {
+        parsedBody = JSON.parse(parsedBody);
+      } catch (e) {
+        parsedBody = {};
+      }
+    }
+    const { action, target, email, otp, purpose, adminUsername } = parsedBody || {};
 
     // =========================================================================
     // ACTION: REQUEST OTP
