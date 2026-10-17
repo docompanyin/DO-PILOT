@@ -599,10 +599,10 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } else {
       const isUserMatch =
         cleanUser === securityConfig.username.toLowerCase() ||
-        (securityConfig.primaryEmail && cleanUser === securityConfig.primaryEmail.toLowerCase()) ||
-        (securityConfig.secondaryEmail && cleanUser === securityConfig.secondaryEmail.toLowerCase());
+        Boolean(securityConfig.primaryEmail && cleanUser === securityConfig.primaryEmail.toLowerCase()) ||
+        Boolean(securityConfig.secondaryEmail && cleanUser === securityConfig.secondaryEmail.toLowerCase());
       const isPassMatch = await verifyPasswordHash(cleanPass, securityConfig.passwordHash, securityConfig.passwordSalt);
-      isAuthorized = isUserMatch && isPassMatch;
+      isAuthorized = Boolean(isUserMatch && isPassMatch);
     }
 
     if (isAuthorized) {
