@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Check, Sparkles, Tag, ArrowRight, ArrowLeft, AlertCircle, Award, CheckCircle2,
-  QrCode, Clock, Copy, RefreshCw, ShieldCheck
+  QrCode, Clock, Copy, RefreshCw, ShieldCheck, ShieldAlert
 } from 'lucide-react';
+import trophyAnimationData from '../../assets/Trophy.json';
 import { useUserAuth } from '../../context/UserAuthContext';
 import {
   getCoursePricing,
@@ -13,10 +15,205 @@ import {
   createQRPaymentSession,
   expireQRPaymentSession,
   submitManualQRPurchase,
+  normalizeCourseId,
+  hasCourseAccess,
   PaymentQRConfig,
   CourseCoupon,
   CoursePricing
 } from '../../utils/coursePricingService';
+
+interface TrophyCelebrationProps {
+  courseName: string;
+  onAnimationEnd: () => void;
+}
+
+const TrophyCelebration: React.FC<TrophyCelebrationProps> = ({ courseName, onAnimationEnd }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const animRef = useRef<any>(null);
+  const onAnimationEndRef = useRef(onAnimationEnd);
+  onAnimationEndRef.current = onAnimationEnd;
+
+  const [hasLottieRendered, setHasLottieRendered] = useState(false);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const play = (lottieInstance: any) => {
+      if (!containerRef.current || isCancelled) return;
+      try {
+        const anim = lottieInstance.loadAnimation({
+          container: containerRef.current,
+          renderer: 'svg',
+          loop: false,
+          autoplay: true,
+          animationData: trophyAnimationData,
+        });
+        animRef.current = anim;
+        setHasLottieRendered(true);
+        anim.setSpeed(1.0);
+        anim.addEventListener('complete', () => {
+          setTimeout(() => {
+            if (!isCancelled) onAnimationEndRef.current();
+          }, 1000);
+        });
+      } catch (err) {
+        console.error('Lottie play error:', err);
+        setTimeout(() => {
+          if (!isCancelled) onAnimationEndRef.current();
+        }, 3200);
+      }
+    };
+
+    if (typeof window !== 'undefined' && (window as any).lottie) {
+      play((window as any).lottie);
+    } else {
+      let attempts = 0;
+      const poll = setInterval(() => {
+        attempts++;
+        if (typeof window !== 'undefined' && (window as any).lottie) {
+          clearInterval(poll);
+          play((window as any).lottie);
+        } else if (attempts > 30) {
+          clearInterval(poll);
+        }
+      }, 50);
+
+      const safetyTimer = setTimeout(() => {
+        clearInterval(poll);
+        if (!isCancelled) onAnimationEndRef.current();
+      }, 3800);
+
+      return () => {
+        isCancelled = true;
+        clearInterval(poll);
+        clearTimeout(safetyTimer);
+        if (animRef.current) {
+          try { animRef.current.destroy(); } catch {}
+        }
+      };
+    }
+
+    const fallbackTimer = setTimeout(() => {
+      if (!isCancelled) onAnimationEndRef.current();
+    }, 4500);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(fallbackTimer);
+      if (animRef.current) {
+        try { animRef.current.destroy(); } catch {}
+      }
+    };
+  }, []);
+
+  return (
+    <motion.div
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      className="py-8 sm:py-10 text-center space-y-5 relative z-10 max-w-md mx-auto select-none"
+    >
+      {/* Trophy Container with Lottie & SVG fallback */}
+      <div className="relative w-48 h-48 sm:w-56 sm:h-56 mx-auto flex items-center justify-center">
+        <div
+          ref={containerRef}
+          className="w-full h-full flex items-center justify-center drop-shadow-2xl relative z-10"
+        />
+        {!hasLottieRendered && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-amber-400">
+            <Award className="w-24 h-24 sm:w-28 sm:h-28 text-amber-400 animate-bounce drop-shadow-[0_0_25px_rgba(251,191,36,0.5)]" />
+            <Sparkles className="w-6 h-6 text-primary animate-pulse mt-2" />
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-emerald-400 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 inline-block">
+          Zero-Amount Claim • Full Access
+        </span>
+        <h4 className="font-jakarta text-2xl sm:text-3xl font-black text-paper leading-tight">
+          Course Claimed Successfully!
+        </h4>
+        <p className="font-sans text-xs sm:text-sm text-slate leading-relaxed">
+          You now have lifetime unlocked access to <strong className="text-paper">{courseName}</strong>.
+        </p>
+      </div>
+
+      <div className="flex items-center justify-center gap-2 text-xs font-mono text-primary pt-2 animate-pulse">
+        <Sparkles className="w-4 h-4" />
+        <span>Redirecting to course details page...</span>
+      </div>
+    </motion.div>
+  );
+};
+
+interface PaymentUnavailablePopupProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const PaymentUnavailablePopup: React.FC<PaymentUnavailablePopupProps> = ({ isOpen, onClose }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 select-none">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 10 }}
+        transition={{ duration: 0.2 }}
+        className="w-full max-w-md rounded-3xl bg-[#0c0d0e] border border-white/15 p-6 sm:p-7 shadow-2xl relative space-y-5 text-center"
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate hover:text-paper transition-all cursor-pointer"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/10">
+          <AlertCircle className="w-7 h-7" />
+        </div>
+
+        <div className="space-y-2">
+          <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-amber-400 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 inline-block">
+            Payment Notice
+          </span>
+          <h4 className="font-jakarta text-xl sm:text-2xl font-black text-paper leading-tight">
+            Payments Temporarily Unavailable
+          </h4>
+          <p className="font-sans text-xs sm:text-sm text-slate leading-relaxed font-medium">
+            Payments are temporarily unavailable. Please try again later.
+          </p>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/10 text-left font-mono text-[11px] text-slate/80 space-y-1.5 leading-relaxed">
+          <div className="flex items-center gap-2 text-paper font-semibold">
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>Important Information</span>
+          </div>
+          <p>
+            • Part 1 of all courses remains 100% free to try without payment.
+          </p>
+          <p>
+            • If you have a zero-amount scholarship or coupon code, apply it on the checkout page to claim course access.
+          </p>
+        </div>
+
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-3 rounded-full bg-white/10 hover:bg-white/20 text-paper font-jakarta font-bold text-xs uppercase tracking-wider transition-all cursor-pointer border border-white/10"
+          >
+            Understood
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
 
 export interface CoursePurchaseModalProps {
   isOpen: boolean;
@@ -39,6 +236,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
   pricing: propPricing,
   onSuccess
 }) => {
+  const navigate = useNavigate();
   const { user, isLoggedIn, enrollInCourse } = useUserAuth();
 
   const [pricing, setPricing] = useState<CoursePricing>(() => propPricing || getCoursePricing(courseId));
@@ -58,6 +256,8 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
   const [couponSuccessMsg, setCouponSuccessMsg] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [purchaseCompleted, setPurchaseCompleted] = useState(false);
+  const [isClaimCelebration, setIsClaimCelebration] = useState(false);
+  const [showPaymentUnavailableModal, setShowPaymentUnavailableModal] = useState(false);
 
   // Step: 'checkout' (course info & "Pay ₹999") | 'qr_page' (separate clean QR payment page)
   const [paymentStep, setPaymentStep] = useState<'checkout' | 'qr_page'>('checkout');
@@ -75,6 +275,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
   const [utrError, setUtrError] = useState<string | null>(null);
   const [verificationSubmitted, setVerificationSubmitted] = useState(false);
   const [submittedUtr, setSubmittedUtr] = useState('');
+  const wasOpenRef = useRef(false);
 
   // Dynamically sync when admin updates payment settings
   useEffect(() => {
@@ -92,9 +293,9 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
     };
   }, []);
 
-  // Reset state on open
+  // Reset state ONLY when transitioning from closed to open
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpenRef.current) {
       const p = propPricing || getCoursePricing(courseId);
       setPricing(p);
       const isFree = Boolean(p.isFreeCourse);
@@ -117,8 +318,11 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
       setVerificationSubmitted(false);
       setSubmittedUtr('');
       setActiveSessionId(null);
+      setIsClaimCelebration(false);
+      setShowPaymentUnavailableModal(false);
     }
-  }, [isOpen, courseId, propPricing]);
+    wasOpenRef.current = isOpen;
+  }, [isOpen, courseId]);
 
   // 2-Minute QR Code Timer Countdown (Active only on qr_page)
   // IMPORTANT: Expiration must not automatically mark payment as successful!
@@ -155,60 +359,19 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
   };
 
   const handleStartQRPayment = () => {
-    setTimeLeft(PAYMENT_COUNTDOWN_SECONDS);
-    setSessionExpired(false);
-    setUtrError(null);
-    setUtrInput('');
-    setQrImageLoadFailed(false);
-
-    const studentId = user?.id || user?.email || 'guest_student';
-    const studentName = user?.name || user?.email?.split('@')[0] || 'Enrolled Student';
-    const studentEmail = user?.email || `${studentId}@student.dopilot.io`;
-    const studentPhone = user?.phone || '';
-
-    const session = createQRPaymentSession({
-      studentId,
-      studentName,
-      studentEmail,
-      studentPhone,
-      courseId,
-      courseName: resolvedCourseName,
-      originalPrice: pricing.regularPrice,
-      discountAmount,
-      finalAmount,
-      couponCodeApplied: appliedCoupon?.code
-    });
-
-    setActiveSessionId(session.id);
-    setPaymentStep('qr_page');
+    if (finalAmount > 0) {
+      setShowPaymentUnavailableModal(true);
+      return;
+    }
+    handleClaimCourse();
   };
 
   const handleResetSession = () => {
-    setTimeLeft(PAYMENT_COUNTDOWN_SECONDS);
-    setSessionExpired(false);
-    setUtrError(null);
-    setUtrInput('');
-    setQrImageLoadFailed(false);
-
-    const studentId = user?.id || user?.email || 'guest_student';
-    const studentName = user?.name || user?.email?.split('@')[0] || 'Enrolled Student';
-    const studentEmail = user?.email || `${studentId}@student.dopilot.io`;
-    const studentPhone = user?.phone || '';
-
-    const session = createQRPaymentSession({
-      studentId,
-      studentName,
-      studentEmail,
-      studentPhone,
-      courseId,
-      courseName: resolvedCourseName,
-      originalPrice: pricing.regularPrice,
-      discountAmount,
-      finalAmount,
-      couponCodeApplied: appliedCoupon?.code
-    });
-
-    setActiveSessionId(session.id);
+    if (finalAmount > 0) {
+      setShowPaymentUnavailableModal(true);
+      return;
+    }
+    handleClaimCourse();
   };
 
   const handleCopyUpiId = () => {
@@ -265,26 +428,81 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
     }
   };
 
-  // Immediate unlock for free course or 100% off coupon
-  const handleFreeUnlock = async () => {
+  const getCanonicalCourseRoute = (cId: string): string => {
+    const norm = normalizeCourseId(cId);
+    if (norm === 'python-core') return '/course/python-core';
+    if (norm === 'java-core') return '/course/complete-java-programming';
+    if (norm === 'fullstack-open') return '/course/fullstack-open';
+    if (norm === 'cyber-security') return '/course/cyber-security';
+    return `/course/${norm}`;
+  };
+
+  // Zero-Amount Coupon Course Claim
+  const handleClaimCourse = async () => {
     setIsProcessing(true);
+    setCouponError(null);
     try {
+      const normalizedCourse = normalizeCourseId(courseId);
       const studentId = user?.id || user?.email || 'guest_student';
       const studentName = user?.name || user?.email?.split('@')[0] || 'Enrolled Student';
-      const studentEmail = user?.email || `${studentId}@student.dopilot.io`;
+      const studentEmail = user?.email || '';
       const studentPhone = user?.phone || '';
 
+      if (!appliedCoupon && !pricing.isFreeCourse) {
+        setCouponError('Please enter a valid zero-amount coupon code to claim this course.');
+        setIsProcessing(false);
+        return;
+      }
+
+      const couponCode = appliedCoupon?.code || (pricing.isFreeCourse ? 'ADMIN_FREE_COURSE' : 'DOPILOT100');
+
+      // 1. Client-side coupon pre-validation
+      if (appliedCoupon) {
+        const clientVal = validateCoupon(couponCode, normalizedCourse, pricing.salePrice);
+        if (!clientVal.valid || clientVal.finalPrice > 0) {
+          setCouponError(clientVal.error || 'Only valid zero-amount coupons can claim free course access.');
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      // 2. Server-side coupon & eligibility validation + Supabase enrollment
+      try {
+        const res = await fetch('/api/claim-course', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            courseId: normalizedCourse,
+            couponCode,
+            studentId,
+            studentEmail,
+            studentName,
+            studentPhone
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          setCouponError(data?.message || 'Server coupon validation failed. Please check coupon details.');
+          setIsProcessing(false);
+          return;
+        }
+      } catch (err: any) {
+        console.warn('Backend claim endpoint request issue, falling back to local persistence:', err);
+      }
+
+      // 3. Record course purchase locally and grant permanent access
       const result = recordCoursePurchase({
         studentId,
         studentName,
-        studentEmail,
+        studentEmail: studentEmail || `${studentId}@student.dopilot.io`,
         studentPhone,
-        courseId,
+        courseId: normalizedCourse,
         courseName: resolvedCourseName,
-        originalPrice: pricing.salePrice,
-        discountAmount: pricing.salePrice,
+        originalPrice: pricing.salePrice || pricing.regularPrice,
+        discountAmount: pricing.salePrice || pricing.regularPrice,
         finalAmount: 0,
-        couponCodeApplied: appliedCoupon?.code || (pricing.isFreeCourse ? 'ADMIN_FREE_COURSE' : '100_PERCENT_OFF'),
+        couponCodeApplied: couponCode,
         paymentMethod: 'coupon_free_unlock',
         status: 'completed'
       });
@@ -293,13 +511,9 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
         if (isLoggedIn) {
           enrollInCourse(resolvedCourseName);
         }
-        setPurchaseCompleted(true);
-        setTimeout(() => {
-          if (onSuccess) onSuccess();
-          onClose();
-        }, 1600);
+        setIsClaimCelebration(true);
       } else {
-        setCouponError(result.error || 'Could not complete unlock.');
+        setCouponError(result.error || 'Could not complete course claim.');
       }
     } catch (err: any) {
       setCouponError(err?.message || 'Error granting course access.');
@@ -415,8 +629,18 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
             </button>
           </div>
 
-          {/* VIEW 1: Instant Unlock Success */}
-          {purchaseCompleted ? (
+          {/* VIEW 0: Zero-Amount Trophy Claim Celebration */}
+          {isClaimCelebration ? (
+            <TrophyCelebration
+              courseName={resolvedCourseName}
+              onAnimationEnd={() => {
+                if (onSuccess) onSuccess();
+                onClose();
+                const targetRoute = getCanonicalCourseRoute(courseId);
+                navigate(targetRoute);
+              }}
+            />
+          ) : purchaseCompleted ? (
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -794,16 +1018,15 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
 
                 {/* PAYMENT SECTION */}
                 {finalAmount === 0 ? (
-                  /* Case A: Free / 100% Discounted Course */
+                  /* Case A: Zero-Amount Coupon Claim */
                   <div className="pt-2">
                     <button
                       type="button"
-                      onClick={handleFreeUnlock}
+                      onClick={handleClaimCourse}
                       disabled={isProcessing}
-                      className="w-full py-3.5 px-4 rounded-full font-jakarta font-black text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg bg-gradient-to-r from-emerald-400 via-primary to-emerald-400 text-ink hover:opacity-95 shadow-primary/25 disabled:opacity-50"
+                      className="w-full py-3.5 px-4 rounded-full font-jakarta font-black text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg bg-primary text-ink hover:bg-white shadow-primary/25 disabled:opacity-50"
                     >
-                      <Sparkles className="w-4 h-4" />
-                      <span>{isProcessing ? 'Processing Unlock...' : 'Claim Free Full Course Access (₹0)'}</span>
+                      <span>{isProcessing ? 'Validating Claim...' : 'Claim Course'}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -812,7 +1035,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
                   <div className="space-y-3 pt-2 border-t border-white/10">
                     {/* Displayed normally without green oval border or decoration */}
                     <div
-                      onClick={handleStartQRPayment}
+                      onClick={() => setShowPaymentUnavailableModal(true)}
                       className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/10 text-paper font-mono text-xs cursor-pointer hover:bg-white/[0.06] transition-colors"
                       role="button"
                       tabIndex={0}
@@ -827,7 +1050,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
                     {/* Simplified Payment Button */}
                     <button
                       type="button"
-                      onClick={handleStartQRPayment}
+                      onClick={() => setShowPaymentUnavailableModal(true)}
                       className="w-full py-3.5 px-4 rounded-full font-jakarta font-black text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg bg-primary text-ink hover:bg-white shadow-primary/25"
                     >
                       <span>Pay ₹{finalAmount.toLocaleString()}</span>
@@ -839,6 +1062,12 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
             </div>
           )}
         </motion.div>
+
+        {/* Payment Unavailable Professional Modal */}
+        <PaymentUnavailablePopup
+          isOpen={showPaymentUnavailableModal}
+          onClose={() => setShowPaymentUnavailableModal(false)}
+        />
       </div>
     </AnimatePresence>
   );

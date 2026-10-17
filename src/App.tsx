@@ -370,7 +370,7 @@ export const App: React.FC = () => {
             <Route path="/course/complete-java-programming/part-14" element={<CoursePaidGuard partNum={14} courseId="java-core"><JavaPart14Page /></CoursePaidGuard>} />
             <Route path="/course/java-core/part-14" element={<CoursePaidGuard partNum={14} courseId="java-core"><JavaPart14Page /></CoursePaidGuard>} />
             <Route path="/course/fullstack-open/part-0" element={<FullstackPart0Page />} />
-            <Route path="/course/fullstack-open/part-1" element={<CoursePaidGuard partNum={1} courseId="fullstack-open"><FullstackPart1Page /></CoursePaidGuard>} />
+            <Route path="/course/fullstack-open/part-1" element={<FullstackPart1Page />} />
             <Route path="/course/fullstack-open/part-2" element={<CoursePaidGuard partNum={2} courseId="fullstack-open"><FullstackPart2Page /></CoursePaidGuard>} />
             <Route path="/course/fullstack-open/part-3" element={<CoursePaidGuard partNum={3} courseId="fullstack-open"><FullstackPart3Page /></CoursePaidGuard>} />
             <Route path="/course/fullstack-open/part-4" element={<CoursePaidGuard partNum={4} courseId="fullstack-open"><FullstackPart4Page /></CoursePaidGuard>} />

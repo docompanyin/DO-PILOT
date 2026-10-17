@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowUp, Mail, Phone, MapPin } from 'lucide-react';
-import { GithubIcon, TwitterIcon, LinkedinIcon, WhatsappIcon } from './SocialIcons';
+import { GithubIcon, LinkedinIcon, WhatsappIcon, YoutubeIcon, InstagramIcon, FacebookIcon } from './SocialIcons';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { useSiteData } from '../context/DataContext';
 
@@ -90,10 +90,25 @@ export const Footer: React.FC = () => {
   const address = footerData?.address || "Online & Global Campus";
   const copyrightText = footerData?.copyrightText || "All rights reserved.";
 
-  const githubUrl = footerData?.socialLinks?.github?.url || footerData?.github || "https://github.com";
-  const twitterUrl = footerData?.socialLinks?.twitter?.url || footerData?.twitter || "https://twitter.com";
-  const linkedinUrl = footerData?.socialLinks?.linkedin?.url || footerData?.linkedin || "https://linkedin.com";
-  const whatsappUrl = footerData?.socialLinks?.whatsapp?.url || "https://wa.me/919778707336";
+  const socialLinks = footerData?.socialLinks;
+
+  const showWhatsapp = (socialLinks?.whatsapp?.enabled ?? true) && Boolean(socialLinks?.whatsapp?.url || footerData?.whatsapp);
+  const whatsappUrl = socialLinks?.whatsapp?.url || footerData?.whatsapp || "https://wa.me/919778707336";
+
+  const showGithub = (socialLinks?.github?.enabled ?? true) && Boolean(socialLinks?.github?.url || footerData?.github);
+  const githubUrl = socialLinks?.github?.url || footerData?.github || "https://github.com";
+
+  const showLinkedin = (socialLinks?.linkedin?.enabled ?? true) && Boolean(socialLinks?.linkedin?.url || footerData?.linkedin);
+  const linkedinUrl = socialLinks?.linkedin?.url || footerData?.linkedin || "https://linkedin.com";
+
+  const showYoutube = Boolean(socialLinks?.youtube?.enabled && (socialLinks?.youtube?.url || footerData?.youtube));
+  const youtubeUrl = socialLinks?.youtube?.url || footerData?.youtube || "";
+
+  const showInstagram = Boolean(socialLinks?.instagram?.enabled && (socialLinks?.instagram?.url || footerData?.instagram));
+  const instagramUrl = socialLinks?.instagram?.url || footerData?.instagram || "";
+
+  const showFacebook = Boolean(socialLinks?.facebook?.enabled && (socialLinks?.facebook?.url || footerData?.facebook));
+  const facebookUrl = socialLinks?.facebook?.url || footerData?.facebook || "";
 
   const exploreTitle = footerData?.exploreTitle || 'Explore';
   const coursesTitle = footerData?.coursesTitle || 'Popular Courses';
@@ -150,49 +165,77 @@ export const Footer: React.FC = () => {
             </p>
 
             {/* Social Icons Aligned */}
-            <div className="pt-1 flex items-center gap-2.5">
-              {githubUrl && (
+            <div className="pt-1 flex items-center gap-2.5 flex-wrap">
+              {showWhatsapp && (
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-8 h-8 rounded-lg bg-panel border border-white/10 flex items-center justify-center text-slate hover:text-emerald-400 hover:border-emerald-400/50 transition-colors"
+                  aria-label="WhatsApp"
+                  title="WhatsApp"
+                >
+                  <WhatsappIcon className="w-4 h-4" />
+                </a>
+              )}
+              {showGithub && (
                 <a
                   href={githubUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="w-8 h-8 rounded-lg bg-panel border border-white/10 flex items-center justify-center text-slate hover:text-primary hover:border-primary/50 transition-colors"
                   aria-label="GitHub"
+                  title="GitHub"
                 >
                   <GithubIcon className="w-4 h-4" />
                 </a>
               )}
-              {twitterUrl && (
-                <a
-                  href={twitterUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-8 h-8 rounded-lg bg-panel border border-white/10 flex items-center justify-center text-slate hover:text-primary hover:border-primary/50 transition-colors"
-                  aria-label="Twitter"
-                >
-                  <TwitterIcon className="w-4 h-4" />
-                </a>
-              )}
-              {linkedinUrl && (
+              {showLinkedin && (
                 <a
                   href={linkedinUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="w-8 h-8 rounded-lg bg-panel border border-white/10 flex items-center justify-center text-slate hover:text-primary hover:border-primary/50 transition-colors"
+                  className="w-8 h-8 rounded-lg bg-panel border border-white/10 flex items-center justify-center text-slate hover:text-blue-400 hover:border-blue-400/50 transition-colors"
                   aria-label="LinkedIn"
+                  title="LinkedIn"
                 >
                   <LinkedinIcon className="w-4 h-4" />
                 </a>
               )}
-              {whatsappUrl && (
+              {showYoutube && (
                 <a
-                  href={whatsappUrl}
+                  href={youtubeUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="w-8 h-8 rounded-lg bg-panel border border-white/10 flex items-center justify-center text-slate hover:text-primary hover:border-primary/50 transition-colors"
-                  aria-label="WhatsApp"
+                  className="w-8 h-8 rounded-lg bg-panel border border-white/10 flex items-center justify-center text-slate hover:text-red-500 hover:border-red-500/50 transition-colors"
+                  aria-label="YouTube"
+                  title="YouTube"
                 >
-                  <WhatsappIcon className="w-4 h-4" />
+                  <YoutubeIcon className="w-4 h-4" />
+                </a>
+              )}
+              {showInstagram && (
+                <a
+                  href={instagramUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-8 h-8 rounded-lg bg-panel border border-white/10 flex items-center justify-center text-slate hover:text-pink-500 hover:border-pink-500/50 transition-colors"
+                  aria-label="Instagram"
+                  title="Instagram"
+                >
+                  <InstagramIcon className="w-4 h-4" />
+                </a>
+              )}
+              {showFacebook && (
+                <a
+                  href={facebookUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-8 h-8 rounded-lg bg-panel border border-white/10 flex items-center justify-center text-slate hover:text-blue-500 hover:border-blue-500/50 transition-colors"
+                  aria-label="Facebook"
+                  title="Facebook"
+                >
+                  <FacebookIcon className="w-4 h-4" />
                 </a>
               )}
             </div>

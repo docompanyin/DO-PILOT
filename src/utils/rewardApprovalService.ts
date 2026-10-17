@@ -7,6 +7,7 @@ export interface RewardRequest {
   studentEmail: string;
   studentPhone?: string;
   collegeOrCompany?: string;
+  courseTitle?: string;
   milestoneId: string;       // e.g. 'cash-50', 'cash-100', 'cash-250', 'cash-500'
   milestonePoints: number;   // e.g. 50, 100, 250, 500
   rewardAmount: number;      // e.g. 50, 100, 250, 500
@@ -27,6 +28,7 @@ const INITIAL_DEMO_REWARDS: RewardRequest[] = [
     studentEmail: 'rahul.verma@techsprint.io',
     studentPhone: '+91 98450 12345',
     collegeOrCompany: 'IIT Bombay',
+    courseTitle: 'Complete Python Course',
     milestoneId: 'cash-50',
     milestonePoints: 50,
     rewardAmount: 50,
@@ -41,6 +43,7 @@ const INITIAL_DEMO_REWARDS: RewardRequest[] = [
     studentEmail: 'priya.patel@gmail.com',
     studentPhone: '+91 98765 43210',
     collegeOrCompany: 'SRM Institute',
+    courseTitle: 'Complete Python Course',
     milestoneId: 'cash-50',
     milestonePoints: 50,
     rewardAmount: 50,
@@ -120,7 +123,8 @@ export const submitRewardRequest = (
         student_name: newRequest.studentName,
         student_email: newRequest.studentEmail,
         student_phone: newRequest.studentPhone || null,
-        college_or_company: newRequest.collegeOrCompany || null,
+        collegeOrCompany: newRequest.collegeOrCompany || null,
+        course_title: newRequest.courseTitle || null,
         milestone_id: newRequest.milestoneId,
         milestone_points: newRequest.milestonePoints,
         reward_amount: newRequest.rewardAmount,

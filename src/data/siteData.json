@@ -10,16 +10,14 @@
     "headlineWord3": "",
     "headlineWord4": "",
     "glowingWords": {
+      "next": true,
+      "build": false,
+      "whats": false,
       "word1": false,
       "word2": false,
       "word3": false,
-      "word4": true,
-      "build": false,
-      "whats": false,
-      "next": true
+      "word4": true
     },
-    "videoUrl": "",
-    "videoOpacity": 0,
     "description": "Practical, project-based courses and live classes taught by industry engineers. Learn Python, Full Stack development, and real-world skills to launch your tech career.",
     "pillars": [
       "100% Practical Projects",
@@ -33,53 +31,50 @@
     "headlinePrefix": "Master Real Tech Skills with",
     "highlightWord": "DO PILOT",
     "scrollCueText": "Explore DO PILOT",
-    "note": "No commitment needed — just a conversation.",
-    "metrics": []
+    "metrics": [],
+    "videoUrl": "",
+    "videoOpacity": 0,
+    "note": "",
+    "title": "Master Real Tech Skills with DO PILOT"
   },
   "about": {
-    "eyebrow": "// CAPABILITIES & EXPERIENCE",
-    "title": "About the Company",
-    "description": "DO Company is a software development studio that builds websites, web applications, and mobile apps for clients across industries. We partner with startups and established businesses to turn ideas into polished, production ready digital products — fast, reliable, and built to scale.",
     "stats": [
       {
         "id": "stat-1",
         "tag": "// TOTAL DELIVERED",
         "value": "0+",
-        "targetNum": 30,
         "suffix": "+",
+        "targetNum": 30,
         "description": "High-impact web apps, platforms & site-builder engines shipped worldwide."
       },
       {
         "id": "stat-2",
         "tag": "// CLIENT SATISFACTION",
         "value": "0%",
-        "targetNum": 100,
         "suffix": "%",
+        "targetNum": 100,
         "description": "Long-term partners who rely on DO Company for enterprise engineering."
       },
       {
         "id": "stat-3",
         "tag": "// CODE QUALITY",
         "value": "0%",
-        "targetNum": 100,
         "suffix": "%",
+        "targetNum": 100,
         "description": "Every line of code is written with performance, readability, and long-term reliability in mind."
       }
     ],
+    "title": "About the Company",
+    "eyebrow": "// CAPABILITIES & EXPERIENCE",
+    "description": "DO Company is a software development studio that builds websites, web applications, and mobile apps for clients across industries. We partner with startups and established businesses to turn ideas into polished, production ready digital products — fast, reliable, and built to scale.",
     "experiences": [
       {
         "id": "exp-1",
-        "position": "Website Builder Tools",
-        "company": "DO Company",
         "period": "2025 - Present",
+        "company": "DO Company",
         "location": "Worldwide",
+        "position": "Website Builder Tools",
         "description": "Developing no-code and low-code website builder platforms that empower clients to launch and manage their own sites without technical overhead.",
-        "responsibilities": [
-          "Building drag-and-drop website builder interfaces",
-          "Creating reusable component libraries for rapid deployment",
-          "Integrating CMS and hosting solutions",
-          "Providing white-label builder tools for agencies"
-        ],
         "technologies": [
           "React",
           "Next.js",
@@ -87,21 +82,21 @@
           "CMS",
           "Low-Code",
           "White-Label"
+        ],
+        "responsibilities": [
+          "Building drag-and-drop website builder interfaces",
+          "Creating reusable component libraries for rapid deployment",
+          "Integrating CMS and hosting solutions",
+          "Providing white-label builder tools for agencies"
         ]
       },
       {
         "id": "exp-2",
-        "position": "Mobile App Development",
-        "company": "DO Company",
         "period": "2024",
+        "company": "DO Company",
         "location": "Worldwide",
+        "position": "Mobile App Development",
         "description": "Delivering cross-platform mobile applications for iOS and Android. From MVP to full product, we handle design, development, and deployment.",
-        "responsibilities": [
-          "Building cross-platform apps with React Native",
-          "Integrating REST APIs and real-time backends",
-          "Handling App Store and Play Store submissions",
-          "Providing post-launch maintenance and updates"
-        ],
         "technologies": [
           "React Native",
           "Expo",
@@ -109,21 +104,21 @@
           "TypeScript",
           "REST APIs",
           "Push Notifications"
+        ],
+        "responsibilities": [
+          "Building cross-platform apps with React Native",
+          "Integrating REST APIs and real-time backends",
+          "Handling App Store and Play Store submissions",
+          "Providing post-launch maintenance and updates"
         ]
       },
       {
         "id": "exp-3",
-        "position": "Web App Development",
-        "company": "DO Company",
         "period": "2023",
+        "company": "DO Company",
         "location": "Worldwide",
+        "position": "Web App Development",
         "description": "Building full-stack web applications from frontend to backend. Scalable architectures, clean UIs, and robust APIs for SaaS products and client platforms.",
-        "responsibilities": [
-          "Developing full-stack applications with React and Node.js",
-          "Designing and building RESTful and GraphQL APIs",
-          "Setting up CI/CD pipelines and cloud deployments",
-          "Optimizing performance and security"
-        ],
         "technologies": [
           "React",
           "Node.js",
@@ -131,21 +126,21 @@
           "PostgreSQL",
           "Docker",
           "AWS"
+        ],
+        "responsibilities": [
+          "Developing full-stack applications with React and Node.js",
+          "Designing and building RESTful and GraphQL APIs",
+          "Setting up CI/CD pipelines and cloud deployments",
+          "Optimizing performance and security"
         ]
       },
       {
         "id": "exp-4",
-        "position": "Web Design & Development",
-        "company": "DO Company",
         "period": "2022",
+        "company": "DO Company",
         "location": "Worldwide",
+        "position": "Web Design & Development",
         "description": "Crafting high-quality marketing websites and landing pages for businesses. Pixel-perfect design implementation with a focus on performance and conversion.",
-        "responsibilities": [
-          "Building responsive marketing sites and landing pages",
-          "Implementing animations and interactive UI elements",
-          "Optimizing for SEO and Core Web Vitals",
-          "Collaborating with designers on Figma-to-code workflows"
-        ],
         "technologies": [
           "HTML",
           "CSS",
@@ -153,208 +148,214 @@
           "TypeScript",
           "Next.js",
           "Figma"
+        ],
+        "responsibilities": [
+          "Building responsive marketing sites and landing pages",
+          "Implementing animations and interactive UI elements",
+          "Optimizing for SEO and Core Web Vitals",
+          "Collaborating with designers on Figma-to-code workflows"
         ]
       },
       {
         "id": "exp-5",
-        "position": "Product Strategy",
-        "company": "DO Company",
         "period": "2021",
+        "company": "DO Company",
         "location": "Worldwide",
+        "position": "Product Strategy",
         "description": "Helping clients define their product roadmap, technical architecture, and go-to-market strategy before a single line of code is written.",
-        "responsibilities": [
-          "Conducting discovery workshops with clients",
-          "Defining MVP scope and feature prioritization",
-          "Creating technical architecture documents",
-          "Advising on technology stack selection"
-        ],
         "technologies": [
           "Discovery",
           "Roadmapping",
           "Architecture",
           "MVP Planning",
           "Consulting"
+        ],
+        "responsibilities": [
+          "Conducting discovery workshops with clients",
+          "Defining MVP scope and feature prioritization",
+          "Creating technical architecture documents",
+          "Advising on technology stack selection"
         ]
       }
     ]
   },
   "services": {
-    "eyebrow": "// SERVICES",
-    "title": "Engineering services built for speed, scale, and longevity.",
     "items": [
       {
         "id": "srv-1",
         "title": "Website Development",
-        "description": "Custom websites and web apps",
-        "details": "High-performance, responsive web applications built with modern frontend & backend frameworks.",
         "tools": [
           "React",
           "Next.js",
           "TypeScript",
           "Node.js",
           "Tailwind CSS"
-        ]
+        ],
+        "details": "High-performance, responsive web applications built with modern frontend & backend frameworks.",
+        "description": "Custom websites and web apps"
       },
       {
         "id": "srv-2",
         "title": "Mobile App Development",
-        "description": "iOS & Android apps with React Native",
-        "details": "Cross-platform mobile application development for iOS and Android with native performance.",
         "tools": [
           "React Native",
           "Expo",
           "iOS",
           "Android",
           "Mobile Architecture"
-        ]
+        ],
+        "details": "Cross-platform mobile application development for iOS and Android with native performance.",
+        "description": "iOS & Android apps with React Native"
       },
       {
         "id": "srv-3",
         "title": "College & Academic Projects",
-        "description": "Final year projects, documentation, academic software",
-        "details": "End-to-end academic project engineering, complete code implementations, and project reports.",
         "tools": [
           "Python",
           "Java",
           "MERN Stack",
           "Academic Docs",
           "SRS & SDD"
-        ]
+        ],
+        "details": "End-to-end academic project engineering, complete code implementations, and project reports.",
+        "description": "Final year projects, documentation, academic software"
       },
       {
         "id": "srv-4",
         "title": "Industry-Level Projects",
-        "description": "Dashboards, portals, SaaS tools for businesses",
-        "details": "Scalable enterprise dashboards, business automation portals, and full-stack SaaS tools.",
         "tools": [
           "Enterprise SaaS",
           "Dashboards",
           "REST APIs",
           "Cloud & DB",
           "Security"
-        ]
+        ],
+        "details": "Scalable enterprise dashboards, business automation portals, and full-stack SaaS tools.",
+        "description": "Dashboards, portals, SaaS tools for businesses"
       },
       {
         "id": "srv-5",
         "title": "UI/UX Design",
-        "description": "Figma design, wireframing, prototyping",
-        "details": "Modern UI/UX design systems, interactive prototypes, user flows, and Figma design kits.",
         "tools": [
           "Figma",
           "Wireframing",
           "Prototyping",
           "Design Systems",
           "User Research"
-        ]
+        ],
+        "details": "Modern UI/UX design systems, interactive prototypes, user flows, and Figma design kits.",
+        "description": "Figma design, wireframing, prototyping"
       },
       {
         "id": "srv-6",
         "title": "Documentation & Reports",
-        "description": "Technical reports, SRS & SDD docs, college submissions",
-        "details": "Comprehensive technical documentation, architecture blueprints, SRS/SDD reports, and presentation slides.",
         "tools": [
           "SRS & SDD",
           "Technical Writing",
           "Architecture Specs",
           "Project Reports"
-        ]
+        ],
+        "details": "Comprehensive technical documentation, architecture blueprints, SRS/SDD reports, and presentation slides.",
+        "description": "Technical reports, SRS & SDD docs, college submissions"
       }
     ],
+    "title": "Engineering services built for speed, scale, and longevity.",
+    "eyebrow": "// SERVICES",
     "videoUrl": "https://res.cloudinary.com/ufo0zltq/video/upload/v1785704549/5943-187188345_cejpdj.mp4",
     "videoOpacity": 50
   },
   "projects": {
-    "eyebrow": "// SELECTED WORK",
-    "title": "Recent projects we've designed, engineered, and shipped.",
     "items": [
       {
         "id": "proj-1",
+        "link": "https://github.com/bimaljayakumar/Zafe-Web-Django",
+        "year": "2026",
+        "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786127409/ChatGPT_Image_Aug_7_2026_11_59_45_PM_lsq18v.png",
         "title": "Women Safety Platform",
         "category": "Web App",
-        "technologies": "Python, Django, HTML5, CSS3, JavaScript, Tailwind CSS",
-        "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786127409/ChatGPT_Image_Aug_7_2026_11_59_45_PM_lsq18v.png",
         "description": "A full-stack women’s safety platform built with Django, featuring emergency SOS, incident reporting, location-based safety services, community features.",
-        "link": "https://github.com/bimaljayakumar/Zafe-Web-Django",
-        "year": "2026"
+        "technologies": "Python, Django, HTML5, CSS3, JavaScript, Tailwind CSS"
       },
       {
         "id": "item-1786131596677",
+        "link": "https://github.com/bimaljayakumar/CarePoint-Health-Management-System",
+        "year": "2026",
+        "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786132324/ChatGPT_Image_Aug_8_2026_01_21_45_AM_ygmcof.png",
         "title": "Health Management",
         "category": "Web App",
-        "technologies": "Python, Django, Django REST Framework, HTML5, CSS3",
-        "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786132324/ChatGPT_Image_Aug_8_2026_01_21_45_AM_ygmcof.png",
         "description": "The system streamlines appointment scheduling, digital prescriptions, medical records, pharmacy management, laboratory services.",
-        "link": "https://github.com/bimaljayakumar/CarePoint-Health-Management-System",
-        "year": "2026"
+        "technologies": "Python, Django, Django REST Framework, HTML5, CSS3"
       },
       {
         "id": "item-1786132351515",
+        "link": "https://github.com/bimaljayakumar/SkillMint-JobPortal-Django",
+        "year": "2026",
+        "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786132814/ChatGPT_Image_Aug_8_2026_01_29_56_AM_m5f6gz.png",
         "title": "Job Portal Platform",
         "category": "Web App",
-        "technologies": "Python, Django, Django REST Framework, HTML5, CSS3",
-        "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786132814/ChatGPT_Image_Aug_8_2026_01_29_56_AM_m5f6gz.png",
         "description": "A modern full-stack recruitment platform built with Django, connecting job seekers and recruiters through intelligent job discovery.",
-        "link": "https://github.com/bimaljayakumar/SkillMint-JobPortal-Django",
-        "year": "2026"
+        "technologies": "Python, Django, Django REST Framework, HTML5, CSS3"
       },
       {
         "id": "item-1786136319657",
+        "link": "https://bimaljayakumar.vercel.app/",
+        "year": "2026",
+        "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786136453/file_00000000fb5c82118d3ad8e4bece1400_a7zwgl.png",
         "title": "Personal Portfolio",
         "category": "Web App",
-        "technologies": "Next.js 16, TypeScript, Tailwind CSS, Framer Motion, Three.js",
-        "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786136453/file_00000000fb5c82118d3ad8e4bece1400_a7zwgl.png",
         "description": "A cinematic, interactive developer portfolio built with Next.js, featuring a scroll-driven hero, immersive animations.",
-        "link": "https://bimaljayakumar.vercel.app/",
-        "year": "2026"
+        "technologies": "Next.js 16, TypeScript, Tailwind CSS, Framer Motion, Three.js"
       },
       {
         "id": "item-1786179221978",
+        "link": "https://mguresultcheck.vercel.app/",
+        "year": "2026",
+        "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786178976/ChatGPT_Image_Aug_8_2026_02_19_04_PM_dg4aik.png",
         "title": "MGU Result Fetch Tool",
         "category": "Web App",
-        "technologies": "Python, Flask, HTML5, CSS3, JavaScript",
-        "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786178976/ChatGPT_Image_Aug_8_2026_02_19_04_PM_dg4aik.png",
         "description": "A fast result-fetching web tool designed to retrieve results for an entire batch of students at once, reducing repetitive manual work and making result collection, organization, and PDF generation significantly faster and easier.",
-        "link": "https://mguresultcheck.vercel.app/",
-        "year": "2026"
+        "technologies": "Python, Flask, HTML5, CSS3, JavaScript"
       }
-    ]
+    ],
+    "title": "Recent projects we've designed, engineered, and shipped.",
+    "eyebrow": "// SELECTED WORK"
   },
   "process": {
-    "eyebrow": "// PROCESS",
-    "title": "How we turn ideas into production-ready software.",
     "steps": [
       {
         "id": "proc-1",
-        "number": "01",
         "title": "Discovery & Architecture",
+        "number": "01",
         "description": "We map out scope, technology stack, and high-level system architecture before writing a line of code."
       },
       {
         "id": "proc-2",
-        "number": "02",
         "title": "Design & Component Systems",
+        "number": "02",
         "description": "Pixel-perfect UI design, accessible component libraries, and rapid interactive prototypes."
       },
       {
         "id": "proc-4",
-        "number": "03",
         "title": "Deployment & Optimization",
+        "number": "03",
         "description": "CI/CD setup, performance tuning, Core Web Vitals optimization, and production deployment."
       }
-    ]
+    ],
+    "title": "How we turn ideas into production-ready software.",
+    "eyebrow": "// PROCESS"
   },
   "founder": {
-    "eyebrow": "// FOUNDER",
-    "headline": "Led by someone who still writes code.",
+    "bio": "As Founder & CEO, Jayadev Nair guides the company's vision and strategic direction while fostering a culture of innovation, collaboration, and continuous improvement. His leadership empowers the team to build solutions that help businesses grow with confidence.",
     "name": "Jayadev Nair",
     "role": "Founder & CEO",
-    "tagline": "Leading Innovation & Growth",
-    "quote": "\"Technology is powerful only when it solves real problems. Our mission is to build solutions that create lasting value for every client.\"",
-    "bio": "As Founder & CEO, Jayadev Nair guides the company's vision and strategic direction while fostering a culture of innovation, collaboration, and continuous improvement. His leadership empowers the team to build solutions that help businesses grow with confidence.",
     "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786122231/Picsart_26-08-02_22-17-55-981.jpg_wi7y08.jpg",
+    "quote": "\"Technology is powerful only when it solves real problems. Our mission is to build solutions that create lasting value for every client.\"",
     "github": "",
-    "linkedin": "",
+    "eyebrow": "// FOUNDER",
+    "tagline": "Leading Innovation & Growth",
     "twitter": "",
+    "headline": "Led by someone who still writes code.",
+    "linkedin": "",
     "socialLinks": {
       "github": {
         "url": "",
@@ -364,19 +365,19 @@
         "url": "",
         "enabled": true
       },
-      "linkedin": {
-        "url": "",
-        "enabled": true
-      },
-      "instagram": {
-        "url": "",
-        "enabled": true
-      },
       "facebook": {
         "url": "",
         "enabled": true
       },
+      "linkedin": {
+        "url": "",
+        "enabled": true
+      },
       "whatsapp": {
+        "url": "",
+        "enabled": true
+      },
+      "instagram": {
         "url": "",
         "enabled": true
       }
@@ -384,146 +385,203 @@
     "contributionNote": "Active Code Contributions: Daily"
   },
   "mentors": {
-    "eyebrow": "// TEAM",
-    "title": "The people behind DO Company.",
     "items": [
       {
         "id": "men-1",
+        "tag": "Full Stack Development",
         "name": "Bimal Jayakumar",
         "role": "Lead Developer",
-        "specialty": "Full Stack Development",
         "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786122231/Picsart_26-08-02_18-45-04-425.jpg_i8lio8.jpg",
-        "tag": "Full Stack Development"
+        "specialty": "Full Stack Development"
       },
       {
         "id": "item-1785761186590",
+        "tag": "Full Stack Development",
         "name": "Nithal John Varghese",
         "role": "Lead Developer",
-        "specialty": "Full Stack Development",
         "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786175575/copy_of_picsart_26-08-02_21-35-00-079jpg_cc8qcp.jpg",
-        "tag": "Full Stack Development"
+        "specialty": "Full Stack Development"
       },
       {
         "id": "item-1786175823899",
+        "tag": "Full Stack Development",
         "name": "Vivek P S",
         "role": "Lead Developer",
-        "specialty": "Full Stack Development",
         "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786902975/file_00000000c2ec8211af44d00366af7b77_fiw5bz.png",
-        "tag": "Full Stack Development",
+        "specialty": "Full Stack Development",
         "socialLinks": {
           "github": {
-            "enabled": true,
-            "url": "https://github.com/VivekOrginal"
+            "url": "https://github.com/VivekOrginal",
+            "enabled": true
           }
         }
       },
       {
         "id": "item-1789719289572",
+        "tag": "Mentor & Advisor",
         "name": "Ajmal Sha S",
         "role": "Professional Mentor & Advisor",
-        "specialty": "Advisory & Consulting",
         "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1789721662/Picsart_26-09-18_14-21-06-352_marbir.jpg",
-        "tag": "Mentor & Advisor"
+        "specialty": "Advisory & Consulting"
       },
       {
         "id": "item-1789725699446",
+        "tag": "UI/UX Design",
         "name": "Krishnadev S",
         "role": "UI/UX Designer",
-        "specialty": "User Experience Design",
         "image": "https://res.cloudinary.com/ufo0zltq/image/upload/v1789725829/Picsart_26-09-18_15-24-05-440.jpg_keijlo.jpg",
-        "tag": "UI/UX Design"
+        "specialty": "User Experience Design"
       }
-    ]
+    ],
+    "title": "The people behind DO Company.",
+    "eyebrow": "// TEAM"
   },
   "testimonials": {
-    "eyebrow": "// TESTIMONIALS",
-    "title": "What People Say About Us",
     "items": [
       {
         "id": "test-2",
+        "role": "College Student",
+        "image": "",
         "quote": "\"They developed a clean and user-friendly weather application for my college project. The app was delivered on time, worked exactly as expected, and demonstrated excellent attention to detail. I truly appreciate his professionalism and technical skills.\"",
         "author": "Jinsmon Varghese",
-        "role": "College Student",
-        "company": "MG University",
-        "image": ""
+        "company": "MG University"
       }
-    ]
+    ],
+    "title": "What People Say About Us",
+    "eyebrow": "// TESTIMONIALS"
   },
   "toolkit": {
-    "eyebrow": "// OUR TOOLKIT",
-    "title": "Engineered with modern, battle-tested technologies."
+    "title": "Engineered with modern, battle-tested technologies.",
+    "eyebrow": "// OUR TOOLKIT"
   },
   "cta": {
-    "eyebrow": "// Let's Build Something Great",
-    "title": "Let's Build !",
-    "subtitle": "Let's discuss your product roadmap, technical architecture, or build requirements.",
     "email": "hello@docompany.dev",
     "phone": "+91 9778707336",
+    "title": "Let's Build !",
+    "eyebrow": "// Let's Build Something Great",
+    "subtitle": "Let's discuss your product roadmap, technical architecture, or build requirements.",
     "buttonText": "Send a Message"
   },
   "footer": {
     "companyName": "DO PILOT",
-    "description": "DO PILOT is an educational platform offering project-driven coding courses in Python, Full Stack development, and real-time live masterclasses with industry mentors.",
-    "addressLine1": "Online & Global Campus",
-    "addressLine2": "Remote Learning Worldwide",
+    "companyLogo": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png",
+    "description": "DO PILOT is an educational platform dedicated to project-first coding. We teach practical Python, Java programming, and real-world software engineering with live mentorship.",
     "email": "support@dopilot.com",
-    "copyrightText": "© 2026 DO PILOT. All rights reserved.",
-    "github": "https://github.com",
-    "linkedin": "https://linkedin.com",
-    "twitter": "https://twitter.com",
+    "phone": "+91 97787 07336",
+    "address": "Online & Global Campus",
+    "copyrightText": "All rights reserved.",
+    "exploreTitle": "Explore",
+    "coursesTitle": "Popular Courses",
+    "legalTitle": "Legal & Policies",
+    "contactTitle": "Contact & Support",
     "socialLinks": {
       "github": {
         "url": "https://github.com",
         "enabled": true
       },
-      "twitter": {
-        "url": "https://twitter.com",
+      "youtube": {
+        "url": "https://www.youtube.com/",
+        "enabled": true
+      },
+      "facebook": {
+        "url": "https://www.facebook.com/",
         "enabled": true
       },
       "linkedin": {
         "url": "https://linkedin.com",
         "enabled": true
       },
-      "instagram": {
-        "url": "https://instagram.com",
-        "enabled": true
-      },
-      "facebook": {
-        "url": "https://facebook.com",
-        "enabled": true
-      },
       "whatsapp": {
         "url": "https://wa.me/919778707336",
         "enabled": true
+      },
+      "instagram": {
+        "url": "https://www.instagram.com/",
+        "enabled": true
       }
     },
+    "exploreLinks": [
+      {
+        "href": "#why-us",
+        "name": "Why Us"
+      },
+      {
+        "href": "#courses",
+        "name": "Courses"
+      },
+      {
+        "href": "#code-lab",
+        "name": "Code Lab"
+      },
+      {
+        "href": "#reviews",
+        "name": "Reviews"
+      },
+      {
+        "href": "#live-class",
+        "name": "Live Class"
+      }
+    ],
+    "popularCoursesLinks": [
+      {
+        "href": "/course/complete-python-programming",
+        "name": "Complete Python Course"
+      },
+      {
+        "href": "/course/complete-java-programming",
+        "name": "Complete Java Course"
+      },
+      {
+        "href": "/course/python-ai-data-science",
+        "name": "Python for AI & Data"
+      }
+    ],
+    "legalLinks": [
+      {
+        "href": "/privacy",
+        "name": "Privacy Policy"
+      },
+      {
+        "href": "/terms",
+        "name": "Terms of Service"
+      },
+      {
+        "href": "/refund",
+        "name": "Refund Policy"
+      }
+    ],
+    "github": "https://github.com",
+    "twitter": "https://twitter.com",
+    "linkedin": "https://linkedin.com",
     "navLinks": [
       {
         "id": "nav-1",
-        "label": "Services",
-        "href": "#services"
+        "href": "#services",
+        "label": "Services"
       },
       {
         "id": "nav-2",
-        "label": "Selected Work",
-        "href": "#work"
+        "href": "#work",
+        "label": "Selected Work"
       },
       {
         "id": "nav-3",
-        "label": "Engineering Process",
-        "href": "#process"
+        "href": "#process",
+        "label": "Engineering Process"
       },
       {
         "id": "nav-4",
-        "label": "Leadership",
-        "href": "#founder"
+        "href": "#founder",
+        "label": "Leadership"
       },
       {
         "id": "nav-5",
-        "label": "Advisors",
-        "href": "#mentors"
+        "href": "#mentors",
+        "label": "Advisors"
       }
     ],
+    "addressLine1": "Online & Global Campus",
+    "addressLine2": "Remote Learning Worldwide",
     "capabilities": [
       {
         "id": "cap-1",
@@ -545,90 +603,89 @@
         "id": "cap-5",
         "label": "Automation Solutions"
       }
-    ],
-    "companyLogo": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png"
+    ]
   },
   "navbar": {
-    "companyName": "DO PILOT",
-    "companyLogo": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png",
-    "ctaText": "Get in Touch",
     "ctaLink": "#contact",
+    "ctaText": "Get in Touch",
     "navLinks": [
       {
         "id": "nav-1",
-        "name": "WHY US",
-        "href": "#why-us"
+        "href": "#why-us",
+        "name": "WHY US"
       },
       {
         "id": "nav-2",
-        "name": "COURSES",
-        "href": "#courses"
+        "href": "#courses",
+        "name": "COURSES"
       },
       {
         "id": "nav-3",
-        "name": "REVIEWS",
-        "href": "#reviews"
+        "href": "#reviews",
+        "name": "REVIEWS"
       },
       {
         "id": "nav-code-lab",
-        "name": "CODE LAB",
-        "href": "#code-lab"
+        "href": "#code-lab",
+        "name": "CODE LAB"
       },
       {
         "id": "nav-4",
-        "name": "LIVE CLASS",
-        "href": "#live-class"
+        "href": "#live-class",
+        "name": "LIVE CLASS"
       }
-    ]
+    ],
+    "companyLogo": "https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png",
+    "companyName": "DO PILOT"
   },
   "messages": [
     {
       "id": "msg-1791384537733",
-      "name": "Bimal Jayakumar",
-      "email": "bimaljayakumar18@gmail.com",
-      "subject": "Enrollment: General Enrollment",
-      "message": "Phone: +91 8888888888\nTrack: General Enrollment\nNotes: uuu",
       "date": "10/7/2026, 8:18:57 PM",
-      "read": false
+      "name": "Bimal Jayakumar",
+      "read": false,
+      "email": "bimaljayakumar18@gmail.com",
+      "message": "Phone: +91 8888888888\nTrack: General Enrollment\nNotes: uuu",
+      "subject": "Enrollment: General Enrollment"
     },
     {
       "id": "msg-1791299288390",
-      "name": "AJMAL",
-      "email": "bimaljayakumar18@gmail.com",
-      "subject": "Enrollment: General Enrollment",
-      "message": "Phone: +91 7777777777\nTrack: General Enrollment\nNotes: hI",
       "date": "10/6/2026, 8:38:08 PM",
-      "read": false
+      "name": "AJMAL",
+      "read": false,
+      "email": "bimaljayakumar18@gmail.com",
+      "message": "Phone: +91 7777777777\nTrack: General Enrollment\nNotes: hI",
+      "subject": "Enrollment: General Enrollment"
     },
     {
       "id": "msg-1791299259563",
-      "name": "Bimal Jayakumar",
-      "email": "bimaljayakumar18@gmail.com",
-      "subject": "Enrollment: Full Stack Web Development",
-      "message": "Phone: +91 9778707336\nTrack: Full Stack Web Development\nNotes: Hi",
       "date": "10/6/2026, 8:37:39 PM",
-      "read": false
+      "name": "Bimal Jayakumar",
+      "read": false,
+      "email": "bimaljayakumar18@gmail.com",
+      "message": "Phone: +91 9778707336\nTrack: Full Stack Web Development\nNotes: Hi",
+      "subject": "Enrollment: Full Stack Web Development"
     },
     {
       "id": "msg-1791299120528",
-      "name": "Bimal Jayakumar",
-      "email": "bimaljayakumar18@gmail.com",
-      "subject": "Enrollment: Full Stack Web Development",
-      "message": "Phone: +91 9778707336\nTrack: Full Stack Web Development\nNotes: Hi, Contact",
       "date": "10/6/2026, 8:35:20 PM",
-      "read": false
+      "name": "Bimal Jayakumar",
+      "read": false,
+      "email": "bimaljayakumar18@gmail.com",
+      "message": "Phone: +91 9778707336\nTrack: Full Stack Web Development\nNotes: Hi, Contact",
+      "subject": "Enrollment: Full Stack Web Development"
     },
     {
       "id": "msg-1790521578396",
-      "name": "Bimal Jayakumar",
-      "email": "bimaljayakumar18@gmail.com",
-      "subject": "Project Request: Web",
-      "message": "Phone: 7784738384\nProject Type: Web\n\nwmedkwndkendk",
       "date": "9/27/2026, 8:36:18 PM",
-      "read": false
+      "name": "Bimal Jayakumar",
+      "read": false,
+      "email": "bimaljayakumar18@gmail.com",
+      "message": "Phone: 7784738384\nProject Type: Web\n\nwmedkwndkendk",
+      "subject": "Project Request: Web"
     }
   ],
-  "version": 1792000000002,
+  "version": 1792000000000,
   "whyUs": {
     "badgeText": "WHY CHOOSE US",
     "title": "Why DO PILOT?",
@@ -636,31 +693,31 @@
     "features": [
       {
         "id": "feat-1",
-        "iconName": "Code2",
         "title": "Real Projects, Not Just Theory",
-        "description": "You will not just watch videos. You write real code, build production-ready applications, and push commits to GitHub from day one.",
-        "highlight": "10+ Portfolio Projects"
+        "iconName": "Code2",
+        "highlight": "10+ Portfolio Projects",
+        "description": "You will not just watch videos. You write real code, build production-ready applications, and push commits to GitHub from day one."
       },
       {
         "id": "feat-2",
-        "iconName": "Users",
         "title": "Mentor Support When You Are Stuck",
-        "description": "Never get stuck on bugs for hours. Our experienced software engineers review your code and help you debug in real time.",
-        "highlight": "Personal Code Reviews"
+        "iconName": "Users",
+        "highlight": "Personal Code Reviews",
+        "description": "Never get stuck on bugs for hours. Our experienced software engineers review your code and help you debug in real time."
       },
       {
         "id": "feat-3",
-        "iconName": "Laptop",
         "title": "Interactive Live Classes",
-        "description": "Ask questions live and solve problems together with mentors. We keep our live batches focused and hands-on.",
-        "highlight": "Live Coding & Instant Q&A"
+        "iconName": "Laptop",
+        "highlight": "Live Coding & Instant Q&A",
+        "description": "Ask questions live and solve problems together with mentors. We keep our live batches focused and hands-on."
       },
       {
         "id": "feat-4",
-        "iconName": "Briefcase",
         "title": "Career & Industry Ready",
-        "description": "Master real developer tools (Git, APIs, Databases, Clean Architecture) so you can crack interviews and freelance with confidence.",
-        "highlight": "Interview Prep & Portfolio"
+        "iconName": "Briefcase",
+        "highlight": "Interview Prep & Portfolio",
+        "description": "Master real developer tools (Git, APIs, Databases, Clean Architecture) so you can crack interviews and freelance with confidence."
       }
     ],
     "comparisonsTitle": "How DO PILOT Compares",
@@ -668,284 +725,287 @@
     "comparisons": [
       {
         "id": "comp-1",
+        "doPilot": "Active coding & live interactive sessions",
         "feature": "Learning Method",
-        "traditional": "Passive recorded videos from years ago",
-        "doPilot": "Active coding & live interactive sessions"
+        "traditional": "Passive recorded videos from years ago"
       },
       {
         "id": "comp-2",
+        "doPilot": "Production-ready apps and real-world tools",
         "feature": "Project Quality",
-        "traditional": "Basic copy-paste toy examples (Todo list)",
-        "doPilot": "Production-ready apps and real-world tools"
+        "traditional": "Basic copy-paste toy examples (Todo list)"
       },
       {
         "id": "comp-3",
+        "doPilot": "Direct mentor help & 1-on-1 code reviews",
         "feature": "When You Get Stuck",
-        "traditional": "Unanswered forum posts or robot replies",
-        "doPilot": "Direct mentor help & 1-on-1 code reviews"
+        "traditional": "Unanswered forum posts or robot replies"
       },
       {
         "id": "comp-4",
+        "doPilot": "A verifiable GitHub portfolio that gets jobs",
         "feature": "Outcome",
-        "traditional": "Certificate with no proof of skill",
-        "doPilot": "A verifiable GitHub portfolio that gets jobs"
+        "traditional": "Certificate with no proof of skill"
       }
-    ]
+    ],
+    "tableHeaderDoPilot": "DO PILOT Platform",
+    "tableHeaderFeature": "Feature",
+    "tableHeaderTraditional": "Regular Online Courses"
   },
   "coursesSection": {
-    "badgeText": "SKILL PATHS",
-    "title": "Our Courses",
-    "description": "Choose a specialized curriculum built around tangible project outcomes. Taught by senior developers with live code reviews.",
     "items": [
       {
         "id": "python-core",
-        "category": "python",
-        "badge": "Bestseller",
-        "badgeColor": "bg-primary/20 text-primary border-primary/30",
-        "image": "https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=800&auto=format&fit=crop&q=80",
-        "title": "Complete Python Course",
-        "description": "Master Python from core logic and data structures to advanced OOP, recursion, and 2D games with Pygame.",
-        "duration": "14 Parts",
-        "level": "Beginner to Advanced",
         "tags": [
           "Python 3",
           "OOP & Logic",
           "Pygame"
-        ]
+        ],
+        "badge": "Bestseller",
+        "image": "https://res.cloudinary.com/uwwzrxiy/image/upload/v1792244406/Glossy_Neon_Python_Emblem.png",
+        "level": "Beginner to Advanced",
+        "title": "Complete Python Course",
+        "category": "python",
+        "duration": "14 Parts",
+        "badgeColor": "bg-primary/20 text-primary border-primary/30",
+        "description": "Master Python from core logic and data structures to advanced OOP, recursion, and 2D games with Pygame."
       },
       {
         "id": "complete-java-programming",
-        "category": "java",
-        "badge": "Popular",
-        "badgeColor": "bg-amber-400/20 text-amber-300 border-amber-400/30",
-        "image": "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80",
-        "title": "Complete Java Course",
-        "description": "Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams based on the University of Helsinki Java MOOC.",
-        "duration": "14 Parts",
-        "level": "Beginner to Advanced",
         "tags": [
           "Java 21",
           "OOP & Classes",
           "Collections"
-        ]
+        ],
+        "badge": "Popular",
+        "image": "https://res.cloudinary.com/uwwzrxiy/image/upload/v1792244406/Neon_Java_Cup_Emblem.png",
+        "level": "Beginner to Advanced",
+        "title": "Complete Java Course",
+        "category": "java",
+        "duration": "14 Parts",
+        "badgeColor": "bg-amber-400/20 text-amber-300 border-amber-400/30",
+        "description": "Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams based on Helsinki MOOC."
       },
       {
         "id": "fullstack-open",
-        "category": "web",
-        "badge": "Career Track",
-        "badgeColor": "bg-emerald-400/20 text-emerald-300 border-emerald-400/30",
-        "image": "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80",
-        "title": "Full Stack Open Course",
-        "description": "Deep dive into modern web development by University of Helsinki. Master React, Node.js, Express, TypeScript, GraphQL, and Docker.",
-        "duration": "14 Parts",
-        "level": "Intermediate",
         "tags": [
           "React & TS",
           "Node & Express",
           "GraphQL & Docker"
-        ]
+        ],
+        "badge": "Career Track",
+        "image": "https://res.cloudinary.com/uwwzrxiy/image/upload/v1792244406/Neon_React_Full-Stack_Interface.png",
+        "level": "Intermediate",
+        "title": "Full Stack Open Course",
+        "category": "web",
+        "duration": "14 Parts",
+        "badgeColor": "bg-emerald-400/20 text-emerald-300 border-emerald-400/30",
+        "description": "Deep dive into modern web development by University of Helsinki. Master React, Node.js, Express, TypeScript, GraphQL, and Docker."
       },
       {
         "id": "cyber-security",
-        "category": "security",
-        "badge": "High Demand",
-        "badgeColor": "bg-cyan-400/20 text-cyan-300 border-cyan-400/30",
-        "image": "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&auto=format&fit=crop&q=80",
-        "title": "Cyber Security Course",
-        "description": "Master network defense, penetration testing, malware analysis, and CISSP enterprise governance based on STL Academy.",
-        "duration": "14 Parts",
-        "level": "Beginner to Advanced",
         "tags": [
           "Network Defense",
           "Ethical Hacking",
           "CISSP & Cryptography"
-        ]
+        ],
+        "badge": "High Demand",
+        "image": "https://res.cloudinary.com/uwwzrxiy/image/upload/v1792244406/Neon_Cybersecurity_Shield_and_Lock.png",
+        "level": "Beginner to Advanced",
+        "title": "Cyber Security Course",
+        "category": "security",
+        "duration": "14 Parts",
+        "badgeColor": "bg-cyan-400/20 text-cyan-300 border-cyan-400/30",
+        "description": "Master network defense, penetration testing, malware analysis, and CISSP enterprise governance based on STL Academy."
       }
     ],
+    "title": "Our Courses",
     "courses": [
       {
         "id": "python-core",
-        "category": "python",
-        "badge": "Bestseller",
-        "badgeColor": "bg-primary/20 text-primary border-primary/30",
-        "image": "https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=800&auto=format&fit=crop&q=80",
-        "title": "Complete Python Course",
-        "description": "Master Python from core logic and data structures to advanced OOP, recursion, and 2D games with Pygame.",
-        "duration": "14 Parts",
-        "level": "Beginner to Advanced",
         "tags": [
           "Python 3",
           "OOP & Logic",
           "Pygame"
-        ]
+        ],
+        "badge": "Bestseller",
+        "image": "https://res.cloudinary.com/uwwzrxiy/image/upload/v1792244406/Glossy_Neon_Python_Emblem.png",
+        "level": "Beginner to Advanced",
+        "title": "Complete Python Course",
+        "category": "python",
+        "duration": "14 Parts",
+        "badgeColor": "bg-primary/20 text-primary border-primary/30",
+        "description": "Master Python from core logic and data structures to advanced OOP, recursion, and 2D games with Pygame."
       },
       {
         "id": "complete-java-programming",
-        "category": "java",
-        "badge": "Popular",
-        "badgeColor": "bg-amber-400/20 text-amber-300 border-amber-400/30",
-        "image": "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80",
-        "title": "Complete Java Course",
-        "description": "Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams based on the University of Helsinki Java MOOC.",
-        "duration": "14 Parts",
-        "level": "Beginner to Advanced",
         "tags": [
           "Java 21",
           "OOP & Classes",
           "Collections"
-        ]
+        ],
+        "badge": "Popular",
+        "image": "https://res.cloudinary.com/uwwzrxiy/image/upload/v1792244406/Neon_Java_Cup_Emblem.png",
+        "level": "Beginner to Advanced",
+        "title": "Complete Java Course",
+        "category": "java",
+        "duration": "14 Parts",
+        "badgeColor": "bg-amber-400/20 text-amber-300 border-amber-400/30",
+        "description": "Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams based on Helsinki MOOC."
       },
       {
         "id": "fullstack-open",
-        "category": "web",
-        "badge": "Career Track",
-        "badgeColor": "bg-emerald-400/20 text-emerald-300 border-emerald-400/30",
-        "image": "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80",
-        "title": "Full Stack Open Course",
-        "description": "Deep dive into modern web development by University of Helsinki. Master React, Node.js, Express, TypeScript, GraphQL, and Docker.",
-        "duration": "14 Parts",
-        "level": "Intermediate",
         "tags": [
           "React & TS",
           "Node & Express",
           "GraphQL & Docker"
-        ]
+        ],
+        "badge": "Career Track",
+        "image": "https://res.cloudinary.com/uwwzrxiy/image/upload/v1792244406/Neon_React_Full-Stack_Interface.png",
+        "level": "Intermediate",
+        "title": "Full Stack Open Course",
+        "category": "web",
+        "duration": "14 Parts",
+        "badgeColor": "bg-emerald-400/20 text-emerald-300 border-emerald-400/30",
+        "description": "Deep dive into modern web development by University of Helsinki. Master React, Node.js, Express, TypeScript, GraphQL, and Docker."
       },
       {
         "id": "cyber-security",
-        "category": "security",
-        "badge": "High Demand",
-        "badgeColor": "bg-cyan-400/20 text-cyan-300 border-cyan-400/30",
-        "image": "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&auto=format&fit=crop&q=80",
-        "title": "Cyber Security Course",
-        "description": "Master network defense, penetration testing, malware analysis, and CISSP enterprise governance based on STL Academy.",
-        "duration": "14 Parts",
-        "level": "Beginner to Advanced",
         "tags": [
           "Network Defense",
           "Ethical Hacking",
           "CISSP & Cryptography"
-        ]
+        ],
+        "badge": "High Demand",
+        "image": "https://res.cloudinary.com/uwwzrxiy/image/upload/v1792244406/Neon_Cybersecurity_Shield_and_Lock.png",
+        "level": "Beginner to Advanced",
+        "title": "Cyber Security Course",
+        "category": "security",
+        "duration": "14 Parts",
+        "badgeColor": "bg-cyan-400/20 text-cyan-300 border-cyan-400/30",
+        "description": "Master network defense, penetration testing, malware analysis, and CISSP enterprise governance based on STL Academy."
       }
-    ]
+    ],
+    "badgeText": "SKILL PATHS",
+    "description": "Choose a specialized curriculum built around tangible project outcomes. Taught by senior developers with live code reviews."
   },
   "reviewsSection": {
-    "badgeText": "REVIEWS",
-    "title": "Real Reviews from Real Learners",
-    "description": "Here is what our students have to say about learning, building projects, and transforming their careers with DO PILOT.",
+    "badgeText": "STUDENT STORIES",
+    "title": "Student Reviews",
+    "description": "Real feedback from learners who gained practical skills and built their careers with DO PILOT.",
     "ratingValue": "4.9/5",
     "ratingSubtext": "Average Rating",
     "studentsMentored": "1,200+ Students Mentored",
     "items": [
       {
         "id": 1,
-        "name": "Rahul Verma",
-        "role": "Python Developer at TechSprint",
-        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces",
+        "name": "Ashwin Menon",
+        "role": "GEC Thrissur",
+        "avatar": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=120&h=120&fit=crop&crop=faces",
         "course": "Complete Python Course",
         "rating": 5,
-        "comment": "DO PILOT completely changed how I learn programming. In week two, we built actual automation bots instead of reading textbook theory. The 1-on-1 mentor code reviews gave me the exact skills I needed to land my job."
+        "comment": "The Python course made programming so simple to understand. The hands-on tasks and mentor code reviews helped me clear every doubt."
       },
       {
         "id": 2,
-        "name": "Ananya Sharma",
-        "role": "Full Stack Engineer at AppScale",
+        "name": "Anjali Kurian",
+        "role": "RSET",
         "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop&crop=faces",
-        "course": "Full Stack Web Development",
+        "course": "Complete Java Course",
         "rating": 5,
-        "comment": "What sets DO PILOT apart is that the instructors are active software engineers. Whenever I ran into backend bugs in Node or React state issues, they helped me debug and explained the underlying system."
+        "comment": "Loved the Java course. The OOP concepts and practical exercises were structured really well and easy to follow."
       },
       {
         "id": 3,
         "name": "Karthik Nair",
-        "role": "Data Analyst at FinMetrics",
+        "role": "CET",
         "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop&crop=faces",
-        "course": "Python for AI & Data Science",
-        "rating": 5,
-        "comment": "The data science track is gold. We cleaned raw real-world datasets and integrated OpenAI endpoints into actual tools. My GitHub portfolio from this course was the highlight of my technical interview."
+        "course": "Full Stack Open Course",
+        "rating": 4,
+        "comment": "The Full Stack Open course is incredible. Building actual React and Node apps gave me solid confidence for placement interviews."
       },
       {
         "id": 4,
-        "name": "Sneha Patel",
-        "role": "Frontend Developer & Freelancer",
-        "avatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&crop=faces",
-        "course": "Live Python & Web Workshop",
+        "name": "Fathima Nizar",
+        "role": "Farook College",
+        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces",
+        "course": "Complete Python Course",
         "rating": 5,
-        "comment": "I joined one of their weekend live classes and was amazed by the hands-on quality. No boring presentations—just live building and instant Q&A. I learned more in 2 hours than a month of self-study."
+        "comment": "Great Python course for beginners. The step-by-step problem sets helped me learn coding logic with zero confusion."
       },
       {
         "id": 5,
-        "name": "Devendra Singh",
-        "role": "Software Engineer at CloudCore",
+        "name": "Rohit Varma",
+        "role": "TKM Engineering College",
         "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop&crop=faces",
-        "course": "Full Stack Web Development",
-        "rating": 5,
-        "comment": "The focus on clean code and production deployment made all the difference. Building real projects with TypeScript and PostgreSQL helped me clear 3 technical interviews in my first month after graduating."
+        "course": "Complete Java Course",
+        "rating": 4,
+        "comment": "The Java course completely cleared all my OOP and clean code doubts. The problem sets are top quality."
       },
       {
         "id": 6,
         "name": "Meera Krishnan",
-        "role": "AI Automation Specialist at NextWave",
-        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces",
-        "course": "Python for AI & Data Science",
+        "role": "CUSAT",
+        "avatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&crop=faces",
+        "course": "Cyber Security Course",
         "rating": 5,
-        "comment": "Outstanding curriculum. Writing actual scraping scripts and chaining AI models opened so many doors. The mentors are available whenever you need help debugging complex workflows."
+        "comment": "Very practical Cyber Security course. Hands-on network defense labs and mentor guidance made difficult topics simple."
       }
     ],
     "reviews": [
       {
         "id": 1,
-        "name": "Rahul Verma",
-        "role": "Python Developer at TechSprint",
-        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces",
+        "name": "Ashwin Menon",
+        "role": "GEC Thrissur",
+        "avatar": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=120&h=120&fit=crop&crop=faces",
         "course": "Complete Python Course",
         "rating": 5,
-        "comment": "DO PILOT completely changed how I learn programming. In week two, we built actual automation bots instead of reading textbook theory. The 1-on-1 mentor code reviews gave me the exact skills I needed to land my job."
+        "comment": "The Python course made programming so simple to understand. The hands-on tasks and mentor code reviews helped me clear every doubt."
       },
       {
         "id": 2,
-        "name": "Ananya Sharma",
-        "role": "Full Stack Engineer at AppScale",
+        "name": "Anjali Kurian",
+        "role": "RSET",
         "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop&crop=faces",
-        "course": "Full Stack Web Development",
+        "course": "Complete Java Course",
         "rating": 5,
-        "comment": "What sets DO PILOT apart is that the instructors are active software engineers. Whenever I ran into backend bugs in Node or React state issues, they helped me debug and explained the underlying system."
+        "comment": "Loved the Java course. The OOP concepts and practical exercises were structured really well and easy to follow."
       },
       {
         "id": 3,
         "name": "Karthik Nair",
-        "role": "Data Analyst at FinMetrics",
+        "role": "CET",
         "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop&crop=faces",
-        "course": "Python for AI & Data Science",
-        "rating": 5,
-        "comment": "The data science track is gold. We cleaned raw real-world datasets and integrated OpenAI endpoints into actual tools. My GitHub portfolio from this course was the highlight of my technical interview."
+        "course": "Full Stack Open Course",
+        "rating": 4,
+        "comment": "The Full Stack Open course is incredible. Building actual React and Node apps gave me solid confidence for placement interviews."
       },
       {
         "id": 4,
-        "name": "Sneha Patel",
-        "role": "Frontend Developer & Freelancer",
-        "avatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&crop=faces",
-        "course": "Live Python & Web Workshop",
+        "name": "Fathima Nizar",
+        "role": "Farook College",
+        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces",
+        "course": "Complete Python Course",
         "rating": 5,
-        "comment": "I joined one of their weekend live classes and was amazed by the hands-on quality. No boring presentations—just live building and instant Q&A. I learned more in 2 hours than a month of self-study."
+        "comment": "Great Python course for beginners. The step-by-step problem sets helped me learn coding logic with zero confusion."
       },
       {
         "id": 5,
-        "name": "Devendra Singh",
-        "role": "Software Engineer at CloudCore",
+        "name": "Rohit Varma",
+        "role": "TKM Engineering College",
         "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop&crop=faces",
-        "course": "Full Stack Web Development",
-        "rating": 5,
-        "comment": "The focus on clean code and production deployment made all the difference. Building real projects with TypeScript and PostgreSQL helped me clear 3 technical interviews in my first month after graduating."
+        "course": "Complete Java Course",
+        "rating": 4,
+        "comment": "The Java course completely cleared all my OOP and clean code doubts. The problem sets are top quality."
       },
       {
         "id": 6,
         "name": "Meera Krishnan",
-        "role": "AI Automation Specialist at NextWave",
-        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces",
-        "course": "Python for AI & Data Science",
+        "role": "CUSAT",
+        "avatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&crop=faces",
+        "course": "Cyber Security Course",
         "rating": 5,
-        "comment": "Outstanding curriculum. Writing actual scraping scripts and chaining AI models opened so many doors. The mentors are available whenever you need help debugging complex workflows."
+        "comment": "Very practical Cyber Security course. Hands-on network defense labs and mentor guidance made difficult topics simple."
       }
     ]
   },
@@ -987,5 +1047,39 @@
     "countdownDays": 3,
     "countdownHours": 8,
     "targetDateTime": "2026-10-18T18:00"
+  },
+  "sectionsManager": {
+    "order": [
+      {
+        "id": "hero",
+        "name": "Hero Section",
+        "enabled": true
+      },
+      {
+        "id": "whyUs",
+        "name": "Why Choose Us",
+        "enabled": true
+      },
+      {
+        "id": "courses",
+        "name": "Popular Courses",
+        "enabled": true
+      },
+      {
+        "id": "reviews",
+        "name": "Student Reviews",
+        "enabled": true
+      },
+      {
+        "id": "codeLab",
+        "name": "Code Lab Playground",
+        "enabled": true
+      },
+      {
+        "id": "liveClass",
+        "name": "Live Masterclass",
+        "enabled": true
+      }
+    ]
   }
 }

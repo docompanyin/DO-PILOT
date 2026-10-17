@@ -187,6 +187,7 @@ export interface SocialLinksData {
   instagram?: SocialLinkItem;
   facebook?: SocialLinkItem;
   whatsapp?: SocialLinkItem;
+  youtube?: SocialLinkItem;
 }
 
 export interface FooterLinkItem {
@@ -211,6 +212,9 @@ export interface FooterData {
   linkedin?: string;
   twitter?: string;
   whatsapp?: string;
+  youtube?: string;
+  instagram?: string;
+  facebook?: string;
   socialLinks?: SocialLinksData;
   navLinks?: FooterNavLink[];
   capabilities?: FooterCapability[];
@@ -566,57 +570,57 @@ export const DEFAULT_COURSES_SECTION: CoursesSectionData = {
 const DEFAULT_REVIEW_ITEMS: ReviewItem[] = [
   {
     id: 1,
-    name: 'Rahul Verma',
-    role: 'Python Developer at TechSprint',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces',
+    name: 'Ashwin Menon',
+    role: 'GEC Thrissur',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=120&h=120&fit=crop&crop=faces',
     course: 'Complete Python Course',
     rating: 5,
-    comment: 'DO PILOT completely changed how I learn programming. In week two, we built actual automation bots instead of reading textbook theory. The 1-on-1 mentor code reviews gave me the exact skills I needed to land my job.'
+    comment: 'The Python course made programming so simple to understand. The hands-on tasks and mentor code reviews helped me clear every doubt.'
   },
   {
     id: 2,
-    name: 'Ananya Sharma',
-    role: 'Java Backend Engineer at AppScale',
+    name: 'Anjali Kurian',
+    role: 'RSET',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop&crop=faces',
     course: 'Complete Java Course',
     rating: 5,
-    comment: 'What sets DO PILOT apart is that the instructors are active software engineers. Whenever I ran into OOP design challenges, Collections complexities, or JVM bugs, they helped me debug and explained the underlying system architecture.'
+    comment: 'Loved the Java course. The OOP concepts and practical exercises were structured really well and easy to follow.'
   },
   {
     id: 3,
     name: 'Karthik Nair',
-    role: 'Data Analyst at FinMetrics',
+    role: 'CET',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop&crop=faces',
-    course: 'Python for AI & Data Science',
-    rating: 5,
-    comment: 'The data science track is gold. We cleaned raw real-world datasets and integrated OpenAI endpoints into actual tools. My GitHub portfolio from this course was the highlight of my technical interview.'
+    course: 'Full Stack Open Course',
+    rating: 4,
+    comment: 'The Full Stack Open course is incredible. Building actual React and Node apps gave me solid confidence for placement interviews.'
   },
   {
     id: 4,
-    name: 'Sneha Patel',
-    role: 'Frontend Developer & Freelancer',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&crop=faces',
-    course: 'Live Python & Web Workshop',
+    name: 'Fathima Nizar',
+    role: 'Farook College',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces',
+    course: 'Complete Python Course',
     rating: 5,
-    comment: 'I joined one of their weekend live classes and was amazed by the hands-on quality. No boring presentations—just live building and instant Q&A. I learned more in 2 hours than a month of self-study.'
+    comment: 'Great Python course for beginners. The step-by-step problem sets helped me learn coding logic with zero confusion.'
   },
   {
     id: 5,
-    name: 'Devendra Singh',
-    role: 'Software Engineer at CloudCore',
+    name: 'Rohit Varma',
+    role: 'TKM Engineering College',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop&crop=faces',
     course: 'Complete Java Course',
-    rating: 5,
-    comment: 'The focus on university-grade fundamentals, Helsinki MOOC principles, and clean code made all the difference. Mastering Java 21, Streams, and object-oriented design helped me clear 3 technical interviews in my first month after graduating.'
+    rating: 4,
+    comment: 'The Java course completely cleared all my OOP and clean code doubts. The problem sets are top quality.'
   },
   {
     id: 6,
     name: 'Meera Krishnan',
-    role: 'AI Automation Specialist at NextWave',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces',
-    course: 'Python for AI & Data Science',
+    role: 'CUSAT',
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&crop=faces',
+    course: 'Cyber Security Course',
     rating: 5,
-    comment: 'Outstanding curriculum. Writing actual scraping scripts and chaining AI models opened so many doors. The mentors are available whenever you need help debugging complex workflows.'
+    comment: 'Very practical Cyber Security course. Hands-on network defense labs and mentor guidance made difficult topics simple.'
   }
 ];
 
@@ -727,10 +731,12 @@ export const DEFAULT_FOOTER: FooterData = {
   legalTitle: 'Legal & Policies',
   contactTitle: 'Contact & Support',
   socialLinks: {
+    whatsapp: { url: 'https://wa.me/919778707336', enabled: true },
     github: { url: 'https://github.com', enabled: true },
-    twitter: { url: 'https://twitter.com', enabled: true },
     linkedin: { url: 'https://linkedin.com', enabled: true },
-    whatsapp: { url: 'https://wa.me/919778707336', enabled: true }
+    youtube: { url: '', enabled: false },
+    instagram: { url: '', enabled: false },
+    facebook: { url: '', enabled: false }
   },
   exploreLinks: [
     { name: 'Why Us', href: '#why-us' },
@@ -742,7 +748,8 @@ export const DEFAULT_FOOTER: FooterData = {
   popularCoursesLinks: [
     { name: 'Complete Python Course', href: '/course/complete-python-programming' },
     { name: 'Complete Java Course', href: '/course/complete-java-programming' },
-    { name: 'Python for AI & Data', href: '/course/python-ai-data-science' },
+    { name: 'Full Stack Open Course', href: '/course/fullstack-open' },
+    { name: 'Cyber Security Course', href: '/course/cyber-security' },
   ],
   legalLinks: [
     { name: 'Privacy Policy', href: '/privacy' },
@@ -775,12 +782,18 @@ const getBaselineDefaults = (): SiteData => {
 
     if (builtInVersion && savedVersion !== builtInVersion) {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(PERMANENT_DEFAULT_KEY);
       localStorage.setItem(VERSION_KEY, builtInVersion);
     }
 
     const customDefault = localStorage.getItem(PERMANENT_DEFAULT_KEY);
     if (customDefault) {
       const parsed = JSON.parse(customDefault);
+      const isOutdatedReviews = parsed.reviewsSection?.reviews?.some((r: any) => 
+        r.name === 'Rahul Verma' || 
+        r.name === 'Devendra Singh' ||
+        (r.role && (r.role.includes('TechSprint') || r.role.includes('CloudCore') || r.role.includes('Student') || r.role.includes('B.Tech')))
+      );
       return {
         ...DEFAULT_SITE_DATA,
         ...parsed,
@@ -791,7 +804,7 @@ const getBaselineDefaults = (): SiteData => {
         navbar: (parsed.navbar && !parsed.navbar.navLinks?.some((l: any) => l.name === 'SERVICES')) ? parsed.navbar : DEFAULT_NAVBAR,
         whyUs: parsed.whyUs || DEFAULT_WHY_US,
         coursesSection: sanitizeCoursesSection(parsed.coursesSection),
-        reviewsSection: parsed.reviewsSection || DEFAULT_REVIEWS_SECTION,
+        reviewsSection: (parsed.reviewsSection && !isOutdatedReviews) ? parsed.reviewsSection : DEFAULT_REVIEWS_SECTION,
         codeLab: parsed.codeLab || DEFAULT_CODE_LAB,
         liveClass: parsed.liveClass || DEFAULT_LIVE_CLASS,
         footer: (parsed.footer && !parsed.footer.navLinks?.some((l: any) => l.label === 'Services'))
@@ -958,7 +971,7 @@ export const reconcileSiteData = (rawContent: any, baseline: SiteData): SiteData
       description: (rawContent.reviewsSection?.description && !rawContent.reviewsSection.description.includes('Here is what our students have to say'))
         ? rawContent.reviewsSection.description
         : (baseline.reviewsSection?.description || 'Real feedback from learners who gained practical skills and built their careers with DO PILOT.'),
-      reviews: (rawContent.reviewsSection?.reviews && rawContent.reviewsSection.reviews.length > 0 && !rawContent.reviewsSection.reviews.some((r: any) => r.name === 'Ananya Sharma' && r.course?.includes('Full Stack Web')))
+      reviews: (rawContent.reviewsSection?.reviews && rawContent.reviewsSection.reviews.length > 0 && !rawContent.reviewsSection.reviews.some((r: any) => r.name === 'Rahul Verma' || r.name === 'Devendra Singh' || (r.role && (r.role.includes('TechSprint') || r.role.includes('CloudCore') || r.role.includes('B.Tech') || r.role.includes('Student')))))
         ? rawContent.reviewsSection.reviews
         : (baseline.reviewsSection?.reviews || DEFAULT_REVIEW_ITEMS),
     },

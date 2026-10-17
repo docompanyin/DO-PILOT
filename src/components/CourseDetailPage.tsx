@@ -337,8 +337,8 @@ export const CourseDetailPage: React.FC = () => {
       localStorage.setItem('dopilot_java_core_last_part', '1');
       navigate('/course/complete-java-programming/part-1');
     } else if (course.id === 'fullstack-open' || course.slug === 'fullstack-open') {
-      localStorage.setItem('dopilot_fullstack_core_last_part', '0');
-      navigate('/course/fullstack-open/part-0');
+      localStorage.setItem('dopilot_fullstack_core_last_part', '1');
+      navigate('/course/fullstack-open/part-1');
     } else if (course.id === 'cyber-security' || course.slug === 'cyber-security-core') {
       localStorage.setItem('dopilot_cyber_core_last_part', '1');
       navigate('/course/cyber-security/part-1');
@@ -741,7 +741,7 @@ export const CourseDetailPage: React.FC = () => {
                     className="w-full sm:w-auto px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs sm:text-sm transition-all cursor-pointer flex items-center justify-center gap-2 group"
                   >
                     <Play className="w-3.5 h-3.5 text-primary fill-primary shrink-0" />
-                    <span>Try Part 1 (Free Trial)</span>
+                    <span>Try Part 1 — Free Trial</span>
                   </button>
                 </div>
               ) : course.id === 'python-core' ? (
@@ -1157,6 +1157,11 @@ export const CourseDetailPage: React.FC = () => {
                     • {fullstackResumeInfo.completedCount}/14 Completed
                   </span>
                 )}
+                {(course.id === 'cyber-security' || course.slug === 'cyber-security-core') && cyberResumeInfo.completedCount > 0 && (
+                  <span className="text-primary ml-2 font-semibold">
+                    • {cyberResumeInfo.completedCount}/14 Completed
+                  </span>
+                )}
               </p>
             </div>
 
@@ -1166,7 +1171,7 @@ export const CourseDetailPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setPurchaseModalOpen(true)}
-                    className="hidden sm:inline-flex justify-center px-4 py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer items-center gap-1.5 shadow-md shadow-primary/20"
+                    className="inline-flex justify-center px-4 py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer items-center gap-1.5 shadow-md shadow-primary/20"
                   >
                     <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
                     <span>{pricing?.isFreeCourse ? 'Enroll Free' : 'Buy Now'}</span>
@@ -1178,7 +1183,7 @@ export const CourseDetailPage: React.FC = () => {
                     className="w-full sm:w-auto justify-center px-4 py-2 sm:py-1.5 rounded-full bg-white/[0.08] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5"
                   >
                     <Play className="w-3.5 h-3.5 text-primary fill-primary shrink-0" />
-                    <span>Try Part 1 Free</span>
+                    <span>Try Part 1 — Free Trial</span>
                   </button>
                 </>
               ) : (

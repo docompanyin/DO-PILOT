@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, CheckCircle2, MessageSquare, Quote } from 'lucide-react';
+import { Star, MessageSquare, Quote } from 'lucide-react';
 import { useSiteData } from '../context/DataContext';
 
 export const ReviewsSection: React.FC = () => {
@@ -15,57 +15,57 @@ export const ReviewsSection: React.FC = () => {
     : [
         {
           id: '1',
-          name: 'Rahul Verma',
-          role: 'Python Developer at TechSprint',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces',
+          name: 'Ashwin Menon',
+          role: 'GEC Thrissur',
+          avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=120&h=120&fit=crop&crop=faces',
           course: 'Complete Python Course',
           rating: 5,
-          comment: 'DO PILOT completely changed how I learn programming. In week two, we built actual automation bots instead of reading textbook theory. The 1-on-1 mentor code reviews gave me the exact skills I needed to land my job.'
+          comment: 'The Python course made programming so simple to understand. The hands-on tasks and mentor code reviews helped me clear every doubt.'
         },
         {
           id: '2',
-          name: 'Ananya Sharma',
-          role: 'Java Backend Engineer at AppScale',
+          name: 'Anjali Kurian',
+          role: 'RSET',
           avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop&crop=faces',
           course: 'Complete Java Course',
           rating: 5,
-          comment: 'What sets DO PILOT apart is that the instructors are active software engineers. Whenever I ran into OOP design challenges, Collections complexities, or JVM bugs, they helped me debug and explained the underlying system architecture.'
+          comment: 'Loved the Java course. The OOP concepts and practical exercises were structured really well and easy to follow.'
         },
         {
           id: '3',
           name: 'Karthik Nair',
-          role: 'Data Analyst at FinMetrics',
+          role: 'CET',
           avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop&crop=faces',
-          course: 'Python for AI & Data Science',
+          course: 'Full Stack Open Course',
           rating: 5,
-          comment: 'The data science track is gold. We cleaned raw real-world datasets and integrated OpenAI endpoints into actual tools. My GitHub portfolio from this course was the highlight of my technical interview.'
+          comment: 'The Full Stack Open course is incredible. Building actual React and Node apps gave me solid confidence for placement interviews.'
         },
         {
           id: '4',
-          name: 'Sneha Patel',
-          role: 'Frontend Developer & Freelancer',
-          avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&crop=faces',
-          course: 'Live Python & Web Workshop',
+          name: 'Fathima Nizar',
+          role: 'Farook College',
+          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces',
+          course: 'Complete Python Course',
           rating: 5,
-          comment: 'I joined one of their weekend live classes and was amazed by the hands-on quality. No boring presentations—just live building and instant Q&A. I learned more in 2 hours than a month of self-study.'
+          comment: 'Great Python course for beginners. The step-by-step problem sets helped me learn coding logic with zero confusion.'
         },
         {
           id: '5',
-          name: 'Devendra Singh',
-          role: 'Software Engineer at CloudCore',
+          name: 'Rohit Varma',
+          role: 'TKM Engineering College',
           avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop&crop=faces',
           course: 'Complete Java Course',
           rating: 5,
-          comment: 'The focus on university-grade fundamentals, Helsinki MOOC principles, and clean code made all the difference. Mastering Java 21, Streams, and object-oriented design helped me clear 3 technical interviews in my first month after graduating.'
+          comment: 'The Java course completely cleared all my OOP and clean code doubts. The problem sets are top quality.'
         },
         {
           id: '6',
           name: 'Meera Krishnan',
-          role: 'AI Automation Specialist at NextWave',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces',
-          course: 'Python for AI & Data Science',
+          role: 'CUSAT',
+          avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&crop=faces',
+          course: 'Cyber Security Course',
           rating: 5,
-          comment: 'Outstanding curriculum. Writing actual scraping scripts and chaining AI models opened so many doors. The mentors are available whenever you need help debugging complex workflows.'
+          comment: 'Very practical Cyber Security course. Hands-on network defense labs and mentor guidance made difficult topics simple.'
         }
       ];
 
@@ -119,18 +119,18 @@ export const ReviewsSection: React.FC = () => {
               <Quote className="absolute top-4 right-4 sm:top-6 sm:right-6 w-8 h-8 sm:w-12 sm:h-12 text-white/[0.03] pointer-events-none" />
 
               <div>
-                {/* Top Row: Stars & Verified Badge */}
-                <div className="flex items-center justify-between gap-2 mb-3 sm:mb-4">
-                  <div className="flex items-center gap-0.5 sm:gap-1">
-                    {[...Array(item.rating)].map((_, i) => (
-                      <Star key={i} className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-primary text-primary" />
-                    ))}
-                  </div>
-
-                  <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-white/10 font-mono text-[9px] sm:text-[10px] text-primary">
-                    <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-primary" />
-                    Verified Student
-                  </span>
+                {/* Top Row: Stars (Highlighting 4 or 5 Stars) */}
+                <div className="flex items-center gap-0.5 sm:gap-1 mb-3 sm:mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <Star
+                      key={i}
+                      className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${
+                        i < (item.rating || 5)
+                          ? 'fill-amber-400 text-amber-400'
+                          : 'fill-white/10 text-white/20'
+                      }`}
+                    />
+                  ))}
                 </div>
 
                 {/* Full Review Text */}
@@ -141,20 +141,13 @@ export const ReviewsSection: React.FC = () => {
 
               {/* Bottom Student Profile */}
               <div className="pt-3 sm:pt-4 border-t border-white/10 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5 sm:gap-3">
-                  <img
-                    src={item.avatar}
-                    alt={item.name}
-                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border-2 border-primary/60 shrink-0"
-                  />
-                  <div>
-                    <h4 className="font-jakarta font-bold text-xs sm:text-sm text-paper">
-                      {item.name}
-                    </h4>
-                    <p className="font-mono text-[10px] sm:text-[11px] text-slate truncate max-w-[160px] sm:max-w-[240px]">
-                      {item.role}
-                    </p>
-                  </div>
+                <div className="min-w-0">
+                  <h4 className="font-jakarta font-bold text-xs sm:text-sm text-paper truncate">
+                    {item.name}
+                  </h4>
+                  <p className="font-mono text-[10px] sm:text-[11px] text-primary/90 font-medium truncate max-w-[260px] sm:max-w-[340px]" title={item.role}>
+                    {item.role}
+                  </p>
                 </div>
               </div>
             </div>

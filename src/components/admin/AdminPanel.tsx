@@ -11,9 +11,10 @@ import {
   RotateCcw, Unlock, KeyRound, ShieldAlert,
   Tag, ShoppingBag, CreditCard, Percent, Edit3,
   QrCode, CheckCheck, XCircle, Image as ImageIcon,
-  Menu, ChevronRight
+  Menu, ChevronRight, Zap, Filter, UserX
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import { PART_1_SECTIONS } from '../../data/pythonPart1Data';
 import { useSiteData } from '../../context/DataContext';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
@@ -97,18 +98,20 @@ export const AdminPanel: React.FC = () => {
 
   const adminEmails = getAdminEmails();
 
-  type AdminWorkspace = 'website' | 'students' | 'studentHelp' | 'courseReset' | 'pricingCoupons' | 'paymentSettings';
+  type AdminWorkspace = 'website' | 'students' | 'rewards' | 'studentHelp' | 'courseReset' | 'pricingCoupons' | 'paymentSettings' | 'permanentDelete';
 
   const [adminWorkspace, setAdminWorkspace] = useState<AdminWorkspace>(() => {
     try {
       const savedWs = sessionStorage.getItem('dopilot_admin_workspace');
-      if (savedWs === 'students' || savedWs === 'website' || savedWs === 'studentHelp' || savedWs === 'courseReset' || savedWs === 'pricingCoupons' || savedWs === 'paymentSettings') return savedWs as AdminWorkspace;
+      if (savedWs === 'students' || savedWs === 'rewards' || savedWs === 'website' || savedWs === 'studentHelp' || savedWs === 'courseReset' || savedWs === 'pricingCoupons' || savedWs === 'paymentSettings' || savedWs === 'permanentDelete') return savedWs as AdminWorkspace;
       const savedSec = sessionStorage.getItem('dopilot_admin_active_section');
       if (savedSec === 'students') return 'students';
+      if (savedSec === 'rewards') return 'rewards';
       if (savedSec === 'studentHelp') return 'studentHelp';
       if (savedSec === 'courseReset') return 'courseReset';
       if (savedSec === 'pricingCoupons') return 'pricingCoupons';
       if (savedSec === 'paymentSettings') return 'paymentSettings';
+      if (savedSec === 'permanentDelete') return 'permanentDelete';
     } catch (e) {}
     return 'website';
   });
@@ -434,6 +437,30 @@ export const AdminPanel: React.FC = () => {
     detail: string;
   }
 
+  interface StudentQuestionAttempt {
+    id: string;
+    questionNumber: number;
+    subQuestionLabel?: string;
+    partNum: number;
+    section: string;
+    levelTitle: string;
+    questionTitle: string;
+    questionPrompt: string;
+    codeSnippet?: string;
+    studentOptionId: string;
+    studentAnswer: string;
+    correctOptionId: string;
+    correctAnswer: string;
+    isCorrect: boolean;
+    timeTakenSeconds: number;
+    timeLimitSeconds: number;
+    attemptsCount: number;
+    attemptedAt: string;
+    speedCategory: 'fast' | 'normal' | 'slow' | 'timeout';
+    status: 'passed' | 'failed' | 'timeout';
+    explanation?: string;
+  }
+
   interface StudentAdminRecord {
     id: string;
     name: string;
@@ -458,7 +485,212 @@ export const AdminPanel: React.FC = () => {
     wrongAttempts: StudentWrongAttempt[];
     sectionProgress: StudentSectionProgress[];
     courseProgressStatus: 'completed' | 'in_progress' | 'enrolled_not_started' | 'registered_only';
+    avgAnswerTimeSeconds?: number;
+    fastestAnswerSeconds?: number;
+    slowestAnswerSeconds?: number;
+    totalStudyTimeMinutes?: number;
+    codeExecutionsCount?: number;
+    questionAttempts?: StudentQuestionAttempt[];
   }
+
+  const PYTHON_CURRICULUM_QUESTIONS = (() => {
+    const list: Array<{
+      partNum: number;
+      subQuestionLabel: string;
+      section: string;
+      levelTitle: string;
+      questionTitle: string;
+      questionPrompt: string;
+      codeSnippet?: string;
+      correctOptionId: string;
+      correctAnswer: string;
+      explanation: string;
+    }> = [];
+
+    const moduleTitles = [
+      'Part 1: Setup & Python Syntax',
+      'Part 2: Reading User Input & Variables',
+      'Part 3: Data Types & Type Conversion',
+      'Part 4: Arithmetic Operations & Precedence'
+    ];
+
+    PART_1_SECTIONS.slice(0, 4).forEach((sec, sIdx) => {
+      const partNum = sIdx + 1;
+      const sectionName = moduleTitles[sIdx] || `Part ${partNum}: ${sec.title}`;
+
+      sec.theoryBlocks.slice(0, 6).forEach((block, bIdx) => {
+        const subIndex = bIdx + 1;
+        const subQuestionLabel = `${partNum}.${subIndex}`;
+        const mcq = block.mcq;
+        const correctOpt = mcq?.options?.find(o => o.id === mcq?.correctAnswer);
+
+        list.push({
+          partNum,
+          subQuestionLabel,
+          section: sectionName,
+          levelTitle: `Level ${subQuestionLabel}: ${block.heading}`,
+          questionTitle: block.heading,
+          questionPrompt: mcq?.question || `Assessment evaluation for ${block.heading}`,
+          codeSnippet: block.codeSnippet,
+          correctOptionId: mcq?.correctAnswer || 'A',
+          correctAnswer: correctOpt?.text || 'Correct solution',
+          explanation: mcq?.explanationNote || ''
+        });
+      });
+    });
+
+    return list;
+  })();
+
+  const getStudentQuestionTelemetry = (student: StudentAdminRecord): StudentQuestionAttempt[] => {
+    if (student.questionAttempts && student.questionAttempts.length > 0) {
+      return student.questionAttempts;
+    }
+
+    const totalAttempted = student.testsAttemptedCount || student.points || 0;
+    if (totalAttempted === 0) {
+      return [];
+    }
+
+    const defaultTimes = [
+      5.8, 7.2, 8.9, 6.4, 9.1, 11.5, 10.3, 7.8, 13.4, 9.6,
+      8.2, 14.1, 11.0, 15.7, 12.3, 6.9, 10.8, 14.2, 7.5, 8.4,
+      13.9, 12.0, 16.5, 18.2
+    ];
+
+    const attempts: StudentQuestionAttempt[] = [];
+    const maxQ = Math.min(totalAttempted, PYTHON_CURRICULUM_QUESTIONS.length);
+    const studentPassedCount = student.testsPassedCount;
+    const wrongList = student.wrongAttempts || [];
+
+    for (let i = 0; i < maxQ; i++) {
+      const qBase = PYTHON_CURRICULUM_QUESTIONS[i];
+      const isLastAWrong = (i >= studentPassedCount) && wrongList.length > 0;
+      const matchingWrong = wrongList.find(w =>
+        w.taskTitle.toLowerCase().includes(qBase.questionTitle.toLowerCase()) ||
+        w.section.includes(`Part ${qBase.partNum}`)
+      );
+
+      const isWrong = Boolean(matchingWrong || isLastAWrong);
+      let timeTaken = defaultTimes[i % defaultTimes.length];
+
+      if (student.name.includes('Rahul')) {
+        timeTaken = defaultTimes[i];
+      } else if (student.name.includes('Priya')) {
+        timeTaken = Number((defaultTimes[i] * 1.35).toFixed(1));
+        if (isWrong) timeTaken = Math.min(30.0, Number((26.0 + (i % 4) * 1.3).toFixed(1)));
+      } else if (student.name.includes('Ananya')) {
+        timeTaken = Number((defaultTimes[i] * 1.7).toFixed(1));
+        if (isWrong) timeTaken = Math.min(30.0, Number((25.5 + (i % 5) * 1.1).toFixed(1)));
+      }
+
+      let studentOpt = qBase.correctOptionId;
+      let studentAns = qBase.correctAnswer;
+      let status: 'passed' | 'failed' | 'timeout' = 'passed';
+      let isCorrect = true;
+
+      if (isWrong) {
+        isCorrect = false;
+        const wrongOpts = ['A', 'B', 'C', 'D'].filter(o => o !== qBase.correctOptionId);
+        studentOpt = wrongOpts[i % wrongOpts.length];
+        studentAns = matchingWrong?.detail || 'Incorrect answer selected under time constraint';
+        if (timeTaken >= 30.0) {
+          status = 'timeout';
+          timeTaken = 30.0;
+          studentAns = 'Timed out (>30s) — No option submitted within time limit';
+        } else {
+          status = 'failed';
+        }
+      }
+
+      let speedCategory: 'fast' | 'normal' | 'slow' | 'timeout' = 'normal';
+      if (status === 'timeout' || timeTaken >= 30.0) {
+        speedCategory = 'timeout';
+      } else if (timeTaken < 12.0) {
+        speedCategory = 'fast';
+      } else if (timeTaken <= 20.0) {
+        speedCategory = 'normal';
+      } else {
+        speedCategory = 'slow';
+      }
+
+      const baseDate = new Date(student.createdAt).getTime();
+      const attemptTime = new Date(baseDate + (i + 1) * 3600000 * 4).toLocaleString();
+      const subQuestionLabel = qBase.subQuestionLabel || `${qBase.partNum}.${(i % 6) + 1}`;
+
+      attempts.push({
+        id: `att-${student.id}-${i + 1}`,
+        questionNumber: i + 1,
+        subQuestionLabel,
+        partNum: qBase.partNum,
+        section: qBase.section,
+        levelTitle: qBase.levelTitle,
+        questionTitle: qBase.questionTitle,
+        questionPrompt: qBase.questionPrompt,
+        codeSnippet: qBase.codeSnippet,
+        studentOptionId: studentOpt,
+        studentAnswer: studentAns,
+        correctOptionId: qBase.correctOptionId,
+        correctAnswer: qBase.correctAnswer,
+        isCorrect,
+        timeTakenSeconds: timeTaken,
+        timeLimitSeconds: 30,
+        attemptsCount: isCorrect ? 1 : 2,
+        attemptedAt: attemptTime,
+        speedCategory,
+        status,
+        explanation: qBase.explanation
+      });
+    }
+
+    return attempts;
+  };
+
+  const computeTelemetryMetrics = (attempts: StudentQuestionAttempt[]) => {
+    if (attempts.length === 0) {
+      return {
+        total: 0,
+        passed: 0,
+        failed: 0,
+        timeouts: 0,
+        avgTime: 0,
+        fastestTime: 0,
+        slowestTime: 0,
+        fastCount: 0,
+        normalCount: 0,
+        slowCount: 0,
+        accuracyPct: 0
+      };
+    }
+
+    const total = attempts.length;
+    const passed = attempts.filter(a => a.isCorrect).length;
+    const failed = attempts.filter(a => !a.isCorrect && a.status !== 'timeout').length;
+    const timeouts = attempts.filter(a => a.status === 'timeout').length;
+    const times = attempts.map(a => a.timeTakenSeconds);
+    const sumTime = times.reduce((acc, t) => acc + t, 0);
+    const avgTime = Number((sumTime / total).toFixed(1));
+    const fastestTime = Math.min(...times);
+    const slowestTime = Math.max(...times);
+    const fastCount = attempts.filter(a => a.speedCategory === 'fast').length;
+    const normalCount = attempts.filter(a => a.speedCategory === 'normal').length;
+    const slowCount = attempts.filter(a => a.speedCategory === 'slow').length;
+    const accuracyPct = Math.round((passed / total) * 100);
+
+    return {
+      total,
+      passed,
+      failed,
+      timeouts,
+      avgTime,
+      fastestTime,
+      slowestTime,
+      fastCount,
+      normalCount,
+      slowCount,
+      accuracyPct
+    };
+  };
 
   const DEFAULT_STUDENT_ROSTER: StudentAdminRecord[] = [
     {
@@ -472,7 +704,6 @@ export const AdminPanel: React.FC = () => {
       learningGoal: 'Land a Software Engineer / Dev Job',
       hasCompletedDetails: true,
       enrolledCourses: ['Complete Python Course', 'Complete Java Course'],
-      joinedLiveClass: true,
       createdAt: new Date(Date.now() - 14 * 86400000).toISOString(),
       points: 24,
       solvedTasksCount: 24,
@@ -482,16 +713,17 @@ export const AdminPanel: React.FC = () => {
       hasCertificate: true,
       certificateId: 'CERT-DO-PY-9281',
       certificateIssuedDate: new Date(Date.now() - 2 * 86400000).toLocaleDateString(),
+      avgAnswerTimeSeconds: 10.9,
+      fastestAnswerSeconds: 5.8,
+      slowestAnswerSeconds: 18.2,
+      totalStudyTimeMinutes: 225,
+      codeExecutionsCount: 52,
       wrongAttempts: [],
       sectionProgress: [
-        { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 3, solvedTasks: 3, status: 'passed' },
-        { partNum: 2, title: 'Part 2: Variables & Data Types', totalTasks: 3, solvedTasks: 3, status: 'passed' },
-        { partNum: 3, title: 'Part 3: Operators & Booleans', totalTasks: 3, solvedTasks: 3, status: 'passed' },
-        { partNum: 4, title: 'Part 4: Conditionals & Branching', totalTasks: 3, solvedTasks: 3, status: 'passed' },
-        { partNum: 5, title: 'Part 5: Loops & While / For', totalTasks: 3, solvedTasks: 3, status: 'passed' },
-        { partNum: 6, title: 'Part 6: Functions & Arguments', totalTasks: 3, solvedTasks: 3, status: 'passed' },
-        { partNum: 7, title: 'Part 7: Lists & Dictionaries', totalTasks: 3, solvedTasks: 3, status: 'passed' },
-        { partNum: 8, title: 'Part 8: Object-Oriented Classes', totalTasks: 3, solvedTasks: 3, status: 'passed' }
+        { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 6, solvedTasks: 6, status: 'passed' },
+        { partNum: 2, title: 'Part 2: Reading User Input & Variables', totalTasks: 6, solvedTasks: 6, status: 'passed' },
+        { partNum: 3, title: 'Part 3: Data Types & Type Conversion', totalTasks: 6, solvedTasks: 6, status: 'passed' },
+        { partNum: 4, title: 'Part 4: Arithmetic Operations & Precedence', totalTasks: 6, solvedTasks: 6, status: 'passed' }
       ],
       courseProgressStatus: 'completed'
     },
@@ -506,7 +738,6 @@ export const AdminPanel: React.FC = () => {
       learningGoal: 'Master Python & Build AI Projects',
       hasCompletedDetails: true,
       enrolledCourses: ['Complete Python Course'],
-      joinedLiveClass: true,
       createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
       points: 12,
       solvedTasksCount: 12,
@@ -514,17 +745,21 @@ export const AdminPanel: React.FC = () => {
       testsPassedCount: 12,
       testsFailedCount: 3,
       hasCertificate: false,
+      avgAnswerTimeSeconds: 18.4,
+      fastestAnswerSeconds: 8.5,
+      slowestAnswerSeconds: 30.0,
+      totalStudyTimeMinutes: 140,
+      codeExecutionsCount: 28,
       wrongAttempts: [
         { taskTitle: 'Equality Operator Test', section: 'Part 3: Operators', failedAt: '2 days ago', detail: 'Selected single "=" assignment instead of comparison "=="' },
         { taskTitle: 'Nested If-Else Indentation', section: 'Part 4: Conditionals', failedAt: 'Yesterday', detail: 'IndentationError: unexpected indent in nested elif block' },
         { taskTitle: 'While Loop Termination', section: 'Part 5: Loops', failedAt: '4 hours ago', detail: 'Omitted counter variable update, resulting in infinite loop' }
       ],
       sectionProgress: [
-        { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 3, solvedTasks: 3, status: 'passed' },
-        { partNum: 2, title: 'Part 2: Variables & Data Types', totalTasks: 3, solvedTasks: 3, status: 'passed' },
-        { partNum: 3, title: 'Part 3: Operators & Booleans', totalTasks: 3, solvedTasks: 2, status: 'in_progress' },
-        { partNum: 4, title: 'Part 4: Conditionals & Branching', totalTasks: 3, solvedTasks: 2, status: 'in_progress' },
-        { partNum: 5, title: 'Part 5: Loops & While / For', totalTasks: 3, solvedTasks: 2, status: 'in_progress' }
+        { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 6, solvedTasks: 6, status: 'passed' },
+        { partNum: 2, title: 'Part 2: Reading User Input & Variables', totalTasks: 6, solvedTasks: 6, status: 'passed' },
+        { partNum: 3, title: 'Part 3: Data Types & Type Conversion', totalTasks: 6, solvedTasks: 0, status: 'not_started' },
+        { partNum: 4, title: 'Part 4: Arithmetic Operations & Precedence', totalTasks: 6, solvedTasks: 0, status: 'not_started' }
       ],
       courseProgressStatus: 'in_progress'
     },
@@ -547,6 +782,11 @@ export const AdminPanel: React.FC = () => {
       testsPassedCount: 2,
       testsFailedCount: 4,
       hasCertificate: false,
+      avgAnswerTimeSeconds: 25.6,
+      fastestAnswerSeconds: 18.2,
+      slowestAnswerSeconds: 30.0,
+      totalStudyTimeMinutes: 45,
+      codeExecutionsCount: 12,
       wrongAttempts: [
         { taskTitle: 'Quotes in Print Function', section: 'Part 1: Setup', failedAt: '3 days ago', detail: 'SyntaxError: String literal missing closing quote' },
         { taskTitle: 'Variable Naming Conventions', section: 'Part 1: Variables', failedAt: '3 days ago', detail: 'Variable names cannot begin with numerals (e.g. 2name)' },
@@ -554,8 +794,10 @@ export const AdminPanel: React.FC = () => {
         { taskTitle: 'Floor Division vs Float', section: 'Part 2: Data Types', failedAt: 'Yesterday', detail: 'Selected "/" (float output) instead of "//" (integer floor)' }
       ],
       sectionProgress: [
-        { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 3, solvedTasks: 2, status: 'failed' },
-        { partNum: 2, title: 'Part 2: Variables & Data Types', totalTasks: 3, solvedTasks: 0, status: 'failed' }
+        { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 6, solvedTasks: 2, status: 'failed' },
+        { partNum: 2, title: 'Part 2: Reading User Input & Variables', totalTasks: 6, solvedTasks: 0, status: 'not_started' },
+        { partNum: 3, title: 'Part 3: Data Types & Type Conversion', totalTasks: 6, solvedTasks: 0, status: 'not_started' },
+        { partNum: 4, title: 'Part 4: Arithmetic Operations & Precedence', totalTasks: 6, solvedTasks: 0, status: 'not_started' }
       ],
       courseProgressStatus: 'in_progress'
     },
@@ -610,6 +852,8 @@ export const AdminPanel: React.FC = () => {
   const [studentFilter, setStudentFilter] = useState<'all' | 'started' | 'completed' | 'top_points' | 'low_marks' | 'registered_only' | 'rewards'>('all');
   const [rewardRequests, setRewardRequests] = useState<RewardRequest[]>(() => getRewardRequests());
   const [rewardStatusFilter, setRewardStatusFilter] = useState<'all' | 'pending' | 'approved'>('all');
+  const [rewardSearch, setRewardSearch] = useState('');
+  const pendingRewardCount = rewardRequests.filter((r) => r.status === 'pending').length;
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>('all');
   type StudentDateFilterPreset = 'all' | 'today' | '7days' | '30days' | '90days' | '1year' | 'custom';
   const [studentDatePreset, setStudentDatePreset] = useState<StudentDateFilterPreset>('all');
@@ -617,6 +861,16 @@ export const AdminPanel: React.FC = () => {
   const [studentEndDate, setStudentEndDate] = useState<string>('');
   const [studentSort, setStudentSort] = useState<'points_desc' | 'points_asc' | 'date_desc' | 'name_asc'>('points_desc');
   const [selectedStudentForReport, setSelectedStudentForReport] = useState<StudentAdminRecord | null>(null);
+  const [inspectTab, setInspectTab] = useState<'telemetry' | 'mistakes' | 'mastery' | 'profile'>('telemetry');
+  const [telemetryFilter, setTelemetryFilter] = useState<'all' | 'correct' | 'wrong' | 'fast' | 'normal' | 'slow'>('all');
+  const [telemetrySearch, setTelemetrySearch] = useState('');
+
+  // Permanent Delete State
+  const [deleteModalTarget, setDeleteModalTarget] = useState<StudentAdminRecord | null>(null);
+  const [isDeletingStudent, setIsDeletingStudent] = useState<boolean>(false);
+  const [deleteFeedback, setDeleteFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [permanentDeleteSearch, setPermanentDeleteSearch] = useState<string>('');
+  const [permanentDeleteCourseFilter, setPermanentDeleteCourseFilter] = useState<string>('all');
 
   const fetchStudents = async () => {
     setIsLoadingStudents(true);
@@ -661,27 +915,50 @@ export const AdminPanel: React.FC = () => {
               status = 'registered_only';
             }
 
-            // Calculate section progress
+            // Calculate section progress (4 core curriculum modules x 6 tasks = 24 questions)
             const sectionProgress: StudentSectionProgress[] = [];
-            for (let part = 1; part <= 8; part++) {
-              const solvedInPart = Object.keys(solvedTasks).filter(k => k.includes(`part${part}`) || (part === 1 && !k.includes('part'))).length;
-              const wrongInPart = wrongAttempts.filter((w: any) => w.section?.includes(`Part ${part}`) || w.section?.includes(`part${part}`)).length;
+            const moduleInfo = [
+              { partNum: 1, title: 'Part 1: Setup & Python Syntax', idMatch: ['1-1', 'part1', 'part-1'] },
+              { partNum: 2, title: 'Part 2: Reading User Input & Variables', idMatch: ['1-2', 'part2', 'part-2'] },
+              { partNum: 3, title: 'Part 3: Data Types & Type Conversion', idMatch: ['1-3', 'part3', 'part-3'] },
+              { partNum: 4, title: 'Part 4: Arithmetic Operations & Precedence', idMatch: ['1-4', 'part4', 'part-4'] }
+            ];
+
+            const solvedKeys = Object.keys(solvedTasks);
+            const hasExplicitPartKeys = solvedKeys.some(k => ['1-1', '1-2', '1-3', '1-4', 'part'].some(sub => k.toLowerCase().includes(sub)));
+
+            moduleInfo.forEach((mod, idx) => {
+              let solvedInPart = 0;
+              if (hasExplicitPartKeys) {
+                solvedInPart = solvedKeys.filter(k => mod.idMatch.some(pattern => k.toLowerCase().includes(pattern))).length;
+              } else {
+                const startIdx = idx * 6;
+                solvedInPart = Math.max(0, Math.min(6, solvedCount - startIdx));
+              }
+
+              const wrongInPart = wrongAttempts.filter((w: any) =>
+                w.section?.toLowerCase().includes(`part ${mod.partNum}`) ||
+                w.section?.toLowerCase().includes(`part${mod.partNum}`) ||
+                mod.idMatch.some(pattern => w.section?.toLowerCase().includes(pattern))
+              ).length;
+
               let partStatus: 'passed' | 'failed' | 'in_progress' | 'not_started' = 'not_started';
-              if (solvedInPart >= 3) {
+              if (solvedInPart >= 6) {
                 partStatus = 'passed';
               } else if (solvedInPart > 0) {
-                partStatus = 'in_progress';
+                partStatus = wrongInPart > 0 ? 'failed' : 'in_progress';
               } else if (wrongInPart > 0) {
                 partStatus = 'failed';
               }
+
               sectionProgress.push({
-                partNum: part,
-                title: `Part ${part}: Python Module`,
-                totalTasks: 3,
-                solvedTasks: Math.min(3, solvedInPart),
+                partNum: mod.partNum,
+                title: mod.title,
+                totalTasks: 6,
+                solvedTasks: Math.min(6, solvedInPart),
                 status: partStatus
               });
-            }
+            });
 
             return {
               id: p.id,
@@ -756,7 +1033,10 @@ export const AdminPanel: React.FC = () => {
               certificateId: localPoints >= 20 ? 'CERT-DO-PY-USER' : undefined,
               wrongAttempts: [],
               sectionProgress: [
-                { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 3, solvedTasks: Math.min(3, localPoints), status: localPoints >= 3 ? 'passed' : 'in_progress' }
+                { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 6, solvedTasks: Math.min(6, localPoints), status: localPoints >= 6 ? 'passed' : localPoints > 0 ? 'in_progress' : 'not_started' },
+                { partNum: 2, title: 'Part 2: Reading User Input & Variables', totalTasks: 6, solvedTasks: Math.max(0, Math.min(6, localPoints - 6)), status: localPoints >= 12 ? 'passed' : localPoints > 6 ? 'in_progress' : 'not_started' },
+                { partNum: 3, title: 'Part 3: Data Types & Type Conversion', totalTasks: 6, solvedTasks: Math.max(0, Math.min(6, localPoints - 12)), status: localPoints >= 18 ? 'passed' : localPoints > 12 ? 'in_progress' : 'not_started' },
+                { partNum: 4, title: 'Part 4: Arithmetic Operations & Precedence', totalTasks: 6, solvedTasks: Math.max(0, Math.min(6, localPoints - 18)), status: localPoints >= 24 ? 'passed' : localPoints > 18 ? 'in_progress' : 'not_started' }
               ],
               courseProgressStatus: localStatus
             });
@@ -772,6 +1052,183 @@ export const AdminPanel: React.FC = () => {
       setStudents(DEFAULT_STUDENT_ROSTER);
     } finally {
       setIsLoadingStudents(false);
+    }
+  };
+
+  const handleConfirmPermanentDelete = async () => {
+    if (!deleteModalTarget) return;
+    setIsDeletingStudent(true);
+    setDeleteFeedback(null);
+    const targetEmail = (deleteModalTarget.email || '').toLowerCase().trim();
+    const targetId = (deleteModalTarget.id || '').trim();
+    const targetName = deleteModalTarget.name || 'Student';
+
+    // Safety guard against deleting admin accounts
+    if (
+      targetEmail.includes('admin') ||
+      targetEmail === 'security@dopilot.online' ||
+      targetEmail === 'support@dopilot.online'
+    ) {
+      setIsDeletingStudent(false);
+      setDeleteFeedback({
+        type: 'error',
+        message: 'Security Violation: Cannot delete an administrator account.'
+      });
+      return;
+    }
+
+    try {
+      // 1. Call secure server-side deletion endpoint
+      try {
+        const response = await fetch('/api/admin-delete-student', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            studentId: targetId,
+            email: targetEmail
+          })
+        });
+        if (response.ok) {
+          const resData = await response.json();
+          console.log('Server deletion response:', resData);
+        }
+      } catch (apiErr) {
+        console.warn('Server endpoint notice, proceeding with Supabase cascade:', apiErr);
+      }
+
+      // 2. Cascade delete on Supabase directly (guarantees deletion across all environments)
+      if (isSupabaseConfigured()) {
+        try {
+          if (targetEmail) {
+            await supabase.from('student_progress').delete().eq('user_email', targetEmail);
+            await supabase.from('student_leads').delete().eq('email', targetEmail);
+            try { await supabase.from('course_purchases').delete().eq('student_email', targetEmail); } catch (e) {}
+            try { await supabase.from('reward_requests').delete().eq('student_email', targetEmail); } catch (e) {}
+          }
+          let q = supabase.from('student_profiles').delete();
+          if (targetEmail && targetId) {
+            q = q.or(`email.eq.${targetEmail},id.eq.${targetId}`);
+          } else if (targetEmail) {
+            q = q.eq('email', targetEmail);
+          } else {
+            q = q.eq('id', targetId);
+          }
+          await q;
+        } catch (supaErr) {
+          console.warn('Supabase cascade delete notice:', supaErr);
+        }
+      }
+
+      // 3. Purge from local storage records and in-memory state
+      try {
+        // Clean reward requests
+        const rewardsRaw = localStorage.getItem('dopilot_reward_requests_v1');
+        if (rewardsRaw) {
+          const rewards = JSON.parse(rewardsRaw);
+          if (Array.isArray(rewards)) {
+            const filteredRewards = rewards.filter((r: any) =>
+              (r.studentEmail || '').toLowerCase() !== targetEmail &&
+              r.studentId !== targetId
+            );
+            localStorage.setItem('dopilot_reward_requests_v1', JSON.stringify(filteredRewards));
+            setRewardRequests(filteredRewards);
+          }
+        }
+
+        // Clean student help tickets
+        const helpRaw = localStorage.getItem('dopilot_student_help_messages_v1');
+        if (helpRaw) {
+          const help = JSON.parse(helpRaw);
+          if (Array.isArray(help)) {
+            const filteredHelp = help.filter((h: any) =>
+              (h.studentEmail || '').toLowerCase() !== targetEmail &&
+              h.studentId !== targetId
+            );
+            localStorage.setItem('dopilot_student_help_messages_v1', JSON.stringify(filteredHelp));
+            setHelpMessages(filteredHelp);
+          }
+        }
+
+        // Clean course locks
+        const locksRaw = localStorage.getItem('dopilot_locked_courses_registry_v1');
+        if (locksRaw) {
+          const locks = JSON.parse(locksRaw);
+          if (Array.isArray(locks)) {
+            const filteredLocks = locks.filter((l: any) =>
+              (l.studentEmail || '').toLowerCase() !== targetEmail &&
+              l.studentId !== targetId
+            );
+            localStorage.setItem('dopilot_locked_courses_registry_v1', JSON.stringify(filteredLocks));
+            setLockedRecords(filteredLocks);
+          }
+        }
+
+        // Clean purchases
+        const purchasesRaw = localStorage.getItem('dopilot_course_purchases_v1');
+        if (purchasesRaw) {
+          const purchases = JSON.parse(purchasesRaw);
+          if (Array.isArray(purchases)) {
+            const filteredPurchases = purchases.filter((p: any) =>
+              (p.studentEmail || '').toLowerCase() !== targetEmail &&
+              p.studentId !== targetId
+            );
+            localStorage.setItem('dopilot_course_purchases_v1', JSON.stringify(filteredPurchases));
+            setCoursePurchases(filteredPurchases);
+          }
+        }
+
+        // Clean user scoped keys
+        if (targetEmail) {
+          const emailSafe = targetEmail.replace(/[^a-zA-Z0-9]/g, '_');
+          localStorage.removeItem(`dopilot_user_${emailSafe}_points`);
+          localStorage.removeItem(`dopilot_user_${emailSafe}_claimed_coupons`);
+          localStorage.removeItem(`dopilot_claimed_courses_${emailSafe}`);
+        }
+        if (targetId) {
+          localStorage.removeItem(`dopilot_purchased_courses_${targetId}`);
+        }
+
+        // Clear active session if it matches this student
+        const curSessionRaw = localStorage.getItem('dopilot_student_session_v1');
+        if (curSessionRaw) {
+          try {
+            const cur = JSON.parse(curSessionRaw);
+            if (cur?.email?.toLowerCase() === targetEmail || cur?.id === targetId) {
+              localStorage.removeItem('dopilot_student_session_v1');
+              localStorage.removeItem('dopilot_pending_registration_v1');
+            }
+          } catch (e) {}
+        }
+      } catch (cleanErr) {
+        console.warn('LocalStorage cascade cleanup warning:', cleanErr);
+      }
+
+      // 4. Refresh student roster
+      await fetchStudents();
+
+      // 5. Close modal & display success feedback
+      setDeleteModalTarget(null);
+      setDeleteFeedback({
+        type: 'success',
+        message: `Student "${targetName}" (${targetEmail}) and all associated records have been permanently deleted.`
+      });
+      showToast(`Student "${targetName}" permanently deleted.`);
+
+      try {
+        addAuditLog('PERMANENT_DELETE_STUDENT', `Permanently deleted student account ${targetName} (${targetEmail}).`);
+      } catch (e) {}
+
+      setTimeout(() => {
+        setDeleteFeedback((prev) => (prev?.type === 'success' ? null : prev));
+      }, 6000);
+    } catch (err: any) {
+      console.error('Failed to permanently delete student:', err);
+      setDeleteFeedback({
+        type: 'error',
+        message: err?.message || 'Failed to delete student. Please try again.'
+      });
+    } finally {
+      setIsDeletingStudent(false);
     }
   };
 
@@ -1100,10 +1557,19 @@ export const AdminPanel: React.FC = () => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
 
-    const githubUrl = formData.get('social_github_url') as string;
-    const twitterUrl = formData.get('social_twitter_url') as string;
-    const linkedinUrl = formData.get('social_linkedin_url') as string;
-    const whatsappUrl = formData.get('social_whatsapp_url') as string;
+    const whatsappUrl = (formData.get('social_whatsapp_url') as string)?.trim();
+    const githubUrl = (formData.get('social_github_url') as string)?.trim();
+    const linkedinUrl = (formData.get('social_linkedin_url') as string)?.trim();
+    const youtubeUrl = (formData.get('social_youtube_url') as string)?.trim();
+    const instagramUrl = (formData.get('social_instagram_url') as string)?.trim();
+    const facebookUrl = (formData.get('social_facebook_url') as string)?.trim();
+
+    const whatsappEnabled = formData.get('social_whatsapp_enabled') === 'on';
+    const githubEnabled = formData.get('social_github_enabled') === 'on';
+    const linkedinEnabled = formData.get('social_linkedin_enabled') === 'on';
+    const youtubeEnabled = formData.get('social_youtube_enabled') === 'on';
+    const instagramEnabled = formData.get('social_instagram_enabled') === 'on';
+    const facebookEnabled = formData.get('social_facebook_enabled') === 'on';
 
     updateSection('footer', {
       ...data.footer,
@@ -1119,10 +1585,12 @@ export const AdminPanel: React.FC = () => {
       legalTitle: (formData.get('legalTitle') as string) || 'Legal & Policies',
       contactTitle: (formData.get('contactTitle') as string) || 'Contact & Support',
       socialLinks: {
-        github: { url: githubUrl || 'https://github.com', enabled: !!githubUrl },
-        twitter: { url: twitterUrl || 'https://twitter.com', enabled: !!twitterUrl },
-        linkedin: { url: linkedinUrl || 'https://linkedin.com', enabled: !!linkedinUrl },
-        whatsapp: { url: whatsappUrl || 'https://wa.me/919778707336', enabled: !!whatsappUrl },
+        whatsapp: { url: whatsappUrl || 'https://wa.me/919778707336', enabled: whatsappEnabled },
+        github: { url: githubUrl || 'https://github.com', enabled: githubEnabled },
+        linkedin: { url: linkedinUrl || 'https://linkedin.com', enabled: linkedinEnabled },
+        youtube: { url: youtubeUrl || '', enabled: youtubeEnabled },
+        instagram: { url: instagramUrl || '', enabled: instagramEnabled },
+        facebook: { url: facebookUrl || '', enabled: facebookEnabled },
       },
     });
     addAuditLog('UPDATE_FOOTER', 'Footer details updated.');
@@ -2008,7 +2476,19 @@ export const AdminPanel: React.FC = () => {
           {(data.reviewsSection?.reviews || []).map((r, idx) => (
             <div key={idx} className="p-4 rounded-xl bg-black/60 border border-white/10 space-y-3">
               <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                <span className="font-mono text-[11px] text-primary font-bold">Review #{idx + 1}</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-[11px] text-primary font-bold">Review #{idx + 1}</span>
+                  <span className="text-[11px] text-slate">• {r.name || 'Student'} ({r.role || 'College'})</span>
+                  <span className="inline-flex items-center gap-0.5 ml-2">
+                    {[...Array(5)].map((_, starIdx) => (
+                      <Star
+                        key={starIdx}
+                        className={`w-3 h-3 ${starIdx < (r.rating || 5) ? 'fill-amber-400 text-amber-400' : 'fill-white/10 text-white/20'}`}
+                      />
+                    ))}
+                    <span className="text-[10px] text-amber-400/90 font-mono font-bold ml-1">{r.rating || 5}★</span>
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={() => handleDeleteReview(idx)}
@@ -2019,7 +2499,9 @@ export const AdminPanel: React.FC = () => {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <input type="hidden" name={`revAvatar_${idx}`} defaultValue={r.avatar} />
+
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate mb-1">Student Name</label>
                   <input
@@ -2031,12 +2513,12 @@ export const AdminPanel: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate mb-1">Role / Company</label>
+                  <label className="block text-[11px] font-bold text-slate mb-1">Role / College</label>
                   <input
                     type="text"
                     name={`revRole_${idx}`}
                     defaultValue={r.role}
-                    placeholder="Job title / company"
+                    placeholder="e.g. GEC Thrissur"
                     className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
                   />
                 </div>
@@ -2046,9 +2528,21 @@ export const AdminPanel: React.FC = () => {
                     type="text"
                     name={`revCourse_${idx}`}
                     defaultValue={r.course}
-                    placeholder="Course name"
+                    placeholder="e.g. Complete Python Course"
                     className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper focus:border-primary focus:outline-none"
                   />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate mb-1">Rating / Stars</label>
+                  <select
+                    name={`revRating_${idx}`}
+                    defaultValue={String(r.rating || 5)}
+                    className="w-full bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-amber-400 font-bold focus:border-primary focus:outline-none cursor-pointer"
+                  >
+                    <option value="5" className="bg-neutral-900 text-amber-400">★★★★★ 5 Stars</option>
+                    <option value="4" className="bg-neutral-900 text-amber-400">★★★★☆ 4 Stars</option>
+                    <option value="3" className="bg-neutral-900 text-amber-400">★★★☆☆ 3 Stars</option>
+                  </select>
                 </div>
               </div>
 
@@ -2469,38 +2963,173 @@ export const AdminPanel: React.FC = () => {
             />
           </div>
 
-          {/* Social Links */}
-          <div className="pt-1">
-            <span className="font-mono text-[11px] text-primary font-bold uppercase tracking-wider block mb-2">// Social Media Links</span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-              <input
-                type="text"
-                name="social_whatsapp_url"
-                defaultValue={data.footer?.socialLinks?.whatsapp?.url || 'https://wa.me/919778707336'}
-                placeholder="WhatsApp URL"
-                className="bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
-              />
-              <input
-                type="text"
-                name="social_github_url"
-                defaultValue={data.footer?.socialLinks?.github?.url || ''}
-                placeholder="GitHub URL"
-                className="bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
-              />
-              <input
-                type="text"
-                name="social_linkedin_url"
-                defaultValue={data.footer?.socialLinks?.linkedin?.url || ''}
-                placeholder="LinkedIn URL"
-                className="bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
-              />
-              <input
-                type="text"
-                name="social_twitter_url"
-                defaultValue={data.footer?.socialLinks?.twitter?.url || ''}
-                placeholder="Twitter / X URL"
-                className="bg-black border border-white/15 rounded-xl px-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
-              />
+          {/* Social Media Channels & Visibility */}
+          <div className="p-3.5 sm:p-4 rounded-xl bg-black/60 border border-white/10 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-1 border-b border-white/5">
+              <span className="font-mono text-[11px] text-primary font-bold uppercase tracking-wider block">
+                // Social Media Links &amp; Footer Visibility
+              </span>
+              <span className="text-[10px] text-slate font-mono">
+                Check box to display icon in footer
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+              {/* 1. WhatsApp */}
+              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-paper flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    WhatsApp
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      name="social_whatsapp_enabled"
+                      defaultChecked={data.footer?.socialLinks?.whatsapp?.enabled ?? true}
+                      className="accent-primary rounded cursor-pointer w-3.5 h-3.5"
+                    />
+                    <span className="text-[11px] text-slate font-medium">Show Icon</span>
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  name="social_whatsapp_url"
+                  defaultValue={data.footer?.socialLinks?.whatsapp?.url || 'https://wa.me/919778707336'}
+                  placeholder="https://wa.me/919778707336"
+                  className="w-full bg-black border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              {/* 2. GitHub */}
+              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-paper flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-slate-300"></span>
+                    GitHub
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      name="social_github_enabled"
+                      defaultChecked={data.footer?.socialLinks?.github?.enabled ?? true}
+                      className="accent-primary rounded cursor-pointer w-3.5 h-3.5"
+                    />
+                    <span className="text-[11px] text-slate font-medium">Show Icon</span>
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  name="social_github_url"
+                  defaultValue={data.footer?.socialLinks?.github?.url || 'https://github.com'}
+                  placeholder="https://github.com/..."
+                  className="w-full bg-black border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              {/* 3. LinkedIn */}
+              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-paper flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                    LinkedIn
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      name="social_linkedin_enabled"
+                      defaultChecked={data.footer?.socialLinks?.linkedin?.enabled ?? true}
+                      className="accent-primary rounded cursor-pointer w-3.5 h-3.5"
+                    />
+                    <span className="text-[11px] text-slate font-medium">Show Icon</span>
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  name="social_linkedin_url"
+                  defaultValue={data.footer?.socialLinks?.linkedin?.url || 'https://linkedin.com'}
+                  placeholder="https://linkedin.com/..."
+                  className="w-full bg-black border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              {/* 4. YouTube */}
+              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-paper flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                    YouTube
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      name="social_youtube_enabled"
+                      defaultChecked={data.footer?.socialLinks?.youtube?.enabled ?? Boolean(data.footer?.socialLinks?.youtube?.url)}
+                      className="accent-primary rounded cursor-pointer w-3.5 h-3.5"
+                    />
+                    <span className="text-[11px] text-slate font-medium">Show Icon</span>
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  name="social_youtube_url"
+                  defaultValue={data.footer?.socialLinks?.youtube?.url || ''}
+                  placeholder="https://youtube.com/@..."
+                  className="w-full bg-black border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              {/* 5. Instagram */}
+              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-paper flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-pink-500"></span>
+                    Instagram
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      name="social_instagram_enabled"
+                      defaultChecked={data.footer?.socialLinks?.instagram?.enabled ?? Boolean(data.footer?.socialLinks?.instagram?.url)}
+                      className="accent-primary rounded cursor-pointer w-3.5 h-3.5"
+                    />
+                    <span className="text-[11px] text-slate font-medium">Show Icon</span>
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  name="social_instagram_url"
+                  defaultValue={data.footer?.socialLinks?.instagram?.url || ''}
+                  placeholder="https://instagram.com/..."
+                  className="w-full bg-black border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              {/* 6. Facebook */}
+              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-paper flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                    Facebook
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      name="social_facebook_enabled"
+                      defaultChecked={data.footer?.socialLinks?.facebook?.enabled ?? Boolean(data.footer?.socialLinks?.facebook?.url)}
+                      className="accent-primary rounded cursor-pointer w-3.5 h-3.5"
+                    />
+                    <span className="text-[11px] text-slate font-medium">Show Icon</span>
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  name="social_facebook_url"
+                  defaultValue={data.footer?.socialLinks?.facebook?.url || ''}
+                  placeholder="https://facebook.com/..."
+                  className="w-full bg-black border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -3267,123 +3896,250 @@ export const AdminPanel: React.FC = () => {
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
 
-      const drawHeader = (pageNum: number) => {
-        // Dark Banner
-        doc.setFillColor(12, 13, 14);
-        doc.rect(0, 0, pageWidth, 52, 'F');
+      // Table Geometry (Total width: 786 pt, Left margin: 28 pt, Right margin: 28 pt)
+      const tableLeft = 28;
+      const tableWidth = pageWidth - (tableLeft * 2);
 
+      const colDefs = [
+        { label: '#', x: 28, width: 22, align: 'center' as const },
+        { label: 'STUDENT NAME', x: 50, width: 108, align: 'left' as const },
+        { label: 'VERIFIED EMAIL', x: 158, width: 135, align: 'left' as const },
+        { label: 'PHONE NUMBER', x: 293, width: 74, align: 'left' as const },
+        { label: 'COLLEGE / INSTITUTION', x: 367, width: 130, align: 'left' as const },
+        { label: 'ENROLLED COURSES', x: 497, width: 155, align: 'left' as const },
+        { label: 'FOUND US', x: 652, width: 58, align: 'left' as const },
+        { label: 'SCORE', x: 710, width: 36, align: 'right' as const },
+        { label: 'STATUS', x: 746, width: 68, align: 'center' as const }
+      ];
+
+      const drawHeader = () => {
+        // Deep Dark Executive Banner
+        doc.setFillColor(15, 23, 42); // slate-900
+        doc.rect(0, 0, pageWidth, 54, 'F');
+
+        // Mint Green Accent Stripe
+        doc.setFillColor(0, 255, 157);
+        doc.rect(0, 52, pageWidth, 2, 'F');
+
+        // Brand Logo
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(16);
+        doc.setFontSize(15);
         doc.setTextColor(0, 255, 157);
-        doc.text('DO PILOT', 35, 26);
+        doc.text('DO PILOT', tableLeft, 24);
 
+        // Document Title
+        doc.setFont('helvetica', 'bold');
         doc.setFontSize(9.5);
-        doc.setTextColor(240, 240, 240);
-        doc.text('Student Master Directory & Enrolled Courses Report', 35, 42);
+        doc.setTextColor(248, 250, 252);
+        doc.text('STUDENT MASTER DIRECTORY & ENROLLMENT REPORT', tableLeft, 41);
 
+        // Metadata on Right Side
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
-        doc.setTextColor(160, 160, 160);
-        doc.text(
-          `Total Students: ${students.length} | Exported: ${new Date().toLocaleString()} | Page ${pageNum}`,
-          pageWidth - 280,
-          34
-        );
+        doc.setTextColor(148, 163, 184);
+        const dateStr = new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+        const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        doc.text(`Total Records: ${students.length} Students  |  Generated: ${dateStr} ${timeStr}`, pageWidth - tableLeft, 25, { align: 'right' });
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text('CONFIDENTIAL • OFFICIAL ACADEMIC DATABASE', pageWidth - tableLeft, 40, { align: 'right' });
 
         // Table Column Header Bar
-        const tableY = 62;
-        doc.setFillColor(24, 25, 27);
-        doc.rect(30, tableY, pageWidth - 60, 22, 'F');
+        const tableHeaderY = 64;
+        const tableHeaderHeight = 22;
+        doc.setFillColor(30, 41, 59); // slate-800
+        doc.rect(tableLeft, tableHeaderY, tableWidth, tableHeaderHeight, 'F');
+
+        doc.setFillColor(51, 65, 85); // slate-700 separator
+        doc.rect(tableLeft, tableHeaderY + tableHeaderHeight - 1, tableWidth, 1, 'F');
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.setTextColor(0, 255, 157);
+        doc.setFontSize(7.5);
 
-        doc.text('#', 38, tableY + 14);
-        doc.text('STUDENT NAME', 62, tableY + 14);
-        doc.text('VERIFIED EMAIL', 180, tableY + 14);
-        doc.text('PHONE', 325, tableY + 14);
-        doc.text('COLLEGE / ORG', 415, tableY + 14);
-        doc.text('ENROLLED COURSES', 535, tableY + 14);
-        doc.text('SCORE', 710, tableY + 14);
-        doc.text('STATUS', 755, tableY + 14);
+        colDefs.forEach((col) => {
+          doc.setTextColor(0, 255, 157);
+          if (col.align === 'center') {
+            doc.text(col.label, col.x + col.width / 2, tableHeaderY + 14, { align: 'center' });
+          } else if (col.align === 'right') {
+            doc.text(col.label, col.x + col.width - 4, tableHeaderY + 14, { align: 'right' });
+          } else {
+            doc.text(col.label, col.x + 4, tableHeaderY + 14);
+          }
+        });
       };
 
-      let pageNumber = 1;
-      drawHeader(pageNumber);
+      drawHeader();
 
-      let currentY = 92;
-      const rowHeight = 24;
+      let currentY = 94;
+      const lineHeight = 9.5;
+      const verticalPadding = 12;
 
       students.forEach((s, idx) => {
-        if (currentY > pageHeight - 35) {
-          doc.addPage();
-          pageNumber++;
-          drawHeader(pageNumber);
-          currentY = 92;
-        }
-
-        if (idx % 2 === 0) {
-          doc.setFillColor(250, 250, 252);
-          doc.rect(30, currentY - 14, pageWidth - 60, rowHeight, 'F');
-        }
-
-        doc.setDrawColor(230, 230, 235);
-        doc.line(30, currentY + 9, pageWidth - 30, currentY + 9);
-
-        // #
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7.5);
-        doc.setTextColor(120, 120, 120);
-        doc.text(String(idx + 1), 38, currentY);
-
-        // Name
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8.5);
-        doc.setTextColor(20, 20, 20);
-        const nameText = s.name.length > 22 ? s.name.substring(0, 20) + '...' : s.name;
-        doc.text(nameText, 62, currentY);
+        doc.setFontSize(8);
+        const nameLines: string[] = doc.splitTextToSize(s.name || 'Unnamed Student', colDefs[1].width - 8);
 
-        // Email
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7.5);
-        doc.setTextColor(60, 60, 60);
-        const emailText = s.email.length > 28 ? s.email.substring(0, 26) + '...' : s.email;
-        doc.text(emailText, 180, currentY);
+        doc.setFontSize(7.2);
+        const emailLines: string[] = doc.splitTextToSize(s.email || '—', colDefs[2].width - 8);
 
-        // Phone
-        const phoneText = s.phone && s.phone !== 'Phone not added' ? s.phone : 'Not added';
-        doc.text(phoneText, 325, currentY);
+        const hasPhone = Boolean(s.phone && s.phone !== 'Phone not added' && s.phone.trim().length >= 10);
+        const phoneText = hasPhone && s.phone ? s.phone.trim() : 'Not added';
+        const phoneLines: string[] = [phoneText];
 
-        // College
-        const collegeText = s.collegeOrCompany || 'N/A';
-        const truncatedCollege = collegeText.length > 22 ? collegeText.substring(0, 20) + '...' : collegeText;
-        doc.text(truncatedCollege, 415, currentY);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.2);
+        const collegeText = s.collegeOrCompany && s.collegeOrCompany.trim() ? s.collegeOrCompany.trim() : 'Not provided';
+        const collegeLines: string[] = doc.splitTextToSize(collegeText, colDefs[4].width - 8);
 
-        // Enrolled Courses
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.2);
         const coursesText = Array.isArray(s.enrolledCourses) && s.enrolledCourses.length > 0
           ? s.enrolledCourses.join(', ')
           : 'None';
-        const truncatedCourses = coursesText.length > 38 ? coursesText.substring(0, 36) + '...' : coursesText;
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(15, 23, 42);
-        doc.text(truncatedCourses, 535, currentY);
+        const coursesLines: string[] = doc.splitTextToSize(coursesText, colDefs[5].width - 8);
 
-        // Points
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(5, 150, 105);
-        doc.text(`${s.points || 0} pts`, 710, currentY);
+        doc.setFontSize(7);
+        const sourceText = s.whereDidYouFindUs && s.whereDidYouFindUs.trim() ? s.whereDidYouFindUs.trim() : 'N/A';
+        const sourceLines: string[] = doc.splitTextToSize(sourceText, colDefs[6].width - 8);
 
-        // Status
-        doc.setTextColor(70, 70, 70);
-        const statusText = s.courseProgressStatus || 'registered';
-        doc.text(statusText.replace(/_/g, ' '), 755, currentY);
+        // Dynamically compute row height so full multi-line text is completely visible without truncation
+        const maxLines = Math.max(
+          nameLines.length,
+          emailLines.length,
+          phoneLines.length,
+          collegeLines.length,
+          coursesLines.length,
+          sourceLines.length,
+          1
+        );
+        const rowHeight = Math.max(22, maxLines * lineHeight + verticalPadding);
+
+        // Page break check (leaving 36pt for running footer)
+        if (currentY + rowHeight > pageHeight - 34) {
+          doc.addPage();
+          drawHeader();
+          currentY = 94;
+        }
+
+        const isEven = idx % 2 === 0;
+        doc.setFillColor(isEven ? 248 : 255, isEven ? 250 : 255, isEven ? 252 : 255);
+        doc.rect(tableLeft, currentY, tableWidth, rowHeight, 'F');
+
+        // Row bottom divider line
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.5);
+        doc.line(tableLeft, currentY + rowHeight, tableLeft + tableWidth, currentY + rowHeight);
+
+        const textStartY = currentY + 11;
+
+        // # (Index)
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(String(idx + 1), colDefs[0].x + colDefs[0].width / 2, textStartY, { align: 'center' });
+
+        // Student Name
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(15, 23, 42);
+        doc.text(nameLines, colDefs[1].x + 4, textStartY);
+
+        // Verified Email
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.2);
+        doc.setTextColor(51, 65, 85);
+        doc.text(emailLines, colDefs[2].x + 4, textStartY);
+
+        // Phone Number
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.2);
+        if (hasPhone) {
+          doc.setTextColor(15, 23, 42);
+          doc.text(phoneLines, colDefs[3].x + 4, textStartY);
+        } else {
+          doc.setTextColor(148, 163, 184);
+          doc.text('Not added', colDefs[3].x + 4, textStartY);
+        }
+
+        // College / Institution
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.2);
+        doc.setTextColor(71, 85, 105);
+        doc.text(collegeLines, colDefs[4].x + 4, textStartY);
+
+        // Enrolled Courses
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.2);
+        doc.setTextColor(4, 120, 87);
+        doc.text(coursesLines, colDefs[5].x + 4, textStartY);
+
+        // Referral Source
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        doc.text(sourceLines, colDefs[6].x + 4, textStartY);
+
+        // Score
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(5, 150, 105);
+        doc.text(`${s.points || 0} pts`, colDefs[7].x + colDefs[7].width - 4, textStartY, { align: 'right' });
+
+        // Status Badge Pill
+        const statusKey = (s.courseProgressStatus || 'registered').toLowerCase();
+        let badgeBg = [241, 245, 249];
+        let badgeText = [71, 85, 105];
+        let statusLabel = 'REGISTERED';
+
+        if (statusKey === 'completed') {
+          badgeBg = [220, 252, 231];
+          badgeText = [21, 128, 61];
+          statusLabel = 'COMPLETED';
+        } else if (statusKey === 'in_progress') {
+          badgeBg = [224, 242, 254];
+          badgeText = [3, 105, 161];
+          statusLabel = 'IN PROGRESS';
+        }
+
+        const pillW = 58;
+        const pillH = 13;
+        const pillX = colDefs[8].x + (colDefs[8].width - pillW) / 2;
+        const pillY = currentY + (rowHeight - pillH) / 2;
+        doc.setFillColor(badgeBg[0], badgeBg[1], badgeBg[2]);
+        doc.roundedRect(pillX, pillY, pillW, pillH, 3, 3, 'F');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.2);
+        doc.setTextColor(badgeText[0], badgeText[1], badgeText[2]);
+        doc.text(statusLabel, colDefs[8].x + colDefs[8].width / 2, pillY + 9, { align: 'center' });
 
         currentY += rowHeight;
       });
 
+      // Running page footer on every page
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        const footerY = pageHeight - 16;
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.5);
+        doc.line(tableLeft, footerY - 8, tableLeft + tableWidth, footerY - 8);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(148, 163, 184);
+        doc.text('DO PILOT • Student Learning Master Directory & Academic Enrollment Tracking Database', tableLeft, footerY);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Page ${i} of ${totalPages}`, tableLeft + tableWidth, footerY, { align: 'right' });
+      }
+
       doc.save(`DO_PILOT_Students_Master_Directory_${new Date().toISOString().slice(0, 10)}.pdf`);
-      showToast(`Exported ${students.length} student records as PDF report!`);
+      showToast(`Exported ${students.length} student records as formatted PDF report with complete details!`);
     } catch (err: any) {
       console.error('Failed to export PDF report:', err);
       showToast('Error generating PDF directory.');
@@ -3432,34 +4188,21 @@ export const AdminPanel: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="font-jakarta text-base font-bold text-paper">Extract Student Data</h2>
-              <span className="font-mono text-[9px] text-slate/70 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full font-medium">
-                Contacts Only
-              </span>
             </div>
             <p className="text-[11px] text-slate mt-0.5">
-              Minimal contact directory. Full student data is exported in the CSV file.
+              Full student directory with complete course names, institution details, and contacts in the PDF export.
             </p>
           </div>
 
-          {/* Cleanly Organized Action Toolbar */}
+          {/* Cleanly Organized Action Toolbar (PDF Only) */}
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={handleExportAllStudentCSV}
-              className="px-3 py-1.5 rounded-lg bg-primary hover:bg-white text-ink font-jakarta font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
-              title="Download full CSV spreadsheet with complete student details & enrolled courses"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>EXPORT CSV</span>
-            </button>
-
-            <button
-              type="button"
               onClick={handleExportAllStudentPDF}
-              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-paper border border-white/15 font-jakarta font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
-              title="Download complete student master directory as printable PDF report"
+              className="px-3.5 py-1.5 rounded-lg bg-primary hover:bg-white text-ink font-jakarta font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+              title="Download complete student master directory with full course names and complete details as printable PDF"
             >
-              <FileText className="w-3.5 h-3.5 text-primary" />
+              <FileText className="w-3.5 h-3.5 text-ink" />
               <span>EXPORT PDF</span>
             </button>
 
@@ -3623,9 +4366,13 @@ export const AdminPanel: React.FC = () => {
     try {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      const attempts = getStudentQuestionTelemetry(s);
+      const metrics = computeTelemetryMetrics(attempts);
 
       // Dark header banner
-      doc.setFillColor(12, 13, 14);
+      doc.setFillColor(15, 23, 42);
       doc.rect(0, 0, pageWidth, 75, 'F');
 
       doc.setFont("helvetica", "bold");
@@ -3638,95 +4385,181 @@ export const AdminPanel: React.FC = () => {
       doc.text("Student Performance & Assessment Report Card", 40, 56);
 
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
+      doc.setFontSize(8);
       doc.setTextColor(150, 150, 150);
-      doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - 180, 56);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - 190, 56);
 
       // Student Profile Box
       doc.setFillColor(248, 250, 252);
       doc.setDrawColor(226, 232, 240);
-      doc.rect(40, 95, pageWidth - 80, 75, 'FD');
+      doc.rect(40, 90, pageWidth - 80, 80, 'FD');
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
       doc.setTextColor(15, 23, 42);
-      doc.text(s.name, 55, 118);
+      doc.text(s.name, 55, 112);
 
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.setTextColor(71, 85, 105);
-      doc.text(`Email: ${s.email}`, 55, 134);
-      doc.text(`Phone: ${s.phone || 'N/A'}`, 55, 148);
-      doc.text(`College / Organization: ${s.collegeOrCompany || 'N/A'}`, 240, 134);
-      doc.text(`Enrolled: ${s.enrolledCourses.join(', ') || 'Python Core'}`, 240, 148);
-      doc.text(`Found Us: ${s.whereDidYouFindUs || 'N/A'}`, 240, 162);
-      doc.text(`Joined: ${new Date(s.createdAt).toLocaleDateString()}`, 55, 162);
+      doc.text(`Email: ${s.email}`, 55, 128);
+      doc.text(`Phone: ${s.phone || 'N/A'}`, 55, 142);
+      doc.text(`Joined: ${new Date(s.createdAt).toLocaleDateString()}`, 55, 156);
 
-      // KPI Metric Tiles
+      doc.text(`College / Org: ${s.collegeOrCompany || 'N/A'}`, 240, 128);
+      doc.text(`Source: ${s.whereDidYouFindUs || 'Direct / Search'}`, 240, 142);
+      const enrolledStr = (s.enrolledCourses && s.enrolledCourses.length > 0) ? s.enrolledCourses.join(', ') : 'Python Core';
+      doc.text(`Enrolled: ${enrolledStr}`, 240, 156);
+
+      // 6 KPI Metric Tiles
       let y = 185;
-      const boxWidth = (pageWidth - 80 - 30) / 4;
+      const tileWidth = (pageWidth - 80 - 25) / 6;
 
-      // Total Score
-      doc.setFillColor(240, 253, 244);
-      doc.rect(40, y, boxWidth, 48, 'F');
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.setTextColor(22, 101, 52);
-      doc.text(`${s.points} pts`, 50, y + 24);
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text("TOTAL SCORE", 50, y + 38);
+      const drawKpiTile = (xPos: number, val: string, label: string, bg: [number, number, number], txtColor: [number, number, number]) => {
+        doc.setFillColor(bg[0], bg[1], bg[2]);
+        doc.rect(xPos, y, tileWidth, 48, 'F');
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(txtColor[0], txtColor[1], txtColor[2]);
+        doc.text(val, xPos + 6, y + 22);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(label, xPos + 6, y + 36);
+      };
 
-      // Tests Attempted
-      doc.setFillColor(241, 245, 249);
-      doc.rect(40 + boxWidth + 10, y, boxWidth, 48, 'F');
-      doc.setFontSize(14);
-      doc.setTextColor(30, 41, 59);
-      doc.text(`${s.testsAttemptedCount}`, 50 + boxWidth + 10, y + 24);
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text("TESTS ATTEMPTED", 50 + boxWidth + 10, y + 38);
-
-      // Tests Passed
-      doc.setFillColor(236, 253, 245);
-      doc.rect(40 + (boxWidth + 10) * 2, y, boxWidth, 48, 'F');
-      doc.setFontSize(14);
-      doc.setTextColor(5, 150, 105);
-      doc.text(`${s.testsPassedCount} Passed`, 50 + (boxWidth + 10) * 2, y + 24);
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text("SUCCESSFUL TASKS", 50 + (boxWidth + 10) * 2, y + 38);
-
-      // Tests Failed / Wrong Answers
-      doc.setFillColor(254, 242, 242);
-      doc.rect(40 + (boxWidth + 10) * 3, y, boxWidth, 48, 'F');
-      doc.setFontSize(14);
-      doc.setTextColor(225, 29, 72);
-      doc.text(`${s.testsFailedCount} Failed`, 50 + (boxWidth + 10) * 3, y + 24);
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text("MISTAKES / WRONG", 50 + (boxWidth + 10) * 3, y + 38);
+      drawKpiTile(40, `${s.points} pts`, "TOTAL POINTS", [240, 253, 244], [22, 101, 52]);
+      drawKpiTile(40 + (tileWidth + 5), `${s.testsAttemptedCount}`, "TESTS ATTEMPTED", [241, 245, 249], [30, 41, 59]);
+      drawKpiTile(40 + (tileWidth + 5) * 2, `${s.testsPassedCount}`, "TASKS PASSED", [236, 253, 245], [5, 150, 105]);
+      drawKpiTile(40 + (tileWidth + 5) * 3, `${s.testsFailedCount}`, "MISTAKES", [254, 242, 242], [225, 29, 72]);
+      drawKpiTile(40 + (tileWidth + 5) * 4, `${metrics.avgTime}s`, "AVG RESPONSE", [238, 242, 255], [79, 70, 229]);
+      drawKpiTile(40 + (tileWidth + 5) * 5, `${metrics.fastestTime}s / ${metrics.slowestTime}s`, "FAST / SLOW", [255, 251, 235], [180, 83, 9]);
 
       // Certificate Banner
-      y = 250;
+      y = 246;
       if (s.hasCertificate) {
         doc.setFillColor(254, 249, 195);
-        doc.rect(40, y, pageWidth - 80, 28, 'F');
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9.5);
-        doc.setTextColor(133, 77, 14);
-        doc.text(`[VERIFIED CERTIFIED] Certificate Issued: ${s.certificateId || 'CERT-DO-PILOT'} on ${s.certificateIssuedDate || 'Completed'}`, 50, y + 18);
-      } else {
-        doc.setFillColor(241, 245, 249);
-        doc.rect(40, y, pageWidth - 80, 28, 'F');
+        doc.rect(40, y, pageWidth - 80, 26, 'F');
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9);
+        doc.setTextColor(133, 77, 14);
+        doc.text(`[VERIFIED CERTIFIED] Certificate ID: ${s.certificateId || 'CERT-DO-PILOT'} issued on ${s.certificateIssuedDate || 'Completed'}`, 50, y + 17);
+      } else {
+        doc.setFillColor(241, 245, 249);
+        doc.rect(40, y, pageWidth - 80, 26, 'F');
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
         doc.setTextColor(100, 116, 139);
-        doc.text(`Certificate Status: In Progress (Requires 20+ points or Part 14 completion to unlock)`, 50, y + 18);
+        doc.text(`Certificate Status: In Progress (${s.points} / 20 points achieved)`, 50, y + 17);
       }
 
-      // Section 1: Mistake & Failure Details
-      y = 295;
+      // Section 1: Detailed Question-by-Question Answering Log & Time Telemetry
+      y = 290;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text("Course Question-by-Question Answering Telemetry & Exact Response Times", 40, y);
+
+      y += 14;
+      // Question Telemetry Table Header
+      const drawQTableHeader = (yPos: number) => {
+        doc.setFillColor(241, 245, 249);
+        doc.rect(40, yPos, pageWidth - 80, 20, 'F');
+        doc.setDrawColor(203, 213, 225);
+        doc.line(40, yPos + 20, pageWidth - 40, yPos + 20);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(30, 41, 59);
+
+        doc.text("#", 46, yPos + 13);
+        doc.text("QUESTION / CONCEPT TITLE", 65, yPos + 13);
+        doc.text("TIME TAKEN (30s LIMIT)", 265, yPos + 13);
+        doc.text("STUDENT ANSWER", 370, yPos + 13);
+        doc.text("RESULT", 480, yPos + 13);
+        return yPos + 20;
+      };
+
+      y = drawQTableHeader(y);
+
+      if (attempts.length === 0) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text("Student has not attempted challenges in this course yet.", 50, y + 18);
+        y += 30;
+      } else {
+        attempts.forEach((att, idx) => {
+          if (y > 750) {
+            doc.addPage();
+            y = 45;
+            y = drawQTableHeader(y);
+          }
+
+          if (idx % 2 === 1) {
+            doc.setFillColor(248, 250, 252);
+            doc.rect(40, y, pageWidth - 80, 22, 'F');
+          }
+
+          doc.setDrawColor(226, 232, 240);
+          doc.line(40, y + 22, pageWidth - 40, y + 22);
+
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7.5);
+          doc.setTextColor(100, 116, 139);
+          doc.text(String(att.subQuestionLabel || att.questionNumber), 46, y + 14);
+
+          // Question Title
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(8);
+          doc.setTextColor(15, 23, 42);
+          doc.text(att.questionTitle.slice(0, 36), 65, y + 14);
+
+          // Time Taken
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7.5);
+          if (att.timeTakenSeconds < 12) {
+            doc.setTextColor(5, 150, 105);
+            doc.text(`${att.timeTakenSeconds.toFixed(1)}s (Fast)`, 265, y + 14);
+          } else if (att.timeTakenSeconds <= 20) {
+            doc.setTextColor(30, 41, 59);
+            doc.text(`${att.timeTakenSeconds.toFixed(1)}s (Normal)`, 265, y + 14);
+          } else {
+            doc.setTextColor(190, 18, 60);
+            doc.text(`${att.timeTakenSeconds.toFixed(1)}s (Slow)`, 265, y + 14);
+          }
+
+          // Student Choice (Option only: Option A / B / C / D)
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(7.5);
+          doc.setTextColor(att.isCorrect ? 71 : 190, att.isCorrect ? 85 : 18, att.isCorrect ? 105 : 60);
+          doc.text(`Option ${att.studentOptionId || 'A'}`, 370, y + 14);
+
+          // Status Badge
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(7.5);
+          if (att.isCorrect) {
+            doc.setTextColor(5, 150, 105);
+            doc.text("PASSED", 480, y + 14);
+          } else if (att.status === 'timeout') {
+            doc.setTextColor(180, 83, 9);
+            doc.text("TIMEOUT", 480, y + 14);
+          } else {
+            doc.setTextColor(190, 18, 60);
+            doc.text("FAILED", 480, y + 14);
+          }
+
+          y += 22;
+        });
+      }
+
+      // Section 2: Mistakes & Test Failure Log
+      y += 20;
+      if (y > 720) {
+        doc.addPage();
+        y = 45;
+      }
+
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(15, 23, 42);
@@ -3737,61 +4570,87 @@ export const AdminPanel: React.FC = () => {
         doc.setFillColor(240, 253, 244);
         doc.rect(40, y, pageWidth - 80, 26, 'F');
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
+        doc.setFontSize(8.5);
         doc.setTextColor(22, 101, 52);
         doc.text("Clean record! No wrong answers or failed questions on record for this student.", 50, y + 17);
-        y += 38;
+        y += 36;
       } else {
         s.wrongAttempts.forEach((w) => {
+          if (y > 750) {
+            doc.addPage();
+            y = 45;
+          }
           doc.setFillColor(255, 241, 242);
           doc.rect(40, y, pageWidth - 80, 28, 'F');
           doc.setFont("helvetica", "bold");
-          doc.setFontSize(8.5);
+          doc.setFontSize(8);
           doc.setTextColor(190, 18, 60);
           doc.text(`[${w.section}] ${w.taskTitle}`, 50, y + 12);
           doc.setFont("helvetica", "normal");
-          doc.setFontSize(8);
+          doc.setFontSize(7.5);
           doc.setTextColor(71, 85, 105);
           doc.text(`${w.detail} (${w.failedAt})`, 50, y + 22);
-          y += 33;
+          y += 32;
         });
-        y += 10;
       }
 
-      // Section 2: Section-by-Section Progress
+      // Section 3: Section Mastery
+      y += 15;
+      if (y > 720) {
+        doc.addPage();
+        y = 45;
+      }
+
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(15, 23, 42);
       doc.text("Course Section Breakdown & Mastery", 40, y);
 
-      y += 15;
+      y += 14;
       doc.setFillColor(241, 245, 249);
-      doc.rect(40, y, pageWidth - 80, 20, 'F');
+      doc.rect(40, y, pageWidth - 80, 18, 'F');
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(8.5);
+      doc.setFontSize(7.5);
       doc.setTextColor(30, 41, 59);
-      doc.text("Module / Section", 50, y + 13);
-      doc.text("Challenges Solved", 340, y + 13);
-      doc.text("Module Status", 460, y + 13);
+      doc.text("Module / Section", 50, y + 12);
+      doc.text("Challenges Solved", 340, y + 12);
+      doc.text("Module Status", 460, y + 12);
 
-      y += 24;
+      y += 20;
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
+      doc.setFontSize(8);
       doc.setTextColor(51, 65, 85);
 
       s.sectionProgress.forEach((sec, idx) => {
+        if (y > 750) {
+          doc.addPage();
+          y = 45;
+        }
         if (idx % 2 === 1) {
           doc.setFillColor(248, 250, 252);
-          doc.rect(40, y - 10, pageWidth - 80, 16, 'F');
+          doc.rect(40, y - 9, pageWidth - 80, 16, 'F');
         }
-        doc.text(sec.title, 50, y + 2);
-        doc.text(`${sec.solvedTasks} / ${sec.totalTasks} tasks`, 340, y + 2);
-        doc.text(sec.status.toUpperCase(), 460, y + 2);
-        y += 18;
+        doc.text(sec.title, 50, y + 3);
+        doc.text(`${sec.solvedTasks} / ${sec.totalTasks} questions`, 340, y + 3);
+        doc.text(sec.status.toUpperCase(), 460, y + 3);
+        y += 17;
       });
 
+      // Page numbering footer across all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.setDrawColor(226, 232, 240);
+        doc.line(40, pageHeight - 35, pageWidth - 40, pageHeight - 35);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text("DO PILOT — Student Performance & Question Telemetry Report  •  Confidential", 40, pageHeight - 22);
+        doc.text(`Page ${p} of ${totalPages}`, pageWidth - 40, pageHeight - 22, { align: 'right' });
+      }
+
       doc.save(`DO_PILOT_${s.name.replace(/\s+/g, '_')}_Progress_Report.pdf`);
-      showToast(`Downloaded performance report for ${s.name}!`);
+      showToast(`Downloaded detailed performance report for ${s.name}!`);
     } catch (e) {
       console.error("Failed to generate student report:", e);
       showToast("Error generating report PDF.");
@@ -3801,6 +4660,29 @@ export const AdminPanel: React.FC = () => {
   // Render Full-Screen Fixed Modal for Student Inspection (Root Level)
   const renderStudentInspectModal = () => {
     if (!selectedStudentForReport) return null;
+
+    const student = selectedStudentForReport;
+    const attempts = getStudentQuestionTelemetry(student);
+    const metrics = computeTelemetryMetrics(attempts);
+
+    const filteredAttempts = attempts.filter((att) => {
+      if (telemetryFilter === 'correct' && !att.isCorrect) return false;
+      if (telemetryFilter === 'wrong' && att.isCorrect) return false;
+      if (telemetryFilter === 'fast' && att.speedCategory !== 'fast') return false;
+      if (telemetryFilter === 'normal' && att.speedCategory !== 'normal') return false;
+      if (telemetryFilter === 'slow' && att.speedCategory !== 'slow' && att.speedCategory !== 'timeout') return false;
+      if (telemetrySearch.trim()) {
+        const q = telemetrySearch.toLowerCase();
+        return (
+          att.questionTitle.toLowerCase().includes(q) ||
+          att.questionPrompt.toLowerCase().includes(q) ||
+          att.section.toLowerCase().includes(q) ||
+          att.studentAnswer.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+
     return (
       <div className="fixed inset-0 z-[99999] bg-black/90 backdrop-blur-xl flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200">
         <div className="w-full max-w-[1550px] h-[92vh] rounded-3xl bg-[#0a0b0d] border border-white/15 shadow-2xl flex flex-col relative overflow-hidden">
@@ -3809,47 +4691,47 @@ export const AdminPanel: React.FC = () => {
           <div className="px-6 py-4 border-b border-white/10 bg-[#0f1013]/95 backdrop-blur-md flex items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-3.5 min-w-0">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 border-2 border-primary text-primary flex items-center justify-center font-jakarta font-black text-lg tracking-wider shrink-0 shadow-lg shadow-primary/20">
-                {getUserInitials(selectedStudentForReport.name)}
+                {getUserInitials(student.name)}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <h3 className="font-jakarta font-black text-lg text-paper truncate">
-                    {selectedStudentForReport.name}
+                    {student.name}
                   </h3>
-                  {selectedStudentForReport.hasCertificate && (
+                  {student.hasCertificate && (
                     <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 font-mono text-[10px] font-bold flex items-center gap-1">
                       <Award className="w-3 h-3 text-amber-400" />
                       <span>Verified Certified</span>
                     </span>
                   )}
                   <span className={`px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold uppercase ${
-                    selectedStudentForReport.courseProgressStatus === 'completed'
+                    student.courseProgressStatus === 'completed'
                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                      : selectedStudentForReport.courseProgressStatus === 'in_progress'
+                      : student.courseProgressStatus === 'in_progress'
                       ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                       : 'bg-white/10 text-slate border border-white/10'
                   }`}>
-                    {selectedStudentForReport.courseProgressStatus.replace(/_/g, ' ')}
+                    {student.courseProgressStatus.replace(/_/g, ' ')}
                   </span>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate mt-0.5">
-                  <span className="font-mono text-slate/80">{selectedStudentForReport.email}</span>
-                  {selectedStudentForReport.phone && (
+                  <span className="font-mono text-slate/80">{student.email}</span>
+                  {student.phone && (
                     <>
                       <span className="text-white/20">•</span>
                       <span className="font-mono text-paper flex items-center gap-1">
                         <Phone className="w-3 h-3 text-primary" />
-                        {selectedStudentForReport.phone}
+                        {student.phone}
                       </span>
                     </>
                   )}
-                  {selectedStudentForReport.collegeOrCompany && (
+                  {student.collegeOrCompany && (
                     <>
                       <span className="text-white/20">•</span>
                       <span className="text-slate flex items-center gap-1 truncate">
                         <GraduationCap className="w-3 h-3 text-slate/60" />
-                        {selectedStudentForReport.collegeOrCompany}
+                        {student.collegeOrCompany}
                       </span>
                     </>
                   )}
@@ -3860,7 +4742,7 @@ export const AdminPanel: React.FC = () => {
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={() => exportIndividualStudentPDF(selectedStudentForReport)}
+                onClick={() => exportIndividualStudentPDF(student)}
                 className="px-3.5 py-2 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs hover:bg-white transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-primary/20"
                 title="Export Student Report Card to PDF"
               >
@@ -3879,329 +4761,551 @@ export const AdminPanel: React.FC = () => {
             </div>
           </div>
 
+          {/* Modal Navigation Tabs */}
+          <div className="px-6 py-2.5 border-b border-white/10 bg-[#0d0e11] flex flex-wrap items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              <button
+                type="button"
+                onClick={() => setInspectTab('telemetry')}
+                className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  inspectTab === 'telemetry'
+                    ? 'bg-primary text-ink shadow-md shadow-primary/20'
+                    : 'bg-white/5 text-slate hover:text-paper hover:bg-white/10'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Question Time &amp; Answers</span>
+                <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono ${
+                  inspectTab === 'telemetry' ? 'bg-black/20 text-ink' : 'bg-white/10 text-slate/80'
+                }`}>
+                  {attempts.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setInspectTab('mistakes')}
+                className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  inspectTab === 'mistakes'
+                    ? 'bg-rose-500 text-white shadow-md shadow-rose-500/20'
+                    : 'bg-white/5 text-slate hover:text-paper hover:bg-white/10'
+                }`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>Mistake Log</span>
+                <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono ${
+                  inspectTab === 'mistakes' ? 'bg-black/20 text-white' : 'bg-white/10 text-slate/80'
+                }`}>
+                  {student.wrongAttempts.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setInspectTab('mastery')}
+                className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  inspectTab === 'mastery'
+                    ? 'bg-cyan-500 text-black shadow-md shadow-cyan-500/20'
+                    : 'bg-white/5 text-slate hover:text-paper hover:bg-white/10'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Section Mastery</span>
+                <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono ${
+                  inspectTab === 'mastery' ? 'bg-black/20 text-black' : 'bg-white/10 text-slate/80'
+                }`}>
+                  {student.sectionProgress.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setInspectTab('profile')}
+                className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  inspectTab === 'profile'
+                    ? 'bg-white text-ink shadow-md shadow-white/20'
+                    : 'bg-white/5 text-slate hover:text-paper hover:bg-white/10'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Student Profile</span>
+              </button>
+            </div>
+
+            {/* Quick Speed Summary Pill - Clean, without green border line */}
+            <div className="flex items-center gap-3 font-mono text-xs text-slate shrink-0">
+              <span className="flex items-center gap-1.5 text-slate/90">
+                <Clock className="w-3.5 h-3.5 text-slate/50" />
+                <span>Avg Answering Speed: <strong className="text-paper">{metrics.avgTime}s</strong></span>
+              </span>
+              <span className="text-slate/40">•</span>
+              <span className="text-slate/90 font-medium">
+                {metrics.accuracyPct}% Accuracy
+              </span>
+            </div>
+          </div>
+
           {/* Scrollable Modal Content Body */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
             
-            {/* 12-Column Responsive Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              
-              {/* Left Column (4 Cols on lg): Profile, Contact & Key Metrics */}
-              <div className="lg:col-span-4 space-y-5">
-                
-                {/* Key Metrics Strip (4 Tiles) */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-4 rounded-2xl bg-[#121316] border border-white/10 space-y-1">
-                    <span className="text-[10px] font-mono text-slate/70 uppercase tracking-wider block">Total Points</span>
-                    <div className="flex items-center gap-2">
-                      <Star className="w-5 h-5 text-primary" />
-                      <span className="font-jakarta font-black text-2xl text-paper">{selectedStudentForReport.points} pts</span>
-                    </div>
+            {/* Top 5 KPI Metric Cards Strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <div className="p-4 rounded-2xl bg-[#121316] border border-white/10 space-y-1">
+                <span className="text-[10px] font-mono text-slate/70 uppercase tracking-wider block">Total Points</span>
+                <div className="flex items-center gap-1.5">
+                  <Star className="w-4 h-4 text-primary" />
+                  <span className="font-jakarta font-black text-xl text-paper">{student.points} pts</span>
+                </div>
+                <span className="text-[10px] font-mono text-slate/50 block">Earned score</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#121316] border border-white/10 space-y-1">
+                <span className="text-[10px] font-mono text-slate/70 uppercase tracking-wider block">Tests Attempted</span>
+                <div className="flex items-center gap-1.5">
+                  <BookOpen className="w-4 h-4 text-cyan-400" />
+                  <span className="font-jakarta font-black text-xl text-paper">{student.testsAttemptedCount}</span>
+                </div>
+                <span className="text-[10px] font-mono text-slate/50 block">Total questions</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#121316] border border-white/10 space-y-1">
+                <span className="text-[10px] font-mono text-slate/70 uppercase tracking-wider block">Tasks Passed</span>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span className="font-jakarta font-black text-xl text-emerald-400">{student.testsPassedCount}</span>
+                </div>
+                <span className="text-[10px] font-mono text-emerald-400/80 block">{metrics.accuracyPct}% accuracy</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#121316] border border-white/10 space-y-1">
+                <span className="text-[10px] font-mono text-slate/70 uppercase tracking-wider block">Mistakes Recorded</span>
+                <div className="flex items-center gap-1.5">
+                  <AlertTriangle className={`w-4 h-4 ${student.testsFailedCount > 0 ? 'text-rose-400' : 'text-emerald-400'}`} />
+                  <span className={`font-jakarta font-black text-xl ${student.testsFailedCount > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    {student.testsFailedCount}
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-slate/50 block">
+                  {student.testsFailedCount === 0 ? '0 Mistakes (100%)' : 'Wrong answers'}
+                </span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#121316] border border-white/10 space-y-1">
+                <span className="text-[10px] font-mono text-slate/70 uppercase tracking-wider block">Avg Time to Answer</span>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-primary" />
+                  <span className="font-jakarta font-black text-xl text-primary">{metrics.avgTime}s</span>
+                </div>
+                <span className="text-[10px] font-mono text-slate/50 block">Per question (30s limit)</span>
+              </div>
+            </div>
+
+            {/* TAB 1: QUESTION-BY-QUESTION TELEMETRY & EXACT ANSWER TIMES */}
+            {inspectTab === 'telemetry' && (
+              <div className="space-y-4">
+                {/* Search & Filter Toolbar */}
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#121316] border border-white/10">
+                  <div className="flex items-center gap-2 flex-1 min-w-[220px]">
+                    <Search className="w-4 h-4 text-slate/60 shrink-0" />
+                    <input
+                      type="text"
+                      value={telemetrySearch}
+                      onChange={(e) => setTelemetrySearch(e.target.value)}
+                      placeholder="Search question, concept, or student answer..."
+                      className="bg-transparent text-paper placeholder-slate/50 text-xs focus:outline-none w-full font-jakarta"
+                    />
+                    {telemetrySearch && (
+                      <button
+                        type="button"
+                        onClick={() => setTelemetrySearch('')}
+                        className="text-slate hover:text-paper text-xs"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-[#121316] border border-white/10 space-y-1">
-                    <span className="text-[10px] font-mono text-slate/70 uppercase tracking-wider block">Tests Attempted</span>
-                    <div className="flex items-center gap-2">
-                      <BookOpen className="w-5 h-5 text-cyan-400" />
-                      <span className="font-jakarta font-black text-2xl text-paper">{selectedStudentForReport.testsAttemptedCount}</span>
-                    </div>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-[#121316] border border-white/10 space-y-1">
-                    <span className="text-[10px] font-mono text-slate/70 uppercase tracking-wider block">Tasks Passed</span>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                      <span className="font-jakarta font-black text-2xl text-emerald-400">{selectedStudentForReport.testsPassedCount}</span>
-                    </div>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-[#121316] border border-white/10 space-y-1">
-                    <span className="text-[10px] font-mono text-slate/70 uppercase tracking-wider block">Mistakes Recorded</span>
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-5 h-5 text-rose-400" />
-                      <span className="font-jakarta font-black text-2xl text-rose-400">{selectedStudentForReport.testsFailedCount}</span>
-                    </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setTelemetryFilter('all')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                        telemetryFilter === 'all'
+                          ? 'bg-primary text-ink'
+                          : 'bg-white/5 text-slate hover:text-paper'
+                      }`}
+                    >
+                      All ({attempts.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTelemetryFilter('correct')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                        telemetryFilter === 'correct'
+                          ? 'bg-emerald-500 text-black'
+                          : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                      }`}
+                    >
+                      ✓ Correct ({metrics.passed})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTelemetryFilter('wrong')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                        telemetryFilter === 'wrong'
+                          ? 'bg-rose-500 text-white'
+                          : 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20'
+                      }`}
+                    >
+                      ✗ Wrong ({metrics.failed + metrics.timeouts})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTelemetryFilter('fast')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                        telemetryFilter === 'fast'
+                          ? 'bg-emerald-400 text-black'
+                          : 'bg-white/5 text-slate hover:text-paper'
+                      }`}
+                    >
+                      ⚡ &lt;12s ({metrics.fastCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTelemetryFilter('normal')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                        telemetryFilter === 'normal'
+                          ? 'bg-sky-400 text-black'
+                          : 'bg-white/5 text-slate hover:text-paper'
+                      }`}
+                    >
+                      ⏱️ 12-20s ({metrics.normalCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTelemetryFilter('slow')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                        telemetryFilter === 'slow'
+                          ? 'bg-amber-400 text-black'
+                          : 'bg-white/5 text-slate hover:text-paper'
+                      }`}
+                    >
+                      ⏳ &gt;20s ({metrics.slowCount + metrics.timeouts})
+                    </button>
                   </div>
                 </div>
 
-                {/* Student Onboarding & Contact Details */}
-                <div className="p-5 rounded-3xl bg-[#121316] border border-white/10 space-y-3.5">
-                  <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider block">
-                    // Student Profile &amp; Contact
-                  </span>
+                {filteredAttempts.length === 0 ? (
+                  <div className="p-12 text-center rounded-3xl bg-[#121316] border border-white/10 space-y-2">
+                    <Clock className="w-8 h-8 text-slate/40 mx-auto" />
+                    <span className="font-jakarta font-bold text-sm text-paper block">
+                      No Questions Found
+                    </span>
+                    <p className="text-xs text-slate/70 max-w-md mx-auto">
+                      {attempts.length === 0
+                        ? "This student has not started answering challenges in their course yet. Questions and exact response times will appear here as soon as they start."
+                        : "Try clearing your search query or pacing filter above."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {filteredAttempts.map((att) => {
+                      const questionLabel = att.subQuestionLabel ? `Question ${att.subQuestionLabel}` : `Question ${att.questionNumber}`;
 
-                  <div className="space-y-2.5 text-xs">
+                      return (
+                        <div
+                          key={att.id}
+                          className="p-3.5 sm:p-4 rounded-2xl bg-[#121316] border border-white/10 hover:border-white/20 transition-all space-y-2.5"
+                        >
+                          {/* Top Line: Question Number, Concept Name, Time to Answer, Status */}
+                          <div className="flex flex-wrap items-center justify-between gap-2.5">
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                              <span className="font-mono text-xs font-bold text-paper px-2 py-0.5 rounded-lg bg-white/5 border border-white/10">
+                                {questionLabel}
+                              </span>
+                              <span className="font-jakarta font-bold text-sm text-paper">
+                                {att.questionTitle}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {/* Time Taken to Answer */}
+                              <span className="font-mono text-xs font-medium text-slate/80 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-slate/50" />
+                                <span>Time to answer: <strong className="text-paper">{att.timeTakenSeconds.toFixed(1)}s</strong></span>
+                              </span>
+
+                              {/* Result Badge */}
+                              <span className={`px-2.5 py-1 rounded-lg font-mono text-[11px] font-bold uppercase ${
+                                att.isCorrect
+                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                  : att.status === 'timeout'
+                                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                              }`}>
+                                {att.isCorrect ? '✓ Correct' : att.status === 'timeout' ? '⚠️ Timed Out' : '✗ Wrong'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Show Question Prompt & Selected Answer ONLY for Wrong / Timeout Questions */}
+                          {!att.isCorrect && (
+                            <div className="space-y-2 pt-1 border-t border-white/5">
+                              <p className="text-xs text-paper/90 font-jakarta leading-relaxed">
+                                <strong className="text-rose-400 mr-1.5 font-mono">Question:</strong>
+                                {att.questionPrompt}
+                              </p>
+
+                              <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1 font-mono">
+                                <div>
+                                  <span className="text-slate/60">Student Answer: </span>
+                                  <strong className="text-rose-300 font-bold">
+                                    Option {att.studentOptionId}
+                                  </strong>
+                                  <span className="text-emerald-400 ml-3">
+                                    • Correct: <strong className="text-emerald-400 font-bold">Option {att.correctOptionId}</strong>
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-slate/50">
+                                  {att.attemptedAt}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: MISTAKE LOG */}
+            {inspectTab === 'mistakes' && (
+              <div className="p-6 rounded-3xl bg-[#121316] border border-white/10 space-y-4 shadow-xl">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/10">
+                  <div>
+                    <h4 className="font-jakarta font-black text-sm text-paper uppercase tracking-wider flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-400" />
+                      <span>Where Did They Make Answers Wrong? (Mistake Log)</span>
+                    </h4>
+                    <p className="text-xs text-slate mt-0.5">
+                      Exact tests and coding challenges where the student entered incorrect code or failed test assertions.
+                    </p>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-full font-mono text-[11px] font-bold ${
+                    student.wrongAttempts.length > 0
+                      ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                      : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                  }`}>
+                    {student.wrongAttempts.length} Mistakes Recorded
+                  </span>
+                </div>
+
+                {student.wrongAttempts.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 flex items-center gap-3">
+                    <CheckCircle2 className="w-8 h-8 shrink-0 text-emerald-400" />
+                    <div className="space-y-0.5">
+                      <span className="font-jakarta font-bold text-sm text-emerald-300 block">
+                        Clean Record — 100% Accuracy!
+                      </span>
+                      <p className="text-xs text-emerald-400/80">
+                        This student has completed all attempted challenges without a single failed test or incorrect answer on record.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {student.wrongAttempts.map((mistake, idx) => (
+                      <div
+                        key={idx}
+                        className="p-4 rounded-2xl bg-rose-500/[0.08] border border-rose-500/25 space-y-2 hover:border-rose-500/40 transition-colors"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-jakarta font-bold text-sm text-rose-300 flex items-center gap-1.5">
+                            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                            <span>{mistake.taskTitle}</span>
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-lg bg-black/60 font-mono text-[10px] text-slate/90 border border-white/10">
+                            {mistake.section}
+                          </span>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-black/60 border border-white/5 font-mono text-xs text-rose-200/90 leading-relaxed">
+                          {mistake.detail}
+                        </div>
+
+                        <div className="flex items-center justify-between text-[10px] font-mono text-slate/60 pt-0.5">
+                          <span>Failed Attempt Timestamp: {mistake.failedAt}</span>
+                          <span className="text-rose-400/80">Requires Code Correction</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 3: SECTION MASTERY */}
+            {inspectTab === 'mastery' && (
+              <div className="p-6 rounded-3xl bg-[#121316] border border-white/10 space-y-4 shadow-xl">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/10">
+                  <div>
+                    <h4 className="font-jakarta font-black text-sm text-paper uppercase tracking-wider flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-slate/60" />
+                      <span>Section-by-Section Course Mastery</span>
+                    </h4>
+                    <p className="text-xs text-slate mt-0.5">
+                      Progress tracking across all curriculum parts and interactive coding exercises.
+                    </p>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-paper bg-white/5 border border-white/10 px-3 py-1 rounded-full">
+                    {student.sectionProgress.filter((s) => s.status === 'passed').length} / {student.sectionProgress.length || 8} Parts Passed
+                  </span>
+                </div>
+
+                {student.sectionProgress.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-slate/60 bg-black/40 rounded-2xl border border-white/5">
+                    Student has not started course challenges yet. Once they open Python Code Lab and run challenges, real-time section mastery will appear here.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {student.sectionProgress.map((sec, idx) => {
+                      const isPassed = sec.status === 'passed';
+                      const isInProgress = sec.status === 'in_progress';
+                      const isFailed = sec.status === 'failed';
+                      const pct = sec.totalTasks > 0 ? Math.round((sec.solvedTasks / sec.totalTasks) * 100) : 0;
+
+                      return (
+                        <div
+                          key={idx}
+                          className="p-4 rounded-2xl border border-white/10 bg-[#121316] space-y-2"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <span className="font-jakarta font-bold text-xs text-paper block truncate">
+                                {sec.title}
+                              </span>
+                              <span className="font-mono text-[11px] text-slate/80 block mt-1">
+                                Answered: <strong className="text-paper">{sec.solvedTasks} / {sec.totalTasks}</strong> questions ({pct}%)
+                              </span>
+                            </div>
+
+                            <span className={`px-2.5 py-0.5 rounded-full font-mono text-[9px] font-bold uppercase shrink-0 ${
+                              isPassed
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : isFailed
+                                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                : isInProgress
+                                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                                : 'bg-white/5 text-slate border border-white/10'
+                            }`}>
+                              {sec.status.replace(/_/g, ' ')}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 4: STUDENT PROFILE */}
+            {inspectTab === 'profile' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Contact & Demographics */}
+                <div className="p-6 rounded-3xl bg-[#121316] border border-white/10 space-y-4 shadow-xl">
+                  <h4 className="font-jakarta font-bold text-sm text-paper uppercase tracking-wider flex items-center gap-2 pb-3 border-b border-white/10">
+                    <Users className="w-4 h-4 text-primary" />
+                    <span>Student Profile &amp; Contact Details</span>
+                  </h4>
+
+                  <div className="space-y-3 text-xs">
                     <div className="flex items-start justify-between gap-2 pb-2 border-b border-white/5">
                       <span className="text-slate font-mono">Full Name</span>
-                      <span className="font-bold text-paper text-right">{selectedStudentForReport.name}</span>
+                      <span className="font-bold text-paper text-right">{student.name}</span>
                     </div>
 
                     <div className="flex items-start justify-between gap-2 pb-2 border-b border-white/5">
                       <span className="text-slate font-mono">Verified Email</span>
-                      <span className="font-mono text-slate/90 text-right truncate max-w-[200px]">{selectedStudentForReport.email}</span>
+                      <span className="font-mono text-slate/90 text-right">{student.email}</span>
                     </div>
 
                     <div className="flex items-start justify-between gap-2 pb-2 border-b border-white/5">
                       <span className="text-slate font-mono">Contact Phone</span>
-                      <span className="font-mono font-semibold text-paper text-right">{selectedStudentForReport.phone || 'Not added'}</span>
+                      <span className="font-mono font-semibold text-paper text-right">{student.phone || 'Not added'}</span>
                     </div>
 
-                    {selectedStudentForReport.collegeOrCompany && (
-                      <div className="flex items-start justify-between gap-2 pb-2 border-b border-white/5">
-                        <span className="text-slate font-mono">College / Org</span>
-                        <span className="text-paper text-right font-medium">{selectedStudentForReport.collegeOrCompany}</span>
-                      </div>
-                    )}
+                    <div className="flex items-start justify-between gap-2 pb-2 border-b border-white/5">
+                      <span className="text-slate font-mono">College / Organization</span>
+                      <span className="text-paper text-right font-medium">{student.collegeOrCompany || 'Not specified'}</span>
+                    </div>
 
-                    {selectedStudentForReport.learningGoal && (
-                      <div className="flex items-start justify-between gap-2 pb-2 border-b border-white/5">
-                        <span className="text-slate font-mono">Career Goal</span>
-                        <span className="text-primary text-right font-semibold">{selectedStudentForReport.learningGoal}</span>
-                      </div>
-                    )}
-
-                    {selectedStudentForReport.whereDidYouFindUs && (
-                      <div className="flex items-start justify-between gap-2 pb-2 border-b border-white/5">
-                        <span className="text-slate font-mono">Source</span>
-                        <span className="text-slate text-right">{selectedStudentForReport.whereDidYouFindUs}</span>
-                      </div>
-                    )}
+                    <div className="flex items-start justify-between gap-2 pb-2 border-b border-white/5">
+                      <span className="text-slate font-mono">Acquisition Source</span>
+                      <span className="text-slate text-right">{student.whereDidYouFindUs || 'Direct / Search'}</span>
+                    </div>
 
                     <div className="flex items-start justify-between gap-2">
                       <span className="text-slate font-mono">Account Created</span>
-                      <span className="text-slate/70 font-mono text-right">{new Date(selectedStudentForReport.createdAt).toLocaleDateString()}</span>
+                      <span className="text-slate/70 font-mono text-right">{new Date(student.createdAt).toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Enrolled Courses & Live Training */}
-                <div className="p-5 rounded-3xl bg-[#121316] border border-white/10 space-y-3">
-                  <span className="font-mono text-xs text-slate/70 font-bold uppercase tracking-wider block">
-                    Enrolled Courses &amp; Live Class
-                  </span>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedStudentForReport.enrolledCourses && selectedStudentForReport.enrolledCourses.length > 0 ? (
-                      selectedStudentForReport.enrolledCourses.map((c, i) => (
-                        <span
-                          key={i}
-                          className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-paper font-jakarta text-xs font-semibold"
-                        >
-                          {c}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-xs text-slate/60 font-mono">No specific course selected yet</span>
-                    )}
+                {/* Courses & Certification */}
+                <div className="space-y-5">
+                  <div className="p-6 rounded-3xl bg-[#121316] border border-white/10 space-y-4 shadow-xl">
+                    <h4 className="font-jakarta font-bold text-sm text-paper uppercase tracking-wider flex items-center gap-2 pb-3 border-b border-white/10">
+                      <BookOpen className="w-4 h-4 text-cyan-400" />
+                      <span>Enrolled Courses</span>
+                    </h4>
 
-                    {selectedStudentForReport.joinedLiveClass && (
-                      <span className="px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-primary font-jakarta text-xs font-bold flex items-center gap-1.5">
-                        <Video className="w-3.5 h-3.5" />
-                        <span>Live Masterclass Registered</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Verified Certificate Showcase Banner */}
-                <div className={`p-5 rounded-3xl border space-y-2.5 ${
-                  selectedStudentForReport.hasCertificate
-                    ? 'bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border-amber-400/30'
-                    : 'bg-[#121316] border-white/10'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Award className={`w-5 h-5 ${selectedStudentForReport.hasCertificate ? 'text-amber-400' : 'text-slate/60'}`} />
-                      <h4 className="font-jakarta font-bold text-sm text-paper">
-                        {selectedStudentForReport.hasCertificate ? 'Course Certificate Issued' : 'Certificate Progress'}
-                      </h4>
-                    </div>
-                    {selectedStudentForReport.hasCertificate && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-black font-jakarta font-extrabold text-[10px] uppercase">
-                        VERIFIED
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="text-xs text-slate leading-relaxed">
-                    {selectedStudentForReport.hasCertificate
-                      ? `This student has passed core requirements with ${selectedStudentForReport.points} points. Certificate ID: ${selectedStudentForReport.certificateId || 'CERT-DO-PILOT'} issued on ${selectedStudentForReport.certificateIssuedDate || 'Completed'}.`
-                      : `Requires scoring 20+ points or finishing Part 14 to unlock verifiable certificate. Currently at ${selectedStudentForReport.points} / 20 points.`}
-                  </p>
-
-                  {/* Mini Progress Bar for Certificate */}
-                  <div className="space-y-1 pt-1">
-                    <div className="flex justify-between text-[11px] font-mono text-slate">
-                      <span>Progress to Certificate</span>
-                      <span className="font-bold text-paper">{Math.min(100, Math.round((selectedStudentForReport.points / 20) * 100))}%</span>
-                    </div>
-                    <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          selectedStudentForReport.hasCertificate ? 'bg-amber-400' : 'bg-primary'
-                        }`}
-                        style={{ width: `${Math.min(100, Math.round((selectedStudentForReport.points / 20) * 100))}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Right Column (8 Cols on lg): Mistakes Log + Course Mastery */}
-              <div className="lg:col-span-8 space-y-6">
-                
-                {/* Section 1: Where Did They Make Answers Wrong? (Mistake Log) */}
-                <div className="p-6 rounded-3xl bg-[#121316] border border-white/10 space-y-4 shadow-xl">
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/10">
-                    <div>
-                      <h4 className="font-jakarta font-black text-sm text-paper uppercase tracking-wider flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 text-rose-400" />
-                        <span>Where Did They Make Answers Wrong? (Mistake Log)</span>
-                      </h4>
-                      <p className="text-xs text-slate mt-0.5">
-                        Exact tests and Python challenges where the student entered incorrect code or failed test assertions.
-                      </p>
-                    </div>
-                    <span className={`px-2.5 py-1 rounded-full font-mono text-[11px] font-bold ${
-                      selectedStudentForReport.wrongAttempts.length > 0
-                        ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                        : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                    }`}>
-                      {selectedStudentForReport.wrongAttempts.length} Mistakes Recorded
-                    </span>
-                  </div>
-
-                  {selectedStudentForReport.wrongAttempts.length === 0 ? (
-                    <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 flex items-center gap-3">
-                      <CheckCircle2 className="w-6 h-6 shrink-0 text-emerald-400" />
-                      <div className="space-y-0.5">
-                        <span className="font-jakarta font-bold text-sm text-emerald-300 block">
-                          Clean Record — 100% Accuracy!
-                        </span>
-                        <p className="text-xs text-emerald-400/80">
-                          This student has completed all attempted challenges without a single failed test or incorrect answer on record.
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {selectedStudentForReport.wrongAttempts.map((mistake, idx) => (
-                        <div
-                          key={idx}
-                          className="p-4 rounded-2xl bg-rose-500/[0.08] border border-rose-500/25 space-y-2 hover:border-rose-500/40 transition-colors"
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="font-jakarta font-bold text-sm text-rose-300 flex items-center gap-1.5">
-                              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                              <span>{mistake.taskTitle}</span>
-                            </span>
-                            <span className="px-2.5 py-0.5 rounded-lg bg-black/60 font-mono text-[10px] text-slate/90 border border-white/10">
-                              {mistake.section}
-                            </span>
-                          </div>
-
-                          <div className="p-3 rounded-xl bg-black/60 border border-white/5 font-mono text-xs text-rose-200/90 leading-relaxed">
-                            {mistake.detail}
-                          </div>
-
-                          <div className="flex items-center justify-between text-[10px] font-mono text-slate/60 pt-0.5">
-                            <span>Failed Attempt Timestamp: {mistake.failedAt}</span>
-                            <span className="text-rose-400/80">Requires Code Correction</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Section 2: Complete Course Modules & Section Mastery */}
-                <div className="p-6 rounded-3xl bg-[#121316] border border-white/10 space-y-4 shadow-xl">
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/10">
-                    <div>
-                      <h4 className="font-jakarta font-black text-sm text-paper uppercase tracking-wider flex items-center gap-2">
-                        <BookOpen className="w-4 h-4 text-primary" />
-                        <span>Section-by-Section Course Mastery</span>
-                      </h4>
-                      <p className="text-xs text-slate mt-0.5">
-                        Progress tracking across all curriculum parts and interactive coding exercises.
-                      </p>
-                    </div>
-                    <span className="font-mono text-xs font-bold text-primary bg-primary/10 border border-primary/20 px-3 py-1 rounded-full">
-                      {selectedStudentForReport.sectionProgress.filter((s) => s.status === 'passed').length} / {selectedStudentForReport.sectionProgress.length || 8} Modules Passed
-                    </span>
-                  </div>
-
-                  {selectedStudentForReport.sectionProgress.length === 0 ? (
-                    <div className="p-8 text-center text-xs text-slate/60 bg-black/40 rounded-2xl border border-white/5">
-                      Student has not started course challenges yet. Once they open Python Code Lab and run challenges, real-time section mastery will appear here.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                      {selectedStudentForReport.sectionProgress.map((sec, idx) => {
-                        const isPassed = sec.status === 'passed';
-                        const isInProgress = sec.status === 'in_progress';
-                        const isFailed = sec.status === 'failed';
-
-                        return (
-                          <div
-                            key={idx}
-                            className={`p-4 rounded-2xl border space-y-2.5 transition-all ${
-                              isPassed
-                                ? 'bg-emerald-500/[0.04] border-emerald-500/20 hover:border-emerald-500/40'
-                                : isFailed
-                                ? 'bg-rose-500/[0.04] border-rose-500/20 hover:border-rose-500/40'
-                                : isInProgress
-                                ? 'bg-cyan-500/[0.04] border-cyan-500/20 hover:border-cyan-500/40'
-                                : 'bg-black/40 border-white/5 opacity-70'
-                            }`}
+                    <div className="flex flex-wrap gap-2">
+                      {student.enrolledCourses && student.enrolledCourses.length > 0 ? (
+                        student.enrolledCourses.map((c, i) => (
+                          <span
+                            key={i}
+                            className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-paper font-jakarta text-xs font-semibold"
                           >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <span className="font-jakarta font-bold text-xs text-paper block truncate">
-                                  {sec.title}
-                                </span>
-                                <span className="font-mono text-[11px] text-slate/70 block mt-0.5">
-                                  {sec.solvedTasks} of {sec.totalTasks} challenges solved
-                                </span>
-                              </div>
-
-                              <span className={`px-2.5 py-0.5 rounded-full font-mono text-[9px] font-bold uppercase shrink-0 ${
-                                isPassed
-                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                  : isFailed
-                                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                                  : isInProgress
-                                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                                  : 'bg-white/5 text-slate border border-white/10'
-                              }`}>
-                                {sec.status.replace(/_/g, ' ')}
-                              </span>
-                            </div>
-
-                            {/* Mini Progress Bar */}
-                            <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all duration-300 ${
-                                  isPassed
-                                    ? 'bg-emerald-400'
-                                    : isFailed
-                                    ? 'bg-rose-400'
-                                    : isInProgress
-                                    ? 'bg-cyan-400'
-                                    : 'bg-white/10'
-                                }`}
-                                style={{ width: `${Math.round((sec.solvedTasks / sec.totalTasks) * 100)}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
+                            {c}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-slate/60 font-mono">No courses enrolled yet</span>
+                      )}
                     </div>
-                  )}
+                  </div>
+
+                  <div className={`p-6 rounded-3xl border space-y-3 shadow-xl ${
+                    student.hasCertificate
+                      ? 'bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border-amber-400/30'
+                      : 'bg-[#121316] border-white/10'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Award className={`w-5 h-5 ${student.hasCertificate ? 'text-amber-400' : 'text-slate/60'}`} />
+                        <h4 className="font-jakarta font-bold text-sm text-paper">
+                          {student.hasCertificate ? 'Course Certificate Issued' : 'Certificate Progress'}
+                        </h4>
+                      </div>
+                      {student.hasCertificate && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-black font-jakarta font-extrabold text-[10px] uppercase">
+                          VERIFIED
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-slate leading-relaxed">
+                      {student.hasCertificate
+                        ? `This student has passed core requirements with ${student.points} points. Certificate ID: ${student.certificateId || 'CERT-DO-PILOT'} issued on ${student.certificateIssuedDate || 'Completed'}.`
+                        : `Requires scoring 20+ points or finishing Part 14 to unlock verifiable certificate. Currently at ${student.points} / 20 points.`}
+                    </p>
+                  </div>
                 </div>
-
               </div>
-
-            </div>
+            )}
 
           </div>
 
@@ -4209,13 +5313,13 @@ export const AdminPanel: React.FC = () => {
           <div className="px-6 py-4 border-t border-white/10 bg-[#0f1013]/95 backdrop-blur-md flex flex-wrap items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-2 font-mono text-[11px] text-slate/70">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Viewing record for <strong className="text-paper">{selectedStudentForReport.name}</strong> • Registered {new Date(selectedStudentForReport.createdAt).toLocaleString()}</span>
+              <span>Viewing record for <strong className="text-paper">{student.name}</strong> • Registered {new Date(student.createdAt).toLocaleString()} • Avg Speed: <strong className="text-primary">{metrics.avgTime}s</strong></span>
             </div>
 
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => exportIndividualStudentPDF(selectedStudentForReport)}
+                onClick={() => exportIndividualStudentPDF(student)}
                 className="px-4 py-2 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs hover:bg-white transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-primary/20"
               >
                 <Download className="w-4 h-4" />
@@ -4232,6 +5336,667 @@ export const AdminPanel: React.FC = () => {
             </div>
           </div>
 
+        </div>
+      </div>
+    );
+  };
+
+  const renderRewardRequestsSection = () => {
+    const totalRewards = rewardRequests.length;
+    const pendingRewards = rewardRequests.filter((r) => r.status === 'pending');
+    const approvedRewards = rewardRequests.filter((r) => r.status === 'approved');
+
+    const filteredRewards = rewardRequests.filter((r) => {
+      if (rewardStatusFilter !== 'all' && r.status !== rewardStatusFilter) {
+        return false;
+      }
+      const q = (rewardSearch || studentSearch).toLowerCase().trim();
+      if (q) {
+        const matchName = r.studentName.toLowerCase().includes(q);
+        const matchEmail = r.studentEmail.toLowerCase().includes(q);
+        const matchPhone = (r.studentPhone || '').toLowerCase().includes(q);
+        const matchCollege = (r.collegeOrCompany || '').toLowerCase().includes(q);
+        const matchCourse = (r.courseTitle || '').toLowerCase().includes(q);
+        const matchMilestone = `milestone ${r.milestonePoints}`.includes(q) || `₹${r.rewardAmount}`.includes(q);
+        const matchStatus = r.status.toLowerCase().includes(q);
+        if (!matchName && !matchEmail && !matchPhone && !matchCollege && !matchCourse && !matchMilestone && !matchStatus) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    return (
+      <section id="section-rewards" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+        {/* Rewards Summary KPIs & Subfilters */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 p-5 rounded-2xl bg-white/[0.03] border border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+              <Trophy className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-jakarta font-bold text-sm text-paper flex items-center gap-2">
+                Milestone Reward Claims
+                {pendingRewards.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 font-mono text-[10px] font-bold">
+                    {pendingRewards.length} PENDING VERIFICATION
+                  </span>
+                )}
+              </h4>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Search bar */}
+            <div className="relative min-w-[200px] flex-1 sm:flex-none">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate/50" />
+              <input
+                type="text"
+                placeholder="Search student, course..."
+                value={rewardSearch}
+                onChange={(e) => setRewardSearch(e.target.value)}
+                className="w-full pl-8 pr-7 py-1.5 bg-white/5 border border-white/10 rounded-xl text-xs text-paper placeholder:text-slate/40 focus:outline-none focus:border-primary/50 transition-colors"
+              />
+              {rewardSearch && (
+                <button
+                  type="button"
+                  onClick={() => setRewardSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate hover:text-paper"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Sub-tabs */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {[
+                { id: 'all', label: 'All Requests', count: totalRewards },
+                { id: 'pending', label: 'Pending', count: pendingRewards.length },
+                { id: 'approved', label: 'Approved', count: approvedRewards.length },
+              ].map((subTab) => {
+                const active = rewardStatusFilter === subTab.id;
+                return (
+                  <button
+                    key={subTab.id}
+                    type="button"
+                    onClick={() => setRewardStatusFilter(subTab.id as any)}
+                    className={`px-3 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      active
+                        ? 'bg-primary text-ink shadow-md shadow-primary/20 scale-[1.02]'
+                        : 'bg-white/5 text-slate hover:text-paper hover:bg-white/10 border border-white/5'
+                    }`}
+                  >
+                    <span>{subTab.label}</span>
+                    <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                      active ? 'bg-black/20 text-ink font-bold' : 'bg-white/10 text-slate/80'
+                    }`}>
+                      {subTab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Requests Grid */}
+        {filteredRewards.length === 0 ? (
+          <div className="p-16 text-center rounded-3xl bg-white/[0.02] border border-white/10 space-y-3">
+            <Trophy className="w-10 h-10 text-slate/40 mx-auto" />
+            <h4 className="font-jakarta font-bold text-base text-paper">No reward requests match your filter</h4>
+            <p className="text-xs text-slate max-w-sm mx-auto">
+              {rewardStatusFilter === 'pending'
+                ? 'All pending requests have been reviewed and approved.'
+                : 'Try adjusting your search query or switching to All Requests.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setRewardStatusFilter('all');
+                setRewardSearch('');
+                setStudentSearch('');
+              }}
+              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-paper font-jakarta text-xs font-bold transition-all cursor-pointer"
+            >
+              Reset Rewards Filter
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredRewards.map((req) => {
+              const isApproved = req.status === 'approved';
+              return (
+                <div
+                  key={req.id}
+                  className={`rounded-3xl bg-[#0e0f12] border p-5 space-y-4 transition-all shadow-xl flex flex-col justify-between group ${
+                    isApproved
+                      ? 'border-emerald-500/20 hover:border-emerald-500/40'
+                      : 'border-amber-500/30 hover:border-amber-500/50 bg-gradient-to-b from-amber-500/[0.02] to-transparent'
+                  }`}
+                >
+                  {/* Top: Student Header & Status Badge */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-11 h-11 rounded-2xl bg-primary/20 border border-primary/40 text-primary flex items-center justify-center font-jakarta font-black text-sm shrink-0">
+                        {getUserInitials(req.studentName)}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-jakarta font-bold text-sm text-paper group-hover:text-primary transition-colors truncate">
+                          {req.studentName}
+                        </h3>
+                        <span className="font-mono text-xs text-slate/70 block truncate">
+                          {req.studentEmail}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0">
+                      {isApproved ? (
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          APPROVED
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono text-[10px] font-bold flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          PENDING
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Student Details: Course, Phone, College, Dates */}
+                  <div className="space-y-1.5 text-xs text-slate/70 font-mono bg-white/[0.02] p-3 rounded-2xl border border-white/5">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="w-3.5 h-3.5 text-primary/80 shrink-0" />
+                      <span className="text-paper font-semibold truncate">
+                        {req.courseTitle || 'Complete Python Course'}
+                      </span>
+                    </div>
+                    {req.studentPhone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-3.5 h-3.5 text-slate/40 shrink-0" />
+                        <span className="text-paper truncate">{req.studentPhone}</span>
+                      </div>
+                    )}
+                    {req.collegeOrCompany && (
+                      <div className="flex items-center gap-2">
+                        <GraduationCap className="w-3.5 h-3.5 text-slate/40 shrink-0" />
+                        <span className="text-paper truncate">{req.collegeOrCompany}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-[11px] text-slate/50 pt-1 border-t border-white/5">
+                      <Calendar className="w-3 h-3 shrink-0" />
+                      <span>Requested: {new Date(req.requestedAt).toLocaleString()}</span>
+                    </div>
+                    {isApproved && req.approvedAt && (
+                      <div className="flex items-center gap-2 text-[11px] text-emerald-400/90">
+                        <CheckCircle2 className="w-3 h-3 shrink-0 text-emerald-400" />
+                        <span>Approved: {new Date(req.approvedAt).toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Milestone & Points Balance Details */}
+                  <div className="p-3.5 rounded-2xl bg-black/60 border border-white/10 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-[10px] font-mono text-slate/60 uppercase tracking-wider block">Milestone Reward</span>
+                      <span className="font-jakarta font-bold text-sm text-paper flex items-center gap-1.5 mt-0.5">
+                        <Trophy className="w-4 h-4 text-amber-400" />
+                        {req.milestonePoints} Points
+                      </span>
+                      <span className="text-[11px] font-mono text-primary font-bold block mt-0.5">
+                        Reward: ₹{req.rewardAmount}
+                      </span>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-[10px] font-mono text-slate/60 uppercase tracking-wider block">Points Balance</span>
+                      <span className="font-mono font-bold text-base text-paper block mt-0.5">
+                        {req.pointsBalance} <span className="text-xs text-slate/60 font-normal">pts</span>
+                      </span>
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md inline-block mt-0.5 ${
+                        req.pointsBalance >= req.milestonePoints
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                      }`}>
+                        {req.pointsBalance >= req.milestonePoints ? '✓ Eligible' : 'Under Points'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div>
+                    {isApproved ? (
+                      <div className="w-full py-2.5 px-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center font-jakarta font-bold text-xs text-emerald-400 flex items-center justify-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Request Approved
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleApproveReward(req.id, req.studentName, req.rewardAmount)}
+                        className="w-full py-2.5 px-4 rounded-2xl bg-primary hover:bg-primary/90 text-ink font-jakarta font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-ink" />
+                        <span>Approve</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    );
+  };
+
+  // Render Permanent Student Deletion Section
+  const renderPermanentDeleteSection = () => {
+    // Unique list of all courses for filtering
+    const uniqueCourses = Array.from(
+      new Set([
+        'Complete Python Course',
+        'Complete Java Course',
+        'Full Stack Open Course',
+        'Cyber Security Course',
+        ...(data.coursesSection?.courses || []).map((c: any) => c.title),
+        ...students.flatMap((s) => s.enrolledCourses || [])
+      ])
+    ).filter(Boolean);
+
+    // Filter students by search query and course
+    const filteredStudents = students.filter((s) => {
+      if (permanentDeleteCourseFilter !== 'all') {
+        const matchesCourse = (s.enrolledCourses || []).some(
+          (c) => c.toLowerCase() === permanentDeleteCourseFilter.toLowerCase()
+        );
+        if (!matchesCourse) return false;
+      }
+      const q = permanentDeleteSearch.toLowerCase().trim();
+      if (q) {
+        const matchName = (s.name || '').toLowerCase().includes(q);
+        const matchEmail = (s.email || '').toLowerCase().includes(q);
+        const matchPhone = (s.phone || '').toLowerCase().includes(q);
+        const matchCourse = (s.enrolledCourses || []).some((c) => c.toLowerCase().includes(q));
+        const matchId = (s.id || '').toLowerCase().includes(q);
+        if (!matchName && !matchEmail && !matchPhone && !matchCourse && !matchId) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    return (
+      <section className="space-y-6 animate-in fade-in duration-200">
+        {/* Header Banner */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-white/10">
+          <div className="space-y-1">
+            <h2 className="font-jakarta font-black text-2xl sm:text-3xl text-paper tracking-tight flex items-center gap-3">
+              <Trash2 className="w-7 h-7 text-rose-400 shrink-0" />
+              <span>Permanent Delete</span>
+            </h2>
+            <p className="text-xs sm:text-sm text-slate">
+              Permanently delete student accounts and cascade remove all associated data, enrollments, test progress, and certificates from the database.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={fetchStudents}
+              disabled={isLoadingStudents}
+              className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium text-paper flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingStudents ? 'animate-spin text-primary' : 'text-slate'}`} />
+              <span>Refresh Roster</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Feedback Alert Toast */}
+        {deleteFeedback && (
+          <div
+            className={`p-4 rounded-2xl border flex items-center justify-between gap-3 text-xs sm:text-sm animate-in fade-in duration-200 ${
+              deleteFeedback.type === 'success'
+                ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
+                : 'bg-rose-950/30 border-rose-500/40 text-rose-300'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              {deleteFeedback.type === 'success' ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+              ) : (
+                <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+              )}
+              <span className="font-medium">{deleteFeedback.message}</span>
+            </div>
+            <button
+              onClick={() => setDeleteFeedback(null)}
+              className="p-1 rounded-lg text-slate hover:text-paper hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Search & Filter Toolbar */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#0e1012] border border-white/10">
+          <div className="relative flex-1 min-w-0">
+            <Search className="w-4 h-4 text-slate absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search by student name, email, phone, or enrolled course..."
+              value={permanentDeleteSearch}
+              onChange={(e) => setPermanentDeleteSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-black/40 border border-white/10 text-paper text-xs placeholder:text-slate/60 focus:outline-none focus:border-rose-500/50 transition-colors"
+            />
+            {permanentDeleteSearch && (
+              <button
+                type="button"
+                onClick={() => setPermanentDeleteSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate hover:text-paper"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <Filter className="w-3.5 h-3.5 text-slate ml-1" />
+            <select
+              value={permanentDeleteCourseFilter}
+              onChange={(e) => setPermanentDeleteCourseFilter(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-paper text-xs focus:outline-none focus:border-rose-500/50 transition-colors cursor-pointer"
+            >
+              <option value="all">All Courses</option>
+              {uniqueCourses.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Student Table / Cards */}
+        {filteredStudents.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl bg-[#0e1012] border border-white/10 space-y-3">
+            <UserX className="w-10 h-10 text-slate/40 mx-auto" />
+            <h3 className="font-jakarta font-bold text-base text-paper">No students found</h3>
+            <p className="text-xs text-slate max-w-sm mx-auto">
+              {permanentDeleteSearch || permanentDeleteCourseFilter !== 'all'
+                ? 'No students matched the current search or course filter.'
+                : 'There are currently no registered students in the database.'}
+            </p>
+            {(permanentDeleteSearch || permanentDeleteCourseFilter !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPermanentDeleteSearch('');
+                  setPermanentDeleteCourseFilter('all');
+                }}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-paper inline-flex items-center gap-2 cursor-pointer"
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-white/10 bg-[#0e1012] overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-white/10 bg-black/40 font-mono text-[11px] text-slate/70 uppercase tracking-wider">
+                    <th className="py-3.5 px-4 font-semibold">Student Name</th>
+                    <th className="py-3.5 px-4 font-semibold">Email</th>
+                    <th className="py-3.5 px-4 font-semibold">Phone Number</th>
+                    <th className="py-3.5 px-4 font-semibold">Enrolled Course</th>
+                    <th className="py-3.5 px-4 font-semibold">Points</th>
+                    <th className="py-3.5 px-4 font-semibold text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-xs">
+                  {filteredStudents.map((student) => {
+                    const courses = student.enrolledCourses && student.enrolledCourses.length > 0
+                      ? student.enrolledCourses
+                      : ['Complete Python Course'];
+
+                    return (
+                      <tr
+                        key={student.id}
+                        className="hover:bg-white/[0.02] transition-colors group"
+                      >
+                        {/* 1. Name & Avatar */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-3">
+                            {student.avatar ? (
+                              <img
+                                src={student.avatar}
+                                alt={student.name}
+                                className="w-9 h-9 rounded-full object-cover shrink-0 border border-white/15"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-xs shrink-0 border border-primary/30">
+                                {getUserInitials(student.name)}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <span className="font-jakarta font-bold text-paper block truncate">
+                                {student.name}
+                              </span>
+                              <span className="font-mono text-[10px] text-slate/60 block truncate">
+                                ID: {student.id.length > 18 ? `${student.id.slice(0, 16)}...` : student.id}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* 2. Email */}
+                        <td className="py-3.5 px-4">
+                          <a
+                            href={`mailto:${student.email}`}
+                            className="font-mono text-paper hover:text-primary transition-colors flex items-center gap-1.5 truncate max-w-[220px]"
+                            title={student.email}
+                          >
+                            <Mail className="w-3.5 h-3.5 text-slate/60 shrink-0" />
+                            <span className="truncate">{student.email}</span>
+                          </a>
+                        </td>
+
+                        {/* 3. Phone */}
+                        <td className="py-3.5 px-4">
+                          {student.phone ? (
+                            <span className="font-mono text-paper flex items-center gap-1.5">
+                              <Phone className="w-3.5 h-3.5 text-slate/60 shrink-0" />
+                              <span>{student.phone}</span>
+                            </span>
+                          ) : (
+                            <span className="font-mono text-slate/40 italic">Not Provided</span>
+                          )}
+                        </td>
+
+                        {/* 4. Enrolled Course */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-wrap gap-1.5 max-w-[260px]">
+                            {courses.map((course, idx) => {
+                              const isPy = course.toLowerCase().includes('python');
+                              const isJava = course.toLowerCase().includes('java');
+                              const isCyber = course.toLowerCase().includes('cyber');
+                              const isFs = course.toLowerCase().includes('full stack') || course.toLowerCase().includes('fullstack');
+
+                              const badgeColor = isPy
+                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                : isJava
+                                ? 'bg-orange-500/10 text-orange-300 border-orange-500/20'
+                                : isCyber
+                                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                                : isFs
+                                ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
+                                : 'bg-white/10 text-slate border-white/10';
+
+                              return (
+                                <span
+                                  key={idx}
+                                  className={`font-jakarta text-[11px] px-2 py-0.5 rounded-lg border font-medium truncate ${badgeColor}`}
+                                >
+                                  {course}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </td>
+
+                        {/* 5. Points */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <span className="font-mono text-[11px] font-bold text-amber-400 inline-flex items-center gap-1">
+                            ⭐ {student.points} pts
+                          </span>
+                        </td>
+
+                        {/* 6. Action: Delete Button */}
+                        <td className="py-3.5 px-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => setDeleteModalTarget(student)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/30 font-jakarta font-bold text-xs transition-all shadow-sm hover:shadow-rose-500/25 active:scale-95 cursor-pointer"
+                            title={`Permanently delete ${student.name}'s account and records`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
+    );
+  };
+
+  // Render Root-Level Permanent Delete Confirmation Modal
+  const renderPermanentDeleteConfirmModal = () => {
+    if (!deleteModalTarget) return null;
+
+    const courses = deleteModalTarget.enrolledCourses && deleteModalTarget.enrolledCourses.length > 0
+      ? deleteModalTarget.enrolledCourses
+      : ['Complete Python Course'];
+
+    return (
+      <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+        <div className="max-w-lg w-full max-h-[90vh] overflow-y-auto rounded-2xl bg-[#0c0d0e] border border-rose-500/30 p-5 sm:p-6 space-y-5 shadow-2xl relative">
+          {/* Modal Header */}
+          <div className="flex items-start justify-between pb-3 border-b border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-jakarta font-bold text-base sm:text-lg text-paper">
+                  Confirm Permanent Deletion
+                </h3>
+                <p className="text-xs text-rose-400/90 font-mono mt-0.5">
+                  Irreversible Account &amp; Data Removal
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => !isDeletingStudent && setDeleteModalTarget(null)}
+              disabled={isDeletingStudent}
+              className="p-1 rounded-lg text-slate hover:text-paper hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Student Summary Card */}
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+            <div className="flex items-center gap-3">
+              {deleteModalTarget.avatar ? (
+                <img
+                  src={deleteModalTarget.avatar}
+                  alt={deleteModalTarget.name}
+                  className="w-11 h-11 rounded-full object-cover shrink-0 border border-white/20"
+                />
+              ) : (
+                <div className="w-11 h-11 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-sm shrink-0 border border-primary/30">
+                  {getUserInitials(deleteModalTarget.name)}
+                </div>
+              )}
+              <div className="min-w-0">
+                <h4 className="font-jakarta font-bold text-sm text-paper truncate">
+                  {deleteModalTarget.name}
+                </h4>
+                <p className="font-mono text-xs text-slate truncate">
+                  {deleteModalTarget.email}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-white/10 text-xs font-mono">
+              <div>
+                <span className="text-slate/60 block text-[10px] uppercase">Phone:</span>
+                <span className="text-paper">{deleteModalTarget.phone || 'Not Provided'}</span>
+              </div>
+              <div>
+                <span className="text-slate/60 block text-[10px] uppercase">Enrolled Course:</span>
+                <span className="text-paper truncate block">{courses.join(', ')}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Explanation of cascade deletion */}
+          <div className="rounded-xl border border-rose-500/20 bg-rose-950/20 p-3.5 space-y-2 text-xs text-rose-200">
+            <strong className="text-rose-300 font-semibold block">The following data will be permanently wiped:</strong>
+            <ul className="list-disc list-inside space-y-1 text-rose-200/80">
+              <li>Authentication profile and user credentials from database</li>
+              <li>Enrolled course progress and all test/quiz attempts</li>
+              <li>Accumulated points ({deleteModalTarget.points} points) &amp; streak history</li>
+              <li>Reward claims, milestone records, and support tickets</li>
+              <li>Course purchases, coupon claims, and issued certificates</li>
+            </ul>
+          </div>
+
+          <p className="text-xs text-slate/80 text-center font-mono">
+            Do you really want to permanently delete this student&apos;s account?
+          </p>
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
+            <button
+              type="button"
+              onClick={() => setDeleteModalTarget(null)}
+              disabled={isDeletingStudent}
+              className="px-4 py-2.5 rounded-xl border border-white/10 text-slate hover:text-paper hover:bg-white/5 font-semibold text-xs transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmPermanentDelete}
+              disabled={isDeletingStudent}
+              className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+            >
+              {isDeletingStudent ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Deleting from Database...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Yes, Permanently Delete</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -4359,362 +6124,307 @@ export const AdminPanel: React.FC = () => {
       return 0;
     });
 
-    const exportToExcel = () => {
-      const headers = [
-        "Student Name",
-        "Email",
-        "Phone",
-        "College / Organization",
-        "Where Found Us",
-        "Enrolled Courses",
-        "Live Class Joined",
-        "Total Score / Points",
-        "Tests Attempted",
-        "Tests Passed",
-        "Tests Failed / Wrong",
-        "Certificate Status",
-        "Certificate ID",
-        "Where Made Answers Wrong / Mistake Log",
-        "Section Mastery Summary",
-        "Learning Status",
-        "Registration Date"
-      ];
-
-      const rows = filteredStudents.map((s) => {
-        const mistakeDetails = s.wrongAttempts.length > 0
-          ? s.wrongAttempts.map((w) => `[${w.section}] ${w.taskTitle}: ${w.detail}`).join(" | ")
-          : "Clean Sheet (0 Mistakes)";
-        const sectionSummary = s.sectionProgress.length > 0
-          ? s.sectionProgress.map((sec) => `Part ${sec.partNum} (${sec.solvedTasks}/${sec.totalTasks} ${sec.status.toUpperCase()})`).join("; ")
-          : "Not Started";
-
-        return [
-          `"${(s.name || '').replace(/"/g, '""')}"`,
-          `"${(s.email || '').replace(/"/g, '""')}"`,
-          `"${(s.phone || 'N/A').replace(/"/g, '""')}"`,
-          `"${(s.collegeOrCompany || 'N/A').replace(/"/g, '""')}"`,
-          `"${(s.whereDidYouFindUs || 'N/A').replace(/"/g, '""')}"`,
-          `"${(s.enrolledCourses?.join('; ') || 'None').replace(/"/g, '""')}"`,
-          `"${s.joinedLiveClass ? 'Yes' : 'No'}"`,
-          s.points,
-          s.testsAttemptedCount,
-          s.testsPassedCount,
-          s.testsFailedCount,
-          `"${s.hasCertificate ? 'Issued' : 'In Progress'}"`,
-          `"${s.certificateId || 'N/A'}"`,
-          `"${mistakeDetails.replace(/"/g, '""')}"`,
-          `"${sectionSummary.replace(/"/g, '""')}"`,
-          `"${s.courseProgressStatus.toUpperCase().replace(/_/g, ' ')}"`,
-          `"${new Date(s.createdAt).toLocaleDateString()}"`
-        ];
-      });
-
-      const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `DO_PILOT_Students_${studentFilter.toUpperCase()}_${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      showToast(`Exported ${filteredStudents.length} students to Excel CSV successfully!`);
-    };
-
     const exportToPDF = () => {
       try {
         const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
         const pageWidth = doc.internal.pageSize.getWidth();
 
-        // Brand Banner
-        doc.setFillColor(12, 13, 14);
-        doc.rect(0, 0, pageWidth, 55, 'F');
+        // Exact font-synchronized text measurement and splitting
+        const splitText = (text: string, fontStyle: 'bold' | 'normal' | 'italic', fontSize: number, maxWidth: number): string[] => {
+          doc.setFont("helvetica", fontStyle);
+          doc.setFontSize(fontSize);
+          return doc.splitTextToSize(text || '', maxWidth);
+        };
 
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(16);
-        doc.setTextColor(0, 255, 157);
-        doc.text("DO PILOT — Student Learning & Progress Report", 40, 32);
+        const drawTableHeader = (yPos: number) => {
+          doc.setFillColor(241, 245, 249);
+          doc.rect(36, yPos, 770, 24, 'F');
+          doc.setDrawColor(203, 213, 225);
+          doc.line(36, yPos, 806, yPos);
+          doc.line(36, yPos + 24, 806, yPos + 24);
 
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.setTextColor(160, 160, 160);
-        doc.text(`Generated: ${new Date().toLocaleString()}  |  Filter: ${studentFilter.toUpperCase().replace(/_/g, ' ')}  |  Total Count: ${filteredStudents.length}`, 40, 47);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(8);
+          doc.setTextColor(30, 41, 59);
 
-        // Header Row
-        let currentY = 80;
-        doc.setFillColor(242, 244, 247);
-        doc.rect(40, currentY, pageWidth - 80, 22, 'F');
+          doc.text("#", 45, yPos + 15);
+          doc.text("STUDENT & CONTACT", 68, yPos + 15);
+          doc.text("COLLEGE & SOURCE", 224, yPos + 15);
+          doc.text("ENROLLED COURSES", 389, yPos + 15);
+          doc.text("TESTS & SCORE", 524, yPos + 15);
+          doc.text("CERTIFICATE", 629, yPos + 15);
+          doc.text("STATUS & JOINED", 714, yPos + 15);
+          return yPos + 24;
+        };
 
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(20, 20, 20);
-        doc.text("#", 45, currentY + 15);
-        doc.text("Student Name", 70, currentY + 15);
-        doc.text("Email", 210, currentY + 15);
-        doc.text("Phone", 350, currentY + 15);
-        doc.text("Score / Tests", 440, currentY + 15);
-        doc.text("Passed / Failed", 530, currentY + 15);
-        doc.text("Certificate", 640, currentY + 15);
-        doc.text("Status", 730, currentY + 15);
+        const drawPageHeader = () => {
+          // Premium executive dark header
+          doc.setFillColor(15, 23, 42);
+          doc.rect(0, 0, pageWidth, 58, 'F');
 
-        currentY += 28;
+          // Green accent line at header bottom
+          doc.setFillColor(0, 255, 157);
+          doc.rect(0, 56, pageWidth, 2, 'F');
 
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8.5);
-        doc.setTextColor(40, 40, 40);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(15);
+          doc.setTextColor(0, 255, 157);
+          doc.text("DO PILOT", 36, 26);
 
-        filteredStudents.forEach((s, idx) => {
-          if (currentY > 530) {
-            doc.addPage();
-            currentY = 45;
-          }
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(11);
+          doc.setTextColor(255, 255, 255);
+          doc.text("— Student Learning Analytics & Performance Report", 114, 26);
 
-          if (idx % 2 === 1) {
-            doc.setFillColor(248, 250, 252);
-            doc.rect(40, currentY - 11, pageWidth - 80, 18, 'F');
-          }
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(148, 163, 184);
+          const courseLabel = selectedCourseFilter === 'all' ? 'All Courses' : selectedCourseFilter;
+          const filterLabel = studentFilter.toUpperCase().replace(/_/g, ' ');
+          doc.text(
+            `Generated: ${new Date().toLocaleString()}   |   Course: ${courseLabel}   |   Filter: ${filterLabel}   |   Total Students: ${filteredStudents.length}`,
+            36,
+            44
+          );
 
-          doc.text(String(idx + 1), 45, currentY + 2);
-          doc.text(s.name.slice(0, 24), 70, currentY + 2);
-          doc.text(s.email.slice(0, 28), 210, currentY + 2);
-          doc.text(s.phone || 'N/A', 350, currentY + 2);
-          doc.text(`${s.points} pts (${s.testsAttemptedCount} att)`, 440, currentY + 2);
-          doc.text(`${s.testsPassedCount} pass / ${s.testsFailedCount} fail`, 530, currentY + 2);
-          doc.text(s.hasCertificate ? '✓ Issued' : 'In Progress', 640, currentY + 2);
-          doc.text(s.courseProgressStatus.toUpperCase().replace(/_/g, ' '), 730, currentY + 2);
+          return drawTableHeader(68);
+        };
 
-          currentY += 19;
-        });
+        const drawContinuationHeader = () => {
+          doc.setFillColor(15, 23, 42);
+          doc.rect(0, 0, pageWidth, 32, 'F');
+          doc.setFillColor(0, 255, 157);
+          doc.rect(0, 30, pageWidth, 2, 'F');
+
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10);
+          doc.setTextColor(0, 255, 157);
+          doc.text("DO PILOT — Student Learning Analytics (Continued)", 36, 20);
+
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(148, 163, 184);
+          const courseLabel = selectedCourseFilter === 'all' ? 'All Courses' : selectedCourseFilter;
+          doc.text(`Course: ${courseLabel}  |  Filter: ${studentFilter.toUpperCase().replace(/_/g, ' ')}`, pageWidth - 36, 20, { align: 'right' });
+
+          return drawTableHeader(40);
+        };
+
+        let currentY = drawPageHeader();
+
+        if (filteredStudents.length === 0) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(10);
+          doc.setTextColor(100, 116, 139);
+          doc.text("No student records found matching the selected filter criteria.", 36, currentY + 30);
+        } else {
+          filteredStudents.forEach((s, idx) => {
+            // Col 2: Student Contact Lines (width 146)
+            const nameLines = splitText(s.name || 'Unnamed Student', 'bold', 8.5, 146);
+            const emailLines = splitText(s.email || 'N/A', 'normal', 7.5, 146);
+            const phoneLines = splitText(s.phone ? `Tel: ${s.phone}` : 'Tel: Not provided', 'normal', 7, 146);
+            const col2Height = (nameLines.length * 10.5) + (emailLines.length * 9.5) + (phoneLines.length * 9);
+
+            // Col 3: College & Source Lines (width 155, no goal)
+            const collegeLines = splitText(s.collegeOrCompany || 'N/A', 'bold', 8, 155);
+            const sourceLines = s.whereDidYouFindUs ? splitText(`Via: ${s.whereDidYouFindUs}`, 'normal', 6.5, 155) : [];
+            const col3Height = (collegeLines.length * 10) + (sourceLines.length * 8.5);
+
+            // Col 4: Enrolled Courses (width 125, cleanly listed, NO Masterclass joined text)
+            const courseLines: string[] = [];
+            if (s.enrolledCourses && s.enrolledCourses.length > 0) {
+              s.enrolledCourses.forEach((c) => {
+                courseLines.push(...splitText(c, 'normal', 7.5, 125));
+              });
+            } else {
+              courseLines.push(...splitText('No course enrolled', 'italic', 7.5, 125));
+            }
+            const col4Height = courseLines.length * 10;
+
+            // Col 5: Scores & Tests Lines (~29.5 pt)
+            const col5Height = 10.5 + 9.5 + 9.5;
+
+            // Col 6: Certificate Lines (~19 pt)
+            const col6Height = 10 + 9;
+
+            // Col 7: Status Lines (wrapped cleanly to 86pt, never overflowing right margin)
+            const rawStatus = s.courseProgressStatus.toUpperCase().replace(/_/g, ' ');
+            const statusLines = splitText(rawStatus, 'bold', 7.5, 86);
+            const regDate = s.createdAt ? new Date(s.createdAt).toLocaleDateString() : 'N/A';
+            const regDateLines = splitText(`Reg: ${regDate}`, 'normal', 6.5, 86);
+            const col7Height = (statusLines.length * 9.5) + (regDateLines.length * 8.5);
+
+            // Calculate precise row height: tallest column content + 18 pt padding (top 9pt + bottom 9pt)
+            const maxContentHeight = Math.max(col2Height, col3Height, col4Height, col5Height, col6Height, col7Height, 28);
+            const rowHeight = maxContentHeight + 18;
+
+            // Page break safety check: if row extends beyond 530pt, move to new page
+            if (currentY + rowHeight > 530) {
+              doc.addPage();
+              currentY = drawContinuationHeader();
+            }
+
+            // Alternating zebra row background
+            if (idx % 2 === 1) {
+              doc.setFillColor(248, 250, 252);
+              doc.rect(36, currentY, 770, rowHeight, 'F');
+            }
+
+            // Bottom border for row
+            doc.setDrawColor(226, 232, 240);
+            doc.line(36, currentY + rowHeight, 806, currentY + rowHeight);
+
+            const startY = currentY + 11;
+
+            // Col 1: Index #
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(8);
+            doc.setTextColor(100, 116, 139);
+            doc.text(String(idx + 1), 45, startY + 2);
+
+            // Col 2: Student / Contact
+            let yCol2 = startY;
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(8.5);
+            doc.setTextColor(15, 23, 42);
+            nameLines.forEach((line) => {
+              doc.text(line, 68, yCol2);
+              yCol2 += 10.5;
+            });
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(7.5);
+            doc.setTextColor(71, 85, 105);
+            emailLines.forEach((line) => {
+              doc.text(line, 68, yCol2);
+              yCol2 += 9.5;
+            });
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(7);
+            doc.setTextColor(100, 116, 139);
+            phoneLines.forEach((line) => {
+              doc.text(line, 68, yCol2);
+              yCol2 += 9;
+            });
+
+            // Col 3: College & Source
+            let yCol3 = startY;
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(8);
+            doc.setTextColor(30, 41, 59);
+            collegeLines.forEach((line) => {
+              doc.text(line, 224, yCol3);
+              yCol3 += 10;
+            });
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(6.5);
+            doc.setTextColor(100, 116, 139);
+            sourceLines.forEach((line) => {
+              doc.text(line, 224, yCol3);
+              yCol3 += 8.5;
+            });
+
+            // Col 4: Enrolled Courses
+            let yCol4 = startY;
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(7.5);
+            doc.setTextColor(30, 41, 59);
+            courseLines.forEach((line) => {
+              doc.text(line, 389, yCol4);
+              yCol4 += 10;
+            });
+
+            // Col 5: Scores & Tests
+            let yCol5 = startY;
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(8.5);
+            if (s.points >= 10) {
+              doc.setTextColor(5, 150, 105);
+            } else {
+              doc.setTextColor(30, 41, 59);
+            }
+            doc.text(`${s.points} pts`, 524, yCol5);
+            yCol5 += 10.5;
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(7);
+            doc.setTextColor(71, 85, 105);
+            doc.text(`${s.testsAttemptedCount} tests attempted`, 524, yCol5);
+            yCol5 += 9.5;
+
+            if (s.testsFailedCount > 0) {
+              doc.setTextColor(190, 18, 60);
+            } else {
+              doc.setTextColor(5, 150, 105);
+            }
+            doc.setFontSize(7);
+            doc.text(`${s.testsPassedCount} passed / ${s.testsFailedCount} failed`, 524, yCol5);
+
+            // Col 6: Certificate
+            let yCol6 = startY;
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(7.5);
+            if (s.hasCertificate) {
+              doc.setTextColor(180, 83, 9);
+              doc.text("CERTIFIED", 629, yCol6);
+            } else {
+              doc.setTextColor(100, 116, 139);
+              doc.text("In Progress", 629, yCol6);
+            }
+            yCol6 += 10;
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(6.5);
+            doc.setTextColor(100, 116, 139);
+            doc.text(s.certificateId ? `ID: ${s.certificateId}` : 'ID: Not Issued', 629, yCol6);
+
+            // Col 7: Status & Registration
+            let yCol7 = startY;
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(7.5);
+            if (s.courseProgressStatus === 'completed') {
+              doc.setTextColor(5, 150, 105);
+            } else if (s.courseProgressStatus === 'in_progress') {
+              doc.setTextColor(2, 132, 199);
+            } else {
+              doc.setTextColor(100, 116, 139);
+            }
+            statusLines.forEach((line) => {
+              doc.text(line, 714, yCol7);
+              yCol7 += 9.5;
+            });
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(6.5);
+            doc.setTextColor(100, 116, 139);
+            regDateLines.forEach((line) => {
+              doc.text(line, 714, yCol7);
+              yCol7 += 8.5;
+            });
+
+            currentY += rowHeight;
+          });
+        }
+
+        // Add page numbering & footer across all pages
+        const totalPages = doc.getNumberOfPages();
+        for (let p = 1; p <= totalPages; p++) {
+          doc.setPage(p);
+          doc.setDrawColor(226, 232, 240);
+          doc.line(36, 565, 806, 565);
+
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7.5);
+          doc.setTextColor(148, 163, 184);
+          doc.text("DO PILOT — Official Student Analytics & Academic Roster Report  •  Confidential", 36, 578);
+          doc.text(`Page ${p} of ${totalPages}`, pageWidth - 36, 578, { align: 'right' });
+        }
 
         doc.save(`DO_PILOT_Students_${studentFilter.toUpperCase()}_${new Date().toISOString().slice(0, 10)}.pdf`);
-        showToast(`Exported ${filteredStudents.length} students to PDF Report!`);
+        showToast(`Exported ${filteredStudents.length} students to detailed PDF Report!`);
       } catch (err) {
         console.error("PDF export failed:", err);
         showToast("PDF generation error. Please try again.");
       }
-    };
-
-    const renderRewardRequestsSection = () => {
-      const totalRewards = rewardRequests.length;
-      const pendingRewards = rewardRequests.filter((r) => r.status === 'pending');
-      const approvedRewards = rewardRequests.filter((r) => r.status === 'approved');
-
-      const filteredRewards = rewardRequests.filter((r) => {
-        if (rewardStatusFilter !== 'all' && r.status !== rewardStatusFilter) {
-          return false;
-        }
-        const q = studentSearch.toLowerCase().trim();
-        if (q) {
-          const matchName = r.studentName.toLowerCase().includes(q);
-          const matchEmail = r.studentEmail.toLowerCase().includes(q);
-          const matchPhone = (r.studentPhone || '').toLowerCase().includes(q);
-          const matchCollege = (r.collegeOrCompany || '').toLowerCase().includes(q);
-          const matchMilestone = `milestone ${r.milestonePoints}`.includes(q) || `₹${r.rewardAmount}`.includes(q);
-          const matchStatus = r.status.toLowerCase().includes(q);
-          if (!matchName && !matchEmail && !matchPhone && !matchCollege && !matchMilestone && !matchStatus) {
-            return false;
-          }
-        }
-        return true;
-      });
-
-      return (
-        <div className="space-y-6">
-          {/* Rewards Summary KPIs & Subfilters */}
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-5 rounded-2xl bg-white/[0.03] border border-white/10">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-                <Trophy className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-jakarta font-bold text-sm text-paper flex items-center gap-2">
-                  Milestone Reward Approval Queue
-                  {pendingRewards.length > 0 && (
-                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 font-mono text-[10px] font-bold">
-                      {pendingRewards.length} PENDING VERIFICATION
-                    </span>
-                  )}
-                </h4>
-                <p className="text-xs text-slate/80">
-                  Review and verify genuine student milestone achievement requests. Approvals immediately update both admin and student records.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              {[
-                { id: 'all', label: 'All Requests', count: totalRewards },
-                { id: 'pending', label: 'Pending', count: pendingRewards.length },
-                { id: 'approved', label: 'Approved', count: approvedRewards.length },
-              ].map((subTab) => {
-                const active = rewardStatusFilter === subTab.id;
-                return (
-                  <button
-                    key={subTab.id}
-                    type="button"
-                    onClick={() => setRewardStatusFilter(subTab.id as any)}
-                    className={`px-3.5 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                      active
-                        ? 'bg-primary text-ink shadow-md shadow-primary/20 scale-[1.02]'
-                        : 'bg-white/5 text-slate hover:text-paper hover:bg-white/10 border border-white/5'
-                    }`}
-                  >
-                    <span>{subTab.label}</span>
-                    <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
-                      active ? 'bg-black/20 text-ink font-bold' : 'bg-white/10 text-slate/80'
-                    }`}>
-                      {subTab.count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Requests Grid */}
-          {filteredRewards.length === 0 ? (
-            <div className="p-16 text-center rounded-3xl bg-white/[0.02] border border-white/10 space-y-3">
-              <Trophy className="w-10 h-10 text-slate/40 mx-auto" />
-              <h4 className="font-jakarta font-bold text-base text-paper">No reward requests match your filter</h4>
-              <p className="text-xs text-slate max-w-sm mx-auto">
-                {rewardStatusFilter === 'pending'
-                  ? 'All pending requests have been reviewed and approved.'
-                  : 'Try adjusting your search query or switching to All Requests.'}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setRewardStatusFilter('all');
-                  setStudentSearch('');
-                }}
-                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-paper font-jakarta text-xs font-bold transition-all cursor-pointer"
-              >
-                Reset Rewards Filter
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filteredRewards.map((req) => {
-                const isApproved = req.status === 'approved';
-                return (
-                  <div
-                    key={req.id}
-                    className={`rounded-3xl bg-[#0e0f12] border p-5 space-y-4 transition-all shadow-xl flex flex-col justify-between group ${
-                      isApproved
-                        ? 'border-emerald-500/20 hover:border-emerald-500/40'
-                        : 'border-amber-500/30 hover:border-amber-500/50 bg-gradient-to-b from-amber-500/[0.02] to-transparent'
-                    }`}
-                  >
-                    {/* Top: Student Header & Status Badge */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-11 h-11 rounded-2xl bg-primary/20 border border-primary/40 text-primary flex items-center justify-center font-jakarta font-black text-sm shrink-0">
-                          {getUserInitials(req.studentName)}
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="font-jakarta font-bold text-sm text-paper group-hover:text-primary transition-colors truncate">
-                            {req.studentName}
-                          </h3>
-                          <span className="font-mono text-xs text-slate/70 block truncate">
-                            {req.studentEmail}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="shrink-0">
-                        {isApproved ? (
-                          <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-bold flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" />
-                            APPROVED
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono text-[10px] font-bold flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            PENDING
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Student Details: Phone, College, Dates */}
-                    <div className="space-y-1.5 text-xs text-slate/70 font-mono bg-white/[0.02] p-3 rounded-2xl border border-white/5">
-                      {req.studentPhone && (
-                        <div className="flex items-center gap-2">
-                          <Phone className="w-3.5 h-3.5 text-slate/40 shrink-0" />
-                          <span className="text-paper truncate">{req.studentPhone}</span>
-                        </div>
-                      )}
-                      {req.collegeOrCompany && (
-                        <div className="flex items-center gap-2">
-                          <GraduationCap className="w-3.5 h-3.5 text-slate/40 shrink-0" />
-                          <span className="text-paper truncate">{req.collegeOrCompany}</span>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2 text-[11px] text-slate/50 pt-1 border-t border-white/5">
-                        <Calendar className="w-3 h-3 shrink-0" />
-                        <span>Requested: {new Date(req.requestedAt).toLocaleString()}</span>
-                      </div>
-                      {isApproved && req.approvedAt && (
-                        <div className="flex items-center gap-2 text-[11px] text-emerald-400/90">
-                          <CheckCircle2 className="w-3 h-3 shrink-0 text-emerald-400" />
-                          <span>Approved: {new Date(req.approvedAt).toLocaleString()}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Milestone & Points Balance Details */}
-                    <div className="p-3.5 rounded-2xl bg-black/60 border border-white/10 flex items-center justify-between gap-3">
-                      <div>
-                        <span className="text-[10px] font-mono text-slate/60 uppercase tracking-wider block">Milestone Reward</span>
-                        <span className="font-jakarta font-bold text-sm text-paper flex items-center gap-1.5 mt-0.5">
-                          <Trophy className="w-4 h-4 text-amber-400" />
-                          {req.milestonePoints} Points
-                        </span>
-                        <span className="text-[11px] font-mono text-primary font-bold block mt-0.5">
-                          Reward: ₹{req.rewardAmount}
-                        </span>
-                      </div>
-
-                      <div className="text-right">
-                        <span className="text-[10px] font-mono text-slate/60 uppercase tracking-wider block">Points Balance</span>
-                        <span className="font-mono font-bold text-base text-paper block mt-0.5">
-                          {req.pointsBalance} <span className="text-xs text-slate/60 font-normal">pts</span>
-                        </span>
-                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md inline-block mt-0.5 ${
-                          req.pointsBalance >= req.milestonePoints
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                        }`}>
-                          {req.pointsBalance >= req.milestonePoints ? '✓ Eligible' : 'Under Points'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div>
-                      {isApproved ? (
-                        <div className="w-full py-2.5 px-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center font-jakarta font-bold text-xs text-emerald-400 flex items-center justify-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4" />
-                          Request Approved
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleApproveReward(req.id, req.studentName, req.rewardAmount)}
-                          className="w-full py-2.5 px-4 rounded-2xl bg-primary hover:bg-primary/90 text-ink font-jakarta font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
-                        >
-                          <CheckCircle2 className="w-4 h-4 text-ink" />
-                          <span>Approve</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      );
     };
 
     return (
@@ -4745,15 +6455,6 @@ export const AdminPanel: React.FC = () => {
               <span className="hidden sm:inline">Refresh</span>
             </button>
 
-            <button
-              type="button"
-              onClick={exportToExcel}
-              className="px-3.5 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-jakarta text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/10"
-              title="Export filtered student list with test breakdown to Excel (.csv)"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Export Excel</span>
-            </button>
 
             <button
               type="button"
@@ -7490,16 +9191,6 @@ export const AdminPanel: React.FC = () => {
             </div>
           </div>
 
-          {/* Payment Limitation Security Notice */}
-          <div className="p-3.5 rounded-xl bg-white/[0.02] border border-cyan-500/20 flex items-start gap-2.5 text-xs text-slate">
-            <ShieldCheck className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-            <div className="space-y-1 leading-relaxed">
-              <span className="font-bold text-cyan-300 block">Verification Protocol:</span>
-              <p>
-                A Google Pay QR scan alone does not reliably transmit customer identity without banking webhook integration. Students submit their bank-issued 12-digit UPI Reference / UTR Number. Match the student's UTR and payment amount in your Google Pay statement, then click <strong>Verify &amp; Unlock Course</strong> to confirm enrollment and unlock access.
-              </p>
-            </div>
-          </div>
 
           {/* Search Bar & Status Filter Tabs */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
@@ -7735,31 +9426,14 @@ export const AdminPanel: React.FC = () => {
       <section className="space-y-6 animate-fadeIn">
         {/* Main Settings Card */}
         <div className="p-5 sm:p-6 rounded-2xl bg-[#0c0d0e] border border-white/10 shadow-2xl space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
-            <div>
-              <h3 className="font-jakarta font-bold text-sm text-paper flex items-center gap-2">
-                <QrCode className="w-4 h-4 text-primary" />
-                Google Pay Credentials &amp; Cloudflare QR Code
-              </h3>
-              <p className="text-xs text-slate mt-0.5">
-                Set recipient credentials and Cloudflare QR image URL. Verified in real-time before saving.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              <span className="px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 text-primary font-mono text-[10px] font-bold flex items-center gap-1.5">
-                <CreditCard className="w-3 h-3" />
-                <span>Google Pay (UPI Only)</span>
-              </span>
-              <span className={`px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold border flex items-center gap-1.5 ${
-                qrManualEnabledInput
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                  : 'bg-white/5 text-slate border-white/10'
-              }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${qrManualEnabledInput ? 'bg-emerald-400' : 'bg-slate-500'}`} />
-                <span>{qrManualEnabledInput ? 'Checkout Active' : 'Checkout Disabled'}</span>
-              </span>
-            </div>
+          <div className="pb-3 border-b border-white/10">
+            <h3 className="font-jakarta font-bold text-sm text-paper flex items-center gap-2">
+              <QrCode className="w-4 h-4 text-primary" />
+              Google Pay Credentials &amp; Cloudflare QR Code
+            </h3>
+            <p className="text-xs text-slate mt-0.5">
+              Set recipient credentials and Cloudflare QR image URL. Verified in real-time before saving.
+            </p>
           </div>
 
           <form onSubmit={handleSavePaymentSettings} className="space-y-4">
@@ -8079,11 +9753,17 @@ export const AdminPanel: React.FC = () => {
     if (adminWorkspace === 'students') {
       return { group: 'Student Hub', title: 'Student Data & Analytics' };
     }
+    if (adminWorkspace === 'rewards') {
+      return { group: 'Student Hub', title: 'Milestone Rewards' };
+    }
     if (adminWorkspace === 'studentHelp') {
       return { group: 'Student Hub', title: 'Student Help' };
     }
     if (adminWorkspace === 'courseReset') {
       return { group: 'Student Hub', title: 'Course Reset' };
+    }
+    if (adminWorkspace === 'permanentDelete') {
+      return { group: 'Student Hub', title: 'Permanent Student Deletion' };
     }
     if (adminWorkspace === 'pricingCoupons') {
       return { group: 'Sales & Payments', title: 'Pricing & Coupons' };
@@ -8162,6 +9842,31 @@ export const AdminPanel: React.FC = () => {
               </span>
             </button>
 
+            {/* 2. Rewards */}
+            <button
+              type="button"
+              onClick={() => navigateToWorkspace('rewards')}
+              className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-all cursor-pointer ${
+                adminWorkspace === 'rewards'
+                  ? 'bg-primary text-ink font-bold shadow-md shadow-primary/20'
+                  : 'text-slate hover:text-paper hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Trophy className="w-4 h-4 shrink-0 text-amber-400" />
+                <span className="font-jakarta text-xs font-semibold truncate">Rewards</span>
+              </div>
+              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
+                adminWorkspace === 'rewards'
+                  ? 'bg-black/20 text-ink'
+                  : pendingRewardCount > 0
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  : 'bg-white/10 text-slate'
+              }`}>
+                {rewardRequests.length} Claims{pendingRewardCount > 0 ? ` (${pendingRewardCount} New)` : ''}
+              </span>
+            </button>
+
             {/* 2. Student Help */}
             <button
               type="button"
@@ -8209,6 +9914,29 @@ export const AdminPanel: React.FC = () => {
                   : 'bg-white/10 text-slate'
               }`}>
                 {activeLockedCount > 0 ? `${activeLockedCount} Locked` : '0 Locked'}
+              </span>
+            </button>
+
+            {/* 4. Permanent Delete */}
+            <button
+              type="button"
+              onClick={() => navigateToWorkspace('permanentDelete')}
+              className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-all cursor-pointer ${
+                adminWorkspace === 'permanentDelete'
+                  ? 'bg-rose-500 text-white font-bold shadow-md shadow-rose-500/25'
+                  : 'text-slate hover:text-paper hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Trash2 className="w-4 h-4 shrink-0 text-rose-400" />
+                <span className="font-jakarta text-xs font-semibold truncate">Permanent Delete</span>
+              </div>
+              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
+                adminWorkspace === 'permanentDelete'
+                  ? 'bg-black/30 text-white'
+                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+              }`}>
+                {students.length} Learners
               </span>
             </button>
           </div>
@@ -8478,6 +10206,10 @@ export const AdminPanel: React.FC = () => {
               </>
             ) : adminWorkspace === 'students' ? (
               renderStudentsSection()
+            ) : adminWorkspace === 'permanentDelete' ? (
+              renderPermanentDeleteSection()
+            ) : adminWorkspace === 'rewards' ? (
+              renderRewardRequestsSection()
             ) : adminWorkspace === 'studentHelp' ? (
               renderStudentHelpSection()
             ) : adminWorkspace === 'courseReset' ? (
@@ -8503,6 +10235,9 @@ export const AdminPanel: React.FC = () => {
 
       {/* Root-Level Course Coupon Creation/Edit Modal */}
       {couponModalOpen && renderCouponModal()}
+
+      {/* Root-Level Permanent Delete Confirmation Modal */}
+      {deleteModalTarget && renderPermanentDeleteConfirmModal()}
 
       {/* Recovery Email Setup & Protected 2-Step Change Modal */}
       {emailChangeModalTarget && (

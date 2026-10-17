@@ -4,6 +4,8 @@ import react from "@vitejs/plugin-react";
 import fs from "fs";
 import path from "path";
 import adminOtpHandler from "./api/admin-otp.js";
+import adminDeleteStudentHandler from "./api/admin-delete-student.js";
+import claimCourseHandler from "./api/claim-course.js";
 
 // Load .env into process.env for local Node dev middleware
 try {
@@ -28,6 +30,11 @@ try {
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  resolve: {
+    alias: {
+      'pdf-lib': path.resolve(__dirname, 'node_modules/pdf-lib/dist/pdf-lib.esm.js')
+    }
+  },
   plugins: [
     react(),
     {
@@ -68,6 +75,74 @@ export default defineConfig({
                 try {
                   req.body = body ? JSON.parse(body) : {};
                   await adminOtpHandler(req, res);
+                } catch (err) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ success: false, message: err.message }));
+                }
+              });
+              return;
+            }
+          }
+          if (req.url?.startsWith("/api/admin-delete-student")) {
+            if (!res.status) {
+              res.status = function(code) { res.statusCode = code; return res; };
+            }
+            if (!res.json) {
+              res.json = function(data) {
+                res.setHeader("Content-Type", "application/json");
+                res.end(JSON.stringify(data));
+                return res;
+              };
+            }
+            if (req.method === "OPTIONS") {
+              res.setHeader("Access-Control-Allow-Origin", "*");
+              res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+              res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+              res.statusCode = 200;
+              res.end();
+              return;
+            }
+            if (req.method === "POST") {
+              let body = "";
+              req.on("data", (chunk) => { body += chunk; });
+              req.on("end", async () => {
+                try {
+                  req.body = body ? JSON.parse(body) : {};
+                  await adminDeleteStudentHandler(req, res);
+                } catch (err) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ success: false, message: err.message }));
+                }
+              });
+              return;
+            }
+          }
+          if (req.url?.startsWith("/api/claim-course")) {
+            if (!res.status) {
+              res.status = function(code) { res.statusCode = code; return res; };
+            }
+            if (!res.json) {
+              res.json = function(data) {
+                res.setHeader("Content-Type", "application/json");
+                res.end(JSON.stringify(data));
+                return res;
+              };
+            }
+            if (req.method === "OPTIONS") {
+              res.setHeader("Access-Control-Allow-Origin", "*");
+              res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+              res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+              res.statusCode = 200;
+              res.end();
+              return;
+            }
+            if (req.method === "POST") {
+              let body = "";
+              req.on("data", (chunk) => { body += chunk; });
+              req.on("end", async () => {
+                try {
+                  req.body = body ? JSON.parse(body) : {};
+                  await claimCourseHandler(req, res);
                 } catch (err) {
                   res.statusCode = 500;
                   res.end(JSON.stringify({ success: false, message: err.message }));

@@ -1,15 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, User, CheckCircle2, 
   Edit3, LogOut, Download, Printer, 
   AlertCircle, ChevronRight, X, Play,
-  BookOpen, Trophy, IndianRupee, Check, GraduationCap, Clock
+  BookOpen, Trophy, IndianRupee, Check, GraduationCap, Clock, Lock,
+  Sparkles, ArrowRight
 } from 'lucide-react';
 import { useUserAuth } from '../../context/UserAuthContext';
 import { useCoursePoints } from '../../context/CoursePointsContext';
 import { COURSES_DATA } from '../../data/coursesData';
+import { 
+  getCoursePurchases, 
+  CoursePurchaseRecord, 
+  normalizeCourseId 
+} from '../../utils/coursePricingService';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { 
   getSavedCertificate, 
   downloadCertificatePdf, 
@@ -27,6 +34,15 @@ import {
 } from '../../utils/rewardApprovalService';
 
 type SettingsTab = 'profile' | 'progress' | 'rewards' | 'certificates';
+
+export interface ClaimedCourseItem {
+  id: string;
+  courseId: string;
+  courseName: string;
+  couponCodeApplied?: string;
+  purchasedAt: string;
+  detailsPath: string;
+}
 
 interface CashRewardTier {
   id: string;
@@ -62,6 +78,7 @@ export const SettingsPage: React.FC = () => {
 
   // Milestone Approval Request State
   const [requestModalTier, setRequestModalTier] = useState<CashRewardTier | null>(null);
+  const [claimSuccessModalTier, setClaimSuccessModalTier] = useState<CashRewardTier | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [rewardRequests, setRewardRequests] = useState<RewardRequest[]>(() =>
@@ -87,6 +104,157 @@ export const SettingsPage: React.FC = () => {
       window.removeEventListener('storage', handleRewardUpdate);
     };
   }, [user]);
+
+  // Claimed Courses State (Courses claimed via zero-amount coupon)
+  const [claimedCourses, setClaimedCourses] = useState<ClaimedCourseItem[]>([]);
+
+  const getCanonicalCourseRoute = (norm: string): string => {
+    if (norm === 'python-core') return '/course/python-core';
+    if (norm === 'java-core') return '/course/complete-java-programming';
+    if (norm === 'fullstack-open') return '/course/fullstack-open';
+    if (norm === 'cyber-security') return '/course/cyber-security';
+    return `/course/${norm}`;
+  };
+
+  const loadClaimedCourses = useCallback(() => {
+    if (!user) {
+      setClaimedCourses([]);
+      return;
+    }
+
+    const purchases = getCoursePurchases();
+    const userEmail = (user.email || '').toLowerCase().trim();
+    const userId = user.id;
+
+    const claimedMap = new Map<string, ClaimedCourseItem>();
+
+    // 1. Add from user.enrolledCourses (loaded directly from Supabase student_profiles)
+    if (Array.isArray(user.enrolledCourses)) {
+      user.enrolledCourses.forEach((cName) => {
+        const meta = COURSES_DATA.find(
+          (c) => c.title.toLowerCase() === cName.toLowerCase() || normalizeCourseId(c.id) === normalizeCourseId(cName)
+        );
+        const norm = meta ? normalizeCourseId(meta.id) : normalizeCourseId(cName);
+        if (!claimedMap.has(norm)) {
+          claimedMap.set(norm, {
+            id: `ENROLLED-${norm}`,
+            courseId: norm,
+            courseName: meta?.title || cName,
+            couponCodeApplied: '100% Scholarship',
+            purchasedAt: new Date().toISOString(),
+            detailsPath: getCanonicalCourseRoute(norm)
+          });
+        }
+      });
+    }
+
+    // 2. Filter purchases belonging to this student claimed via coupon / zero amount
+    const userPurchases = purchases.filter((p) => {
+      const matchEmail = Boolean(userEmail && p.studentEmail && p.studentEmail.toLowerCase().trim() === userEmail);
+      const matchId = Boolean(userId && p.studentId === userId);
+      const isCompleted = p.status === 'completed' && p.accessGranted;
+      const isZeroClaim = p.finalAmount === 0 || p.paymentMethod === 'coupon_free_unlock';
+      return (matchEmail || matchId) && isCompleted && isZeroClaim;
+    });
+
+    userPurchases.forEach((p) => {
+      const norm = normalizeCourseId(p.courseId);
+      if (!claimedMap.has(norm)) {
+        const meta = COURSES_DATA.find((c) => normalizeCourseId(c.id) === norm);
+        claimedMap.set(norm, {
+          id: p.id,
+          courseId: norm,
+          courseName: meta?.title || p.courseName,
+          couponCodeApplied: p.couponCodeApplied || '100% Scholarship',
+          purchasedAt: p.purchasedAt,
+          detailsPath: getCanonicalCourseRoute(norm)
+        });
+      }
+    });
+
+    // 3. Also verify against active access keys in localStorage
+    const keysToCheck = [userId, userEmail].filter(Boolean) as string[];
+    keysToCheck.forEach((key) => {
+      try {
+        const raw = localStorage.getItem(`dopilot_purchased_courses_${key}`);
+        if (raw) {
+          const list: string[] = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            list.forEach((cId) => {
+              const norm = normalizeCourseId(cId);
+              if (!claimedMap.has(norm)) {
+                const meta = COURSES_DATA.find((c) => normalizeCourseId(c.id) === norm);
+                claimedMap.set(norm, {
+                  id: `CLAIM-${norm}`,
+                  courseId: norm,
+                  courseName: meta?.title || 'Claimed Course',
+                  couponCodeApplied: '100% Scholarship',
+                  purchasedAt: new Date().toISOString(),
+                  detailsPath: getCanonicalCourseRoute(norm)
+                });
+              }
+            });
+          }
+        }
+      } catch {}
+    });
+
+    setClaimedCourses(Array.from(claimedMap.values()));
+  }, [user]);
+
+  useEffect(() => {
+    loadClaimedCourses();
+
+    // Supabase background sync for persistence across logout & login via student_profiles
+    if (isSupabaseConfigured() && user?.email) {
+      const studentEmail = user.email.toLowerCase().trim();
+      const studentId = user.id;
+
+      Promise.resolve(
+        supabase
+          .from('student_profiles')
+          .select('enrolled_courses')
+          .eq('email', studentEmail)
+          .maybeSingle()
+      )
+        .then(({ data, error }: any) => {
+          if (!error && data && Array.isArray(data.enrolled_courses)) {
+            const userKey = `dopilot_purchased_courses_${studentId}`;
+            const raw = localStorage.getItem(userKey) || '[]';
+            let list: string[] = [];
+            try { list = JSON.parse(raw); } catch { list = []; }
+
+            let hasNew = false;
+            data.enrolled_courses.forEach((cTitle: string) => {
+              const meta = COURSES_DATA.find(
+                (c) => c.title.toLowerCase() === cTitle.toLowerCase() || normalizeCourseId(c.id) === normalizeCourseId(cTitle)
+              );
+              const norm = meta ? normalizeCourseId(meta.id) : normalizeCourseId(cTitle);
+              if (!list.includes(norm)) {
+                list.push(norm);
+                hasNew = true;
+              }
+            });
+
+            if (hasNew) {
+              localStorage.setItem(userKey, JSON.stringify(list));
+              loadClaimedCourses();
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
+    const handleUpdate = () => loadClaimedCourses();
+    window.addEventListener('dopilot_course_purchased', handleUpdate);
+    window.addEventListener('dopilot_access_granted', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('dopilot_course_purchased', handleUpdate);
+      window.removeEventListener('dopilot_access_granted', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, [user, loadClaimedCourses]);
 
   // Certificate Modal State
   const [certModalOpen, setCertModalOpen] = useState(false);
@@ -518,12 +686,17 @@ export const SettingsPage: React.FC = () => {
     setRequestSubmitting(true);
     setRequestError(null);
 
+    const enrolledCourse = (user.enrolledCourses && user.enrolledCourses.length > 0)
+      ? user.enrolledCourses[0]
+      : 'Complete Python Course';
+
     const result = submitRewardRequest({
       studentId: user.id,
       studentName: user.name,
       studentEmail: user.email,
       studentPhone: user.phone,
       collegeOrCompany: user.collegeOrCompany,
+      courseTitle: enrolledCourse,
       milestoneId: requestModalTier.id,
       milestonePoints: requestModalTier.pointsRequired,
       rewardAmount: requestModalTier.cashAmount,
@@ -533,15 +706,15 @@ export const SettingsPage: React.FC = () => {
     setRequestSubmitting(false);
 
     if (!result.success) {
-      setRequestError(result.error || 'Failed to submit approval request.');
+      setRequestError(result.error || 'Failed to submit claim request.');
       return;
     }
 
+    const claimedTier = requestModalTier;
     setRewardRequests(getStudentRewardRequests(user.email));
     playTwinkleSound();
     setRequestModalTier(null);
-    setSaveSuccessMsg(`Milestone approval request for ₹${requestModalTier.cashAmount} submitted! Pending admin review.`);
-    setTimeout(() => setSaveSuccessMsg(null), 4500);
+    setClaimSuccessModalTier(claimedTier);
   };
 
   // Certificate Actions - Download only if course is genuinely complete
@@ -778,6 +951,62 @@ export const SettingsPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Claimed Course Access Section (Courses claimed via zero-amount coupon) */}
+              {claimedCourses.length > 0 && (
+                <div className="space-y-3 pt-2 border-t border-white/10">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <h4 className="font-jakarta font-bold text-xs uppercase tracking-wider text-slate/70">
+                        Claimed Course Access
+                      </h4>
+                    </div>
+                    <span className="font-mono text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold">
+                      {claimedCourses.length} {claimedCourses.length === 1 ? 'Track Unlocked' : 'Tracks Unlocked'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {claimedCourses.map((claimed) => (
+                      <div
+                        key={claimed.courseId}
+                        className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/10 hover:border-white/20 transition-all flex flex-col justify-between gap-3 shadow-md"
+                      >
+                        <div className="space-y-1.5 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-bold">
+                              Claimed via Coupon (₹0)
+                            </span>
+                            {claimed.couponCodeApplied && (
+                              <span className="text-[10px] font-mono text-slate/60">
+                                • {claimed.couponCodeApplied}
+                              </span>
+                            )}
+                          </div>
+                          <h5 className="font-jakarta font-black text-sm text-paper truncate">
+                            {claimed.courseName}
+                          </h5>
+                          <p className="text-[11px] font-mono text-slate/70">
+                            Full 14-module curriculum and certificate access unlocked.
+                          </p>
+                        </div>
+
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => navigate(claimed.detailsPath)}
+                            className="w-full py-2 px-3.5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-primary/20"
+                          >
+                            <span>Open Course Details</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Enrolled Courses Quick Access */}
               <div className="space-y-3 pt-2 border-t border-white/10">
@@ -1021,12 +1250,12 @@ export const SettingsPage: React.FC = () => {
                         {isApproved ? (
                           <span className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono text-xs font-bold flex items-center gap-1.5 shadow-sm">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Approved</span>
+                            <span>Claimed (Approved)</span>
                           </span>
                         ) : isPending ? (
                           <span className="px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono text-xs font-bold flex items-center gap-1.5 shadow-sm">
                             <Clock className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-                            <span>Pending Approval</span>
+                            <span>Claimed (Pending)</span>
                           </span>
                         ) : canRequest ? (
                           <button
@@ -1035,14 +1264,21 @@ export const SettingsPage: React.FC = () => {
                               setRequestModalTier(tier);
                               setRequestError(null);
                             }}
-                            className="py-2 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:opacity-95 text-black font-jakarta font-extrabold text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer"
+                            className="py-2 px-5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-110 text-black font-jakarta font-extrabold text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer flex items-center gap-1.5"
                           >
-                            Request Approval
+                            <Trophy className="w-3.5 h-3.5 text-black" />
+                            <span>Claim</span>
                           </button>
                         ) : (
-                          <span className="text-xs font-mono text-slate/50">
-                            Need {tier.pointsRequired - points} more pts
-                          </span>
+                          <button
+                            type="button"
+                            disabled
+                            className="py-2 px-4 rounded-xl bg-white/5 border border-white/10 text-slate/40 font-jakarta font-bold text-xs cursor-not-allowed opacity-60 flex items-center gap-1.5"
+                            title={`Reach ${tier.pointsRequired} points to unlock (need ${tier.pointsRequired - points} more)`}
+                          >
+                            <Lock className="w-3.5 h-3.5 text-slate/40" />
+                            <span>Claim ({tier.pointsRequired} pts)</span>
+                          </button>
                         )}
                       </div>
                     </div>
@@ -1294,7 +1530,7 @@ export const SettingsPage: React.FC = () => {
       </AnimatePresence>
 
       {/* ========================================================================= */}
-      {/* MILESTONE APPROVAL REQUEST MODAL                                          */}
+      {/* MILESTONE CLAIM MODAL                                                     */}
       {/* ========================================================================= */}
       <AnimatePresence>
         {requestModalTier && (
@@ -1312,7 +1548,7 @@ export const SettingsPage: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="font-jakarta font-bold text-base text-paper">
-                      Request Milestone Approval
+                      Claim Milestone Reward
                     </h3>
                     <span className="text-[10px] font-mono text-slate/60">
                       ₹{requestModalTier.cashAmount} Reward • {requestModalTier.pointsRequired} Points Milestone
@@ -1335,6 +1571,10 @@ export const SettingsPage: React.FC = () => {
                     <strong className="text-paper">{user.name}</strong>
                   </div>
                   <div className="flex justify-between items-center text-slate/80">
+                    <span>Course:</span>
+                    <span className="text-paper truncate max-w-[200px]">{(user.enrolledCourses && user.enrolledCourses.length > 0) ? user.enrolledCourses[0] : 'Complete Python Course'}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate/80">
                     <span>Email:</span>
                     <span className="text-paper truncate max-w-[200px]">{user.email}</span>
                   </div>
@@ -1349,7 +1589,7 @@ export const SettingsPage: React.FC = () => {
                 </div>
 
                 <p className="text-xs text-slate/80 leading-relaxed font-sans">
-                  Your milestone achievement will be submitted to the DO PILOT admin for verification. Once approved, your status will update to <strong className="text-emerald-400 font-semibold">Approved</strong>.
+                  Your milestone claim will be submitted to the DO PILOT admin for verification. Once approved, your status will update to <strong className="text-emerald-400 font-semibold">Approved</strong> and your reward will be processed.
                 </p>
 
                 {requestError && (
@@ -1372,10 +1612,70 @@ export const SettingsPage: React.FC = () => {
                     disabled={requestSubmitting}
                     className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-black font-jakarta font-black text-xs hover:opacity-95 transition-opacity cursor-pointer shadow-md shadow-amber-500/20 disabled:opacity-50"
                   >
-                    {requestSubmitting ? 'Submitting...' : 'Submit Request'}
+                    {requestSubmitting ? 'Submitting...' : 'Confirm & Claim'}
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ========================================================================= */}
+      {/* CLAIM SUBMITTED PROFESSIONAL SUCCESS POPUP                                */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {claimSuccessModalTier && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-panel border border-emerald-500/40 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl relative text-center"
+            >
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <CheckCircle2 className="w-8 h-8" />
+              </div>
+
+              <div className="space-y-1">
+                <h3 className="font-jakarta font-black text-lg text-paper">
+                  Reward Claim Submitted
+                </h3>
+                <p className="text-xs font-mono text-primary font-bold">
+                  ₹{claimSuccessModalTier.cashAmount} Reward • {claimSuccessModalTier.pointsRequired} Points Milestone
+                </p>
+              </div>
+
+              <p className="text-xs text-slate/90 leading-relaxed font-sans px-2">
+                Your reward claim has been submitted for admin review. The reward will be processed after verification and approval.
+              </p>
+
+              <div className="p-3.5 rounded-2xl bg-black/40 border border-white/5 space-y-2 text-xs font-mono text-left">
+                <div className="flex justify-between items-center text-slate/80">
+                  <span>Student:</span>
+                  <strong className="text-paper">{user.name}</strong>
+                </div>
+                <div className="flex justify-between items-center text-slate/80">
+                  <span>Course:</span>
+                  <span className="text-paper truncate max-w-[200px]">{(user.enrolledCourses && user.enrolledCourses.length > 0) ? user.enrolledCourses[0] : 'Complete Python Course'}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate/80">
+                  <span>Points Achieved:</span>
+                  <strong className="text-amber-400 font-bold">{points} pts</strong>
+                </div>
+                <div className="flex justify-between items-center text-slate/80">
+                  <span>Status:</span>
+                  <span className="text-amber-300 font-bold">Pending Review</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setClaimSuccessModalTier(null)}
+                className="w-full py-2.5 px-4 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs hover:brightness-110 transition-all cursor-pointer shadow-md shadow-primary/20"
+              >
+                Understood
+              </button>
             </motion.div>
           </div>
         )}

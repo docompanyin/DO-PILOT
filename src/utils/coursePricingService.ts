@@ -596,8 +596,9 @@ export const hasCourseAccess = (
 ): boolean => {
   if (!paramA && !paramB) return false;
 
-  const isCourseId = (str?: string) => {
-    if (!str) return false;
+  const isEmail = (str?: string) => Boolean(str && str.includes('@'));
+  const isCourseIdentifier = (str?: string) => {
+    if (!str || isEmail(str)) return false;
     const lower = str.toLowerCase();
     return (
       lower.includes('core') ||
@@ -605,17 +606,24 @@ export const hasCourseAccess = (
       lower.includes('python') ||
       lower.includes('java') ||
       lower.includes('cyber') ||
-      lower.includes('fullstack')
+      lower.includes('fullstack') ||
+      lower.includes('complete-')
     );
   };
 
   let courseId = 'python-core';
   let studentIdOrEmail: string | undefined = undefined;
 
-  if (isCourseId(paramA)) {
+  if (isEmail(paramA)) {
+    studentIdOrEmail = paramA;
+    courseId = paramB || 'python-core';
+  } else if (isEmail(paramB)) {
+    studentIdOrEmail = paramB;
+    courseId = paramA || 'python-core';
+  } else if (isCourseIdentifier(paramA)) {
     courseId = paramA!;
     studentIdOrEmail = paramB;
-  } else if (isCourseId(paramB)) {
+  } else if (isCourseIdentifier(paramB)) {
     courseId = paramB!;
     studentIdOrEmail = paramA;
   } else {
@@ -640,46 +648,60 @@ export const hasCourseAccess = (
     }
   } catch {}
 
+  // Helper to test if a course name/id matches normalizedCourse
+  const courseMatches = (str?: string): boolean => {
+    if (!str) return false;
+    const norm = normalizeCourseId(str);
+    if (norm === normalizedCourse) return true;
+    const lower = str.toLowerCase();
+    if (normalizedCourse === 'python-core' && lower.includes('python')) return true;
+    if (normalizedCourse === 'java-core' && lower.includes('java')) return true;
+    if (normalizedCourse === 'fullstack-open' && lower.includes('fullstack')) return true;
+    if (normalizedCourse === 'cyber-security' && lower.includes('cyber')) return true;
+    return false;
+  };
+
+  // 1. Check active user session in localStorage (dopilot_student_session_v1)
+  try {
+    const rawSession = localStorage.getItem('dopilot_student_session_v1');
+    if (rawSession) {
+      const session = JSON.parse(rawSession);
+      if (session && Array.isArray(session.enrolledCourses)) {
+        if (session.enrolledCourses.some((c: string) => courseMatches(c))) {
+          return true;
+        }
+      }
+      // If studentIdOrEmail wasn't passed, fall back to session user identity
+      if (!studentIdOrEmail) {
+        studentIdOrEmail = session.id || session.email;
+      }
+    }
+  } catch {}
+
   if (!studentIdOrEmail) return false;
 
-  // 1. Check direct user purchase key in localStorage
+  // 2. Check direct user purchase key in localStorage
   try {
     const userPurchasesRaw = localStorage.getItem(`dopilot_purchased_courses_${studentIdOrEmail}`);
     if (userPurchasesRaw) {
       const purchasedList: string[] = JSON.parse(userPurchasesRaw);
       if (Array.isArray(purchasedList)) {
-        const found = purchasedList.some(id => normalizeCourseId(id) === normalizedCourse);
+        const found = purchasedList.some(id => courseMatches(id));
         if (found) return true;
       }
     }
   } catch {}
 
-  // 2. Check global purchases registry
+  // 3. Check global purchases registry
   const purchases = getCoursePurchases();
   const hasCompletedPurchase = purchases.some(
     p =>
-      (p.studentId === studentIdOrEmail || p.studentEmail.toLowerCase() === studentIdOrEmail.toLowerCase()) &&
-      normalizeCourseId(p.courseId) === normalizedCourse &&
+      (p.studentId === studentIdOrEmail || (p.studentEmail && p.studentEmail.toLowerCase() === studentIdOrEmail!.toLowerCase())) &&
+      courseMatches(p.courseId) &&
       p.status === 'completed' &&
       p.accessGranted
   );
   if (hasCompletedPurchase) return true;
-
-  // 3. Check active session object in localStorage (dopilot_student_session_v1)
-  try {
-    const rawSession = localStorage.getItem('dopilot_student_session_v1');
-    if (rawSession) {
-      const session = JSON.parse(rawSession);
-      if (
-        session &&
-        (session.id === studentIdOrEmail || session.email?.toLowerCase() === studentIdOrEmail.toLowerCase()) &&
-        Array.isArray(session.enrolledCourses)
-      ) {
-        const found = session.enrolledCourses.some((c: string) => normalizeCourseId(c) === normalizedCourse);
-        if (found) return true;
-      }
-    }
-  } catch {}
 
   return false;
 };
@@ -789,6 +811,30 @@ export const recordCoursePurchase = (
         access_granted: true
       })
     ).catch(() => {});
+
+    // Ensure student_profiles.enrolled_courses is updated in Supabase
+    if (newRecord.studentEmail) {
+      const cleanEmail = newRecord.studentEmail.toLowerCase().trim();
+      supabase
+        .from('student_profiles')
+        .select('enrolled_courses')
+        .eq('email', cleanEmail)
+        .maybeSingle()
+        .then(({ data: profile }: any) => {
+          const current = (profile && Array.isArray(profile.enrolled_courses)) ? profile.enrolled_courses : [];
+          if (!current.includes(newRecord.courseName)) {
+            const updated = [...current, newRecord.courseName];
+            return supabase
+              .from('student_profiles')
+              .update({
+                enrolled_courses: updated,
+                updated_at: new Date().toISOString()
+              })
+              .eq('email', cleanEmail);
+          }
+        })
+        .catch(() => {});
+    }
   }
 
   return { success: true, record: newRecord };
