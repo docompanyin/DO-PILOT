@@ -3196,7 +3196,6 @@ export const AdminPanel: React.FC = () => {
         'Verified Email Address',
         'Phone Number',
         'College / Organization',
-        'Learning Goal',
         'Enrolled Courses',
         'Enrolled Courses Count',
         'Where Did You Find Us',
@@ -3219,7 +3218,6 @@ export const AdminPanel: React.FC = () => {
         `"${(s.email || '').replace(/"/g, '""')}"`,
         `"${(s.phone && s.phone !== 'Phone not added' ? s.phone : 'Not added').replace(/"/g, '""')}"`,
         `"${(s.collegeOrCompany || 'N/A').replace(/"/g, '""')}"`,
-        `"${(s.learningGoal || 'General Tech Mastery').replace(/"/g, '""')}"`,
         `"${(Array.isArray(s.enrolledCourses) && s.enrolledCourses.length > 0 ? s.enrolledCourses.join('; ') : 'None').replace(/"/g, '""')}"`,
         Array.isArray(s.enrolledCourses) ? s.enrolledCourses.length : 0,
         `"${(s.whereDidYouFindUs || 'N/A').replace(/"/g, '""')}"`,
@@ -3661,7 +3659,7 @@ export const AdminPanel: React.FC = () => {
       doc.text(`Phone: ${s.phone || 'N/A'}`, 55, 148);
       doc.text(`College / Organization: ${s.collegeOrCompany || 'N/A'}`, 240, 134);
       doc.text(`Enrolled: ${s.enrolledCourses.join(', ') || 'Python Core'}`, 240, 148);
-      doc.text(`Goal: ${s.learningGoal || 'General Tech Mastery'}`, 240, 162);
+      doc.text(`Found Us: ${s.whereDidYouFindUs || 'N/A'}`, 240, 162);
       doc.text(`Joined: ${new Date(s.createdAt).toLocaleDateString()}`, 55, 162);
 
       // KPI Metric Tiles
@@ -4368,7 +4366,6 @@ export const AdminPanel: React.FC = () => {
         "Phone",
         "College / Organization",
         "Where Found Us",
-        "Learning Goal",
         "Enrolled Courses",
         "Live Class Joined",
         "Total Score / Points",
@@ -4397,7 +4394,6 @@ export const AdminPanel: React.FC = () => {
           `"${(s.phone || 'N/A').replace(/"/g, '""')}"`,
           `"${(s.collegeOrCompany || 'N/A').replace(/"/g, '""')}"`,
           `"${(s.whereDidYouFindUs || 'N/A').replace(/"/g, '""')}"`,
-          `"${(s.learningGoal || 'N/A').replace(/"/g, '""')}"`,
           `"${(s.enrolledCourses?.join('; ') || 'None').replace(/"/g, '""')}"`,
           `"${s.joinedLiveClass ? 'Yes' : 'No'}"`,
           s.points,
