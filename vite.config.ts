@@ -5,6 +5,27 @@ import fs from "fs";
 import path from "path";
 import adminOtpHandler from "./api/admin-otp.js";
 
+// Load .env into process.env for local Node dev middleware
+try {
+  const envPath = path.resolve(process.cwd(), ".env");
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, "utf-8");
+    for (const line of envContent.split(/\r?\n/)) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        const key = match[1];
+        let val = match[2] || "";
+        val = val.trim().replace(/^['"](.*)['"]$/, "$1");
+        if (!process.env[key]) {
+          process.env[key] = val;
+        }
+      }
+    }
+  }
+} catch (e) {
+  // ignore
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [

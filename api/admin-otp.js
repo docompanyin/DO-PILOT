@@ -1,8 +1,31 @@
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://hddvqkyisztzbwszbcoy.supabase.co';
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_WLBBeLiTRNOPndzwB5658Q_2DjElVq4';
+function getEnvVar(name) {
+  if (process.env[name]) return process.env[name];
+  if (process.env[`VITE_${name}`]) return process.env[`VITE_${name}`];
+  try {
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf-8');
+      for (const line of content.split(/\r?\n/)) {
+        const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+        if (match && (match[1] === name || match[1] === `VITE_${name}`)) {
+          const val = (match[2] || '').trim().replace(/^['"](.*)['"]$/, '$1');
+          if (val) return val;
+        }
+      }
+    }
+  } catch (e) {
+    // Ignore in read-only / serverless environments where fs cwd may not have .env
+  }
+  return '';
+}
+
+const SUPABASE_URL = getEnvVar('SUPABASE_URL') || 'https://hddvqkyisztzbwszbcoy.supabase.co';
+const SUPABASE_ANON_KEY = getEnvVar('SUPABASE_ANON_KEY') || 'sb_publishable_WLBBeLiTRNOPndzwB5658Q_2DjElVq4';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -18,19 +41,19 @@ function hashOtp(otp, salt, email) {
  * NEVER substitutes a personal or default email.
  * Headers:
  *   To: recipient
- *   From: configured verified sender (e.g. DO PILOT Security <security@docompany.dev>)
- *   Reply-To: support / sender address (e.g. support@docompany.dev)
+ *   From: configured verified sender (e.g. DO PILOT Security <security@dopilot.online>)
+ *   Reply-To: support / sender address (e.g. support@dopilot.online)
  */
 async function dispatchEmailToRecipient({ to, otp, purpose }) {
   const cleanEmail = to.trim().toLowerCase();
-  const resendKey = process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY;
-  const brevoKey = process.env.BREVO_API_KEY || process.env.VITE_BREVO_API_KEY;
-  const senderEmail = process.env.SENDER_EMAIL || process.env.VITE_SENDER_EMAIL || 'security@dopilot.online';
-  const supportEmail = process.env.SUPPORT_EMAIL || process.env.VITE_SUPPORT_EMAIL || 'support@dopilot.online';
+  const resendKey = getEnvVar('RESEND_API_KEY');
+  const brevoKey = getEnvVar('BREVO_API_KEY');
+  const senderEmail = getEnvVar('SENDER_EMAIL') || 'security@dopilot.online';
+  const supportEmail = getEnvVar('SUPPORT_EMAIL') || 'support@dopilot.online';
 
   const diagnostics = [];
 
-  // Provider 1: Resend REST API (if configured)
+  // Provider 1: Resend REST API
   if (resendKey) {
     try {
       const res = await fetch('https://api.resend.com/emails', {
@@ -40,7 +63,7 @@ async function dispatchEmailToRecipient({ to, otp, purpose }) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          from: `DO PILOT Security <${senderEmail.includes('@') ? senderEmail : 'onboarding@resend.dev'}>`,
+          from: `DO PILOT Security <${senderEmail.includes('@') ? senderEmail : 'security@dopilot.online'}>`,
           to: [cleanEmail],
           reply_to: supportEmail,
           subject: `DO PILOT Security Verification: ${purpose}`,
@@ -124,27 +147,7 @@ async function dispatchEmailToRecipient({ to, otp, purpose }) {
     }
   }
 
-  // Provider 3: Supabase Auth OTP (uses Supabase configured SMTP or built-in mailer)
-  try {
-    const { data: supaData, error: supaErr } = await supabase.auth.signInWithOtp({
-      email: cleanEmail
-    });
-    if (!supaErr) {
-      return {
-        success: true,
-        provider: 'Supabase Auth Mailer',
-        recipient: cleanEmail,
-        headers: { to: cleanEmail, from: 'Supabase Auth Mailer', replyTo: supportEmail },
-        message: `OTP accepted for delivery to ${cleanEmail} via Supabase Auth Mailer.`
-      };
-    } else {
-      diagnostics.push(`Supabase Auth error (${supaErr.code || supaErr.status}): ${supaErr.message}`);
-    }
-  } catch (err) {
-    diagnostics.push(`Supabase Auth network failure: ${err.message}`);
-  }
-
-  // If all outbound providers failed or are not yet configured
+  // If all outbound providers failed
   return {
     success: false,
     provider: 'None',
@@ -193,18 +196,17 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     // Health / Provider Diagnostics Status Check
-    const hasResend = Boolean(process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY);
-    const hasBrevo = Boolean(process.env.BREVO_API_KEY || process.env.VITE_BREVO_API_KEY);
+    const hasResend = Boolean(getEnvVar('RESEND_API_KEY'));
+    const hasBrevo = Boolean(getEnvVar('BREVO_API_KEY'));
     return res.status(200).json({
       status: 'active',
       configuredProviders: {
         resend: hasResend,
-        brevo: hasBrevo,
-        supabaseAuth: true
+        brevo: hasBrevo
       },
       headersSpec: {
-        from: process.env.SENDER_EMAIL || process.env.VITE_SENDER_EMAIL || 'security@dopilot.online',
-        replyTo: process.env.SUPPORT_EMAIL || process.env.VITE_SUPPORT_EMAIL || 'support@dopilot.online'
+        from: getEnvVar('SENDER_EMAIL') || 'security@dopilot.online',
+        replyTo: getEnvVar('SUPPORT_EMAIL') || 'support@dopilot.online'
       }
     });
   }
