@@ -566,14 +566,46 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const cleanUser = user.trim().toLowerCase();
     const cleanPass = pass.trim();
 
-    const isUserMatch =
-      cleanUser === securityConfig.username.toLowerCase() ||
-      (securityConfig.primaryEmail && cleanUser === securityConfig.primaryEmail.toLowerCase()) ||
-      (securityConfig.secondaryEmail && cleanUser === securityConfig.secondaryEmail.toLowerCase());
+    // 1. Authoritative Server-Side Verification
+    let serverResponded = false;
+    let serverVerified = false;
+    let serverMessage = '';
 
-    const isPassMatch = await verifyPasswordHash(cleanPass, securityConfig.passwordHash, securityConfig.passwordSalt);
+    try {
+      const resp = await fetch('/api/admin-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'admin_login',
+          username: cleanUser,
+          password: cleanPass
+        })
+      });
+      const data = await resp.json();
+      serverResponded = true;
+      if (resp.ok && data.success) {
+        serverVerified = true;
+      } else {
+        serverMessage = data.message || 'Invalid Security Credentials.';
+      }
+    } catch (e) {
+      console.warn('Server login API unreachable, falling back to local cryptographic verification:', e);
+    }
 
-    if (isUserMatch && isPassMatch) {
+    // 2. Resolve authorization (server authoritative; client crypto as offline fallback)
+    let isAuthorized = false;
+    if (serverResponded) {
+      isAuthorized = serverVerified;
+    } else {
+      const isUserMatch =
+        cleanUser === securityConfig.username.toLowerCase() ||
+        (securityConfig.primaryEmail && cleanUser === securityConfig.primaryEmail.toLowerCase()) ||
+        (securityConfig.secondaryEmail && cleanUser === securityConfig.secondaryEmail.toLowerCase());
+      const isPassMatch = await verifyPasswordHash(cleanPass, securityConfig.passwordHash, securityConfig.passwordSalt);
+      isAuthorized = isUserMatch && isPassMatch;
+    }
+
+    if (isAuthorized) {
       sessionStorage.setItem('admin_logged_in', 'true');
       setIsLoggedIn(true);
       setFailedAttempts(0);
@@ -599,7 +631,7 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       return {
         success: false,
-        message: 'Invalid Security Credentials.'
+        message: serverMessage || 'Invalid Security Credentials.'
       };
     }
   };

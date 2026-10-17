@@ -227,6 +227,57 @@ export default async function handler(req, res) {
     const { action, target, email, otp, purpose, adminUsername } = parsedBody || {};
 
     // =========================================================================
+    // ACTION: ADMIN LOGIN (Server-Side Salted Hash Verification)
+    // =========================================================================
+    if (action === 'admin_login') {
+      const { username: rawUser, password: rawPassword } = parsedBody || {};
+      if (!rawUser || !rawPassword) {
+        return res.status(400).json({ success: false, message: 'Username and password are required.' });
+      }
+
+      const { data: secData } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('id', 'admin_security_v1')
+        .maybeSingle();
+
+      const secConfig = secData?.content || {};
+      const storedUser = (secConfig.username || 'realadmin2026@gmail.com').toLowerCase();
+      const storedHash = secConfig.passwordHash || '9e0f3f0ecd2583402c0ec1659c1b8dab23dc2ac7474c42971ddb4ff1f48ac3c7';
+      const storedSalt = secConfig.passwordSalt || '39096060b7a075930048ee4a789de39e';
+      const primaryEmail = (secConfig.primaryEmail || '').toLowerCase();
+      const secondaryEmail = (secConfig.secondaryEmail || '').toLowerCase();
+
+      const cleanUser = String(rawUser).trim().toLowerCase();
+      const cleanPass = String(rawPassword).trim();
+
+      const isUserMatch =
+        cleanUser === storedUser ||
+        (primaryEmail && cleanUser === primaryEmail) ||
+        (secondaryEmail && cleanUser === secondaryEmail);
+
+      const computedHash = crypto
+        .createHash('sha256')
+        .update(`${cleanPass}:::${storedSalt}`)
+        .digest('hex');
+
+      const isPassMatch = computedHash === storedHash;
+
+      if (isUserMatch && isPassMatch) {
+        return res.status(200).json({
+          success: true,
+          message: 'Authentication successful! Welcome Admin.',
+          adminUsername: storedUser
+        });
+      }
+
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid Security Credentials.'
+      });
+    }
+
+    // =========================================================================
     // ACTION: REQUEST OTP
     // =========================================================================
     if (action === 'request_otp') {
