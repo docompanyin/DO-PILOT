@@ -53,7 +53,7 @@ export const EmergencyRecoveryPage: React.FC = () => {
     return null;
   }
 
-  const handlePinResetSubmit = (e: React.FormEvent) => {
+  const handlePinResetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -63,7 +63,7 @@ export const EmergencyRecoveryPage: React.FC = () => {
       return;
     }
 
-    const res = resetPasswordWithEmergencyKey(emergencyKey, newUsername, newPassword);
+    const res = await resetPasswordWithEmergencyKey(emergencyKey, newUsername, newPassword);
     if (res.success) {
       setSuccessMsg(res.message);
       setTimeout(() => {
@@ -90,7 +90,7 @@ export const EmergencyRecoveryPage: React.FC = () => {
     }
   };
 
-  const handleEmailResetSubmit = (e: React.FormEvent) => {
+  const handleEmailResetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -100,7 +100,7 @@ export const EmergencyRecoveryPage: React.FC = () => {
       return;
     }
 
-    const res = resetPasswordWithEmailOTP(email, otpCode, newUsername, newPassword);
+    const res = await resetPasswordWithEmailOTP(email, otpCode, newUsername, newPassword);
     if (res.success) {
       setSuccessMsg(res.message);
       setTimeout(() => {

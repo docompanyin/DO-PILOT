@@ -58,8 +58,8 @@ export const AdminLoginPage: React.FC = () => {
     setIsSubmitting(true);
 
     // Artificial delay to prevent timing side-channel attacks
-    setTimeout(() => {
-      const res = loginAdmin(username, password);
+    setTimeout(async () => {
+      const res = await loginAdmin(username, password);
       setIsSubmitting(false);
 
       if (res.success) {

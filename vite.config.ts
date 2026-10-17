@@ -3,6 +3,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import fs from "fs";
 import path from "path";
+import adminOtpHandler from "./api/admin-otp.js";
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -12,6 +13,37 @@ export default defineConfig({
       name: "site-data-api-server",
       configureServer(server) {
         server.middlewares.use((req, res, next) => {
+          if (req.url?.startsWith("/api/admin-otp")) {
+            if (req.method === "OPTIONS") {
+              res.setHeader("Access-Control-Allow-Origin", "*");
+              res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+              res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+              res.statusCode = 200;
+              res.end();
+              return;
+            }
+            if (req.method === "GET") {
+              adminOtpHandler(req, res).catch((err) => {
+                res.statusCode = 500;
+                res.end(JSON.stringify({ error: err.message }));
+              });
+              return;
+            }
+            if (req.method === "POST") {
+              let body = "";
+              req.on("data", (chunk) => { body += chunk; });
+              req.on("end", async () => {
+                try {
+                  req.body = body ? JSON.parse(body) : {};
+                  await adminOtpHandler(req, res);
+                } catch (err) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ success: false, message: err.message }));
+                }
+              });
+              return;
+            }
+          }
           if (req.url === "/api/save-site-data") {
             if (req.method === "OPTIONS") {
               res.setHeader("Access-Control-Allow-Origin", "*");

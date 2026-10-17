@@ -1,0 +1,411 @@
+import crypto from 'crypto';
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://hddvqkyisztzbwszbcoy.supabase.co';
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_WLBBeLiTRNOPndzwB5658Q_2DjElVq4';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function hashOtp(otp, salt, email) {
+  return crypto
+    .createHash('sha256')
+    .update(`${salt}:${otp.trim()}:${email.toLowerCase().trim()}`)
+    .digest('hex');
+}
+
+/**
+ * Dispatches an email to the exact intended recipient with proper headers.
+ * NEVER substitutes a personal or default email.
+ * Headers:
+ *   To: recipient
+ *   From: configured verified sender (e.g. DO PILOT Security <security@docompany.dev>)
+ *   Reply-To: support / sender address (e.g. support@docompany.dev)
+ */
+async function dispatchEmailToRecipient({ to, otp, purpose }) {
+  const cleanEmail = to.trim().toLowerCase();
+  const resendKey = process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY;
+  const brevoKey = process.env.BREVO_API_KEY || process.env.VITE_BREVO_API_KEY;
+  const senderEmail = process.env.SENDER_EMAIL || process.env.VITE_SENDER_EMAIL || 'security@dopilot.online';
+  const supportEmail = process.env.SUPPORT_EMAIL || process.env.VITE_SUPPORT_EMAIL || 'support@dopilot.online';
+
+  const diagnostics = [];
+
+  // Provider 1: Resend REST API (if configured)
+  if (resendKey) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: `DO PILOT Security <${senderEmail.includes('@') ? senderEmail : 'onboarding@resend.dev'}>`,
+          to: [cleanEmail],
+          reply_to: supportEmail,
+          subject: `DO PILOT Security Verification: ${purpose}`,
+          html: `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 540px; margin: 0 auto; padding: 24px; background: #0c0d0e; color: #f5f5f5; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);">
+              <div style="font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #a1a1aa; margin-bottom: 8px;">DO PILOT SECURITY</div>
+              <h2 style="font-size: 20px; font-weight: 800; margin: 0 0 16px 0; color: #ffffff;">Admin Verification Code</h2>
+              <p style="font-size: 14px; line-height: 1.6; color: #a1a1aa; margin: 0 0 24px 0;">
+                You requested a security verification code for: <strong style="color: #ffffff;">${purpose}</strong>.
+              </p>
+              <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 24px;">
+                <span style="font-family: monospace; font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #ffffff;">${otp}</span>
+              </div>
+              <p style="font-size: 12px; line-height: 1.5; color: #71717a; margin: 0;">
+                Valid for 10 minutes. If you did not initiate this request, notify the systems administrator immediately.
+              </p>
+            </div>
+          `
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return {
+          success: true,
+          provider: 'Resend',
+          recipient: cleanEmail,
+          headers: { to: cleanEmail, from: senderEmail, replyTo: supportEmail },
+          messageId: data.id,
+          message: `OTP accepted for delivery to ${cleanEmail} via Resend.`
+        };
+      } else {
+        diagnostics.push(`Resend error: ${data.message || JSON.stringify(data)}`);
+      }
+    } catch (err) {
+      diagnostics.push(`Resend network failure: ${err.message}`);
+    }
+  }
+
+  // Provider 2: Brevo (Sendinblue) REST API (if configured)
+  if (brevoKey) {
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': brevoKey,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: { name: 'DO PILOT Security', email: senderEmail },
+          to: [{ email: cleanEmail }],
+          replyTo: { email: supportEmail, name: 'DO PILOT Support' },
+          subject: `DO PILOT Security Verification: ${purpose}`,
+          htmlContent: `
+            <div style="font-family: sans-serif; max-width: 500px; padding: 20px; background: #0b0c0d; color: #ffffff; border-radius: 12px;">
+              <h2 style="margin-top:0;">DO PILOT Security Code</h2>
+              <p style="color:#aaa;">Purpose: ${purpose}</p>
+              <div style="font-family: monospace; font-size: 28px; font-weight: bold; letter-spacing: 6px; padding: 15px; background: #1a1b1e; text-align: center; border-radius: 8px; margin: 20px 0;">
+                ${otp}
+              </div>
+              <p style="font-size: 12px; color: #888;">Valid for 10 minutes. Never share this code.</p>
+            </div>
+          `
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return {
+          success: true,
+          provider: 'Brevo',
+          recipient: cleanEmail,
+          headers: { to: cleanEmail, from: senderEmail, replyTo: supportEmail },
+          messageId: data.messageId,
+          message: `OTP accepted for delivery to ${cleanEmail} via Brevo.`
+        };
+      } else {
+        diagnostics.push(`Brevo error: ${data.message || JSON.stringify(data)}`);
+      }
+    } catch (err) {
+      diagnostics.push(`Brevo network failure: ${err.message}`);
+    }
+  }
+
+  // Provider 3: Supabase Auth OTP (uses Supabase configured SMTP or built-in mailer)
+  try {
+    const { data: supaData, error: supaErr } = await supabase.auth.signInWithOtp({
+      email: cleanEmail
+    });
+    if (!supaErr) {
+      return {
+        success: true,
+        provider: 'Supabase Auth Mailer',
+        recipient: cleanEmail,
+        headers: { to: cleanEmail, from: 'Supabase Auth Mailer', replyTo: supportEmail },
+        message: `OTP accepted for delivery to ${cleanEmail} via Supabase Auth Mailer.`
+      };
+    } else {
+      diagnostics.push(`Supabase Auth error (${supaErr.code || supaErr.status}): ${supaErr.message}`);
+    }
+  } catch (err) {
+    diagnostics.push(`Supabase Auth network failure: ${err.message}`);
+  }
+
+  // If all outbound providers failed or are not yet configured
+  return {
+    success: false,
+    provider: 'None',
+    recipient: cleanEmail,
+    headers: { to: cleanEmail, from: senderEmail, replyTo: supportEmail },
+    diagnostics,
+    message: `Delivery issue: Outbound mailer failed to send to ${cleanEmail}. ${diagnostics.join(' | ')}`
+  };
+}
+
+export default async function handler(req, res) {
+  // CORS Headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (req.method === 'GET') {
+    // Health / Provider Diagnostics Status Check
+    const hasResend = Boolean(process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY);
+    const hasBrevo = Boolean(process.env.BREVO_API_KEY || process.env.VITE_BREVO_API_KEY);
+    return res.status(200).json({
+      status: 'active',
+      configuredProviders: {
+        resend: hasResend,
+        brevo: hasBrevo,
+        supabaseAuth: true
+      },
+      headersSpec: {
+        from: process.env.SENDER_EMAIL || process.env.VITE_SENDER_EMAIL || 'security@dopilot.in',
+        replyTo: process.env.SUPPORT_EMAIL || process.env.VITE_SUPPORT_EMAIL || 'support@docompany.dev'
+      }
+    });
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { action, target, email, otp, purpose, adminUsername } = req.body || {};
+
+    // =========================================================================
+    // ACTION: REQUEST OTP
+    // =========================================================================
+    if (action === 'request_otp') {
+      if (!email || typeof email !== 'string') {
+        return res.status(400).json({ success: false, message: 'Valid email address is required.' });
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanEmail)) {
+        return res.status(400).json({ success: false, message: 'Invalid email address format.' });
+      }
+
+      const slotTarget = target === 'secondary' ? 'secondary' : 'primary';
+      const sessionDocId = `admin_otp_session_${slotTarget}`;
+
+      // Check Rate Limit / Cooldown (60s) from Supabase session
+      const { data: existingSessionRow } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('id', sessionDocId)
+        .maybeSingle();
+
+      const now = Date.now();
+      if (existingSessionRow?.content?.createdAt && now - existingSessionRow.content.createdAt < 60 * 1000) {
+        const remaining = Math.ceil((60 * 1000 - (now - existingSessionRow.content.createdAt)) / 1000);
+        return res.status(429).json({
+          success: false,
+          cooldownRemaining: remaining,
+          message: `Please wait ${remaining}s before requesting a new OTP.`
+        });
+      }
+
+      // Generate Cryptographically Secure 6-Digit Code
+      const otpCode = crypto.randomInt(100000, 1000000).toString();
+      const salt = crypto.randomBytes(16).toString('hex');
+      const hash = hashOtp(otpCode, salt, cleanEmail);
+      const expiresAt = now + 10 * 60 * 1000; // 10 minutes
+
+      // Save Server-Side Session to Supabase
+      const sessionContent = {
+        target: slotTarget,
+        email: cleanEmail,
+        hash,
+        salt,
+        attemptsLeft: 5,
+        expiresAt,
+        createdAt: now,
+        status: 'PENDING'
+      };
+
+      await supabase.from('site_content').upsert({
+        id: sessionDocId,
+        content: sessionContent,
+        updated_at: new Date().toISOString()
+      });
+
+      // Dispatch Email with strict headers (To = cleanEmail)
+      const dispatchResult = await dispatchEmailToRecipient({
+        to: cleanEmail,
+        otp: otpCode,
+        purpose: purpose || `Verification for ${slotTarget} recovery email`
+      });
+
+      // Record Safe Diagnostic Audit Log (NO plaintext OTP logged)
+      try {
+        const { data: logsData } = await supabase
+          .from('site_content')
+          .select('content')
+          .eq('id', 'admin_audit_logs_v1')
+          .maybeSingle();
+
+        const currentLogs = Array.isArray(logsData?.content) ? logsData.content : [];
+        const newLog = {
+          id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          action: 'RECOVERY_OTP_DISPATCHED',
+          status: dispatchResult.success ? 'SUCCESS' : 'WARNING',
+          details: `OTP dispatched to exact recipient: ${cleanEmail}. Provider: ${dispatchResult.provider}. ${dispatchResult.success ? 'Accepted for delivery.' : dispatchResult.message}`,
+          adminUser: adminUsername || 'admin',
+          timestamp: new Date().toISOString(),
+          affectedUser: 'Admin Account'
+        };
+
+        await supabase.from('site_content').upsert({
+          id: 'admin_audit_logs_v1',
+          content: [newLog, ...currentLogs].slice(0, 100),
+          updated_at: new Date().toISOString()
+        });
+      } catch (logErr) {
+        console.warn('Failed to append audit log:', logErr);
+      }
+
+      return res.status(200).json({
+        success: dispatchResult.success,
+        deliveryAccepted: dispatchResult.success,
+        provider: dispatchResult.provider,
+        recipient: cleanEmail,
+        headers: dispatchResult.headers,
+        message: dispatchResult.success
+          ? `Verification OTP sent to ${cleanEmail}. Please check your inbox.`
+          : dispatchResult.message,
+        cooldown: 60
+      });
+    }
+
+    // =========================================================================
+    // ACTION: VERIFY OTP
+    // =========================================================================
+    if (action === 'verify_otp') {
+      if (!email || !otp) {
+        return res.status(400).json({ success: false, message: 'Email and 6-digit OTP code are required.' });
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+      const slotTarget = target === 'secondary' ? 'secondary' : 'primary';
+      const sessionDocId = `admin_otp_session_${slotTarget}`;
+
+      const { data: sessionRow, error: fetchErr } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('id', sessionDocId)
+        .maybeSingle();
+
+      if (fetchErr || !sessionRow?.content) {
+        return res.status(400).json({
+          success: false,
+          message: 'No active OTP verification session found. Please request a new code.'
+        });
+      }
+
+      const session = sessionRow.content;
+
+      // Verify slot target and email match EXACTLY
+      if (session.target !== slotTarget || session.email !== cleanEmail) {
+        return res.status(400).json({
+          success: false,
+          message: 'Verification request does not match this email address. Please request a new OTP.'
+        });
+      }
+
+      if (Date.now() > session.expiresAt) {
+        await supabase.from('site_content').delete().eq('id', sessionDocId);
+        return res.status(400).json({ success: false, message: 'OTP code has expired. Please request a new code.' });
+      }
+
+      if (session.attemptsLeft <= 0) {
+        await supabase.from('site_content').delete().eq('id', sessionDocId);
+        return res.status(400).json({
+          success: false,
+          message: 'Maximum verification attempts exceeded. Please request a new code.'
+        });
+      }
+
+      // Hash comparison
+      const candidateHash = hashOtp(otp.trim(), session.salt, cleanEmail);
+      if (candidateHash !== session.hash) {
+        session.attemptsLeft -= 1;
+        await supabase.from('site_content').upsert({
+          id: sessionDocId,
+          content: session,
+          updated_at: new Date().toISOString()
+        });
+
+        return res.status(400).json({
+          success: false,
+          attemptsRemaining: session.attemptsLeft,
+          message: `Incorrect 6-digit OTP code! (${session.attemptsLeft} attempt${session.attemptsLeft === 1 ? '' : 's'} remaining)`
+        });
+      }
+
+      // OTP is valid! Invalidate session immediately so it cannot be reused
+      await supabase.from('site_content').delete().eq('id', sessionDocId);
+
+      // Safe Audit Log
+      try {
+        const { data: logsData } = await supabase
+          .from('site_content')
+          .select('content')
+          .eq('id', 'admin_audit_logs_v1')
+          .maybeSingle();
+
+        const currentLogs = Array.isArray(logsData?.content) ? logsData.content : [];
+        const newLog = {
+          id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          action: 'RECOVERY_EMAIL_OTP_VERIFIED',
+          status: 'SUCCESS',
+          details: `OTP verified securely on server for ${slotTarget} recovery email (${cleanEmail}).`,
+          adminUser: adminUsername || 'admin',
+          timestamp: new Date().toISOString(),
+          affectedUser: 'Admin Account'
+        };
+
+        await supabase.from('site_content').upsert({
+          id: 'admin_audit_logs_v1',
+          content: [newLog, ...currentLogs].slice(0, 100),
+          updated_at: new Date().toISOString()
+        });
+      } catch (logErr) {
+        console.warn('Failed to append audit log:', logErr);
+      }
+
+      return res.status(200).json({
+        success: true,
+        recipient: cleanEmail,
+        message: 'OTP verified successfully.'
+      });
+    }
+
+    return res.status(400).json({ success: false, message: `Unknown action '${action}'` });
+  } catch (error) {
+    console.error('Admin OTP API error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error processing OTP request',
+      error: error.message
+    });
+  }
+}

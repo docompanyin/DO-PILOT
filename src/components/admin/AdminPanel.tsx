@@ -77,12 +77,21 @@ export const AdminPanel: React.FC = () => {
     isLoggedIn,
     logoutAdmin,
     auditLogs,
-    updateCredentialsWithOldPassword,
-    updateRecoveryEmails,
+    refreshAuditLogs,
     getAdminUsername,
     getAdminEmails,
-    requestEmailChangeOTP,
-    verifyEmailChangeOTP,
+    changePasswordMethodA,
+    requestMethodBOTP,
+    verifyMethodBOTPAndChangePassword,
+    setupInitialRecoveryEmail,
+    verifyAndSaveInitialRecoveryEmail,
+    requestChangeEmailStep1,
+    verifyChangeEmailStep1,
+    requestChangeEmailStep2,
+    confirmNewRecoveryEmail,
+    clearRecoveryEmailsForTesting,
+    updateCredentialsWithOldPassword,
+    updateRecoveryEmails,
     addAuditLog
   } = useAdminAuth();
 
@@ -368,20 +377,46 @@ export const AdminPanel: React.FC = () => {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [jsonInput, setJsonInput] = useState('');
 
-  // Security Credentials State
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newUsername, setNewUsername] = useState(getAdminUsername());
-  const [primaryEmail, setPrimaryEmail] = useState(adminEmails.primaryEmail);
-  const [secondaryEmail, setSecondaryEmail] = useState(adminEmails.secondaryEmail);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState('');
-  const [showCredPassword, setShowCredPassword] = useState(false);
+  // Security & Authentication State
+  const [passwordChangeMethod, setPasswordChangeMethod] = useState<'methodA' | 'methodB'>('methodA');
 
-  // Email Change OTP Guard State
-  const [showEmailOtpModal, setShowEmailOtpModal] = useState(false);
-  const [emailOtpCode, setEmailOtpCode] = useState('');
-  const [emailOtpNotice, setEmailOtpNotice] = useState<string | null>(null);
-  const [emailOtpError, setEmailOtpError] = useState<string | null>(null);
+  // Method A State (Leave blank by default - never expose or prefill credentials)
+  const [methodACurrentUser, setMethodACurrentUser] = useState('');
+  const [methodACurrentPass, setMethodACurrentPass] = useState('');
+  const [methodANewPass, setMethodANewPass] = useState('');
+  const [methodAConfirmPass, setMethodAConfirmPass] = useState('');
+  const [methodAShowPass, setMethodAShowPass] = useState(false);
+  const [methodALoading, setMethodALoading] = useState(false);
+  const [methodAStatus, setMethodAStatus] = useState<{ type: 'idle' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
+
+  // Method B State
+  const [methodBDeliveryMode, setMethodBDeliveryMode] = useState<'primary' | 'secondary' | 'both'>('primary');
+  const [methodBOtpSent, setMethodBOtpSent] = useState(false);
+  const [methodBOtpPrimary, setMethodBOtpPrimary] = useState('');
+  const [methodBOtpSecondary, setMethodBOtpSecondary] = useState('');
+  const [methodBNewPass, setMethodBNewPass] = useState('');
+  const [methodBConfirmPass, setMethodBConfirmPass] = useState('');
+  const [methodBShowPass, setMethodBShowPass] = useState(false);
+  const [methodBLoading, setMethodBLoading] = useState(false);
+  const [methodBCooldown, setMethodBCooldown] = useState(0);
+  const [methodBStatus, setMethodBStatus] = useState<{ type: 'idle' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
+
+  // Recovery Email Modal State (Supports Initial Fresh Setup and 2-Step Protected Change)
+  const [emailModalMode, setEmailModalMode] = useState<'initialSetup' | 'twoStepChange'>('twoStepChange');
+  const [emailChangeModalTarget, setEmailChangeModalTarget] = useState<'primary' | 'secondary' | null>(null);
+  const [emailChangeStep, setEmailChangeStep] = useState<1 | 2>(1);
+  const [emailChangeStep1Otp, setEmailChangeStep1Otp] = useState('');
+  const [emailChangeNewAddress, setEmailChangeNewAddress] = useState('');
+  const [emailChangeStep2Otp, setEmailChangeStep2Otp] = useState('');
+  const [emailChangeLoading, setEmailChangeLoading] = useState(false);
+  const [emailChangeCooldown, setEmailChangeCooldown] = useState(0);
+  const [emailChangeStatus, setEmailChangeStatus] = useState<{ type: 'idle' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
+
+  // Audit Logs Filtering State
+  const [auditFilterCategory, setAuditFilterCategory] = useState<'all' | 'resets' | 'credentials' | 'access'>('all');
+  const [auditFilterStatus, setAuditFilterStatus] = useState<'all' | 'SUCCESS' | 'WARNING' | 'FAILED'>('all');
+  const [auditSearchQuery, setAuditSearchQuery] = useState('');
+  const [isRefreshingAudit, setIsRefreshingAudit] = useState(false);
 
   // --- Student Management & Learning Analytics State ---
   interface StudentSectionProgress {
@@ -1094,47 +1129,289 @@ export const AdminPanel: React.FC = () => {
     showToast('Footer saved successfully!');
   };
 
-  const handleUpdateCreds = (e: React.FormEvent) => {
+  // Method B Resend Cooldown Countdown Timer
+  useEffect(() => {
+    if (methodBCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setMethodBCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [methodBCooldown]);
+
+  // Email Change Resend Cooldown Countdown Timer
+  useEffect(() => {
+    if (emailChangeCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setEmailChangeCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [emailChangeCooldown]);
+
+  // Method A Handler: Change Password via Current Password
+  const handleMethodASubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword !== confirmNewPassword) {
-      showToast('New Password and Confirm Password do not match!', false);
+    setMethodAStatus({ type: 'idle', message: '' });
+
+    if (methodANewPass !== methodAConfirmPass) {
+      setMethodAStatus({ type: 'error', message: 'New password and confirm password do not match.' });
+      return;
+    }
+    if (methodANewPass.length < 6) {
+      setMethodAStatus({ type: 'error', message: 'New password must be at least 6 characters long.' });
       return;
     }
 
-    const res = updateCredentialsWithOldPassword(currentPassword, newUsername, newPassword);
-    if (res.success) {
-      showToast(res.message);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmNewPassword('');
-    } else {
-      showToast(res.message, false);
-    }
-  };
-
-  const handleUpdateEmails = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const res = await requestEmailChangeOTP();
-    if (res.success) {
-      setEmailOtpNotice('[SECURITY]: 6-digit OTP code sent to your registered inbox.');
-      setShowEmailOtpModal(true);
-    }
-  };
-
-  const handleConfirmEmailOtpUpdate = (e: React.FormEvent) => {
-    e.preventDefault();
-    setEmailOtpError(null);
-
-    if (verifyEmailChangeOTP(emailOtpCode)) {
-      if (updateRecoveryEmails(primaryEmail, secondaryEmail)) {
-        setShowEmailOtpModal(false);
-        showToast('Dual recovery emails updated successfully!');
-        setEmailOtpCode('');
+    setMethodALoading(true);
+    try {
+      const res = await changePasswordMethodA(methodACurrentUser, methodACurrentPass, methodANewPass);
+      if (res.success) {
+        setMethodAStatus({ type: 'success', message: res.message });
+        setMethodACurrentUser('');
+        setMethodACurrentPass('');
+        setMethodANewPass('');
+        setMethodAConfirmPass('');
+        showToast(res.message);
       } else {
-        setEmailOtpError('Failed to save updated recovery emails.');
+        setMethodAStatus({ type: 'error', message: res.message });
+        showToast(res.message, false);
       }
-    } else {
-      setEmailOtpError('Invalid 6-digit OTP code.');
+    } catch (err: any) {
+      setMethodAStatus({ type: 'error', message: err?.message || 'Error updating password.' });
+    } finally {
+      setMethodALoading(false);
+    }
+  };
+
+  // Method B Handlers: Change Password via Email Recovery
+  const handleMethodBSendOTP = async () => {
+    if (methodBCooldown > 0) return;
+    setMethodBLoading(true);
+    setMethodBStatus({ type: 'idle', message: '' });
+
+    try {
+      const res = await requestMethodBOTP(methodBDeliveryMode);
+      if (res.success) {
+        setMethodBOtpSent(true);
+        setMethodBCooldown(60);
+        setMethodBStatus({ type: 'success', message: res.message });
+        showToast(res.message);
+      } else {
+        if (res.cooldownRemaining) setMethodBCooldown(res.cooldownRemaining);
+        setMethodBStatus({ type: 'error', message: res.message });
+        showToast(res.message, false);
+      }
+    } catch (err: any) {
+      setMethodBStatus({ type: 'error', message: err?.message || 'Error dispatching recovery OTP.' });
+    } finally {
+      setMethodBLoading(false);
+    }
+  };
+
+  const handleMethodBSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMethodBStatus({ type: 'idle', message: '' });
+
+    if (methodBNewPass !== methodBConfirmPass) {
+      setMethodBStatus({ type: 'error', message: 'New password and confirm password do not match.' });
+      return;
+    }
+    if (methodBNewPass.length < 6) {
+      setMethodBStatus({ type: 'error', message: 'New password must be at least 6 characters long.' });
+      return;
+    }
+
+    setMethodBLoading(true);
+    try {
+      const res = await verifyMethodBOTPAndChangePassword(
+        methodBDeliveryMode,
+        methodBOtpPrimary,
+        methodBOtpSecondary,
+        methodBNewPass
+      );
+      if (res.success) {
+        setMethodBStatus({ type: 'success', message: res.message });
+        setMethodBOtpSent(false);
+        setMethodBOtpPrimary('');
+        setMethodBOtpSecondary('');
+        setMethodBNewPass('');
+        setMethodBConfirmPass('');
+        showToast(res.message);
+      } else {
+        setMethodBStatus({ type: 'error', message: res.message });
+        showToast(res.message, false);
+      }
+    } catch (err: any) {
+      setMethodBStatus({ type: 'error', message: err?.message || 'Error verifying recovery OTP.' });
+    } finally {
+      setMethodBLoading(false);
+    }
+  };
+
+  // Recovery Email Initial Fresh Setup Handlers
+  const handleOpenEmailSetupModal = (target: 'primary' | 'secondary') => {
+    setEmailModalMode('initialSetup');
+    setEmailChangeModalTarget(target);
+    setEmailChangeStep(1);
+    setEmailChangeStep1Otp('');
+    setEmailChangeNewAddress('');
+    setEmailChangeStep2Otp('');
+    setEmailChangeStatus({ type: 'idle', message: '' });
+  };
+
+  const handleInitialSetupSendOtp = async () => {
+    if (!emailChangeModalTarget || !emailChangeNewAddress.trim() || emailChangeCooldown > 0) return;
+    setEmailChangeLoading(true);
+    setEmailChangeStatus({ type: 'idle', message: '' });
+
+    try {
+      const res = await setupInitialRecoveryEmail(emailChangeModalTarget, emailChangeNewAddress);
+      if (res.success) {
+        setEmailChangeCooldown(60);
+        setEmailChangeStatus({ type: 'success', message: res.message });
+        showToast(res.message);
+      } else {
+        if (res.cooldownRemaining) setEmailChangeCooldown(res.cooldownRemaining);
+        setEmailChangeStatus({ type: 'error', message: res.message });
+      }
+    } catch (err: any) {
+      setEmailChangeStatus({ type: 'error', message: err?.message || 'Failed to dispatch verification OTP.' });
+    } finally {
+      setEmailChangeLoading(false);
+    }
+  };
+
+  const handleInitialSetupVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailChangeModalTarget || !emailChangeNewAddress.trim() || !emailChangeStep2Otp.trim()) return;
+    setEmailChangeLoading(true);
+    setEmailChangeStatus({ type: 'idle', message: '' });
+
+    try {
+      const res = await verifyAndSaveInitialRecoveryEmail(
+        emailChangeModalTarget,
+        emailChangeNewAddress,
+        emailChangeStep2Otp
+      );
+      if (res.success) {
+        showToast(res.message);
+        setEmailChangeModalTarget(null);
+      } else {
+        setEmailChangeStatus({ type: 'error', message: res.message });
+      }
+    } catch (err: any) {
+      setEmailChangeStatus({ type: 'error', message: err?.message || 'Verification failed.' });
+    } finally {
+      setEmailChangeLoading(false);
+    }
+  };
+
+  const handleResetRecoveryEmailsToEmpty = async () => {
+    if (!window.confirm('Reset both recovery email slots to empty? This allows testing initial configuration from scratch.')) return;
+    try {
+      const ok = await clearRecoveryEmailsForTesting();
+      if (ok) {
+        showToast('Both recovery emails reset to empty slots.');
+      } else {
+        showToast('Failed to clear recovery emails.', false);
+      }
+    } catch (err: any) {
+      showToast('Error resetting recovery emails.', false);
+    }
+  };
+
+  // Recovery Email 2-Step Verification Handlers
+  const handleOpenEmailChangeModal = (target: 'primary' | 'secondary') => {
+    setEmailModalMode('twoStepChange');
+    setEmailChangeModalTarget(target);
+    setEmailChangeStep(1);
+    setEmailChangeStep1Otp('');
+    setEmailChangeNewAddress('');
+    setEmailChangeStep2Otp('');
+    setEmailChangeStatus({ type: 'idle', message: '' });
+  };
+
+  const handleEmailChangeStep1SendOtp = async () => {
+    if (!emailChangeModalTarget || emailChangeCooldown > 0) return;
+    setEmailChangeLoading(true);
+    setEmailChangeStatus({ type: 'idle', message: '' });
+
+    try {
+      const res = await requestChangeEmailStep1(emailChangeModalTarget);
+      if (res.success) {
+        setEmailChangeCooldown(60);
+        setEmailChangeStatus({ type: 'success', message: res.message });
+        showToast(res.message);
+      } else {
+        setEmailChangeStatus({ type: 'error', message: res.message });
+      }
+    } catch (err: any) {
+      setEmailChangeStatus({ type: 'error', message: err?.message || 'Failed to send authorization OTP.' });
+    } finally {
+      setEmailChangeLoading(false);
+    }
+  };
+
+  const handleEmailChangeStep1Verify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailChangeModalTarget) return;
+    setEmailChangeStatus({ type: 'idle', message: '' });
+    setEmailChangeLoading(true);
+
+    try {
+      const res = await verifyChangeEmailStep1(emailChangeModalTarget, emailChangeStep1Otp);
+      if (res.success) {
+        setEmailChangeStep(2);
+        setEmailChangeStatus({ type: 'success', message: res.message });
+        showToast(res.message);
+      } else {
+        setEmailChangeStatus({ type: 'error', message: res.message });
+      }
+    } catch (err: any) {
+      setEmailChangeStatus({ type: 'error', message: err?.message || 'Verification failed.' });
+    } finally {
+      setEmailChangeLoading(false);
+    }
+  };
+
+  const handleEmailChangeStep2SendOtp = async () => {
+    if (!emailChangeModalTarget || !emailChangeNewAddress || emailChangeCooldown > 0) return;
+    setEmailChangeLoading(true);
+    setEmailChangeStatus({ type: 'idle', message: '' });
+
+    try {
+      const res = await requestChangeEmailStep2(emailChangeModalTarget, emailChangeNewAddress);
+      if (res.success) {
+        setEmailChangeCooldown(60);
+        setEmailChangeStatus({ type: 'success', message: res.message });
+        showToast(res.message);
+      } else {
+        setEmailChangeStatus({ type: 'error', message: res.message });
+      }
+    } catch (err: any) {
+      setEmailChangeStatus({ type: 'error', message: err?.message || 'Failed to send verification code.' });
+    } finally {
+      setEmailChangeLoading(false);
+    }
+  };
+
+  const handleEmailChangeStep2Confirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailChangeModalTarget || !emailChangeNewAddress || !emailChangeStep2Otp) return;
+    setEmailChangeLoading(true);
+    setEmailChangeStatus({ type: 'idle', message: '' });
+
+    try {
+      const res = await confirmNewRecoveryEmail(emailChangeModalTarget, emailChangeNewAddress, emailChangeStep2Otp);
+      if (res.success) {
+        showToast(res.message);
+        setEmailChangeModalTarget(null);
+      } else {
+        setEmailChangeStatus({ type: 'error', message: res.message });
+      }
+    } catch (err: any) {
+      setEmailChangeStatus({ type: 'error', message: err?.message || 'Failed to update recovery email.' });
+    } finally {
+      setEmailChangeLoading(false);
     }
   };
 
@@ -2242,221 +2519,655 @@ export const AdminPanel: React.FC = () => {
   );
 
 
-  const renderSecuritySection = () => (
-    <section id="section-security" className="space-y-6">
-      {/* Change Credentials Card */}
-      <form onSubmit={handleUpdateCreds} className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl">
-        <div className="flex items-center justify-between pb-5 border-b border-white/10">
-          <div>
-            <h2 className="font-jakarta text-lg font-black text-paper">Admin Credentials</h2>
-            <p className="text-xs text-slate mt-0.5">Authorize credential updates using your current password.</p>
-          </div>
-        </div>
+  const renderSecuritySection = () => {
+    const normalizedAuditQuery = auditSearchQuery.trim().toLowerCase();
+    const currentEmails = getAdminEmails();
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block font-mono text-[11px] text-amber-400 font-bold mb-1">Current Admin Password *</label>
-            <div className="relative">
-              <input
-                type={showCredPassword ? 'text' : 'password'}
-                required
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="Current password"
-                className="w-full bg-black border border-amber-500/40 rounded-xl px-4 py-2.5 text-paper focus:border-amber-400 focus:outline-none font-mono text-xs"
-              />
+    const filteredAuditLogs = auditLogs.filter((log) => {
+      // 1. Category filter
+      if (auditFilterCategory === 'resets') {
+        const isReset = log.action.includes('COURSE') || log.action.includes('RESET') || log.action.includes('UNLOCK');
+        if (!isReset) return false;
+      } else if (auditFilterCategory === 'credentials') {
+        const isCred = log.action.includes('PASSWORD') || log.action.includes('CREDENTIAL') || log.action.includes('EMAIL');
+        if (!isCred) return false;
+      } else if (auditFilterCategory === 'access') {
+        const isAccess = log.action.includes('LOGIN') || log.action.includes('LOCKOUT') || log.action.includes('GATEWAY') || log.action.includes('SESSION') || log.action.includes('BOT');
+        if (!isAccess) return false;
+      }
+
+      // 2. Status filter
+      if (auditFilterStatus !== 'all' && log.status !== auditFilterStatus) {
+        return false;
+      }
+
+      // 3. Search query
+      if (normalizedAuditQuery) {
+        const matchAction = log.action.toLowerCase().includes(normalizedAuditQuery);
+        const matchDetails = log.details.toLowerCase().includes(normalizedAuditQuery);
+        const matchUser = (log.affectedUser || '').toLowerCase().includes(normalizedAuditQuery);
+        const matchCourse = (log.affectedCourse || '').toLowerCase().includes(normalizedAuditQuery);
+        const matchAdmin = (log.adminUser || '').toLowerCase().includes(normalizedAuditQuery);
+        if (!matchAction && !matchDetails && !matchUser && !matchCourse && !matchAdmin) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    return (
+      <section id="section-security" className="space-y-6">
+        {/* =========================================================================
+            CARD 1: ADMIN CREDENTIALS & CHANGE PASSWORD
+        ========================================================================= */}
+        <div className="rounded-2xl bg-[#0c0d0e] border border-white/10 p-5 sm:p-6 space-y-5 shadow-2xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="font-jakarta text-base sm:text-lg font-black text-paper">Admin Credentials &amp; Password</h2>
+              </div>
+              <p className="text-xs text-slate mt-0.5">
+                Update admin login credentials or reset password via email recovery.
+              </p>
+            </div>
+
+            {/* Method Tabs Switcher */}
+            <div className="flex items-center bg-black/50 p-1 rounded-xl border border-white/10 text-xs">
               <button
                 type="button"
-                onClick={() => setShowCredPassword(!showCredPassword)}
-                className="absolute right-3 top-2.5 text-slate hover:text-paper"
+                onClick={() => {
+                  setPasswordChangeMethod('methodA');
+                  setMethodAStatus({ type: 'idle', message: '' });
+                }}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  passwordChangeMethod === 'methodA'
+                    ? 'bg-primary text-ink shadow-sm'
+                    : 'text-slate hover:text-paper'
+                }`}
               >
-                {showCredPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>Current Password</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPasswordChangeMethod('methodB');
+                  setMethodBStatus({ type: 'idle', message: '' });
+                }}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  passwordChangeMethod === 'methodB'
+                    ? 'bg-primary text-ink shadow-sm'
+                    : 'text-slate hover:text-paper'
+                }`}
+              >
+                <Mail className="w-3.5 h-3.5" />
+                <span>Email Recovery</span>
               </button>
             </div>
           </div>
-          <div>
-            <label className="block font-mono text-[11px] text-slate mb-1">Admin Username / Email</label>
-            <input
-              type="text"
-              required
-              value={newUsername}
-              onChange={(e) => setNewUsername(e.target.value)}
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-            />
-          </div>
-          <div>
-            <label className="block font-mono text-[11px] text-slate mb-1">New Password</label>
-            <input
-              type={showCredPassword ? 'text' : 'password'}
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Min 6 characters"
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-            />
-          </div>
-          <div>
-            <label className="block font-mono text-[11px] text-slate mb-1">Confirm New Password</label>
-            <input
-              type={showCredPassword ? 'text' : 'password'}
-              value={confirmNewPassword}
-              onChange={(e) => setConfirmNewPassword(e.target.value)}
-              placeholder="Repeat new password"
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-            />
-          </div>
-        </div>
 
-        <div className="flex justify-end pt-1">
-          <button
-            type="submit"
-            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
-          >
-            <Save className="w-4 h-4" />
-            <span>Update Password</span>
-          </button>
-        </div>
-      </form>
+          {/* METHOD A FORM */}
+          {passwordChangeMethod === 'methodA' && (
+            <form onSubmit={handleMethodASubmit} className="space-y-4">
+              {methodAStatus.type !== 'idle' && (
+                <div
+                  className={`p-3 rounded-xl font-mono text-xs text-center border ${
+                    methodAStatus.type === 'success'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                      : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                  }`}
+                >
+                  {methodAStatus.message}
+                </div>
+              )}
 
-      {/* Recovery Emails Card */}
-      <form onSubmit={handleUpdateEmails} className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl">
-        <div className="flex items-center justify-between pb-5 border-b border-white/10">
-          <div>
-            <h2 className="font-jakarta text-lg font-black text-paper">Emergency Dual Recovery Emails</h2>
-            <p className="text-xs text-slate mt-0.5">Registered backup emails used to receive 6-digit OTP verification codes if you forget credentials.</p>
-          </div>
-        </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate mb-1">Current Admin Username *</label>
+                  <input
+                    type="text"
+                    required
+                    value={methodACurrentUser}
+                    onChange={(e) => setMethodACurrentUser(e.target.value)}
+                    placeholder="Enter current username"
+                    className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none font-mono"
+                  />
+                </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block font-mono text-[11px] text-slate mb-1">Primary Recovery Email</label>
-            <input
-              type="email"
-              required
-              value={primaryEmail}
-              onChange={(e) => setPrimaryEmail(e.target.value)}
-              placeholder="primary@gmail.com"
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-            />
-          </div>
-          <div>
-            <label className="block font-mono text-[11px] text-slate mb-1">Secondary Backup Email</label>
-            <input
-              type="email"
-              required
-              value={secondaryEmail}
-              onChange={(e) => setSecondaryEmail(e.target.value)}
-              placeholder="backup@gmail.com"
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-2.5 text-paper focus:border-primary focus:outline-none font-mono text-xs"
-            />
-          </div>
-        </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate mb-1">Current Admin Password *</label>
+                  <div className="relative">
+                    <input
+                      type={methodAShowPass ? 'text' : 'password'}
+                      required
+                      value={methodACurrentPass}
+                      onChange={(e) => setMethodACurrentPass(e.target.value)}
+                      placeholder="Enter current password"
+                      className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none font-mono pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setMethodAShowPass(!methodAShowPass)}
+                      className="absolute right-3 top-2.5 text-slate hover:text-paper"
+                    >
+                      {methodAShowPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
 
-        <div className="flex justify-end pt-1">
-          <button
-            type="submit"
-            className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all cursor-pointer"
-          >
-            <Mail className="w-4 h-4" />
-            <span>Update Recovery Emails (Send OTP)</span>
-          </button>
-        </div>
-      </form>
+                <div>
+                  <label className="block text-xs font-bold text-slate mb-1">New Password (Min 6 chars) *</label>
+                  <input
+                    type={methodAShowPass ? 'text' : 'password'}
+                    required
+                    value={methodANewPass}
+                    onChange={(e) => setMethodANewPass(e.target.value)}
+                    placeholder="Enter new password"
+                    className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none font-mono"
+                  />
+                </div>
 
-      {/* Backup & Factory Preset Card */}
-      <div className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl">
-        <div className="flex items-center justify-between pb-5 border-b border-white/10">
-          <div>
-            <h2 className="font-jakarta text-lg font-black text-paper">Presets &amp; Data Backup</h2>
-            <p className="text-xs text-slate mt-0.5">Download full site JSON backups or lock in your modifications as the permanent default preset.</p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => {
-              if (window.confirm("Save all current modifications as the permanent default preset?")) {
-                setAsPermanentDefaults();
-                showToast("Saved as permanent baseline defaults!");
-              }
-            }}
-            className="px-5 py-2.5 rounded-xl bg-primary text-ink font-mono text-xs font-bold flex items-center gap-2 cursor-pointer hover:bg-white transition-all shadow-md shadow-primary/20"
-          >
-            <ShieldCheck className="w-4 h-4" />
-            <span>Lock As Permanent Defaults</span>
-          </button>
-
-          <button
-            onClick={() => {
-              if (window.confirm("Reset all site data back to your saved Permanent Defaults?")) {
-                resetToDefaults();
-                showToast("Reset to Permanent Defaults.");
-              }
-            }}
-            className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/15 text-paper hover:border-primary font-mono text-xs flex items-center gap-2 cursor-pointer"
-          >
-            <RefreshCw className="w-4 h-4 text-primary" />
-            <span>Reset to Permanent Defaults</span>
-          </button>
-
-          <button
-            onClick={handleExportData}
-            className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/15 text-paper hover:border-primary font-mono text-xs flex items-center gap-2 cursor-pointer"
-          >
-            <Download className="w-4 h-4 text-primary" />
-            <span>Download Backup JSON</span>
-          </button>
-
-          <button
-            onClick={() => {
-              if (window.confirm("Revert to factory original baseline?")) {
-                resetToFactoryDefaults();
-                showToast("Reverted to factory original template.");
-              }
-            }}
-            className="px-5 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20 font-mono text-xs flex items-center gap-2 cursor-pointer"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>Restore Factory Baseline</span>
-          </button>
-        </div>
-
-        {/* Import JSON */}
-        <form onSubmit={handleImportData} className="pt-4 border-t border-white/10 space-y-3">
-          <label className="block font-mono text-xs text-slate">Import Backup JSON Data</label>
-          <textarea
-            rows={3}
-            value={jsonInput}
-            onChange={(e) => setJsonInput(e.target.value)}
-            placeholder="Paste JSON backup string here..."
-            className="w-full bg-black border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-xs resize-none"
-          />
-          <button
-            type="submit"
-            className="px-5 py-2 rounded-xl bg-white/5 border border-white/15 text-paper hover:border-primary font-mono text-xs flex items-center gap-2 cursor-pointer"
-          >
-            <Upload className="w-4 h-4 text-primary" />
-            <span>Import JSON</span>
-          </button>
-        </form>
-      </div>
-
-      {/* Security Logs */}
-      <div className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-4 shadow-2xl">
-        <h3 className="font-mono text-xs font-bold text-primary uppercase tracking-wider">// RECENT AUDIT LOGS</h3>
-        <div className="max-h-48 overflow-y-auto space-y-2 font-mono text-xs pr-2">
-          {auditLogs.map((log) => (
-            <div key={log.id} className="p-3 rounded-xl bg-black border border-white/5 flex items-center justify-between text-[11px]">
-              <div>
-                <span className="text-primary font-bold">{log.action}: </span>
-                <span className="text-paper">{log.details}</span>
+                <div>
+                  <label className="block text-xs font-bold text-slate mb-1">Confirm New Password *</label>
+                  <input
+                    type={methodAShowPass ? 'text' : 'password'}
+                    required
+                    value={methodAConfirmPass}
+                    onChange={(e) => setMethodAConfirmPass(e.target.value)}
+                    placeholder="Re-enter new password"
+                    className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper text-xs focus:border-primary focus:outline-none font-mono"
+                  />
+                </div>
               </div>
-              <span className="text-slate/60 text-[10px] shrink-0 ml-2">{log.timestamp}</span>
+
+              <div className="flex justify-end pt-1">
+                <button
+                  type="submit"
+                  disabled={methodALoading}
+                  className="px-5 py-2 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 hover:brightness-110 shadow-md shadow-primary/20 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{methodALoading ? 'Saving...' : 'Update Password'}</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* METHOD B FORM */}
+          {passwordChangeMethod === 'methodB' && (
+            <div className="space-y-4">
+              {!currentEmails.primaryEmail && !currentEmails.secondaryEmail && (
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 text-slate text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>No recovery emails configured yet. Please configure an email below in Emergency Dual Recovery Emails.</span>
+                </div>
+              )}
+
+              {methodBStatus.type !== 'idle' && (
+                <div
+                  className={`p-3 rounded-xl font-mono text-xs text-center border ${
+                    methodBStatus.type === 'success'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                      : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                  }`}
+                >
+                  {methodBStatus.message}
+                </div>
+              )}
+
+              {/* Step 1: Select Delivery Target */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate">Select Recovery Destination</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <button
+                    type="button"
+                    disabled={!currentEmails.primaryEmail}
+                    onClick={() => {
+                      if (!currentEmails.primaryEmail) return;
+                      setMethodBDeliveryMode('primary');
+                      setMethodBOtpSent(false);
+                      setMethodBStatus({ type: 'idle', message: '' });
+                    }}
+                    className={`p-3.5 rounded-xl border text-left transition-all ${
+                      !currentEmails.primaryEmail
+                        ? 'opacity-40 cursor-not-allowed bg-black/20 border-white/5'
+                        : methodBDeliveryMode === 'primary'
+                        ? 'bg-primary/10 border-primary text-paper shadow-sm cursor-pointer'
+                        : 'bg-black/40 border-white/10 text-slate hover:border-white/20 cursor-pointer'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-mono text-[10px] uppercase font-bold text-slate">Primary Email</span>
+                      {methodBDeliveryMode === 'primary' && currentEmails.primaryEmail && <Check className="w-3.5 h-3.5 text-primary" />}
+                    </div>
+                    <div className="font-jakarta font-bold text-xs truncate text-paper">
+                      {currentEmails.primaryEmail || 'Not Configured'}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={!currentEmails.secondaryEmail}
+                    onClick={() => {
+                      if (!currentEmails.secondaryEmail) return;
+                      setMethodBDeliveryMode('secondary');
+                      setMethodBOtpSent(false);
+                      setMethodBStatus({ type: 'idle', message: '' });
+                    }}
+                    className={`p-3.5 rounded-xl border text-left transition-all ${
+                      !currentEmails.secondaryEmail
+                        ? 'opacity-40 cursor-not-allowed bg-black/20 border-white/5'
+                        : methodBDeliveryMode === 'secondary'
+                        ? 'bg-primary/10 border-primary text-paper shadow-sm cursor-pointer'
+                        : 'bg-black/40 border-white/10 text-slate hover:border-white/20 cursor-pointer'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-mono text-[10px] uppercase font-bold text-slate">Secondary Email</span>
+                      {methodBDeliveryMode === 'secondary' && currentEmails.secondaryEmail && <Check className="w-3.5 h-3.5 text-primary" />}
+                    </div>
+                    <div className="font-jakarta font-bold text-xs truncate text-paper">
+                      {currentEmails.secondaryEmail || 'Not Configured'}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={!currentEmails.primaryEmail || !currentEmails.secondaryEmail}
+                    onClick={() => {
+                      if (!currentEmails.primaryEmail || !currentEmails.secondaryEmail) return;
+                      setMethodBDeliveryMode('both');
+                      setMethodBOtpSent(false);
+                      setMethodBStatus({ type: 'idle', message: '' });
+                    }}
+                    className={`p-3.5 rounded-xl border text-left transition-all ${
+                      !currentEmails.primaryEmail || !currentEmails.secondaryEmail
+                        ? 'opacity-40 cursor-not-allowed bg-black/20 border-white/5'
+                        : methodBDeliveryMode === 'both'
+                        ? 'bg-primary/10 border-primary text-paper shadow-sm cursor-pointer'
+                        : 'bg-black/40 border-white/10 text-slate hover:border-white/20 cursor-pointer'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-mono text-[10px] uppercase font-bold text-slate">Both Addresses</span>
+                      {methodBDeliveryMode === 'both' && currentEmails.primaryEmail && currentEmails.secondaryEmail && <Check className="w-3.5 h-3.5 text-primary" />}
+                    </div>
+                    <div className="font-jakarta font-bold text-xs text-paper truncate">
+                      Dual Verification
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Action to Request OTP */}
+              {!methodBOtpSent ? (
+                <div className="pt-1 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleMethodBSendOTP}
+                    disabled={
+                      methodBLoading ||
+                      methodBCooldown > 0 ||
+                      (methodBDeliveryMode === 'primary' && !currentEmails.primaryEmail) ||
+                      (methodBDeliveryMode === 'secondary' && !currentEmails.secondaryEmail) ||
+                      (methodBDeliveryMode === 'both' && (!currentEmails.primaryEmail || !currentEmails.secondaryEmail))
+                    }
+                    className="px-5 py-2 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 hover:brightness-110 shadow-md shadow-primary/20 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>
+                      {methodBLoading
+                        ? 'Sending OTP...'
+                        : methodBCooldown > 0
+                        ? `Resend in ${methodBCooldown}s`
+                        : 'Send Recovery OTP'}
+                    </span>
+                  </button>
+                </div>
+              ) : (
+                /* Step 2: Verification and Set New Password */
+                <form onSubmit={handleMethodBSubmit} className="space-y-4 pt-3 border-t border-white/10">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(methodBDeliveryMode === 'primary' || methodBDeliveryMode === 'both') && (
+                      <div>
+                        <label className="block text-xs font-bold text-slate mb-1">
+                          OTP sent to Primary ({currentEmails.primaryEmail}) *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={6}
+                          value={methodBOtpPrimary}
+                          onChange={(e) => setMethodBOtpPrimary(e.target.value.replace(/\D/g, ''))}
+                          placeholder="6-digit code"
+                          className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs tracking-widest text-center"
+                        />
+                      </div>
+                    )}
+
+                    {(methodBDeliveryMode === 'secondary' || methodBDeliveryMode === 'both') && (
+                      <div>
+                        <label className="block text-xs font-bold text-slate mb-1">
+                          OTP sent to Secondary ({currentEmails.secondaryEmail}) *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={6}
+                          value={methodBOtpSecondary}
+                          onChange={(e) => setMethodBOtpSecondary(e.target.value.replace(/\D/g, ''))}
+                          placeholder="6-digit code"
+                          className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs tracking-widest text-center"
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate mb-1">New Password (Min 6 chars) *</label>
+                      <div className="relative">
+                        <input
+                          type={methodBShowPass ? 'text' : 'password'}
+                          required
+                          value={methodBNewPass}
+                          onChange={(e) => setMethodBNewPass(e.target.value)}
+                          placeholder="Enter new password"
+                          className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setMethodBShowPass(!methodBShowPass)}
+                          className="absolute right-3 top-2.5 text-slate hover:text-paper"
+                        >
+                          {methodBShowPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate mb-1">Confirm New Password *</label>
+                      <input
+                        type={methodBShowPass ? 'text' : 'password'}
+                        required
+                        value={methodBConfirmPass}
+                        onChange={(e) => setMethodBConfirmPass(e.target.value)}
+                        placeholder="Re-enter new password"
+                        className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleMethodBSendOTP}
+                      disabled={methodBLoading || methodBCooldown > 0}
+                      className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate hover:text-paper font-jakarta text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {methodBCooldown > 0 ? `Resend in ${methodBCooldown}s` : 'Resend Code'}
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={methodBLoading}
+                      className="px-5 py-2 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 hover:brightness-110 shadow-md shadow-primary/20 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>{methodBLoading ? 'Verifying...' : 'Set New Password'}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
-          ))}
+          )}
         </div>
-      </div>
-    </section>
-  );
+
+        {/* =========================================================================
+            CARD 2: EMERGENCY DUAL RECOVERY EMAILS
+        ========================================================================= */}
+        <div className="rounded-2xl bg-[#0c0d0e] border border-white/10 p-5 sm:p-6 space-y-5 shadow-2xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+            <div>
+              <h2 className="font-jakarta text-base sm:text-lg font-black text-paper">Emergency Recovery Emails</h2>
+              <p className="text-xs text-slate mt-0.5">
+                Two verified administrator addresses used for OTP password recovery and security verification.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleResetRecoveryEmailsToEmpty}
+              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate hover:text-paper font-jakarta text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+              title="Clear recovery emails for testing"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Slots (Testing)</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Primary Recovery Email Card */}
+            <div className="p-4 rounded-xl bg-black/40 border border-white/10 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[10px] uppercase font-bold text-slate">Primary Recovery Email</span>
+                {currentEmails.primaryEmail ? (
+                  <span className="font-mono text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                    <Check className="w-3 h-3" />
+                    <span>Active</span>
+                  </span>
+                ) : (
+                  <span className="font-mono text-[10px] text-slate/60 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full font-bold">
+                    Not Configured
+                  </span>
+                )}
+              </div>
+              <div className="font-mono text-xs text-paper font-semibold break-all bg-black/60 px-3.5 py-2.5 rounded-xl border border-white/5">
+                {currentEmails.primaryEmail || 'No email configured'}
+              </div>
+              {currentEmails.primaryEmail ? (
+                <button
+                  type="button"
+                  onClick={() => handleOpenEmailChangeModal('primary')}
+                  className="w-full py-2 px-3.5 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 text-slate hover:text-paper font-jakarta text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Change Email</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleOpenEmailSetupModal('primary')}
+                  className="w-full py-2 px-3.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-slate hover:text-paper font-jakarta text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Setup Email</span>
+                </button>
+              )}
+            </div>
+
+            {/* Secondary Backup Email Card */}
+            <div className="p-4 rounded-xl bg-black/40 border border-white/10 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[10px] uppercase font-bold text-slate">Secondary Recovery Email</span>
+                {currentEmails.secondaryEmail ? (
+                  <span className="font-mono text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                    <Check className="w-3 h-3" />
+                    <span>Active</span>
+                  </span>
+                ) : (
+                  <span className="font-mono text-[10px] text-slate/60 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full font-bold">
+                    Not Configured
+                  </span>
+                )}
+              </div>
+              <div className="font-mono text-xs text-paper font-semibold break-all bg-black/60 px-3.5 py-2.5 rounded-xl border border-white/5">
+                {currentEmails.secondaryEmail || 'No email configured'}
+              </div>
+              {currentEmails.secondaryEmail ? (
+                <button
+                  type="button"
+                  onClick={() => handleOpenEmailChangeModal('secondary')}
+                  className="w-full py-2 px-3.5 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 text-slate hover:text-paper font-jakarta text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Change Email</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleOpenEmailSetupModal('secondary')}
+                  className="w-full py-2 px-3.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-slate hover:text-paper font-jakarta text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Setup Email</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* =========================================================================
+            CARD 3: SECURITY AUDIT LOGS
+        ========================================================================= */}
+        <div className="rounded-2xl bg-[#0c0d0e] border border-white/10 p-5 sm:p-6 space-y-4 shadow-2xl">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/10">
+            <div>
+              <h3 className="font-jakarta text-base sm:text-lg font-black text-paper">Security Audit Logs</h3>
+              <p className="text-xs text-slate mt-0.5">
+                Activity records for administrative actions, credential updates, and resets.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                setIsRefreshingAudit(true);
+                await refreshAuditLogs();
+                setTimeout(() => setIsRefreshingAudit(false), 500);
+                showToast('Audit logs refreshed!');
+              }}
+              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-paper font-jakarta text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-primary ${isRefreshingAudit ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
+
+          {/* Search and Filters */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="w-3.5 h-3.5 text-slate absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search audit records..."
+                value={auditSearchQuery}
+                onChange={(e) => setAuditSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-paper font-jakarta text-xs focus:outline-none focus:border-primary placeholder:text-slate/40"
+              />
+            </div>
+
+            {/* Clean category pills */}
+            <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10 overflow-x-auto">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'resets', label: 'Resets' },
+                { id: 'credentials', label: 'Credentials' },
+                { id: 'access', label: 'Access' }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setAuditFilterCategory(tab.id as any)}
+                  className={`px-3 py-1 rounded-lg font-jakarta text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    auditFilterCategory === tab.id
+                      ? 'bg-primary text-ink shadow-sm'
+                      : 'text-slate hover:text-paper'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Audit Logs List */}
+          {filteredAuditLogs.length === 0 ? (
+            <div className="p-8 text-center rounded-xl bg-white/[0.01] border border-white/5 space-y-1.5">
+              <ShieldCheck className="w-6 h-6 text-slate/40 mx-auto" />
+              <div className="font-jakarta text-xs font-bold text-paper">No Audit Logs Found</div>
+              <p className="text-[11px] text-slate max-w-md mx-auto">
+                No records match your search filter.
+              </p>
+            </div>
+          ) : (
+            <div className="max-h-[420px] overflow-y-auto space-y-2 pr-1">
+              {filteredAuditLogs.map((log) => {
+                const formattedTime = (() => {
+                  try {
+                    const d = new Date(log.timestamp);
+                    if (isNaN(d.getTime())) return log.timestamp;
+                    return d.toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true
+                    });
+                  } catch {
+                    return log.timestamp;
+                  }
+                })();
+
+                return (
+                  <div
+                    key={log.id}
+                    className="p-3 rounded-xl bg-black/40 border border-white/10 hover:border-white/15 transition-all space-y-1.5"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-white/5 border border-white/10 text-paper">
+                          {log.action}
+                        </span>
+
+                        <span
+                          className={`font-mono text-[9px] px-1.5 py-0.5 rounded uppercase font-bold ${
+                            log.status === 'SUCCESS'
+                              ? 'text-emerald-400 bg-emerald-500/10'
+                              : log.status === 'FAILED'
+                              ? 'text-rose-400 bg-rose-500/10'
+                              : 'text-amber-400 bg-amber-500/10'
+                          }`}
+                        >
+                          {log.status}
+                        </span>
+
+                        {log.affectedUser && (
+                          <span className="font-mono text-[10px] text-slate">
+                            User: {log.affectedUser}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 text-[10px] font-mono text-slate/50">
+                        <span>Admin: <strong className="text-slate/80 font-normal">{log.adminUser || 'admin'}</strong></span>
+                        <span>•</span>
+                        <span>{formattedTime}</span>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate leading-relaxed">
+                      {log.details}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+    );
+  };
 
   const copyContactToClipboard = (text: string, id: string, label: string) => {
     try {
@@ -5208,7 +5919,34 @@ export const AdminPanel: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center bg-black/60 p-1 rounded-xl border border-white/10 font-mono text-xs">
+              <button
+                type="button"
+                onClick={() => setCourseResetActiveTab('directory')}
+                className={`px-3 py-1.5 rounded-lg font-jakarta text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  courseResetActiveTab === 'directory'
+                    ? 'bg-cyan-500 text-ink shadow-md shadow-cyan-500/20'
+                    : 'text-slate hover:text-paper'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Locked Students ({activeLockedCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCourseResetActiveTab('audit')}
+                className={`px-3 py-1.5 rounded-lg font-jakarta text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  courseResetActiveTab === 'audit'
+                    ? 'bg-cyan-500 text-ink shadow-md shadow-cyan-500/20'
+                    : 'text-slate hover:text-paper'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Reset Audit Logs ({courseResetAuditLogs.length})</span>
+              </button>
+            </div>
+
             <button
               type="button"
               onClick={handleRefresh}
@@ -5221,219 +5959,305 @@ export const AdminPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* Essential Metrics: Locked Courses and Unlocked Status */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="p-3.5 rounded-2xl bg-black/40 border border-rose-500/20 flex items-center justify-between gap-3">
-            <div>
-              <span className="font-mono text-[10px] text-rose-400 font-bold uppercase tracking-wider block">
-                Locked Courses
-              </span>
-              <div className="text-lg font-jakarta font-black text-rose-300 leading-none mt-1">
-                {activeLockedCount}
-              </div>
-              <p className="font-mono text-[10px] text-slate/70 mt-0.5">
-                Locked after 3 consecutive failures
-              </p>
-            </div>
-            <div className="w-8 h-8 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
-              <ShieldAlert className="w-4 h-4" />
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-black/40 border border-emerald-500/20 flex items-center justify-between gap-3">
-            <div>
-              <span className="font-mono text-[10px] text-emerald-400 font-bold uppercase tracking-wider block">
-                Unlocked
-              </span>
-              <div className="text-lg font-jakarta font-black text-emerald-300 leading-none mt-1">
-                {unlockedCount}
-              </div>
-              <p className="font-mono text-[10px] text-slate/70 mt-0.5">
-                Reset by admin &amp; active
-              </p>
-            </div>
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-          </div>
-        </div>
-
-        {/* Search & Filter Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
-          <div className="relative w-full sm:w-80">
-            <Search className="w-3.5 h-3.5 text-slate absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search student, email, course..."
-              value={courseResetSearch}
-              onChange={(e) => setCourseResetSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-black/50 border border-white/10 text-paper font-jakarta text-xs focus:outline-none focus:border-cyan-400 placeholder:text-slate/50"
-            />
-          </div>
-
-          <div className="flex items-center p-1 bg-black/50 border border-white/10 rounded-xl w-full sm:w-auto justify-center">
-            {(['all', 'locked', 'unlocked'] as const).map((st) => (
-              <button
-                key={st}
-                type="button"
-                onClick={() => setCourseResetStatusFilter(st)}
-                className={`px-3 py-1.5 rounded-lg font-jakarta text-xs font-bold transition-all cursor-pointer capitalize ${
-                  courseResetStatusFilter === st
-                    ? 'bg-cyan-500 text-ink shadow-md shadow-cyan-500/20'
-                    : 'text-slate hover:text-paper'
-                }`}
-              >
-                {st === 'all' && `All (${lockedRecords.length})`}
-                {st === 'locked' && `Locked (${activeLockedCount})`}
-                {st === 'unlocked' && `Unlocked (${unlockedCount})`}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Locked Courses List */}
-        {filteredRecords.length === 0 ? (
-          <div className="p-8 text-center rounded-2xl bg-black/30 border border-white/10 space-y-2">
-            <div className="w-10 h-10 rounded-full bg-white/5 text-slate flex items-center justify-center mx-auto">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" />
-            </div>
-            <h4 className="font-jakarta text-sm font-bold text-paper">No Locked Students Found</h4>
-            <p className="font-mono text-xs text-slate max-w-md mx-auto">
-              {courseResetSearch || courseResetStatusFilter !== 'all'
-                ? 'No records match your active search or filter.'
-                : 'All students are currently progressing without lockouts.'}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredRecords.map((item) => {
-              const isLocked = item.lockStatus === 'locked';
-              const failedPart = getRecordFailedPart(item);
-              const failedSection = getRecordFailedSection(item);
-
-              return (
-                <div
-                  key={item.id}
-                  className={`p-4 rounded-2xl bg-black/40 border transition-all space-y-3 shadow-lg ${
-                    isLocked
-                      ? 'border-rose-500/30 hover:border-rose-500/50'
-                      : 'border-white/10 hover:border-white/20'
-                  }`}
-                >
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                    {/* Student Info & Details */}
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
-                        isLocked
-                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                          : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                      }`}>
-                        {getUserInitials(item.studentName)}
-                      </div>
-
-                      <div className="min-w-0 space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="font-jakarta font-bold text-xs text-paper truncate">
-                            {item.studentName}
-                          </h4>
-
-                          <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate/70 border border-white/5">
-                            ID: {item.studentId}
-                          </span>
-
-                          {isLocked ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30 font-mono text-[10px] font-bold">
-                              <ShieldAlert className="w-3 h-3" />
-                              <span>Locked (3 Failures)</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono text-[10px] font-bold">
-                              <CheckCircle2 className="w-3 h-3" />
-                              <span>Unlocked</span>
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Relevant Details: Email, Phone, College */}
-                        <div className="flex flex-wrap items-center gap-3 font-mono text-[11px] text-slate">
-                          <span className="flex items-center gap-1">
-                            <Mail className="w-3 h-3 text-slate/60 shrink-0" />
-                            <a href={`mailto:${item.studentEmail}`} className="hover:text-cyan-300 transition-colors">
-                              {item.studentEmail}
-                            </a>
-                          </span>
-                          {item.studentPhone && (
-                            <span className="flex items-center gap-1">
-                              <Phone className="w-3 h-3 text-slate/60 shrink-0" />
-                              <span>{item.studentPhone}</span>
-                            </span>
-                          )}
-                          {item.collegeOrCompany && (
-                            <span className="flex items-center gap-1">
-                              <GraduationCap className="w-3 h-3 text-slate/60 shrink-0" />
-                              <span>{item.collegeOrCompany}</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Single Reset / Unlock Course Button */}
-                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                      {isLocked ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setConfirmResetTarget(item);
-                            setAdminResetNotes('');
-                          }}
-                          className="px-3.5 py-2 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-primary/20 transition-all active:scale-95"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5 text-ink" />
-                          <span>Reset / Unlock Course</span>
-                        </button>
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-xs text-emerald-400 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Unlocked</span>
-                            {item.unlockedAt && (
-                              <span className="text-slate/60 text-[10px]">
-                                ({new Date(item.unlockedAt).toLocaleDateString()})
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+        {courseResetActiveTab === 'directory' ? (
+          <>
+            {/* Essential Metrics: Locked Courses and Unlocked Status */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-3.5 rounded-2xl bg-black/40 border border-rose-500/20 flex items-center justify-between gap-3">
+                <div>
+                  <span className="font-mono text-[10px] text-rose-400 font-bold uppercase tracking-wider block">
+                    Locked Courses
+                  </span>
+                  <div className="text-lg font-jakarta font-black text-rose-300 leading-none mt-1">
+                    {activeLockedCount}
                   </div>
-
-                  {/* Course Details: Course Name, Failed Part, Failed Section */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2.5 border-t border-white/5">
-                    <div className="p-2.5 rounded-xl bg-black/60 border border-white/5 min-w-0">
-                      <span className="font-mono text-[10px] text-slate/50 uppercase block">Course Name</span>
-                      <span className="font-jakarta font-bold text-xs text-paper block truncate">
-                        {item.courseName}
-                      </span>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-black/60 border border-white/5 min-w-0">
-                      <span className="font-mono text-[10px] text-slate/50 uppercase block">Failed Part</span>
-                      <span className="font-mono text-xs font-bold text-cyan-300 block truncate">
-                        {failedPart}
-                      </span>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-black/60 border border-white/5 min-w-0">
-                      <span className="font-mono text-[10px] text-slate/50 uppercase block">Failed Section</span>
-                      <span className="font-mono text-xs text-rose-300 block truncate">
-                        {failedSection}
-                      </span>
-                    </div>
-                  </div>
+                  <p className="font-mono text-[10px] text-slate/70 mt-0.5">
+                    Locked after 3 consecutive failures
+                  </p>
                 </div>
-              );
-            })}
+                <div className="w-8 h-8 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                  <ShieldAlert className="w-4 h-4" />
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-black/40 border border-emerald-500/20 flex items-center justify-between gap-3">
+                <div>
+                  <span className="font-mono text-[10px] text-emerald-400 font-bold uppercase tracking-wider block">
+                    Unlocked
+                  </span>
+                  <div className="text-lg font-jakarta font-black text-emerald-300 leading-none mt-1">
+                    {unlockedCount}
+                  </div>
+                  <p className="font-mono text-[10px] text-slate/70 mt-0.5">
+                    Reset by admin &amp; active
+                  </p>
+                </div>
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              </div>
+            </div>
+
+            {/* Search & Filter Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
+              <div className="relative w-full sm:w-80">
+                <Search className="w-3.5 h-3.5 text-slate absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search student, email, course..."
+                  value={courseResetSearch}
+                  onChange={(e) => setCourseResetSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 rounded-xl bg-black/50 border border-white/10 text-paper font-jakarta text-xs focus:outline-none focus:border-cyan-400 placeholder:text-slate/50"
+                />
+              </div>
+
+              <div className="flex items-center p-1 bg-black/50 border border-white/10 rounded-xl w-full sm:w-auto justify-center">
+                {(['all', 'locked', 'unlocked'] as const).map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setCourseResetStatusFilter(st)}
+                    className={`px-3 py-1.5 rounded-lg font-jakarta text-xs font-bold transition-all cursor-pointer capitalize ${
+                      courseResetStatusFilter === st
+                        ? 'bg-cyan-500 text-ink shadow-md shadow-cyan-500/20'
+                        : 'text-slate hover:text-paper'
+                    }`}
+                  >
+                    {st === 'all' && `All (${lockedRecords.length})`}
+                    {st === 'locked' && `Locked (${activeLockedCount})`}
+                    {st === 'unlocked' && `Unlocked (${unlockedCount})`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Locked Courses List */}
+            {filteredRecords.length === 0 ? (
+              <div className="p-8 text-center rounded-2xl bg-black/30 border border-white/10 space-y-2">
+                <div className="w-10 h-10 rounded-full bg-white/5 text-slate flex items-center justify-center mx-auto">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                </div>
+                <h4 className="font-jakarta text-sm font-bold text-paper">No Locked Students Found</h4>
+                <p className="font-mono text-xs text-slate max-w-md mx-auto">
+                  {courseResetSearch || courseResetStatusFilter !== 'all'
+                    ? 'No records match your active search or filter.'
+                    : 'All students are currently progressing without lockouts.'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredRecords.map((item) => {
+                  const isLocked = item.lockStatus === 'locked';
+                  const failedPart = getRecordFailedPart(item);
+                  const failedSection = getRecordFailedSection(item);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-4 rounded-2xl bg-black/40 border transition-all space-y-3 shadow-lg ${
+                        isLocked
+                          ? 'border-rose-500/30 hover:border-rose-500/50'
+                          : 'border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        {/* Student Info & Details */}
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
+                            isLocked
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          }`}>
+                            {getUserInitials(item.studentName)}
+                          </div>
+
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="font-jakarta font-bold text-xs text-paper truncate">
+                                {item.studentName}
+                              </h4>
+
+                              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate/70 border border-white/5">
+                                ID: {item.studentId}
+                              </span>
+
+                              {isLocked ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30 font-mono text-[10px] font-bold">
+                                  <ShieldAlert className="w-3 h-3" />
+                                  <span>Locked (3 Failures)</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono text-[10px] font-bold">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Unlocked</span>
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Relevant Details: Email, Phone, College */}
+                            <div className="flex flex-wrap items-center gap-3 font-mono text-[11px] text-slate">
+                              <span className="flex items-center gap-1">
+                                <Mail className="w-3 h-3 text-slate/60 shrink-0" />
+                                <a href={`mailto:${item.studentEmail}`} className="hover:text-cyan-300 transition-colors">
+                                  {item.studentEmail}
+                                </a>
+                              </span>
+                              {item.studentPhone && (
+                                <span className="flex items-center gap-1">
+                                  <Phone className="w-3 h-3 text-slate/60 shrink-0" />
+                                  <span>{item.studentPhone}</span>
+                                </span>
+                              )}
+                              {item.collegeOrCompany && (
+                                <span className="flex items-center gap-1">
+                                  <GraduationCap className="w-3 h-3 text-slate/60 shrink-0" />
+                                  <span>{item.collegeOrCompany}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Single Reset / Unlock Course Button */}
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                          {isLocked ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setConfirmResetTarget(item);
+                                setAdminResetNotes('');
+                              }}
+                              className="px-3.5 py-2 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-primary/20 transition-all active:scale-95"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5 text-ink" />
+                              <span>Reset / Unlock Course</span>
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-xs text-emerald-400 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Unlocked</span>
+                                {item.unlockedAt && (
+                                  <span className="text-slate/60 text-[10px]">
+                                    ({new Date(item.unlockedAt).toLocaleDateString()})
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Course Details: Course Name, Failed Part, Failed Section */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2.5 border-t border-white/5">
+                        <div className="p-2.5 rounded-xl bg-black/60 border border-white/5 min-w-0">
+                          <span className="font-mono text-[10px] text-slate/50 uppercase block">Course Name</span>
+                          <span className="font-jakarta font-bold text-xs text-paper block truncate">
+                            {item.courseName}
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-black/60 border border-white/5 min-w-0">
+                          <span className="font-mono text-[10px] text-slate/50 uppercase block">Failed Part</span>
+                          <span className="font-mono text-xs font-bold text-cyan-300 block truncate">
+                            {failedPart}
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-black/60 border border-white/5 min-w-0">
+                          <span className="font-mono text-[10px] text-slate/50 uppercase block">Failed Section</span>
+                          <span className="font-mono text-xs text-rose-300 block truncate">
+                            {failedSection}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        ) : (
+          /* Reset Audit History Tab */
+          <div className="space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <span className="font-mono text-xs text-slate">
+                Showing all official course unlocking and reset transactions.
+              </span>
+              <span className="font-mono text-xs text-cyan-400 font-bold">
+                {courseResetAuditLogs.length} Reset Records
+              </span>
+            </div>
+
+            {courseResetAuditLogs.length === 0 ? (
+              <div className="p-8 text-center rounded-2xl bg-black/30 border border-white/10 space-y-2">
+                <FileText className="w-8 h-8 text-slate/50 mx-auto" />
+                <h4 className="font-jakarta text-sm font-bold text-paper">No Reset Audit Records</h4>
+                <p className="font-mono text-xs text-slate max-w-md mx-auto">
+                  When administrators unlock courses or reset student failure counters, the transactions will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {courseResetAuditLogs.map((entry) => {
+                  const formattedTime = (() => {
+                    try {
+                      const d = new Date(entry.resetTimestamp);
+                      return d.toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      });
+                    } catch {
+                      return entry.resetTimestamp;
+                    }
+                  })();
+
+                  return (
+                    <div
+                      key={entry.id}
+                      className="p-4 rounded-2xl bg-black/50 border border-white/10 space-y-2.5 hover:border-cyan-500/30 transition-all"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                            {entry.id}
+                          </span>
+                          <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            {entry.status}
+                          </span>
+                          <span className="font-jakarta font-bold text-xs text-paper">
+                            {entry.studentName}
+                          </span>
+                          <span className="font-mono text-[10px] text-slate/70">
+                            ({entry.studentEmail})
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 text-slate/70 font-mono text-[10px]">
+                          <span>Admin: <strong className="text-paper">{entry.adminIdentifier}</strong></span>
+                          <span>{formattedTime}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+                        <div className="p-2 rounded-xl bg-black/60 border border-white/5">
+                          <span className="text-slate/60 text-[10px] block">AFFECTED COURSE</span>
+                          <span className="text-cyan-300 font-bold">{entry.courseName}</span>
+                        </div>
+                        <div className="p-2 rounded-xl bg-black/60 border border-white/5">
+                          <span className="text-slate/60 text-[10px] block">ADMIN NOTES / REASON</span>
+                          <span className="text-paper">{entry.adminNotes || 'Progression unlocked.'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -7502,36 +8326,288 @@ export const AdminPanel: React.FC = () => {
       {/* Root-Level Course Coupon Creation/Edit Modal */}
       {couponModalOpen && renderCouponModal()}
 
-      {/* Dual Email OTP Modal */}
-      {showEmailOtpModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
-          <div className="max-w-md w-full max-h-[90vh] overflow-y-auto rounded-3xl bg-[#0c0d0e] border border-white/15 p-5 sm:p-6 space-y-4 shadow-2xl">
-            <h3 className="font-jakarta font-bold text-base text-paper">Security Verification OTP</h3>
-            <p className="text-xs text-slate">{emailOtpNotice}</p>
-            {emailOtpError && <p className="text-xs text-rose-400 font-bold">{emailOtpError}</p>}
-            <input
-              type="text"
-              value={emailOtpCode}
-              onChange={(e) => setEmailOtpCode(e.target.value)}
-              placeholder="Enter 6-digit code"
-              className="w-full bg-black border border-white/15 rounded-xl px-4 py-3 text-paper focus:border-primary focus:outline-none font-mono text-sm tracking-widest text-center"
-            />
-            <div className="flex gap-2">
+      {/* Recovery Email Setup & Protected 2-Step Change Modal */}
+      {emailChangeModalTarget && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+          <div className="max-w-md w-full max-h-[90vh] overflow-y-auto rounded-2xl bg-[#0c0d0e] border border-white/15 p-5 sm:p-6 space-y-4 shadow-2xl relative">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div>
+                <h3 className="font-jakarta font-bold text-base text-paper">
+                  {emailModalMode === 'initialSetup'
+                    ? `Setup ${emailChangeModalTarget === 'primary' ? 'Primary' : 'Secondary'} Email`
+                    : `Change ${emailChangeModalTarget === 'primary' ? 'Primary' : 'Secondary'} Email`}
+                </h3>
+                <p className="text-xs text-slate mt-0.5">
+                  {emailModalMode === 'initialSetup'
+                    ? 'Verify ownership with a 6-digit OTP to activate this slot.'
+                    : 'Two-step verification to securely replace this address.'}
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={handleConfirmEmailOtpUpdate}
-                className="flex-1 py-2.5 rounded-xl bg-primary text-ink font-bold text-xs"
+                onClick={() => setEmailChangeModalTarget(null)}
+                className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 text-slate hover:text-paper flex items-center justify-center transition-all cursor-pointer"
               >
-                Confirm Code
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowEmailOtpModal(false)}
-                className="py-2.5 px-4 rounded-xl bg-white/10 text-paper font-bold text-xs"
-              >
-                Cancel
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
+
+            {/* Status notification */}
+            {emailChangeStatus.type !== 'idle' && (
+              <div
+                className={`p-2.5 rounded-xl font-mono text-xs text-center border ${
+                  emailChangeStatus.type === 'success'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                    : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                }`}
+              >
+                {emailChangeStatus.message}
+              </div>
+            )}
+
+            {/* INITIAL SETUP MODE */}
+            {emailModalMode === 'initialSetup' ? (
+              <form onSubmit={handleInitialSetupVerify} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block text-xs font-bold text-slate mb-1">
+                    {emailChangeModalTarget === 'primary' ? 'Primary' : 'Secondary'} Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={emailChangeNewAddress}
+                    onChange={(e) => setEmailChangeNewAddress(e.target.value)}
+                    placeholder="Enter email address"
+                    className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleInitialSetupSendOtp}
+                  disabled={emailChangeLoading || !emailChangeNewAddress.trim() || emailChangeCooldown > 0}
+                  className="w-full py-2 px-3 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 text-slate hover:text-paper font-jakarta text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>
+                    {emailChangeLoading
+                      ? 'Sending OTP...'
+                      : emailChangeCooldown > 0
+                      ? `Resend in ${emailChangeCooldown}s`
+                      : 'Send Verification OTP'}
+                  </span>
+                </button>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate mb-1">
+                    Enter 6-Digit OTP *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={emailChangeStep2Otp}
+                    onChange={(e) => setEmailChangeStep2Otp(e.target.value.replace(/\D/g, ''))}
+                    placeholder="6-digit code"
+                    className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs tracking-widest text-center"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setEmailChangeModalTarget(null)}
+                    className="py-2 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper font-jakarta font-bold text-xs cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={emailChangeLoading || emailChangeStep2Otp.length !== 6 || !emailChangeNewAddress.trim()}
+                    className="flex-1 py-2 px-4 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider hover:brightness-110 shadow-md shadow-primary/20 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {emailChangeLoading ? 'Verifying...' : 'Verify & Activate'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* 2-STEP PROTECTED CHANGE MODE */
+              (() => {
+                const otherEmail = emailChangeModalTarget === 'primary' ? getAdminEmails().secondaryEmail : getAdminEmails().primaryEmail;
+                if (!otherEmail) {
+                  return (
+                    <div className="space-y-3 text-xs">
+                      <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 text-slate space-y-1">
+                        <div className="font-bold text-paper">Other Slot Required</div>
+                        <p className="text-[11px] text-slate leading-relaxed">
+                          Changing this address requires authorization through the other slot ({emailChangeModalTarget === 'primary' ? 'Secondary' : 'Primary'}). Please set up the second slot first.
+                        </p>
+                      </div>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setEmailChangeModalTarget(null)}
+                          className="py-2 px-3.5 rounded-xl bg-white/5 text-slate hover:text-paper font-jakarta font-bold text-xs cursor-pointer"
+                        >
+                          Close
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEmailSetupModal(emailChangeModalTarget === 'primary' ? 'secondary' : 'primary')}
+                          className="py-2 px-3.5 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider cursor-pointer"
+                        >
+                          Setup Other Slot First
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3.5 text-xs">
+                    {/* Clean Stepper */}
+                    <div className="grid grid-cols-2 gap-2 text-center font-jakarta text-xs">
+                      <div
+                        className={`p-2 rounded-xl border transition-all ${
+                          emailChangeStep === 1
+                            ? 'bg-primary/10 border-primary text-primary font-bold'
+                            : 'bg-white/5 border-white/10 text-paper font-semibold'
+                        }`}
+                      >
+                        <span>1. Authorize</span>
+                      </div>
+                      <div
+                        className={`p-2 rounded-xl border transition-all ${
+                          emailChangeStep === 2
+                            ? 'bg-primary/10 border-primary text-primary font-bold'
+                            : 'bg-black/30 border-white/5 text-slate/40'
+                        }`}
+                      >
+                        <span>2. Confirm New</span>
+                      </div>
+                    </div>
+
+                    {/* STEP 1: Verify Other Email */}
+                    {emailChangeStep === 1 && (
+                      <form onSubmit={handleEmailChangeStep1Verify} className="space-y-3">
+                        <p className="text-slate text-[11px]">
+                          We will send an authorization code to your other registered address: <strong className="text-paper">{otherEmail}</strong>
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={handleEmailChangeStep1SendOtp}
+                          disabled={emailChangeLoading || emailChangeCooldown > 0}
+                          className="w-full py-2 px-3 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 text-slate hover:text-paper font-jakarta text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>
+                            {emailChangeLoading
+                              ? 'Sending OTP...'
+                              : emailChangeCooldown > 0
+                              ? `Resend in ${emailChangeCooldown}s`
+                              : 'Send Authorization Code'}
+                          </span>
+                        </button>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate mb-1">Enter 6-Digit Code *</label>
+                          <input
+                            type="text"
+                            required
+                            maxLength={6}
+                            value={emailChangeStep1Otp}
+                            onChange={(e) => setEmailChangeStep1Otp(e.target.value.replace(/\D/g, ''))}
+                            placeholder="6-digit code"
+                            className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs tracking-widest text-center"
+                          />
+                        </div>
+
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setEmailChangeModalTarget(null)}
+                            className="py-2 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper font-jakarta font-bold text-xs cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={emailChangeLoading || emailChangeStep1Otp.length !== 6}
+                            className="flex-1 py-2 px-4 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider hover:brightness-110 shadow-md shadow-primary/20 transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            Verify &amp; Continue
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
+                    {/* STEP 2: Verify New Email */}
+                    {emailChangeStep === 2 && (
+                      <form onSubmit={handleEmailChangeStep2Confirm} className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate mb-1">New Email Address *</label>
+                          <input
+                            type="email"
+                            required
+                            value={emailChangeNewAddress}
+                            onChange={(e) => setEmailChangeNewAddress(e.target.value)}
+                            placeholder="new.email@example.com"
+                            className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleEmailChangeStep2SendOtp}
+                          disabled={emailChangeLoading || !emailChangeNewAddress || emailChangeCooldown > 0}
+                          className="w-full py-2 px-3 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 text-slate hover:text-paper font-jakarta text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>
+                            {emailChangeLoading
+                              ? 'Sending Code...'
+                              : emailChangeCooldown > 0
+                              ? `Resend in ${emailChangeCooldown}s`
+                              : 'Send Code to New Email'}
+                          </span>
+                        </button>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate mb-1">Enter Code Received at New Email *</label>
+                          <input
+                            type="text"
+                            required
+                            maxLength={6}
+                            value={emailChangeStep2Otp}
+                            onChange={(e) => setEmailChangeStep2Otp(e.target.value.replace(/\D/g, ''))}
+                            placeholder="6-digit code"
+                            className="w-full bg-black border border-white/15 rounded-xl px-3.5 py-2 text-paper focus:border-primary focus:outline-none font-mono text-xs tracking-widest text-center"
+                          />
+                        </div>
+
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setEmailChangeModalTarget(null)}
+                            className="py-2 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper font-jakarta font-bold text-xs cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={emailChangeLoading || emailChangeStep2Otp.length !== 6 || !emailChangeNewAddress}
+                            className="flex-1 py-2 px-4 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider hover:brightness-110 shadow-md shadow-primary/20 transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            Confirm &amp; Save
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                );
+              })()
+            )}
           </div>
         </div>
       )}
