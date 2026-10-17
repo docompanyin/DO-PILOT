@@ -815,16 +815,17 @@ export const recordCoursePurchase = (
     // Ensure student_profiles.enrolled_courses is updated in Supabase
     if (newRecord.studentEmail) {
       const cleanEmail = newRecord.studentEmail.toLowerCase().trim();
-      supabase
-        .from('student_profiles')
-        .select('enrolled_courses')
-        .eq('email', cleanEmail)
-        .maybeSingle()
-        .then(({ data: profile }: any) => {
-          const current = (profile && Array.isArray(profile.enrolled_courses)) ? profile.enrolled_courses : [];
+      (async () => {
+        try {
+          const { data: profile } = await supabase
+            .from('student_profiles')
+            .select('enrolled_courses')
+            .eq('email', cleanEmail)
+            .maybeSingle();
+          const current = (profile && Array.isArray((profile as any).enrolled_courses)) ? (profile as any).enrolled_courses : [];
           if (!current.includes(newRecord.courseName)) {
             const updated = [...current, newRecord.courseName];
-            return supabase
+            await supabase
               .from('student_profiles')
               .update({
                 enrolled_courses: updated,
@@ -832,8 +833,10 @@ export const recordCoursePurchase = (
               })
               .eq('email', cleanEmail);
           }
-        })
-        .catch(() => {});
+        } catch {
+          // ignore background sync errors
+        }
+      })();
     }
   }
 

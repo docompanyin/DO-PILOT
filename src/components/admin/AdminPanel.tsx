@@ -5630,27 +5630,31 @@ export const AdminPanel: React.FC = () => {
     });
 
     return (
-      <section className="space-y-6 animate-in fade-in duration-200">
-        {/* Header Banner */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-white/10">
-          <div className="space-y-1">
-            <h2 className="font-jakarta font-black text-2xl sm:text-3xl text-paper tracking-tight flex items-center gap-3">
-              <Trash2 className="w-7 h-7 text-rose-400 shrink-0" />
-              <span>Permanent Delete</span>
-            </h2>
-            <p className="text-xs sm:text-sm text-slate">
+      <section id="section-permanent-delete" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+        {/* Section Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-jakarta text-lg font-black text-paper">Permanent Delete</h2>
+              <span className="font-mono text-[10px] text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full font-bold border border-rose-500/20">
+                {filteredStudents.length} Students
+              </span>
+            </div>
+            <p className="text-xs text-slate mt-0.5">
               Permanently delete student accounts and cascade remove all associated data, enrollments, test progress, and certificates from the database.
             </p>
           </div>
-          <div className="flex items-center gap-3 shrink-0">
+
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={fetchStudents}
               disabled={isLoadingStudents}
-              className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium text-paper flex items-center gap-2 transition-all cursor-pointer"
+              className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-paper font-jakarta text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Refresh student roster"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoadingStudents ? 'animate-spin text-primary' : 'text-slate'}`} />
-              <span>Refresh Roster</span>
+              <span className="hidden sm:inline">Refresh</span>
             </button>
           </div>
         </div>
@@ -5658,7 +5662,7 @@ export const AdminPanel: React.FC = () => {
         {/* Feedback Alert Toast */}
         {deleteFeedback && (
           <div
-            className={`p-4 rounded-2xl border flex items-center justify-between gap-3 text-xs sm:text-sm animate-in fade-in duration-200 ${
+            className={`p-4 rounded-2xl border flex items-center justify-between gap-3 text-xs sm:text-sm ${
               deleteFeedback.type === 'success'
                 ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
                 : 'bg-rose-950/30 border-rose-500/40 text-rose-300'
@@ -5682,7 +5686,7 @@ export const AdminPanel: React.FC = () => {
         )}
 
         {/* Search & Filter Toolbar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#0e1012] border border-white/10">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-white/[0.03] border border-white/10">
           <div className="relative flex-1 min-w-0">
             <Search className="w-4 h-4 text-slate absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
@@ -5720,7 +5724,7 @@ export const AdminPanel: React.FC = () => {
 
         {/* Student Table / Cards */}
         {filteredStudents.length === 0 ? (
-          <div className="p-12 text-center rounded-2xl bg-[#0e1012] border border-white/10 space-y-3">
+          <div className="p-12 text-center rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
             <UserX className="w-10 h-10 text-slate/40 mx-auto" />
             <h3 className="font-jakarta font-bold text-base text-paper">No students found</h3>
             <p className="text-xs text-slate max-w-sm mx-auto">
@@ -5742,7 +5746,7 @@ export const AdminPanel: React.FC = () => {
             )}
           </div>
         ) : (
-          <div className="rounded-2xl border border-white/10 bg-[#0e1012] overflow-hidden shadow-xl">
+          <div className="rounded-2xl border border-white/10 bg-black/40 overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
