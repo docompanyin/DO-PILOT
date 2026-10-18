@@ -339,4 +339,7 @@ export const JavaCompilerModal: React.FC<JavaCompilerModalProps> = ({
 };
 
 // Floating Round Launcher Button for Java IDE
-export const JavaCompilerLauncherButton: React.FC<{\n  onClick: () => void;\n  isOpen: boolean;\n}> = () => null;
+export const JavaCompilerLauncherButton: React.FC<{
+  onClick: () => void;
+  isOpen: boolean;
+}> = () => null;

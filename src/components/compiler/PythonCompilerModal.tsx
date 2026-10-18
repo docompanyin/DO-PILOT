@@ -805,4 +805,7 @@ export const PythonCompilerModal: React.FC<PythonCompilerModalProps> = ({
 };
 
 // Floating Round Launcher Button
-export const PythonCompilerLauncherButton: React.FC<{\n  onClick: () => void;\n  isOpen: boolean;\n}> = () => null;
+export const PythonCompilerLauncherButton: React.FC<{
+  onClick: () => void;
+  isOpen: boolean;
+}> = () => null;

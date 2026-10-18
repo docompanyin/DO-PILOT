@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { purgeStudentLocalData } from '../utils/studentDataPurge';
+import { restoreAllStudentCourseProgressFromCloud } from '../utils/courseProgressSyncService';
 
 export interface UserProfile {
   id: string;
@@ -125,6 +127,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setPendingUserState(null);
       
       if (newUser.email && isSupabaseConfigured()) {
+        restoreAllStudentCourseProgressFromCloud(newUser.email);
         Promise.resolve(
           supabase
             .from('student_profiles')
@@ -145,9 +148,15 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ).catch((err) => {
           console.warn('Background Supabase upsert failed:', err);
         });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('dopilot_student_roster_updated', { detail: newUser }));
+        }
       }
     } else {
       localStorage.removeItem(USER_SESSION_KEY);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('dopilot_student_roster_updated'));
+      }
     }
   }, []);
 
@@ -207,6 +216,17 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           setUser(null);
           setPendingUser(incomplete);
         }
+      } else if (!error && !data) {
+        // User was deleted from Supabase! Purge local caches and log out immediately
+        purgeStudentLocalData(currentEmail, user?.id || pendingUser?.id);
+        setUser(null);
+        setPendingUser(null);
+        localStorage.removeItem(USER_SESSION_KEY);
+        localStorage.removeItem(USER_PENDING_KEY);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('dopilot_user_logged_out'));
+          window.dispatchEvent(new Event('storage'));
+        }
       }
     } catch (e) {
       console.warn('Session refresh error:', e);
@@ -215,6 +235,9 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     refreshUserSession();
+    if (user?.email) {
+      restoreAllStudentCourseProgressFromCloud(user.email);
+    }
   }, []);
 
   // Google One-Tap / Identity Services token login with real credential
@@ -290,19 +313,25 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           setPendingUser(incompleteProfile);
           return incompleteProfile;
         }
+
+        if (!data) {
+          // Student was deleted from Supabase or has never registered
+          purgeStudentLocalData(targetEmail, profileData.id);
+        }
       } catch (err) {
         console.warn('Supabase query failed during Google login:', err);
       }
-    }
-
-    // 2. Check local session if Supabase was unavailable or new
-    const existing = getInitialUserSession();
-    if (existing && existing.email.toLowerCase() === targetEmail && existing.hasCompletedDetails) {
-      saveUserSession(existing);
-      return existing;
+    } else {
+      // 2. Check local session ONLY if Supabase is offline/unconfigured
+      const existing = getInitialUserSession();
+      if (existing && existing.email.toLowerCase() === targetEmail && existing.hasCompletedDetails) {
+        saveUserSession(existing);
+        return existing;
+      }
     }
 
     // 3. New account requiring registration completion
+    purgeStudentLocalData(targetEmail, profileData.id);
     const newPendingProfile: UserProfile = {
       id: profileData.id || `google-${Date.now()}`,
       name: realName,
@@ -392,7 +421,23 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     }
 
-    // 3. Save completed session locally
+    // 3. Clear any legacy blacklist records
+    try {
+      const deletedRaw = localStorage.getItem('dopilot_permanently_deleted_students_v1');
+      if (deletedRaw) {
+        const deletedList = JSON.parse(deletedRaw);
+        if (Array.isArray(deletedList)) {
+          const emailLower = (finalized.email || '').toLowerCase().trim();
+          const filtered = deletedList.filter((item: string) => String(item).toLowerCase().trim() !== emailLower);
+          localStorage.setItem('dopilot_permanently_deleted_students_v1', JSON.stringify(filtered));
+        }
+      }
+    } catch (e) {}
+
+    // 4. Ensure no stale purchase keys or point caches linger from deleted accounts
+    purgeStudentLocalData(finalized.email, finalized.id);
+
+    // 5. Save completed session locally
     saveUserSession(finalized);
     return { success: true };
   };
@@ -408,10 +453,19 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const logout = () => {
+    const currentEmail = user?.email || pendingUser?.email;
+    const currentId = user?.id || pendingUser?.id;
+    if (currentEmail) {
+      purgeStudentLocalData(currentEmail, currentId);
+    }
     setUser(null);
     setPendingUserState(null);
     localStorage.removeItem(USER_SESSION_KEY);
     localStorage.removeItem(USER_PENDING_KEY);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('dopilot_user_logged_out'));
+      window.dispatchEvent(new Event('storage'));
+    }
   };
 
   const enrollInCourse = (courseName: string) => {

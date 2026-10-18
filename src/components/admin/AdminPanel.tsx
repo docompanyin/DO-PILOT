@@ -62,6 +62,7 @@ import {
   hasCourseAccess
 } from '../../utils/coursePricingService';
 import { getUserInitials } from '../../utils/userInitials';
+import { purgeStudentLocalData, purgeAllDummyDemoData, markStudentPermanentlyDeleted } from '../../utils/studentDataPurge';
 
 export const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
@@ -692,161 +693,7 @@ export const AdminPanel: React.FC = () => {
     };
   };
 
-  const DEFAULT_STUDENT_ROSTER: StudentAdminRecord[] = [
-    {
-      id: 'demo-std-1',
-      name: 'Rahul Verma',
-      email: 'rahul.verma@techsprint.io',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces',
-      phone: '9845012345',
-      whereDidYouFindUs: 'LinkedIn',
-      collegeOrCompany: 'TechSprint Solutions',
-      learningGoal: 'Land a Software Engineer / Dev Job',
-      hasCompletedDetails: true,
-      enrolledCourses: ['Complete Python Course', 'Complete Java Course'],
-      createdAt: new Date(Date.now() - 14 * 86400000).toISOString(),
-      points: 24,
-      solvedTasksCount: 24,
-      testsAttemptedCount: 24,
-      testsPassedCount: 24,
-      testsFailedCount: 0,
-      hasCertificate: true,
-      certificateId: 'CERT-DO-PY-9281',
-      certificateIssuedDate: new Date(Date.now() - 2 * 86400000).toLocaleDateString(),
-      avgAnswerTimeSeconds: 10.9,
-      fastestAnswerSeconds: 5.8,
-      slowestAnswerSeconds: 18.2,
-      totalStudyTimeMinutes: 225,
-      codeExecutionsCount: 52,
-      wrongAttempts: [],
-      sectionProgress: [
-        { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 6, solvedTasks: 6, status: 'passed' },
-        { partNum: 2, title: 'Part 2: Reading User Input & Variables', totalTasks: 6, solvedTasks: 6, status: 'passed' },
-        { partNum: 3, title: 'Part 3: Data Types & Type Conversion', totalTasks: 6, solvedTasks: 6, status: 'passed' },
-        { partNum: 4, title: 'Part 4: Arithmetic Operations & Precedence', totalTasks: 6, solvedTasks: 6, status: 'passed' }
-      ],
-      courseProgressStatus: 'completed'
-    },
-    {
-      id: 'demo-std-2',
-      name: 'Priya Patel',
-      email: 'priya.patel@gmail.com',
-      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&crop=faces',
-      phone: '9876543210',
-      whereDidYouFindUs: 'Instagram',
-      collegeOrCompany: 'SRM Institute of Science & Technology',
-      learningGoal: 'Master Python & Build AI Projects',
-      hasCompletedDetails: true,
-      enrolledCourses: ['Complete Python Course'],
-      createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
-      points: 12,
-      solvedTasksCount: 12,
-      testsAttemptedCount: 15,
-      testsPassedCount: 12,
-      testsFailedCount: 3,
-      hasCertificate: false,
-      avgAnswerTimeSeconds: 18.4,
-      fastestAnswerSeconds: 8.5,
-      slowestAnswerSeconds: 30.0,
-      totalStudyTimeMinutes: 140,
-      codeExecutionsCount: 28,
-      wrongAttempts: [
-        { taskTitle: 'Equality Operator Test', section: 'Part 3: Operators', failedAt: '2 days ago', detail: 'Selected single "=" assignment instead of comparison "=="' },
-        { taskTitle: 'Nested If-Else Indentation', section: 'Part 4: Conditionals', failedAt: 'Yesterday', detail: 'IndentationError: unexpected indent in nested elif block' },
-        { taskTitle: 'While Loop Termination', section: 'Part 5: Loops', failedAt: '4 hours ago', detail: 'Omitted counter variable update, resulting in infinite loop' }
-      ],
-      sectionProgress: [
-        { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 6, solvedTasks: 6, status: 'passed' },
-        { partNum: 2, title: 'Part 2: Reading User Input & Variables', totalTasks: 6, solvedTasks: 6, status: 'passed' },
-        { partNum: 3, title: 'Part 3: Data Types & Type Conversion', totalTasks: 6, solvedTasks: 0, status: 'not_started' },
-        { partNum: 4, title: 'Part 4: Arithmetic Operations & Precedence', totalTasks: 6, solvedTasks: 0, status: 'not_started' }
-      ],
-      courseProgressStatus: 'in_progress'
-    },
-    {
-      id: 'demo-std-3',
-      name: 'Ananya Iyer',
-      email: 'ananya.iyer99@gmail.com',
-      avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=120&h=120&fit=crop&crop=faces',
-      phone: '9812345678',
-      whereDidYouFindUs: 'YouTube',
-      collegeOrCompany: 'Anna University',
-      learningGoal: 'College Curriculum & Academic Edge',
-      hasCompletedDetails: true,
-      enrolledCourses: ['Complete Python Course'],
-      joinedLiveClass: false,
-      createdAt: new Date(Date.now() - 4 * 86400000).toISOString(),
-      points: 2,
-      solvedTasksCount: 2,
-      testsAttemptedCount: 6,
-      testsPassedCount: 2,
-      testsFailedCount: 4,
-      hasCertificate: false,
-      avgAnswerTimeSeconds: 25.6,
-      fastestAnswerSeconds: 18.2,
-      slowestAnswerSeconds: 30.0,
-      totalStudyTimeMinutes: 45,
-      codeExecutionsCount: 12,
-      wrongAttempts: [
-        { taskTitle: 'Quotes in Print Function', section: 'Part 1: Setup', failedAt: '3 days ago', detail: 'SyntaxError: String literal missing closing quote' },
-        { taskTitle: 'Variable Naming Conventions', section: 'Part 1: Variables', failedAt: '3 days ago', detail: 'Variable names cannot begin with numerals (e.g. 2name)' },
-        { taskTitle: 'String and Integer Concatenation', section: 'Part 2: Data Types', failedAt: '2 days ago', detail: 'TypeError: Must convert integer to string with str() before concatenation' },
-        { taskTitle: 'Floor Division vs Float', section: 'Part 2: Data Types', failedAt: 'Yesterday', detail: 'Selected "/" (float output) instead of "//" (integer floor)' }
-      ],
-      sectionProgress: [
-        { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 6, solvedTasks: 2, status: 'failed' },
-        { partNum: 2, title: 'Part 2: Reading User Input & Variables', totalTasks: 6, solvedTasks: 0, status: 'not_started' },
-        { partNum: 3, title: 'Part 3: Data Types & Type Conversion', totalTasks: 6, solvedTasks: 0, status: 'not_started' },
-        { partNum: 4, title: 'Part 4: Arithmetic Operations & Precedence', totalTasks: 6, solvedTasks: 0, status: 'not_started' }
-      ],
-      courseProgressStatus: 'in_progress'
-    },
-    {
-      id: 'demo-std-4',
-      name: 'Karthik Raja',
-      email: 'karthik.raja@outlook.com',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop&crop=faces',
-      phone: '9940123987',
-      whereDidYouFindUs: 'Campus / College Event',
-      collegeOrCompany: 'PSG College of Technology',
-      learningGoal: 'Career Switch into Tech',
-      hasCompletedDetails: true,
-      enrolledCourses: ['Complete Python Course'],
-      joinedLiveClass: false,
-      createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-      points: 0,
-      solvedTasksCount: 0,
-      testsAttemptedCount: 0,
-      testsPassedCount: 0,
-      testsFailedCount: 0,
-      hasCertificate: false,
-      wrongAttempts: [],
-      sectionProgress: [],
-      courseProgressStatus: 'enrolled_not_started'
-    },
-    {
-      id: 'demo-std-5',
-      name: 'Suresh Kumar',
-      email: 'suresh.k@gmail.com',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop&crop=faces',
-      whereDidYouFindUs: 'Google Search',
-      hasCompletedDetails: false,
-      enrolledCourses: [],
-      joinedLiveClass: false,
-      createdAt: new Date(Date.now() - 1 * 86400000).toISOString(),
-      points: 0,
-      solvedTasksCount: 0,
-      testsAttemptedCount: 0,
-      testsPassedCount: 0,
-      testsFailedCount: 0,
-      hasCertificate: false,
-      wrongAttempts: [],
-      sectionProgress: [],
-      courseProgressStatus: 'registered_only'
-    }
-  ];
-
-  const [students, setStudents] = useState<StudentAdminRecord[]>(DEFAULT_STUDENT_ROSTER);
+  const [students, setStudents] = useState<StudentAdminRecord[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [studentSearch, setStudentSearch] = useState('');
   const [studentFilter, setStudentFilter] = useState<'all' | 'started' | 'completed' | 'top_points' | 'low_marks' | 'registered_only' | 'rewards'>('all');
@@ -989,16 +836,20 @@ export const AdminPanel: React.FC = () => {
         }
       }
 
-      // Check active local user session
+      // Check active local user session and enrich/prepend
       try {
         const localUserRaw = localStorage.getItem('dopilot_student_session_v1');
         if (localUserRaw) {
           const lu = JSON.parse(localUserRaw);
-          if (lu && lu.email && !cloudStudents.some((c) => c.email.toLowerCase() === lu.email.toLowerCase())) {
+          const luEmail = (lu?.email || '').toLowerCase().trim();
+          const luId = (lu?.id || '').toLowerCase().trim();
+          if (lu && lu.email) {
             let localPoints = 0;
             let localSolvedCount = 0;
             try {
-              const localPtsRaw = localStorage.getItem(`dopilot_user_${lu.email.replace(/[^a-zA-Z0-9]/g, '_')}_points`) || localStorage.getItem('dopilot_course_points_v3');
+              const localPtsRaw =
+                localStorage.getItem(`dopilot_user_${lu.email.replace(/[^a-zA-Z0-9]/g, '_')}_points`) ||
+                localStorage.getItem('dopilot_course_points_v3');
               if (localPtsRaw) {
                 const parsedPts = JSON.parse(localPtsRaw);
                 localPoints = Number(parsedPts.points) || 0;
@@ -1011,45 +862,102 @@ export const AdminPanel: React.FC = () => {
             else if (localPoints > 0) localStatus = 'in_progress';
             else if (lu.hasCompletedDetails) localStatus = 'enrolled_not_started';
 
-            cloudStudents.unshift({
-              id: lu.id || 'local-std',
-              name: lu.name || 'Active Student',
-              email: lu.email,
-              avatar: lu.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(lu.name || 'Student')}&background=00ff9d&color=000000&bold=true`,
-              phone: lu.phone,
-              whereDidYouFindUs: lu.whereDidYouFindUs,
-              collegeOrCompany: lu.collegeOrCompany,
-              learningGoal: lu.learningGoal,
-              hasCompletedDetails: Boolean(lu.hasCompletedDetails),
-              enrolledCourses: (lu.enrolledCourses || ['Complete Python Course']).map((c: string) => c.replace(/Programming/gi, 'Course')),
-              joinedLiveClass: Boolean(lu.joinedLiveClass),
-              createdAt: lu.createdAt || new Date().toISOString(),
-              points: localPoints,
-              solvedTasksCount: localSolvedCount,
-              testsAttemptedCount: localSolvedCount,
-              testsPassedCount: localSolvedCount,
-              testsFailedCount: 0,
-              hasCertificate: localPoints >= 20,
-              certificateId: localPoints >= 20 ? 'CERT-DO-PY-USER' : undefined,
-              wrongAttempts: [],
-              sectionProgress: [
-                { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 6, solvedTasks: Math.min(6, localPoints), status: localPoints >= 6 ? 'passed' : localPoints > 0 ? 'in_progress' : 'not_started' },
-                { partNum: 2, title: 'Part 2: Reading User Input & Variables', totalTasks: 6, solvedTasks: Math.max(0, Math.min(6, localPoints - 6)), status: localPoints >= 12 ? 'passed' : localPoints > 6 ? 'in_progress' : 'not_started' },
-                { partNum: 3, title: 'Part 3: Data Types & Type Conversion', totalTasks: 6, solvedTasks: Math.max(0, Math.min(6, localPoints - 12)), status: localPoints >= 18 ? 'passed' : localPoints > 12 ? 'in_progress' : 'not_started' },
-                { partNum: 4, title: 'Part 4: Arithmetic Operations & Precedence', totalTasks: 6, solvedTasks: Math.max(0, Math.min(6, localPoints - 18)), status: localPoints >= 24 ? 'passed' : localPoints > 18 ? 'in_progress' : 'not_started' }
-              ],
-              courseProgressStatus: localStatus
-            });
+            const existingIdx = cloudStudents.findIndex(
+              (c) => (c.email || '').toLowerCase().trim() === luEmail || (luId && c.id === luId)
+            );
+
+            if (existingIdx !== -1) {
+              const existing = cloudStudents[existingIdx];
+              cloudStudents[existingIdx] = {
+                ...existing,
+                name: existing.name && existing.name !== 'Student' ? existing.name : (lu.name || existing.name),
+                phone: lu.phone || existing.phone,
+                collegeOrCompany: lu.collegeOrCompany || existing.collegeOrCompany,
+                whereDidYouFindUs: lu.whereDidYouFindUs || existing.whereDidYouFindUs,
+                learningGoal: lu.learningGoal || existing.learningGoal,
+                hasCompletedDetails: Boolean(existing.hasCompletedDetails || lu.hasCompletedDetails),
+                enrolledCourses: (lu.enrolledCourses && lu.enrolledCourses.length > 0)
+                  ? lu.enrolledCourses.map((c: string) => c.replace(/Programming/gi, 'Course'))
+                  : existing.enrolledCourses,
+                points: Math.max(existing.points, localPoints)
+              };
+            } else if (!isSupabaseConfigured()) {
+              // ONLY unshift local session when Supabase is NOT active (offline mode).
+              // In production/connected mode, Supabase student_profiles IS the source of truth!
+              cloudStudents.unshift({
+                id: lu.id || `std-${Date.now().toString().slice(-4)}`,
+                name: lu.name || 'Active Student',
+                email: lu.email,
+                avatar: lu.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(lu.name || 'Student')}&background=00ff9d&color=000000&bold=true`,
+                phone: lu.phone,
+                whereDidYouFindUs: lu.whereDidYouFindUs,
+                collegeOrCompany: lu.collegeOrCompany,
+                learningGoal: lu.learningGoal,
+                hasCompletedDetails: Boolean(lu.hasCompletedDetails),
+                enrolledCourses: (lu.enrolledCourses && lu.enrolledCourses.length > 0 ? lu.enrolledCourses : ['Complete Python Course']).map((c: string) => c.replace(/Programming/gi, 'Course')),
+                joinedLiveClass: Boolean(lu.joinedLiveClass),
+                createdAt: lu.createdAt || new Date().toISOString(),
+                points: localPoints,
+                solvedTasksCount: localSolvedCount,
+                testsAttemptedCount: localSolvedCount,
+                testsPassedCount: localSolvedCount,
+                testsFailedCount: 0,
+                hasCertificate: localPoints >= 20,
+                certificateId: localPoints >= 20 ? 'CERT-DO-PY-USER' : undefined,
+                wrongAttempts: [],
+                sectionProgress: [
+                  { partNum: 1, title: 'Part 1: Setup & Python Syntax', totalTasks: 6, solvedTasks: Math.min(6, localPoints), status: localPoints >= 6 ? 'passed' : localPoints > 0 ? 'in_progress' : 'not_started' },
+                  { partNum: 2, title: 'Part 2: Reading User Input & Variables', totalTasks: 6, solvedTasks: Math.max(0, Math.min(6, localPoints - 6)), status: localPoints >= 12 ? 'passed' : localPoints > 6 ? 'in_progress' : 'not_started' },
+                  { partNum: 3, title: 'Part 3: Data Types & Type Conversion', totalTasks: 6, solvedTasks: Math.max(0, Math.min(6, localPoints - 12)), status: localPoints >= 18 ? 'passed' : localPoints > 12 ? 'in_progress' : 'not_started' },
+                  { partNum: 4, title: 'Part 4: Arithmetic Operations & Precedence', totalTasks: 6, solvedTasks: Math.max(0, Math.min(6, localPoints - 18)), status: localPoints >= 24 ? 'passed' : localPoints > 18 ? 'in_progress' : 'not_started' }
+                ],
+                courseProgressStatus: localStatus
+              });
+            }
           }
         }
       } catch (e) {}
 
-      const cloudEmails = new Set(cloudStudents.map((s) => s.email.toLowerCase()));
-      const fallbackDemos = DEFAULT_STUDENT_ROSTER.filter((d) => !cloudEmails.has(d.email.toLowerCase()));
-      setStudents([...cloudStudents, ...fallbackDemos]);
+      // Check pending local registration ONLY if Supabase is NOT active
+      if (!isSupabaseConfigured()) {
+        try {
+          const pendingUserRaw = localStorage.getItem('dopilot_pending_registration_v1');
+          if (pendingUserRaw) {
+            const pu = JSON.parse(pendingUserRaw);
+            const puEmail = (pu?.email || '').toLowerCase().trim();
+            if (pu && pu.email && !cloudStudents.some((c) => (c.email || '').toLowerCase().trim() === puEmail)) {
+              cloudStudents.unshift({
+                id: pu.id || 'pending-std',
+                name: pu.name || 'Pending Registration',
+                email: pu.email,
+                avatar: pu.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(pu.name || 'Student')}&background=00ff9d&color=000000&bold=true`,
+                phone: pu.phone || undefined,
+                whereDidYouFindUs: pu.whereDidYouFindUs,
+                collegeOrCompany: pu.collegeOrCompany,
+                learningGoal: pu.learningGoal,
+                hasCompletedDetails: false,
+                enrolledCourses: (pu.enrolledCourses && pu.enrolledCourses.length > 0 ? pu.enrolledCourses : ['Complete Python Course']).map((c: string) => c.replace(/Programming/gi, 'Course')),
+                joinedLiveClass: false,
+                createdAt: pu.createdAt || new Date().toISOString(),
+                points: 0,
+                solvedTasksCount: 0,
+                testsAttemptedCount: 0,
+                testsPassedCount: 0,
+                testsFailedCount: 0,
+                hasCertificate: false,
+                wrongAttempts: [],
+                sectionProgress: [],
+                courseProgressStatus: 'registered_only'
+              });
+            }
+          }
+        } catch (e) {}
+      }
+
+      setStudents(cloudStudents);
     } catch (err) {
       console.warn("Failed to fetch students:", err);
-      setStudents(DEFAULT_STUDENT_ROSTER);
+      setStudents([]);
     } finally {
       setIsLoadingStudents(false);
     }
@@ -1078,6 +986,25 @@ export const AdminPanel: React.FC = () => {
     }
 
     try {
+      // 1. Immediately update state so student vanishes from UI without latency
+
+      // 2. Immediately update state so student vanishes from UI without latency
+      setStudents((prev) =>
+        prev.filter(
+          (s) =>
+            s.id !== targetId &&
+            (!targetEmail || (s.email || '').toLowerCase().trim() !== targetEmail)
+        )
+      );
+
+      // Reset selected student for inspection if currently selected
+      setSelectedStudentForReport((prev) => {
+        if (!prev) return null;
+        if (prev.id === targetId || (targetEmail && (prev.email || '').toLowerCase().trim() === targetEmail)) {
+          return null;
+        }
+        return prev;
+      });
       // 1. Call secure server-side deletion endpoint
       try {
         const response = await fetch('/api/admin-delete-student', {
@@ -1099,108 +1026,116 @@ export const AdminPanel: React.FC = () => {
       // 2. Cascade delete on Supabase directly (guarantees deletion across all environments)
       if (isSupabaseConfigured()) {
         try {
+          // A. student_progress has NO 'id' column, delete by user_email
           if (targetEmail) {
-            await supabase.from('student_progress').delete().eq('user_email', targetEmail);
-            await supabase.from('student_leads').delete().eq('email', targetEmail);
-            try { await supabase.from('course_purchases').delete().eq('student_email', targetEmail); } catch (e) {}
-            try { await supabase.from('reward_requests').delete().eq('student_email', targetEmail); } catch (e) {}
+            try {
+              const { error: progErr } = await supabase.from('student_progress').delete().ilike('user_email', targetEmail);
+              if (progErr) console.warn('Supabase student_progress delete notice:', progErr);
+            } catch (progErr) {
+              console.warn('Supabase student_progress delete exception:', progErr);
+            }
+
+            try {
+              const cleanDocId = `student_course_state_${targetEmail.toLowerCase().trim().replace(/[^a-z0-9_]/g, '_')}`;
+              await supabase.from('site_content').delete().eq('id', cleanDocId);
+            } catch (courseStateErr) {
+              console.warn('Supabase course state delete notice:', courseStateErr);
+            }
           }
-          let q = supabase.from('student_profiles').delete();
-          if (targetEmail && targetId) {
-            q = q.or(`email.eq.${targetEmail},id.eq.${targetId}`);
-          } else if (targetEmail) {
-            q = q.eq('email', targetEmail);
-          } else {
-            q = q.eq('id', targetId);
+
+          // B. student_leads (has email and id)
+          try {
+            if (targetEmail && targetId) {
+              await supabase.from('student_leads').delete().or(`email.ilike.${targetEmail},id.eq.${targetId}`);
+            } else if (targetEmail) {
+              await supabase.from('student_leads').delete().ilike('email', targetEmail);
+            } else if (targetId) {
+              await supabase.from('student_leads').delete().eq('id', targetId);
+            }
+          } catch (leadErr) {
+            console.warn('Supabase student_leads delete notice:', leadErr);
           }
-          await q;
+
+          // C. Optional course_purchases & reward_requests
+          try {
+            if (targetEmail && targetId) {
+              await supabase.from('course_purchases').delete().or(`student_email.ilike.${targetEmail},student_id.eq.${targetId}`);
+              await supabase.from('reward_requests').delete().or(`student_email.ilike.${targetEmail},student_id.eq.${targetId}`);
+            } else if (targetEmail) {
+              await supabase.from('course_purchases').delete().ilike('student_email', targetEmail);
+              await supabase.from('reward_requests').delete().ilike('student_email', targetEmail);
+            } else if (targetId) {
+              await supabase.from('course_purchases').delete().eq('student_id', targetId);
+              await supabase.from('reward_requests').delete().eq('student_id', targetId);
+            }
+          } catch (e) {}
+
+          // D. CRITICAL: Delete from student_profiles
+          try {
+            let q = supabase.from('student_profiles').delete();
+            if (targetEmail && targetId) {
+              q = q.or(`email.ilike.${targetEmail},id.eq.${targetId}`);
+            } else if (targetEmail) {
+              q = q.ilike('email', targetEmail);
+            } else {
+              q = q.eq('id', targetId);
+            }
+            const { error: profErr } = await q;
+            if (profErr) {
+              console.error('Supabase student_profiles deletion error:', profErr);
+            } else {
+              console.log('Successfully deleted student_profiles in Supabase for:', targetEmail || targetId);
+            }
+          } catch (profEx) {
+            console.error('Supabase student_profiles deletion exception:', profEx);
+          }
         } catch (supaErr) {
-          console.warn('Supabase cascade delete notice:', supaErr);
+          console.warn('Supabase cascade delete overall notice:', supaErr);
         }
       }
 
       // 3. Purge from local storage records and in-memory state
       try {
-        // Clean reward requests
-        const rewardsRaw = localStorage.getItem('dopilot_reward_requests_v1');
-        if (rewardsRaw) {
-          const rewards = JSON.parse(rewardsRaw);
-          if (Array.isArray(rewards)) {
-            const filteredRewards = rewards.filter((r: any) =>
-              (r.studentEmail || '').toLowerCase() !== targetEmail &&
-              r.studentId !== targetId
-            );
-            localStorage.setItem('dopilot_reward_requests_v1', JSON.stringify(filteredRewards));
-            setRewardRequests(filteredRewards);
-          }
-        }
+        markStudentPermanentlyDeleted(targetEmail, targetId);
+        purgeStudentLocalData(targetEmail, targetId);
 
-        // Clean student help tickets
-        const helpRaw = localStorage.getItem('dopilot_student_help_messages_v1');
-        if (helpRaw) {
-          const help = JSON.parse(helpRaw);
-          if (Array.isArray(help)) {
-            const filteredHelp = help.filter((h: any) =>
-              (h.studentEmail || '').toLowerCase() !== targetEmail &&
-              h.studentId !== targetId
-            );
-            localStorage.setItem('dopilot_student_help_messages_v1', JSON.stringify(filteredHelp));
-            setHelpMessages(filteredHelp);
-          }
-        }
+        // Update in-memory state for admin tabs
+        const sTarget = targetEmail.toLowerCase();
+        const sId = targetId.toLowerCase();
 
-        // Clean course locks
-        const locksRaw = localStorage.getItem('dopilot_locked_courses_registry_v1');
-        if (locksRaw) {
-          const locks = JSON.parse(locksRaw);
-          if (Array.isArray(locks)) {
-            const filteredLocks = locks.filter((l: any) =>
-              (l.studentEmail || '').toLowerCase() !== targetEmail &&
-              l.studentId !== targetId
-            );
-            localStorage.setItem('dopilot_locked_courses_registry_v1', JSON.stringify(filteredLocks));
-            setLockedRecords(filteredLocks);
-          }
-        }
+        setRewardRequests((prev) =>
+          prev.filter((r) => {
+            const re = (r.studentEmail || '').toLowerCase().trim();
+            const ri = (r.studentId || '').toLowerCase().trim();
+            return (!sTarget || re !== sTarget) && (!sId || ri !== sId);
+          })
+        );
 
-        // Clean purchases
-        const purchasesRaw = localStorage.getItem('dopilot_course_purchases_v1');
-        if (purchasesRaw) {
-          const purchases = JSON.parse(purchasesRaw);
-          if (Array.isArray(purchases)) {
-            const filteredPurchases = purchases.filter((p: any) =>
-              (p.studentEmail || '').toLowerCase() !== targetEmail &&
-              p.studentId !== targetId
-            );
-            localStorage.setItem('dopilot_course_purchases_v1', JSON.stringify(filteredPurchases));
-            setCoursePurchases(filteredPurchases);
-          }
-        }
+        setHelpMessages((prev) =>
+          prev.filter((h) => {
+            const he = (h.studentEmail || '').toLowerCase().trim();
+            const hi = (h.studentId || '').toLowerCase().trim();
+            return (!sTarget || he !== sTarget) && (!sId || hi !== sId);
+          })
+        );
 
-        // Clean user scoped keys
-        if (targetEmail) {
-          const emailSafe = targetEmail.replace(/[^a-zA-Z0-9]/g, '_');
-          localStorage.removeItem(`dopilot_user_${emailSafe}_points`);
-          localStorage.removeItem(`dopilot_user_${emailSafe}_claimed_coupons`);
-          localStorage.removeItem(`dopilot_claimed_courses_${emailSafe}`);
-        }
-        if (targetId) {
-          localStorage.removeItem(`dopilot_purchased_courses_${targetId}`);
-        }
+        setLockedRecords((prev) =>
+          prev.filter((l) => {
+            const le = (l.studentEmail || '').toLowerCase().trim();
+            const li = (l.studentId || '').toLowerCase().trim();
+            return (!sTarget || le !== sTarget) && (!sId || li !== sId);
+          })
+        );
 
-        // Clear active session if it matches this student
-        const curSessionRaw = localStorage.getItem('dopilot_student_session_v1');
-        if (curSessionRaw) {
-          try {
-            const cur = JSON.parse(curSessionRaw);
-            if (cur?.email?.toLowerCase() === targetEmail || cur?.id === targetId) {
-              localStorage.removeItem('dopilot_student_session_v1');
-              localStorage.removeItem('dopilot_pending_registration_v1');
-            }
-          } catch (e) {}
-        }
+        setCoursePurchases((prev) =>
+          prev.filter((p) => {
+            const pe = (p.studentEmail || '').toLowerCase().trim();
+            const pi = (p.studentId || '').toLowerCase().trim();
+            return (!sTarget || pe !== sTarget) && (!sId || pi !== sId);
+          })
+        );
       } catch (cleanErr) {
-        console.warn('LocalStorage cascade cleanup warning:', cleanErr);
+        console.warn('Local student data purge warning:', cleanErr);
       }
 
       // 4. Refresh student roster
@@ -1233,7 +1168,35 @@ export const AdminPanel: React.FC = () => {
   };
 
   useEffect(() => {
+    purgeAllDummyDemoData();
     fetchStudents();
+
+    const handleStudentRosterUpdate = () => {
+      fetchStudents();
+    };
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (
+        !e.key ||
+        e.key.includes('student') ||
+        e.key.includes('session') ||
+        e.key.includes('dopilot_user')
+      ) {
+        fetchStudents();
+      }
+    };
+
+    window.addEventListener('dopilot_student_roster_updated', handleStudentRosterUpdate);
+    window.addEventListener('dopilot_student_registered', handleStudentRosterUpdate);
+    window.addEventListener('dopilot_user_logged_in', handleStudentRosterUpdate);
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('dopilot_student_roster_updated', handleStudentRosterUpdate);
+      window.removeEventListener('dopilot_student_registered', handleStudentRosterUpdate);
+      window.removeEventListener('dopilot_user_logged_in', handleStudentRosterUpdate);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   useEffect(() => {

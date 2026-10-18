@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Terminal, Clock, ArrowRight, Trophy, RotateCcw,
-  CheckCircle2, AlertCircle, Shuffle, Check, AlertTriangle, ShieldAlert, Sparkles } from 'lucide-react';
+  CheckCircle2, AlertCircle, Shuffle, Check, AlertTriangle, ShieldAlert, Sparkles, Award } from 'lucide-react';
 import { JavaCompilerLauncherButton, JavaCompilerModal, JavaTaskContext } from './compiler/JavaCompilerModal';
 import { useCoursePoints } from '../context/CoursePointsContext';
 import { useUserAuth } from '../context/UserAuthContext';
 import { ContactModal } from './ContactModal';
 import { NeedHelpModal } from './NeedHelpModal';
+import { CertificateModal } from './CertificateModal';
+import { CourseCompletionCard } from './CourseCompletionCard';
 import { 
   PART_14_SECTIONS, TheoryBlock, McqQuestion,
   getActiveQuestionsForLevelPart14, getConsecutiveFailedLevelsPart14,
@@ -141,6 +143,7 @@ export const JavaPart14Page: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
   const [graduationModalOpen, setGraduationModalOpen] = useState(false);
+  const [certModalOpen, setCertModalOpen] = useState(false);
   const [compilerModalOpen, setCompilerModalOpen] = useState(false);
   const [, setActiveTask] = useState<JavaTaskContext | null>(null);
 
@@ -346,6 +349,61 @@ export const JavaPart14Page: React.FC = () => {
       } catch {}
     }
   };
+
+  /* [DEV_TEST_CERTIFICATE_WORKFLOW] Temporary testing helper: jumps directly to final question of Java Part 14 */
+  const handleJumpToLastQuestion = () => {
+    const lastSec = PART_14_SECTIONS[PART_14_SECTIONS.length - 1];
+    const lastQIdx = lastSec.theoryBlocks.length - 1;
+    const qList = getActiveQuestionsForLevelPart14(lastSec, studentId, false);
+    const answers: Record<string, string> = {};
+
+    for (let i = 0; i < lastQIdx; i++) {
+      const q = qList[i] || lastSec.theoryBlocks[i]?.mcq;
+      if (q) {
+        const tid = `java-part14-${lastSec.id}-${q.id || i}`;
+        if (i < lastQIdx - 1) {
+          answers[tid] = q.correctAnswer;
+        } else {
+          // Exactly 4 of first 5 are correct; 1 is wrong so that user MUST pass final question to score > 80% (5/6)
+          const wrongOpt = q.options?.find(opt => opt.id !== q.correctAnswer)?.id || 'INCORRECT_DEV_TEST_CHOICE';
+          answers[tid] = wrongOpt;
+        }
+      }
+    }
+
+    setActiveSectionId(lastSec.id);
+    setActiveQuestionIdx(lastQIdx);
+    setIsStudyPhase(false);
+    setLevelResult(null);
+    setIsCourseComplete(false);
+    setSelectedAnswers(answers);
+    const freshEndTime = Date.now() + 60000;
+    setTargetEndTime(freshEndTime);
+    setTimeLeft(60);
+    setIsTimeUpWaiting(false);
+
+    try {
+      localStorage.setItem('dopilot_java_part14_mcq_answers', JSON.stringify(answers));
+      localStorage.setItem('dopilot_java_part14_active_section_id', lastSec.id);
+      localStorage.setItem('dopilot_java_part14_active_q_idx', String(lastQIdx));
+      localStorage.setItem('dopilot_java_part14_study_phase', 'false');
+      localStorage.setItem('dopilot_java_part14_q_target_end_time', String(freshEndTime));
+      localStorage.removeItem('dopilot_java_part14_time_up');
+      localStorage.removeItem('dopilot_java_part14_completed');
+      localStorage.setItem('dopilot_java_core_last_part', '14');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('dopilot_java_part14_jump_to_last_q') === 'true') {
+        localStorage.removeItem('dopilot_java_part14_jump_to_last_q');
+        handleJumpToLastQuestion();
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (correctCountdown === null) return;
@@ -579,6 +637,16 @@ export const JavaPart14Page: React.FC = () => {
 
           
 
+          {/* [DEV_TEST_CERTIFICATE_WORKFLOW] Temporary testing button - safe to remove */}
+          <button
+            type="button"
+            onClick={handleJumpToLastQuestion}
+            className="py-1 px-2.5 rounded-full bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 font-mono text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+            title="Temporary Test Button: Jump to Part 14 Last Question"
+          >
+            <span>⚡ Test: Last Q</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setHelpModalOpen(true)}
@@ -592,46 +660,9 @@ export const JavaPart14Page: React.FC = () => {
       {/* Main Focus Arena */}
       <main className="flex-1 flex flex-col items-center justify-center max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto">
         
-        {/* SCENARIO 1: Entire Part 14 Course Completed */}
+        {/* SCENARIO 1: Entire Course Completed */}
         {isCourseComplete ? (
-          <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
-
-            <div className="flex items-center justify-center pt-2">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Part 14 Fully Certified</span>
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
-                Part 14 Complete! 🎉
-              </h2>
-              <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                You have passed all 3 modules of Helsinki MOOC Java Part 14! You've mastered containing collections on objects, architecting separated User Interfaces, command loops, and automated unit testing with assertions.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
-              <button
-                type="button"
-                onClick={() => setGraduationModalOpen(true)}
-                className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
-              >
-                <span>Continue to Part 7</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => navigate('/course/complete-java-programming')}
-                className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>Back to Dashboard</span>
-              </button>
-            </div>
-          </div>
+          <CourseCompletionCard onClaimCertificate={() => setCertModalOpen(true)} />
         ) : levelResult?.isFinished ? (
           /* SCENARIO 2: Level Evaluation Result */
           <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
@@ -1181,58 +1212,14 @@ export const JavaPart14Page: React.FC = () => {
       )}
 
       {/* Part 7 Modal when student completes all Part 14 levels */}
-      {graduationModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-panel border border-emerald-500/30 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-5 text-center shadow-2xl relative">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 font-mono text-xs font-bold">
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Part 14 Certified (&gt; 80% Scored)</span>
-            </div>
-
-            <div className="space-y-1.5">
-              <h3 className="font-jakarta text-xl sm:text-2xl font-black text-paper">
-                Complete Java Course Mastered! 🎓
-              </h3>
-              <p className="text-slate text-xs sm:text-sm leading-relaxed">
-                You have passed all levels of Helsinki MOOC Java Part 14! You have mastered data visualization with charts, audio playback, multimedia processing, and your complete Java capstone graduation.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setGraduationModalOpen(false);
-                  navigate('/course/complete-java-programming');
-                }}
-                className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 flex items-center justify-center gap-1.5"
-              >
-                <span>View Java Master Certificate</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setGraduationModalOpen(false);
-                  navigate('/course/complete-java-programming');
-                }}
-                className="w-full py-2.5 px-4 rounded-xl bg-white/[0.06] hover:bg-white/10 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <span>Return to Course Dashboard</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setGraduationModalOpen(false)}
-                className="w-full py-2 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
-              >
-                Review Part 14 Notes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Official Certificate Modal */}
+      <CertificateModal
+        isOpen={certModalOpen}
+        onClose={() => setCertModalOpen(false)}
+        earnedPoints={points}
+        courseId="java-core"
+        courseTitle="Complete Java Course"
+      />
 
     </div>
   );

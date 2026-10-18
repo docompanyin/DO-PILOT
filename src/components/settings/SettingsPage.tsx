@@ -51,10 +51,10 @@ interface CashRewardTier {
 }
 
 const CASH_TIERS: CashRewardTier[] = [
-  { id: 'cash-50', pointsRequired: 50, cashAmount: 50 },
-  { id: 'cash-100', pointsRequired: 100, cashAmount: 100 },
-  { id: 'cash-250', pointsRequired: 250, cashAmount: 250 },
-  { id: 'cash-500', pointsRequired: 500, cashAmount: 500 },
+  { id: 'cash-200', pointsRequired: 200, cashAmount: 200 },
+  { id: 'cash-400', pointsRequired: 400, cashAmount: 400 },
+  { id: 'cash-700', pointsRequired: 700, cashAmount: 700 },
+  { id: 'cash-1000', pointsRequired: 1000, cashAmount: 1000 },
 ];
 
 export const SettingsPage: React.FC = () => {
@@ -1237,12 +1237,12 @@ export const SettingsPage: React.FC = () => {
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="font-jakarta font-black text-lg sm:text-xl text-paper">
-                            ₹{tier.cashAmount}
+                            ₹{tier.cashAmount.toLocaleString('en-IN')}
                           </span>
                           <span className="text-xs font-mono text-slate">Reward</span>
                         </div>
                         <span className="text-[11px] font-mono text-slate/60 block truncate">
-                          Milestone: {tier.pointsRequired} points
+                          Milestone: {tier.pointsRequired.toLocaleString('en-IN')} points
                         </span>
                       </div>
 
@@ -1274,10 +1274,10 @@ export const SettingsPage: React.FC = () => {
                             type="button"
                             disabled
                             className="py-2 px-4 rounded-xl bg-white/5 border border-white/10 text-slate/40 font-jakarta font-bold text-xs cursor-not-allowed opacity-60 flex items-center gap-1.5"
-                            title={`Reach ${tier.pointsRequired} points to unlock (need ${tier.pointsRequired - points} more)`}
+                            title={`Reach ${tier.pointsRequired.toLocaleString('en-IN')} points to unlock (need ${(tier.pointsRequired - points).toLocaleString('en-IN')} more)`}
                           >
                             <Lock className="w-3.5 h-3.5 text-slate/40" />
-                            <span>Claim ({tier.pointsRequired} pts)</span>
+                            <span>Claim ({tier.pointsRequired.toLocaleString('en-IN')} pts)</span>
                           </button>
                         )}
                       </div>
@@ -1551,7 +1551,7 @@ export const SettingsPage: React.FC = () => {
                       Claim Milestone Reward
                     </h3>
                     <span className="text-[10px] font-mono text-slate/60">
-                      ₹{requestModalTier.cashAmount} Reward • {requestModalTier.pointsRequired} Points Milestone
+                      ₹{requestModalTier.cashAmount.toLocaleString('en-IN')} Reward • {requestModalTier.pointsRequired.toLocaleString('en-IN')} Points Milestone
                     </span>
                   </div>
                 </div>
@@ -1584,7 +1584,7 @@ export const SettingsPage: React.FC = () => {
                   </div>
                   <div className="flex justify-between items-center text-slate/80">
                     <span>Milestone Required:</span>
-                    <strong className="text-primary font-bold">{requestModalTier.pointsRequired} pts</strong>
+                    <strong className="text-primary font-bold">{requestModalTier.pointsRequired.toLocaleString('en-IN')} pts</strong>
                   </div>
                 </div>
 
@@ -1642,7 +1642,7 @@ export const SettingsPage: React.FC = () => {
                   Reward Claim Submitted
                 </h3>
                 <p className="text-xs font-mono text-primary font-bold">
-                  ₹{claimSuccessModalTier.cashAmount} Reward • {claimSuccessModalTier.pointsRequired} Points Milestone
+                  ₹{claimSuccessModalTier.cashAmount.toLocaleString('en-IN')} Reward • {claimSuccessModalTier.pointsRequired.toLocaleString('en-IN')} Points Milestone
                 </p>
               </div>
 

@@ -173,80 +173,8 @@ export const INITIAL_DEFAULT_COUPONS: CourseCoupon[] = [
   }
 ];
 
-// Seed demo purchase records so admin panel analytics and student records look active
-const INITIAL_DEMO_PURCHASES: CoursePurchaseRecord[] = [
-  {
-    id: 'ORD-9801',
-    studentId: 'demo-std-1',
-    studentName: 'Rahul Verma',
-    studentEmail: 'rahul.verma@techsprint.io',
-    studentPhone: '+91 98450 12345',
-    courseId: 'python-core',
-    courseName: 'Complete Python Course',
-    originalPrice: 999,
-    discountAmount: 999,
-    finalAmount: 0,
-    couponCodeApplied: 'DOPILOT100',
-    paymentMethod: 'coupon_free_unlock',
-    status: 'completed',
-    purchasedAt: new Date(Date.now() - 14 * 86400000).toISOString(),
-    accessGranted: true
-  },
-  {
-    id: 'ORD-9802',
-    studentId: 'demo-std-2',
-    studentName: 'Priya Patel',
-    studentEmail: 'priya.patel@gmail.com',
-    studentPhone: '+91 98765 43210',
-    courseId: 'python-core',
-    courseName: 'Complete Python Course',
-    originalPrice: 999,
-    discountAmount: 999,
-    finalAmount: 0,
-    couponCodeApplied: 'FREE100',
-    paymentMethod: 'coupon_free_unlock',
-    status: 'completed',
-    purchasedAt: new Date(Date.now() - 7 * 86400000).toISOString(),
-    accessGranted: true
-  },
-  {
-    id: 'ORD-UPI-781290',
-    studentId: 'demo-std-3',
-    studentName: 'Aditya Sharma',
-    studentEmail: 'aditya.sharma@gmail.com',
-    studentPhone: '+91 98112 34567',
-    courseId: 'java-core',
-    courseName: 'Complete Java Course',
-    originalPrice: 2999,
-    discountAmount: 2000,
-    finalAmount: 999,
-    couponCodeApplied: undefined,
-    paymentMethod: 'manual_upi_qr',
-    utrNumber: '428901235619',
-    status: 'pending_verification',
-    purchasedAt: new Date(Date.now() - 45 * 60000).toISOString(),
-    accessGranted: false
-  },
-  {
-    id: 'ORD-QR-610294',
-    studentId: 'demo-std-4',
-    studentName: 'Sneha Kulkarni',
-    studentEmail: 'sneha.k@outlook.com',
-    studentPhone: '+91 98234 56789',
-    courseId: 'cyber-security',
-    courseName: 'Cyber Security Course',
-    originalPrice: 3999,
-    discountAmount: 2500,
-    finalAmount: 1499,
-    couponCodeApplied: undefined,
-    paymentMethod: 'manual_upi_qr',
-    utrNumber: '',
-    status: 'expired',
-    purchasedAt: new Date(Date.now() - 120 * 60000).toISOString(),
-    expiresAt: new Date(Date.now() - 118 * 60000).toISOString(),
-    accessGranted: false
-  }
-];
+// No dummy purchases
+const INITIAL_DEMO_PURCHASES: CoursePurchaseRecord[] = [];
 
 /**
  * Normalize course identifier for comparison
@@ -573,17 +501,23 @@ export const getCoursePurchases = (): CoursePurchaseRecord[] => {
   try {
     const raw = localStorage.getItem(PURCHASES_STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(INITIAL_DEMO_PURCHASES));
-      return INITIAL_DEMO_PURCHASES;
+      localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify([]));
+      return [];
     }
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
+    if (Array.isArray(parsed)) {
+      const realOnly = parsed.filter(
+        (p) => !p.studentId?.startsWith('demo-std') && !p.studentEmail?.includes('techsprint.io')
+      );
+      if (realOnly.length !== parsed.length) {
+        localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(realOnly));
+      }
+      return realOnly;
     }
-    return INITIAL_DEMO_PURCHASES;
+    return [];
   } catch (e) {
     console.error('Failed to read purchases from storage:', e);
-    return INITIAL_DEMO_PURCHASES;
+    return [];
   }
 };
 
@@ -661,17 +595,11 @@ export const hasCourseAccess = (
     return false;
   };
 
-  // 1. Check active user session in localStorage (dopilot_student_session_v1)
+  // If studentIdOrEmail wasn't passed, fall back to session user identity
   try {
     const rawSession = localStorage.getItem('dopilot_student_session_v1');
     if (rawSession) {
       const session = JSON.parse(rawSession);
-      if (session && Array.isArray(session.enrolledCourses)) {
-        if (session.enrolledCourses.some((c: string) => courseMatches(c))) {
-          return true;
-        }
-      }
-      // If studentIdOrEmail wasn't passed, fall back to session user identity
       if (!studentIdOrEmail) {
         studentIdOrEmail = session.id || session.email;
       }
@@ -680,9 +608,13 @@ export const hasCourseAccess = (
 
   if (!studentIdOrEmail) return false;
 
-  // 2. Check direct user purchase key in localStorage
+  const targetIdentifier = studentIdOrEmail.toLowerCase().trim();
+
+  // 1. Check direct user purchase key in localStorage
   try {
-    const userPurchasesRaw = localStorage.getItem(`dopilot_purchased_courses_${studentIdOrEmail}`);
+    const userPurchasesRaw =
+      localStorage.getItem(`dopilot_purchased_courses_${studentIdOrEmail}`) ||
+      localStorage.getItem(`dopilot_purchased_courses_${targetIdentifier}`);
     if (userPurchasesRaw) {
       const purchasedList: string[] = JSON.parse(userPurchasesRaw);
       if (Array.isArray(purchasedList)) {
@@ -692,11 +624,12 @@ export const hasCourseAccess = (
     }
   } catch {}
 
-  // 3. Check global purchases registry
+  // 2. Check global purchases registry
   const purchases = getCoursePurchases();
   const hasCompletedPurchase = purchases.some(
     p =>
-      (p.studentId === studentIdOrEmail || (p.studentEmail && p.studentEmail.toLowerCase() === studentIdOrEmail!.toLowerCase())) &&
+      ((p.studentId && p.studentId.toLowerCase().trim() === targetIdentifier) ||
+        (p.studentEmail && p.studentEmail.toLowerCase().trim() === targetIdentifier)) &&
       courseMatches(p.courseId) &&
       p.status === 'completed' &&
       p.accessGranted

@@ -68,6 +68,7 @@ import { PythonProvider } from 'react-py';
 import { CyberSecurityPartPage } from './components/CyberSecurityPartPage';
 import { CyberSecurityPart1Page } from './components/CyberSecurityPart1Page';
 import { CoursePaidGuard } from './components/checkout/CoursePaidGuard';
+import { CourseAuthGuard } from './components/auth/CourseAuthGuard';
 import './App.css';
 
 // Module-scoped state: resets to false ONLY on manual page refresh (F5 / reload) or cold browser load.
@@ -341,68 +342,93 @@ export const App: React.FC = () => {
             <Route path="/admin" element={<AdminLoginPage />} />
             <Route path="/admin/dashboard" element={<AdminPanel />} />
             <Route path="/admin/emergency-recovery" element={<EmergencyRecoveryPage />} />
-            <Route path="/course/complete-java-programming/part-1" element={<JavaPart1Page />} />
-            <Route path="/course/java-core/part-1" element={<JavaPart1Page />} />
-            <Route path="/course/complete-java-programming/part-2" element={<CoursePaidGuard partNum={2} courseId="java-core"><JavaPart2Page /></CoursePaidGuard>} />
-            <Route path="/course/java-core/part-2" element={<CoursePaidGuard partNum={2} courseId="java-core"><JavaPart2Page /></CoursePaidGuard>} />
-            <Route path="/course/complete-java-programming/part-3" element={<CoursePaidGuard partNum={3} courseId="java-core"><JavaPart3Page /></CoursePaidGuard>} />
-            <Route path="/course/java-core/part-3" element={<CoursePaidGuard partNum={3} courseId="java-core"><JavaPart3Page /></CoursePaidGuard>} />
-            <Route path="/course/complete-java-programming/part-4" element={<CoursePaidGuard partNum={4} courseId="java-core"><JavaPart4Page /></CoursePaidGuard>} />
-            <Route path="/course/java-core/part-4" element={<CoursePaidGuard partNum={4} courseId="java-core"><JavaPart4Page /></CoursePaidGuard>} />
-            <Route path="/course/complete-java-programming/part-5" element={<CoursePaidGuard partNum={5} courseId="java-core"><JavaPart5Page /></CoursePaidGuard>} />
-            <Route path="/course/java-core/part-5" element={<CoursePaidGuard partNum={5} courseId="java-core"><JavaPart5Page /></CoursePaidGuard>} />
-            <Route path="/course/complete-java-programming/part-6" element={<CoursePaidGuard partNum={6} courseId="java-core"><JavaPart6Page /></CoursePaidGuard>} />
-            <Route path="/course/java-core/part-6" element={<CoursePaidGuard partNum={6} courseId="java-core"><JavaPart6Page /></CoursePaidGuard>} />
-            <Route path="/course/complete-java-programming/part-7" element={<CoursePaidGuard partNum={7} courseId="java-core"><JavaPart7Page /></CoursePaidGuard>} />
-            <Route path="/course/java-core/part-7" element={<CoursePaidGuard partNum={7} courseId="java-core"><JavaPart7Page /></CoursePaidGuard>} />
-            <Route path="/course/complete-java-programming/part-8" element={<CoursePaidGuard partNum={8} courseId="java-core"><JavaPart8Page /></CoursePaidGuard>} />
-            <Route path="/course/java-core/part-8" element={<CoursePaidGuard partNum={8} courseId="java-core"><JavaPart8Page /></CoursePaidGuard>} />
-            <Route path="/course/complete-java-programming/part-9" element={<CoursePaidGuard partNum={9} courseId="java-core"><JavaPart9Page /></CoursePaidGuard>} />
-            <Route path="/course/java-core/part-9" element={<CoursePaidGuard partNum={9} courseId="java-core"><JavaPart9Page /></CoursePaidGuard>} />
-            <Route path="/course/complete-java-programming/part-10" element={<CoursePaidGuard partNum={10} courseId="java-core"><JavaPart10Page /></CoursePaidGuard>} />
-            <Route path="/course/java-core/part-10" element={<CoursePaidGuard partNum={10} courseId="java-core"><JavaPart10Page /></CoursePaidGuard>} />
-            <Route path="/course/complete-java-programming/part-11" element={<CoursePaidGuard partNum={11} courseId="java-core"><JavaPart11Page /></CoursePaidGuard>} />
-            <Route path="/course/java-core/part-11" element={<CoursePaidGuard partNum={11} courseId="java-core"><JavaPart11Page /></CoursePaidGuard>} />
-            <Route path="/course/complete-java-programming/part-12" element={<CoursePaidGuard partNum={12} courseId="java-core"><JavaPart12Page /></CoursePaidGuard>} />
-            <Route path="/course/java-core/part-12" element={<CoursePaidGuard partNum={12} courseId="java-core"><JavaPart12Page /></CoursePaidGuard>} />
-            <Route path="/course/complete-java-programming/part-13" element={<CoursePaidGuard partNum={13} courseId="java-core"><JavaPart13Page /></CoursePaidGuard>} />
-            <Route path="/course/java-core/part-13" element={<CoursePaidGuard partNum={13} courseId="java-core"><JavaPart13Page /></CoursePaidGuard>} />
-            <Route path="/course/complete-java-programming/part-14" element={<CoursePaidGuard partNum={14} courseId="java-core"><JavaPart14Page /></CoursePaidGuard>} />
-            <Route path="/course/java-core/part-14" element={<CoursePaidGuard partNum={14} courseId="java-core"><JavaPart14Page /></CoursePaidGuard>} />
-            <Route path="/course/fullstack-open/part-0" element={<FullstackPart0Page />} />
-            <Route path="/course/fullstack-open/part-1" element={<FullstackPart1Page />} />
-            <Route path="/course/fullstack-open/part-2" element={<CoursePaidGuard partNum={2} courseId="fullstack-open"><FullstackPart2Page /></CoursePaidGuard>} />
-            <Route path="/course/fullstack-open/part-3" element={<CoursePaidGuard partNum={3} courseId="fullstack-open"><FullstackPart3Page /></CoursePaidGuard>} />
-            <Route path="/course/fullstack-open/part-4" element={<CoursePaidGuard partNum={4} courseId="fullstack-open"><FullstackPart4Page /></CoursePaidGuard>} />
-            <Route path="/course/fullstack-open/part-5" element={<CoursePaidGuard partNum={5} courseId="fullstack-open"><FullstackPart5Page /></CoursePaidGuard>} />
-            <Route path="/course/fullstack-open/part-6" element={<CoursePaidGuard partNum={6} courseId="fullstack-open"><FullstackPart6Page /></CoursePaidGuard>} />
-            <Route path="/course/fullstack-open/part-7" element={<CoursePaidGuard partNum={7} courseId="fullstack-open"><FullstackPart7Page /></CoursePaidGuard>} />
-            <Route path="/course/fullstack-open/part-8" element={<CoursePaidGuard partNum={8} courseId="fullstack-open"><FullstackPart8Page /></CoursePaidGuard>} />
-            <Route path="/course/fullstack-open/part-9" element={<CoursePaidGuard partNum={9} courseId="fullstack-open"><FullstackPart9Page /></CoursePaidGuard>} />
-            <Route path="/course/fullstack-open/part-10" element={<CoursePaidGuard partNum={10} courseId="fullstack-open"><FullstackPart10Page /></CoursePaidGuard>} />
-            <Route path="/course/fullstack-open/part-11" element={<CoursePaidGuard partNum={11} courseId="fullstack-open"><FullstackPart11Page /></CoursePaidGuard>} />
-            <Route path="/course/fullstack-open/part-12" element={<CoursePaidGuard partNum={12} courseId="fullstack-open"><FullstackPart12Page /></CoursePaidGuard>} />
-            <Route path="/course/fullstack-open/part-13" element={<CoursePaidGuard partNum={13} courseId="fullstack-open"><FullstackPart13Page /></CoursePaidGuard>} />
-            <Route path="/course/cyber-security/part-1" element={<CyberSecurityPart1Page />} />
-            <Route path="/course/cyber-security-core/part-1" element={<CyberSecurityPart1Page />} />
-            <Route path="/course/cyber-security/part-:partNum" element={<CoursePaidGuard partNum={2} courseId="cyber-security"><CyberSecurityPartPage /></CoursePaidGuard>} />
-            <Route path="/course/cyber-security-core/part-:partNum" element={<CoursePaidGuard partNum={2} courseId="cyber-security"><CyberSecurityPartPage /></CoursePaidGuard>} />
+            {/* Java Core Question Routes (Protected by CourseAuthGuard) */}
+            <Route path="/course/complete-java-programming/part-1" element={<CourseAuthGuard><JavaPart1Page /></CourseAuthGuard>} />
+            <Route path="/course/java-core/part-1" element={<CourseAuthGuard><JavaPart1Page /></CourseAuthGuard>} />
+            <Route path="/course/complete-java-programming/part-2" element={<CourseAuthGuard><CoursePaidGuard partNum={2} courseId="java-core"><JavaPart2Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/java-core/part-2" element={<CourseAuthGuard><CoursePaidGuard partNum={2} courseId="java-core"><JavaPart2Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/complete-java-programming/part-3" element={<CourseAuthGuard><CoursePaidGuard partNum={3} courseId="java-core"><JavaPart3Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/java-core/part-3" element={<CourseAuthGuard><CoursePaidGuard partNum={3} courseId="java-core"><JavaPart3Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/complete-java-programming/part-4" element={<CourseAuthGuard><CoursePaidGuard partNum={4} courseId="java-core"><JavaPart4Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/java-core/part-4" element={<CourseAuthGuard><CoursePaidGuard partNum={4} courseId="java-core"><JavaPart4Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/complete-java-programming/part-5" element={<CourseAuthGuard><CoursePaidGuard partNum={5} courseId="java-core"><JavaPart5Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/java-core/part-5" element={<CourseAuthGuard><CoursePaidGuard partNum={5} courseId="java-core"><JavaPart5Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/complete-java-programming/part-6" element={<CourseAuthGuard><CoursePaidGuard partNum={6} courseId="java-core"><JavaPart6Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/java-core/part-6" element={<CourseAuthGuard><CoursePaidGuard partNum={6} courseId="java-core"><JavaPart6Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/complete-java-programming/part-7" element={<CourseAuthGuard><CoursePaidGuard partNum={7} courseId="java-core"><JavaPart7Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/java-core/part-7" element={<CourseAuthGuard><CoursePaidGuard partNum={7} courseId="java-core"><JavaPart7Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/complete-java-programming/part-8" element={<CourseAuthGuard><CoursePaidGuard partNum={8} courseId="java-core"><JavaPart8Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/java-core/part-8" element={<CourseAuthGuard><CoursePaidGuard partNum={8} courseId="java-core"><JavaPart8Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/complete-java-programming/part-9" element={<CourseAuthGuard><CoursePaidGuard partNum={9} courseId="java-core"><JavaPart9Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/java-core/part-9" element={<CourseAuthGuard><CoursePaidGuard partNum={9} courseId="java-core"><JavaPart9Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/complete-java-programming/part-10" element={<CourseAuthGuard><CoursePaidGuard partNum={10} courseId="java-core"><JavaPart10Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/java-core/part-10" element={<CourseAuthGuard><CoursePaidGuard partNum={10} courseId="java-core"><JavaPart10Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/complete-java-programming/part-11" element={<CourseAuthGuard><CoursePaidGuard partNum={11} courseId="java-core"><JavaPart11Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/java-core/part-11" element={<CourseAuthGuard><CoursePaidGuard partNum={11} courseId="java-core"><JavaPart11Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/complete-java-programming/part-12" element={<CourseAuthGuard><CoursePaidGuard partNum={12} courseId="java-core"><JavaPart12Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/java-core/part-12" element={<CourseAuthGuard><CoursePaidGuard partNum={12} courseId="java-core"><JavaPart12Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/complete-java-programming/part-13" element={<CourseAuthGuard><CoursePaidGuard partNum={13} courseId="java-core"><JavaPart13Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/java-core/part-13" element={<CourseAuthGuard><CoursePaidGuard partNum={13} courseId="java-core"><JavaPart13Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/complete-java-programming/part-14" element={<CourseAuthGuard><CoursePaidGuard partNum={14} courseId="java-core"><JavaPart14Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/java-core/part-14" element={<CourseAuthGuard><CoursePaidGuard partNum={14} courseId="java-core"><JavaPart14Page /></CoursePaidGuard></CourseAuthGuard>} />
+
+            {/* Full Stack Open Question Routes (Protected by CourseAuthGuard) */}
+            <Route path="/course/fullstack-open/part-0" element={<CourseAuthGuard><FullstackPart0Page /></CourseAuthGuard>} />
+            <Route path="/course/fullstack-open/part-1" element={<CourseAuthGuard><FullstackPart1Page /></CourseAuthGuard>} />
+            <Route path="/course/fullstack-open/part-2" element={<CourseAuthGuard><CoursePaidGuard partNum={2} courseId="fullstack-open"><FullstackPart2Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/fullstack-open/part-3" element={<CourseAuthGuard><CoursePaidGuard partNum={3} courseId="fullstack-open"><FullstackPart3Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/fullstack-open/part-4" element={<CourseAuthGuard><CoursePaidGuard partNum={4} courseId="fullstack-open"><FullstackPart4Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/fullstack-open/part-5" element={<CourseAuthGuard><CoursePaidGuard partNum={5} courseId="fullstack-open"><FullstackPart5Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/fullstack-open/part-6" element={<CourseAuthGuard><CoursePaidGuard partNum={6} courseId="fullstack-open"><FullstackPart6Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/fullstack-open/part-7" element={<CourseAuthGuard><CoursePaidGuard partNum={7} courseId="fullstack-open"><FullstackPart7Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/fullstack-open/part-8" element={<CourseAuthGuard><CoursePaidGuard partNum={8} courseId="fullstack-open"><FullstackPart8Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/fullstack-open/part-9" element={<CourseAuthGuard><CoursePaidGuard partNum={9} courseId="fullstack-open"><FullstackPart9Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/fullstack-open/part-10" element={<CourseAuthGuard><CoursePaidGuard partNum={10} courseId="fullstack-open"><FullstackPart10Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/fullstack-open/part-11" element={<CourseAuthGuard><CoursePaidGuard partNum={11} courseId="fullstack-open"><FullstackPart11Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/fullstack-open/part-12" element={<CourseAuthGuard><CoursePaidGuard partNum={12} courseId="fullstack-open"><FullstackPart12Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/fullstack-open/part-13" element={<CourseAuthGuard><CoursePaidGuard partNum={13} courseId="fullstack-open"><FullstackPart13Page /></CoursePaidGuard></CourseAuthGuard>} />
+
+            {/* Cyber Security Question Routes (Protected by CourseAuthGuard) */}
+            <Route path="/course/cyber-security/part-1" element={<CourseAuthGuard><CyberSecurityPart1Page /></CourseAuthGuard>} />
+            <Route path="/course/cyber-security-core/part-1" element={<CourseAuthGuard><CyberSecurityPart1Page /></CourseAuthGuard>} />
+            <Route path="/course/cyber-security/part-:partNum" element={<CourseAuthGuard><CoursePaidGuard partNum={2} courseId="cyber-security"><CyberSecurityPartPage /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/cyber-security-core/part-:partNum" element={<CourseAuthGuard><CoursePaidGuard partNum={2} courseId="cyber-security"><CyberSecurityPartPage /></CoursePaidGuard></CourseAuthGuard>} />
+
+            {/* Python Core Direct Question Routes (Protected by CourseAuthGuard) */}
+            <Route path="/course/python-core/part-1" element={<CourseAuthGuard><PythonPart1Page /></CourseAuthGuard>} />
+            <Route path="/course/python-core/part-2" element={<CourseAuthGuard><CoursePaidGuard partNum={2} courseId="python-core"><PythonPart2Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/python-core/part-3" element={<CourseAuthGuard><CoursePaidGuard partNum={3} courseId="python-core"><PythonPart3Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/python-core/part-4" element={<CourseAuthGuard><CoursePaidGuard partNum={4} courseId="python-core"><PythonPart4Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/python-core/part-5" element={<CourseAuthGuard><CoursePaidGuard partNum={5} courseId="python-core"><PythonPart5Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/python-core/part-6" element={<CourseAuthGuard><CoursePaidGuard partNum={6} courseId="python-core"><PythonPart6Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/python-core/part-7" element={<CourseAuthGuard><CoursePaidGuard partNum={7} courseId="python-core"><PythonPart7Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/python-core/part-8" element={<CourseAuthGuard><CoursePaidGuard partNum={8} courseId="python-core"><PythonPart8Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/python-core/part-9" element={<CourseAuthGuard><CoursePaidGuard partNum={9} courseId="python-core"><PythonPart9Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/python-core/part-10" element={<CourseAuthGuard><CoursePaidGuard partNum={10} courseId="python-core"><PythonPart10Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/python-core/part-11" element={<CourseAuthGuard><CoursePaidGuard partNum={11} courseId="python-core"><PythonPart11Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/python-core/part-12" element={<CourseAuthGuard><CoursePaidGuard partNum={12} courseId="python-core"><PythonPart12Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/python-core/part-13" element={<CourseAuthGuard><CoursePaidGuard partNum={13} courseId="python-core"><PythonPart13Page /></CoursePaidGuard></CourseAuthGuard>} />
+            <Route path="/course/python-core/part-14" element={<CourseAuthGuard><CoursePaidGuard partNum={14} courseId="python-core"><PythonPart14Page /></CoursePaidGuard></CourseAuthGuard>} />
+
+            {/* Course Detail Syllabus Page */}
             <Route path="/course/:courseId" element={<CourseDetailPage />} />
-            <Route path="/course/:courseId/part-0" element={<Part0RouteWrapper />} />
-            <Route path="/course/:courseId/part-1" element={<Part1RouteWrapper />} />
-            <Route path="/course/:courseId/part-2" element={<Part2RouteWrapper />} />
-            <Route path="/course/:courseId/part-3" element={<Part3RouteWrapper />} />
-            <Route path="/course/:courseId/part-4" element={<Part4RouteWrapper />} />
-            <Route path="/course/:courseId/part-5" element={<Part5RouteWrapper />} />
-            <Route path="/course/:courseId/part-6" element={<Part6RouteWrapper />} />
-            <Route path="/course/:courseId/part-7" element={<Part7RouteWrapper />} />
-            <Route path="/course/:courseId/part-8" element={<Part8RouteWrapper />} />
-            <Route path="/course/:courseId/part-9" element={<Part9RouteWrapper />} />
-            <Route path="/course/:courseId/part-10" element={<Part10RouteWrapper />} />
-            <Route path="/course/:courseId/part-11" element={<Part11RouteWrapper />} />
-            <Route path="/course/:courseId/part-12" element={<Part12RouteWrapper />} />
-            <Route path="/course/:courseId/part-13" element={<Part13RouteWrapper />} />
-            <Route path="/course/:courseId/part-14" element={<Part14RouteWrapper />} />
+
+            {/* Dynamic Wrapper Routes for All Tracks (Protected by CourseAuthGuard) */}
+            <Route path="/course/:courseId/part-0" element={<CourseAuthGuard><Part0RouteWrapper /></CourseAuthGuard>} />
+            <Route path="/course/:courseId/part-1" element={<CourseAuthGuard><Part1RouteWrapper /></CourseAuthGuard>} />
+            <Route path="/course/:courseId/part-2" element={<CourseAuthGuard><Part2RouteWrapper /></CourseAuthGuard>} />
+            <Route path="/course/:courseId/part-3" element={<CourseAuthGuard><Part3RouteWrapper /></CourseAuthGuard>} />
+            <Route path="/course/:courseId/part-4" element={<CourseAuthGuard><Part4RouteWrapper /></CourseAuthGuard>} />
+            <Route path="/course/:courseId/part-5" element={<CourseAuthGuard><Part5RouteWrapper /></CourseAuthGuard>} />
+            <Route path="/course/:courseId/part-6" element={<CourseAuthGuard><Part6RouteWrapper /></CourseAuthGuard>} />
+            <Route path="/course/:courseId/part-7" element={<CourseAuthGuard><Part7RouteWrapper /></CourseAuthGuard>} />
+            <Route path="/course/:courseId/part-8" element={<CourseAuthGuard><Part8RouteWrapper /></CourseAuthGuard>} />
+            <Route path="/course/:courseId/part-9" element={<CourseAuthGuard><Part9RouteWrapper /></CourseAuthGuard>} />
+            <Route path="/course/:courseId/part-10" element={<CourseAuthGuard><Part10RouteWrapper /></CourseAuthGuard>} />
+            <Route path="/course/:courseId/part-11" element={<CourseAuthGuard><Part11RouteWrapper /></CourseAuthGuard>} />
+            <Route path="/course/:courseId/part-12" element={<CourseAuthGuard><Part12RouteWrapper /></CourseAuthGuard>} />
+            <Route path="/course/:courseId/part-13" element={<CourseAuthGuard><Part13RouteWrapper /></CourseAuthGuard>} />
+            <Route path="/course/:courseId/part-14" element={<CourseAuthGuard><Part14RouteWrapper /></CourseAuthGuard>} />
             <Route path="/privacy" element={<LegalPage defaultSection="privacy" />} />
             <Route path="/terms" element={<LegalPage defaultSection="terms" />} />
             <Route path="/refund" element={<LegalPage defaultSection="refund" />} />

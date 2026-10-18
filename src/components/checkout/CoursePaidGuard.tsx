@@ -29,7 +29,11 @@ export const CoursePaidGuard: React.FC<CoursePaidGuardProps> = ({
   else if (rawId.includes('cyber')) normalizedCourseId = 'cyber-security';
   else if (rawId.includes('python')) normalizedCourseId = 'python-core';
 
+  /* [DEV_TEST_CERTIFICATE_WORKFLOW] Temporary testing bypass for certificate verification - safe to remove */
+  const isDevTestCert = typeof window !== 'undefined' && sessionStorage.getItem('dopilot_dev_test_cert_mode') === 'true';
+
   const [hasAccess, setHasAccess] = useState<boolean>(() => {
+    if (isDevTestCert) return true;
     return hasCourseAccess(normalizedCourseId, user?.id || user?.email);
   });
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
@@ -39,8 +43,18 @@ export const CoursePaidGuard: React.FC<CoursePaidGuardProps> = ({
 
   useEffect(() => {
     const check = () => {
-      setHasAccess(hasCourseAccess(normalizedCourseId, user?.id || user?.email));
+      const isDevTestCertNow = typeof window !== 'undefined' && sessionStorage.getItem('dopilot_dev_test_cert_mode') === 'true';
+      const accessGranted = isDevTestCertNow || hasCourseAccess(normalizedCourseId, user?.id || user?.email);
+      setHasAccess(accessGranted);
       setPricing(getCoursePricing(normalizedCourseId));
+      if (accessGranted) {
+        const studentId = user?.id || user?.email || 'default_student';
+        try {
+          localStorage.removeItem(`dopilot_locked_${studentId}`);
+          localStorage.removeItem(`dopilot_locked_progression_${studentId}`);
+          localStorage.removeItem(`dopilot_fullstack_p1_locked_${studentId}`);
+        } catch {}
+      }
     };
     check();
     window.addEventListener('dopilot_course_purchased', check);
@@ -52,6 +66,21 @@ export const CoursePaidGuard: React.FC<CoursePaidGuardProps> = ({
       window.removeEventListener('storage', check);
     };
   }, [normalizedCourseId, user?.id, user?.email]);
+
+  // Immediate redirect to homepage if user is unauthenticated or logs out
+  useEffect(() => {
+    if (!user) {
+      navigate('/', { replace: true });
+    }
+  }, [user, navigate]);
+
+  useEffect(() => {
+    const handleLogout = () => {
+      navigate('/', { replace: true });
+    };
+    window.addEventListener('dopilot_user_logged_out', handleLogout);
+    return () => window.removeEventListener('dopilot_user_logged_out', handleLogout);
+  }, [navigate]);
 
   // If student has full access, render the protected part immediately
   if (hasAccess) {
@@ -150,6 +179,12 @@ export const CoursePaidGuard: React.FC<CoursePaidGuardProps> = ({
           onSuccess={() => {
             setHasAccess(true);
             enrollInCourse(courseMeta.title);
+            const studentId = user?.id || user?.email || 'default_student';
+            try {
+              localStorage.removeItem(`dopilot_locked_${studentId}`);
+              localStorage.removeItem(`dopilot_locked_progression_${studentId}`);
+              localStorage.removeItem(`dopilot_fullstack_p1_locked_${studentId}`);
+            } catch {}
           }}
         />
       )}

@@ -14,63 +14,29 @@ export interface StudentHelpMessage {
 
 const STORAGE_KEY = 'dopilot_student_help_messages_v1';
 
-const INITIAL_DEMO_HELP_MESSAGES: StudentHelpMessage[] = [
-  {
-    id: 'HELP-1001',
-    studentId: 'demo-std-1',
-    studentName: 'Rahul Verma',
-    studentEmail: 'rahul.verma@techsprint.io',
-    studentPhone: '+91 98450 12345',
-    courseTitle: 'Complete Python Course',
-    courseId: 'python-core',
-    message: 'Hello, I have a doubt regarding the Part 6 recursive function task. My test case times out on large list inputs. Could a mentor review my approach?',
-    submittedAt: new Date(Date.now() - 2 * 3600000).toISOString(),
-    status: 'pending',
-    adminNotes: ''
-  },
-  {
-    id: 'HELP-1002',
-    studentId: 'demo-std-2',
-    studentName: 'Priya Patel',
-    studentEmail: 'priya.patel@gmail.com',
-    studentPhone: '+91 98765 43210',
-    courseTitle: 'Cyber Security Course',
-    courseId: 'cyber-security',
-    message: 'Need assistance setting up the Wireshark packet capture lab on Windows 11. The npcap driver fails during installation.',
-    submittedAt: new Date(Date.now() - 14 * 3600000).toISOString(),
-    status: 'in_progress',
-    adminNotes: 'Assigned to mentor for Windows driver troubleshooting.'
-  },
-  {
-    id: 'HELP-1003',
-    studentId: 'demo-std-3',
-    studentName: 'Ananya Sharma',
-    studentEmail: 'ananya.sharma@appscale.dev',
-    studentPhone: '+91 98112 34567',
-    courseTitle: 'Complete Java Course',
-    courseId: 'java-core',
-    message: 'I completed all 14 parts and the final test, but my certificate download button is showing a loading spinner. Please check my completion record.',
-    submittedAt: new Date(Date.now() - 36 * 3600000).toISOString(),
-    status: 'resolved',
-    adminNotes: 'Verified completion score (24/24 pts). Certificate re-issued and confirmed with student.'
-  }
-];
+const INITIAL_DEMO_HELP_MESSAGES: StudentHelpMessage[] = [];
 
 export const getStudentHelpMessages = (): StudentHelpMessage[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_DEMO_HELP_MESSAGES));
-      return INITIAL_DEMO_HELP_MESSAGES;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+      return [];
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed;
+      const realOnly = parsed.filter(
+        (h: any) => !h.studentId?.startsWith('demo-std') && !h.studentEmail?.includes('techsprint.io')
+      );
+      if (realOnly.length !== parsed.length) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(realOnly));
+      }
+      return realOnly;
     }
-    return INITIAL_DEMO_HELP_MESSAGES;
+    return [];
   } catch (err) {
     console.error('Failed to read student help messages from storage', err);
-    return INITIAL_DEMO_HELP_MESSAGES;
+    return [];
   }
 };
 

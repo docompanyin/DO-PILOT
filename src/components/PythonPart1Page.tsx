@@ -3,19 +3,28 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, Terminal, Clock, ArrowRight, Trophy, RotateCcw,
-  CheckCircle2, AlertCircle, Shuffle, Check, Sparkles, AlertTriangle, ShieldAlert
+  CheckCircle2, AlertCircle, Shuffle, Check, Sparkles, AlertTriangle, ShieldAlert, ShoppingBag
 } from 'lucide-react';
 import { PythonCompilerLauncherButton, TaskContext } from './compiler/PythonCompilerModal';
 import { useCoursePoints } from '../context/CoursePointsContext';
 import { useUserAuth } from '../context/UserAuthContext';
 import { ContactModal } from './ContactModal';
 import { NeedHelpModal } from './NeedHelpModal';
+import { hasCourseAccess, getCoursePricing, CoursePricing } from '../utils/coursePricingService';
+import { CoursePurchaseModal } from './checkout/CoursePurchaseModal';
 import { 
   PART_1_SECTIONS, TheoryBlock, McqQuestion,
   getActiveQuestionsForLevel, getConsecutiveFailedLevels,
   recordLevelAttemptResult, resetConsecutiveFailures,
   setLevelAttemptCount
 } from '../data/pythonPart1Data';
+import { 
+  recordPart1SectionScore, getPart1OverallScore, 
+  markPart1RestartUsed, clearPart1ScoresOnRestart,
+  hasUsedPart1Restart,
+  markTrialAttempted, hasAttemptedTrial 
+} from '../utils/part1ScoreService';
+import { useCourseQuestionResume } from '../utils/courseProgressSyncService';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -78,6 +87,106 @@ export const PythonPart1Page: React.FC = () => {
   // Disclaimer popup state when choosing "Continue to Next Set" on 2nd consecutive failure
   const [disclaimerModalOpen, setDisclaimerModalOpen] = useState(false);
   const [disclaimerConfirmed, setDisclaimerConfirmed] = useState(false);
+
+  // Course access & purchase modal state
+  const [hasPurchased, setHasPurchased] = useState<boolean>(() => {
+    return hasCourseAccess('python-core', user?.id || user?.email);
+  });
+  const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
+  const [pricing, setPricing] = useState<CoursePricing | undefined>(() => getCoursePricing('python-core'));
+
+  useEffect(() => {
+    const check = () => {
+      setHasPurchased(hasCourseAccess('python-core', user?.id || user?.email));
+      setPricing(getCoursePricing('python-core'));
+    };
+    check();
+    window.addEventListener('dopilot_course_purchased', check);
+    window.addEventListener('dopilot_pricing_updated', check);
+    window.addEventListener('storage', check);
+    return () => {
+      window.removeEventListener('dopilot_course_purchased', check);
+      window.removeEventListener('dopilot_pricing_updated', check);
+      window.removeEventListener('storage', check);
+    };
+  }, [user?.id, user?.email]);
+
+  // Immediate redirect to homepage if user is not authenticated or signs out
+  useEffect(() => {
+    if (!user) {
+      navigate('/', { replace: true });
+    }
+  }, [user, navigate]);
+
+  useEffect(() => {
+    const handleLogout = () => {
+      navigate('/', { replace: true });
+    };
+    window.addEventListener('dopilot_user_logged_out', handleLogout);
+    return () => window.removeEventListener('dopilot_user_logged_out', handleLogout);
+  }, [navigate]);
+
+  const handlePostPurchaseUnlock = () => {
+    setHasPurchased(true);
+    resetConsecutiveFailures(studentId);
+    try {
+      localStorage.removeItem(`dopilot_locked_${studentId}`);
+      localStorage.removeItem(`dopilot_locked_progression_${studentId}`);
+    } catch {}
+
+    const overallScore = getPart1OverallScore('python-core', studentId);
+    // Users who passed the free trial (50% or higher) redirect directly to Part 2:
+    if (overallScore.isAbove50) {
+      try {
+        localStorage.setItem('dopilot_part1_completed', 'true');
+        localStorage.setItem('dopilot_python_core_last_part', '2');
+      } catch {}
+      navigate('/course/python-core/part-2');
+    } else {
+      // Below 50% following a failed trial:
+      // Keep isCourseComplete = true and hasPurchased = true so user gets exactly one additional attempt at Part 1
+      setIsCourseComplete(true);
+    }
+  };
+
+  const handleRetryPart1 = () => {
+    markPart1RestartUsed('python-core', studentId);
+    clearPart1ScoresOnRestart('python-core', studentId);
+    try {
+      localStorage.removeItem('dopilot_part1_completed');
+      localStorage.removeItem('dopilot_part1_finished');
+      localStorage.removeItem('dopilot_mcq_answers');
+      localStorage.removeItem('dopilot_mcq_answers_v2');
+      localStorage.removeItem('dopilot_time_up');
+      localStorage.setItem('dopilot_python_core_last_part', '1');
+      localStorage.setItem('dopilot_active_section_id', PART_1_SECTIONS[0].id);
+      localStorage.setItem('dopilot_active_q_idx', '0');
+      localStorage.setItem('dopilot_study_phase', 'true');
+    } catch {}
+    setSelectedAnswers({});
+    setActiveSectionId(PART_1_SECTIONS[0].id);
+    setActiveQuestionIdx(0);
+    setLevelResult(null);
+    setIsCourseComplete(false);
+    setIsStudyPhase(true);
+    setIsTimeUpWaiting(false);
+    setTimeLeft(TIMER_DURATION);
+    const fresh = Date.now() + TIMER_DURATION * 1000;
+    setTargetEndTime(fresh);
+    try {
+      localStorage.setItem('dopilot_q_target_end_time', String(fresh));
+    } catch {}
+    const freshQuestions = getActiveQuestionsForLevel(PART_1_SECTIONS[0], studentId, true);
+    setLevelQuestions(freshQuestions);
+  };
+
+  const handleContinueToPart2 = () => {
+    try {
+      localStorage.setItem('dopilot_part1_completed', 'true');
+      localStorage.setItem('dopilot_python_core_last_part', '2');
+    } catch {}
+    navigate('/course/python-core/part-2');
+  };
 
   // Persistent MCQ selected answers
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>(() => {
@@ -143,9 +252,28 @@ export const PythonPart1Page: React.FC = () => {
     return false;
   });
 
+  useCourseQuestionResume({
+    courseId: 'python-core',
+    partNum: 1,
+    studentEmail: user?.email,
+    activeSectionId,
+    setActiveSectionId,
+    activeQuestionIdx,
+    setActiveQuestionIdx,
+    setSelectedAnswers,
+    setIsStudyPhase,
+    setIsTimeUpWaiting,
+    setTimeLeft,
+    setTargetEndTime,
+    validSectionIds: PART_1_SECTIONS.map(s => s.id)
+  });
+
   const [isCourseComplete, setIsCourseComplete] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('dopilot_part1_completed') === 'true';
+      const finished = localStorage.getItem('dopilot_part1_finished') === 'true';
+      const saved = localStorage.getItem('dopilot_part1_completed') === 'true';
+      if (saved || finished) return true;
+      return false;
     } catch {
       return false;
     }
@@ -249,9 +377,29 @@ export const PythonPart1Page: React.FC = () => {
     // e.g., 3 questions: 3/3 = 100% (> 80% -> Pass), 2/3 = 67% (<= 80% -> Fail)
     const isPassed = percentage > 80;
 
-    // Record attempt result in persistent consecutive failure history
-    const result = recordLevelAttemptResult(activeSection.id, studentId, isPassed);
-    setConsecutiveFailures(result.consecutiveFailedLevels);
+    // Record section score for overall Part 1 calculation across sections 1.1-1.6
+    recordPart1SectionScore('python-core', activeSection.id, correctCount, totalCount, studentId);
+    if (!hasPurchased) {
+      markTrialAttempted('python-core', studentId);
+    }
+
+    // Consecutive failures: Apply existing consecutive failure tracking, reset, and retest rules ONLY to purchased users
+    let streak = 0;
+    let attemptCount = 1;
+    let isSecondFailureInLevel = false;
+    let isLocked = false;
+
+    if (hasPurchased) {
+      const result = recordLevelAttemptResult(activeSection.id, studentId, isPassed);
+      streak = result.consecutiveFailedLevels;
+      attemptCount = result.attemptCount;
+      isSecondFailureInLevel = result.isSecondFailureInLevel;
+      isLocked = result.isLocked;
+      setConsecutiveFailures(result.consecutiveFailedLevels);
+    } else {
+      // Free trial users: do not track consecutive failure streak
+      setConsecutiveFailures(0);
+    }
 
     setLevelResult({
       isFinished: true,
@@ -259,10 +407,10 @@ export const PythonPart1Page: React.FC = () => {
       correctCount,
       totalCount,
       percentage,
-      streak: result.consecutiveFailedLevels,
-      attemptCount: result.attemptCount,
-      isSecondFailureInLevel: result.isSecondFailureInLevel,
-      isLocked: result.isLocked
+      streak,
+      attemptCount,
+      isSecondFailureInLevel,
+      isLocked
     });
   };
 
@@ -330,8 +478,8 @@ export const PythonPart1Page: React.FC = () => {
 
   // Progress to the next level (after Passing or after confirming Disclaimer)
   const handleProceedToNextLevel = () => {
-    // If student is locked due to consecutive failures, prevent progression
-    if (localStorage.getItem(`dopilot_locked_${studentId}`) === 'true') {
+    // If student is locked due to consecutive failures, prevent progression (purchased users only)
+    if (hasPurchased && localStorage.getItem(`dopilot_locked_${studentId}`) === 'true') {
       setModalOpen(true);
       return;
     }
@@ -366,9 +514,15 @@ export const PythonPart1Page: React.FC = () => {
       }
     } else {
       // Finished all sections of Part 1!
+      const part1Summary = getPart1OverallScore('python-core', studentId);
       setIsCourseComplete(true);
       try {
-        localStorage.setItem('dopilot_part1_completed', 'true');
+        localStorage.setItem('dopilot_part1_finished', 'true');
+        if (hasPurchased || part1Summary.isAbove50) {
+          localStorage.setItem('dopilot_part1_completed', 'true');
+        } else {
+          localStorage.removeItem('dopilot_part1_completed');
+        }
       } catch {}
     }
   };
@@ -499,7 +653,7 @@ export const PythonPart1Page: React.FC = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/course/python-core')}
-            className="flex items-center gap-1.5 py-1 px-2.5 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
+            className="flex items-center gap-1.5 py-1 px-2.5 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
             title="Leave Course (Progress and remaining balance saved)"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
@@ -510,8 +664,8 @@ export const PythonPart1Page: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Consecutive failure indicator if student has an active failure streak */}
-          {consecutiveFailures > 0 && (
+          {/* Consecutive failure indicator if student has an active failure streak (purchased only) */}
+          {hasPurchased && consecutiveFailures > 0 && (
             <span className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-mono text-[11px] border ${
               consecutiveFailures >= 3
                 ? 'bg-rose-500/20 border-rose-500/50 text-rose-300 font-bold'
@@ -557,13 +711,14 @@ export const PythonPart1Page: React.FC = () => {
                 </AnimatePresence>
               </div>
 
-              <span className="text-slate/60 text-[10px]">pts</span>
+              <span className="text-white text-[10px]">pts</span>
             </Link>
           </div>
 
           
 
           
+
 
           <button
             type="button"
@@ -576,216 +731,475 @@ export const PythonPart1Page: React.FC = () => {
       </header>
 
       {/* Main Focus Arena */}
-      <main className="flex-1 flex flex-col items-center justify-center max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto">
+      <main className={`flex-1 flex flex-col items-center justify-center ${!isCourseComplete && !levelResult ? 'max-w-7xl' : 'max-w-5xl'} w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto transition-all`}>
         
         {/* SCENARIO 1: Entire Part 1 Course Completed */}
-        {isCourseComplete ? (
-          <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
+        {isCourseComplete ? (() => {
+          const overall = getPart1OverallScore('python-core', studentId);
+          
+          if (!hasPurchased) {
+            // FREE TRIAL USER:
+            return overall.isAbove50 ? (
+              /* Free-trial pass: Show "Passed" and "Buy Course" option */
+              <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
 
-            <div className="flex items-center justify-center pt-2">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Part 1 Fully Certified</span>
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
-                Part 1 Complete! 🎉
-              </h2>
-              <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                You have passed all levels from 1.1 through 1.5. You scored &gt; 80% across all sections and earned {points} course points!
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
-              <button
-                type="button"
-                onClick={() => setPart2ModalOpen(true)}
-                className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
-              >
-                <span>Continue to Part 2</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => navigate('/course/python-core')}
-                className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>Back to Dashboard</span>
-              </button>
-            </div>
-          </div>
-        ) : levelResult?.isFinished ? (
-          /* SCENARIO 2: Level Evaluation Result (Pass, First Failure, Second Failure, or Locked) */
-          <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
-            <div className={`absolute top-0 left-0 right-0 h-1.5 ${
-              levelResult.isPassed
-                ? 'bg-gradient-to-r from-emerald-500 via-primary to-emerald-400'
-                : levelResult.isLocked
-                ? 'bg-gradient-to-r from-rose-600 via-red-500 to-rose-600'
-                : levelResult.isSecondFailureInLevel
-                ? 'bg-gradient-to-r from-amber-500 via-rose-500 to-amber-400'
-                : 'bg-gradient-to-r from-rose-500 via-amber-500 to-rose-400'
-            }`} />
-
-            {/* Status Pill Badge */}
-            <div className="flex items-center justify-center pt-2">
-              {levelResult.isPassed ? (
-                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Level {activeSection.number} Passed • &gt; 80% Scored</span>
-                </span>
-              ) : levelResult.isLocked ? (
-                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-rose-500/20 border-rose-500/50 text-rose-300 shadow-rose-500/25">
-                  <ShieldAlert className="w-4 h-4 text-rose-400" />
-                  <span>Contact Team Required • Level Progression Locked</span>
-                </span>
-              ) : levelResult.isSecondFailureInLevel ? (
-                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-amber-500/20">
-                  <AlertTriangle className="w-4 h-4 text-amber-400" />
-                  <span>
-                    Level {activeSection.number} Failed Twice • {levelResult.streak === 1 ? 'Warning 1 of 2' : 'Final Warning'}
+                <div className="flex items-center justify-center pt-2">
+                  <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>Passed</span>
                   </span>
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-rose-500/15 border-rose-500/40 text-rose-300 shadow-rose-500/20">
-                  <AlertCircle className="w-4 h-4 text-rose-400" />
-                  <span>Exam Failed • Score ≤ 80% (Attempt 1 of 2)</span>
-                </span>
-              )}
-            </div>
+                </div>
 
-            {/* Headline and Narrative */}
-            <div className="space-y-2">
-              <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
-                {levelResult.isPassed
-                  ? `Level ${activeSection.number} Passed!`
-                  : levelResult.isLocked
-                  ? 'Contact Team Required'
-                  : levelResult.isSecondFailureInLevel
-                  ? `Exam Failed (2nd Failure in Level ${activeSection.number})`
-                  : 'Exam Failed'}
-              </h2>
-              <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                {levelResult.isPassed
-                  ? `Congratulations! You scored ${levelResult.percentage}%, successfully meeting the requirement of more than 80%. Your consecutive-failure streak has reset to 0.`
-                  : levelResult.isLocked
-                  ? 'You have reached 3 consecutive failed levels (1.1, 1.2, and 1.3). Progression is locked. Please reach out to our team to review your concepts and unlock further levels.'
-                  : levelResult.isSecondFailureInLevel
-                  ? levelResult.streak === 1
-                    ? 'You have failed Level 1.1 twice. You have 2 more warnings remaining before course progression is locked.'
-                    : 'Warning: You failed Level 1.2 twice. Only 1 more warning remaining! If you fail the next level twice, your course progression will be completely locked.'
-                  : 'Your score was 80% or below. The passing requirement is more than 80%. Click "Reset Questions" to receive a completely new set of questions testing the same concepts with no duplicates.'}
-              </p>
-            </div>
+                <div className="space-y-2">
+                  <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
+                    Part 1 Passed! 🎉
+                  </h2>
+                  <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
+                    Congratulations! You scored {overall.percentage}% ({overall.totalCorrect}/{overall.totalQuestions} correct) across sections 1.1 to 1.6. Buy the course to continue to Part 2.
+                  </p>
+                </div>
 
-            {/* Scorecard Metrics */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              <div className={`p-4 rounded-2xl border flex flex-col items-center justify-center gap-1 ${
-                levelResult.isPassed ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'
-              }`}>
-                <span className="text-[11px] font-mono uppercase tracking-wider text-slate">Score</span>
-                <span className={`font-mono text-3xl sm:text-4xl font-black ${
-                  levelResult.isPassed ? 'text-emerald-400' : 'text-rose-400'
+                {/* Scorecard */}
+                <div className="grid grid-cols-3 gap-3 max-w-md mx-auto py-2">
+                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
+                    <div className="text-[11px] font-mono text-slate">Overall Score</div>
+                    <div className="text-xl font-bold font-mono text-emerald-400 mt-0.5">{overall.percentage}%</div>
+                  </div>
+                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
+                    <div className="text-[11px] font-mono text-slate">Questions</div>
+                    <div className="text-xl font-bold font-mono text-paper mt-0.5">{overall.totalCorrect}/{overall.totalQuestions}</div>
+                  </div>
+                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
+                    <div className="text-[11px] font-mono text-slate">Status</div>
+                    <div className="text-xs font-bold font-mono text-emerald-400 mt-1.5">Passed</div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setPurchaseModalOpen(true)}
+                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>Buy Course</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/course/python-core')}
+                    className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Back to Dashboard</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Free-trial fail: Show "Failed" and "Buy Course" option */
+              <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-500 via-amber-500 to-rose-400" />
+
+                <div className="flex items-center justify-center pt-2">
+                  <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-rose-500/15 border-rose-500/40 text-rose-300 shadow-rose-500/20">
+                    <AlertCircle className="w-4 h-4 text-rose-400" />
+                    <span>Failed</span>
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
+                    Part 1 Failed
+                  </h2>
+                  <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
+                    You scored {overall.percentage}% ({overall.totalCorrect}/{overall.totalQuestions} correct) across sections 1.1 to 1.6. Buy the course to continue.
+                  </p>
+                </div>
+
+                {/* Scorecard */}
+                <div className="grid grid-cols-3 gap-3 max-w-md mx-auto py-2">
+                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
+                    <div className="text-[11px] font-mono text-slate">Overall Score</div>
+                    <div className="text-xl font-bold font-mono text-rose-400 mt-0.5">{overall.percentage}%</div>
+                  </div>
+                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
+                    <div className="text-[11px] font-mono text-slate">Questions</div>
+                    <div className="text-xl font-bold font-mono text-paper mt-0.5">{overall.totalCorrect}/{overall.totalQuestions}</div>
+                  </div>
+                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
+                    <div className="text-[11px] font-mono text-slate">Status</div>
+                    <div className="text-xs font-bold font-mono text-rose-400 mt-1.5">Failed</div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setPurchaseModalOpen(true)}
+                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>Buy Course</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/course/python-core')}
+                    className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Back to Dashboard</span>
+                  </button>
+                </div>
+              </div>
+            );
+          } else {
+            // PURCHASED USER:
+            const hasUsedRetry = hasUsedPart1Restart('python-core', studentId);
+            return (overall.isAbove50 || hasUsedRetry || overall.allSectionsPassed) ? (
+              /* Passed free trial OR overall score >= 50%: continue directly to Part 2 */
+              <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
+
+                <div className="flex items-center justify-center pt-2">
+                  <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>Passed • Part 1 Complete</span>
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
+                    Part 1 Complete! 🎉
+                  </h2>
+                  <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
+                    You scored {overall.percentage}% ({overall.totalCorrect}/{overall.totalQuestions} correct) across sections 1.1 to 1.6 and earned {points} course points! Continue to Part 2 to proceed.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+                  <button
+                    type="button"
+                    onClick={handleContinueToPart2}
+                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                  >
+                    <span>Continue to Part 2</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/course/python-core')}
+                    className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Back to Dashboard</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* After purchase following a failed trial with < 50%: provide option to retry Part 1 before continuing */
+              <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-primary to-amber-400" />
+
+                <div className="flex items-center justify-center pt-2">
+                  <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-amber-500/20">
+                    <RotateCcw className="w-4 h-4 text-amber-400" />
+                    <span>Option to Retry Part 1</span>
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
+                    Course Unlocked
+                  </h2>
+                  <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
+                    Your overall score was {overall.percentage}% ({overall.totalCorrect}/{overall.totalQuestions} correct), which is below 50%. You can retry Part 1 with fresh questions under purchased course rules before continuing, or proceed directly to Part 2.
+                  </p>
+                </div>
+
+                {/* Scorecard */}
+                <div className="grid grid-cols-3 gap-3 max-w-md mx-auto py-2">
+                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
+                    <div className="text-[11px] font-mono text-slate">Overall Score</div>
+                    <div className="text-xl font-bold font-mono text-rose-400 mt-0.5">{overall.percentage}%</div>
+                  </div>
+                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
+                    <div className="text-[11px] font-mono text-slate">Questions</div>
+                    <div className="text-xl font-bold font-mono text-paper mt-0.5">{overall.totalCorrect}/{overall.totalQuestions}</div>
+                  </div>
+                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
+                    <div className="text-[11px] font-mono text-slate">Choice</div>
+                    <div className="text-xs font-bold font-mono text-amber-400 mt-1.5">Retry or Continue</div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+                  <button
+                    type="button"
+                    onClick={handleRetryPart1}
+                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Retry Part 1</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleContinueToPart2}
+                    className="py-2.5 px-6 rounded-xl bg-white/[0.08] hover:bg-white/15 border border-white/20 text-paper font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    <span>Continue to Part 2</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/course/python-core')}
+                    className="py-2.5 px-5 rounded-xl bg-white/[0.04] hover:bg-white/10 border border-white/10 text-white hover:text-white font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Back to Dashboard</span>
+                  </button>
+                </div>
+              </div>
+            );
+          }
+        })() : levelResult?.isFinished ? (
+          !hasPurchased ? (
+            /* SCENARIO 2A: Clean, Minimal Free-Trial Pass & Fail Page */
+            <div className="bg-[#0f1117] border border-white/10 rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center space-y-5 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative">
+              <div className="flex items-center justify-center">
+                {levelResult.isPassed ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-xs font-semibold border bg-emerald-500/10 border-emerald-500/30 text-emerald-300">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Exam Passed</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-xs font-semibold border bg-rose-500/10 border-rose-500/30 text-rose-300">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Exam Result</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <h2 className="font-jakarta text-2xl font-bold text-paper tracking-tight">
+                  {levelResult.isPassed ? 'Exam Passed' : 'Exam Not Passed'}
+                </h2>
+                <p className="text-slate text-xs sm:text-sm max-w-md mx-auto leading-relaxed">
+                  {levelResult.isPassed
+                    ? `You scored ${levelResult.percentage}%, successfully meeting the passing benchmark of more than 80%.`
+                    : `You scored ${levelResult.percentage}%. The passing benchmark is more than 80%. You can proceed directly to the next level in your free trial.`}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1 max-w-xs mx-auto">
+                <div className={`p-3.5 rounded-xl border flex flex-col items-center justify-center ${
+                  levelResult.isPassed ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-white/[0.03] border-white/10'
                 }`}>
-                  {levelResult.percentage}%
-                </span>
-                <span className="text-[10px] font-mono text-slate/70">Requirement: &gt; 80%</span>
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Score</span>
+                  <span className={`font-mono text-2xl sm:text-3xl font-bold mt-0.5 ${
+                    levelResult.isPassed ? 'text-emerald-400' : 'text-rose-400'
+                  }`}>
+                    {levelResult.percentage}%
+                  </span>
+                  <span className="text-[10px] font-mono text-slate/50 mt-0.5">Passing: &gt; 80%</span>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col items-center justify-center">
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Correct</span>
+                  <span className="font-mono text-2xl sm:text-3xl font-bold text-paper mt-0.5">
+                    {levelResult.correctCount} <span className="text-slate/50 text-base font-normal">/ {levelResult.totalCount}</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-slate/50 mt-0.5">Questions</span>
+                </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col items-center justify-center gap-1">
-                <span className="text-[11px] font-mono uppercase tracking-wider text-slate">Correct Answers</span>
-                <span className="font-mono text-3xl sm:text-4xl font-black text-paper">
-                  {levelResult.correctCount} <span className="text-slate/60 text-lg font-normal">/ {levelResult.totalCount}</span>
-                </span>
-                <span className="text-[10px] font-mono text-slate/70">
-                  {levelResult.isPassed ? 'Benchmark achieved' : 'More than 80% needed'}
-                </span>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col items-center justify-center gap-1">
-                <span className="text-[11px] font-mono uppercase tracking-wider text-slate">Failed Level Streak</span>
-                <span className={`font-mono text-3xl sm:text-4xl font-black ${
-                  levelResult.isPassed ? 'text-emerald-400' : levelResult.isLocked ? 'text-rose-400' : 'text-amber-300'
-                }`}>
-                  {levelResult.isPassed ? '0' : levelResult.streak}
-                </span>
-                <span className="text-[10px] font-mono text-slate/70">
-                  {levelResult.isPassed ? 'Streak reset to 0' : `${levelResult.streak} of 3 before locked`}
-                </span>
-              </div>
-            </div>
-
-            {/* Action Buttons Configured per exact prompt rules */}
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
-              {levelResult.isPassed ? (
-                /* PASSED: Continue to next level normally */
+              <div className="pt-2 flex justify-center">
                 <button
                   type="button"
                   onClick={handleProceedToNextLevel}
-                  className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                  className="py-2.5 px-8 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 cursor-pointer"
                 >
                   <span>Continue to Next Level</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
-              ) : !levelResult.isSecondFailureInLevel ? (
-                /* FIRST FAILURE: ONLY "Reset Questions" option. DO NOT SHOW CONTACT TEAM! */
-                <button
-                  type="button"
-                  onClick={handleResetQuestions}
-                  className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
-                >
-                  <Shuffle className="w-4 h-4" />
-                  <span>Reset Questions</span>
-                </button>
-              ) : !levelResult.isLocked ? (
-                /* SECOND CONSECUTIVE FAILURE: Show "Contact Team Now", "Continue to Next Set", and "Reset & Retry Level" */
-                <>
+              </div>
+            </div>
+          ) : (
+            /* SCENARIO 2B: Clean, Professional Exam Result for Purchased Students */
+            <div className="bg-[#0f1117] border border-white/10 rounded-2xl p-6 sm:p-8 max-w-xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
+              <div className={`absolute top-0 left-0 right-0 h-1 ${
+                levelResult.isPassed
+                  ? 'bg-emerald-500'
+                  : levelResult.isLocked
+                  ? 'bg-rose-500'
+                  : levelResult.isSecondFailureInLevel
+                  ? 'bg-amber-500'
+                  : 'bg-rose-500'
+              }`} />
+
+              {/* Status Badge */}
+              <div className="flex items-center justify-center pt-1">
+                {levelResult.isPassed ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-xs font-semibold border bg-emerald-500/10 border-emerald-500/30 text-emerald-300">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Level {activeSection.number} Passed</span>
+                  </span>
+                ) : levelResult.isLocked ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-xs font-semibold border bg-rose-500/15 border-rose-500/35 text-rose-300">
+                    <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Progression Locked</span>
+                  </span>
+                ) : levelResult.isSecondFailureInLevel ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-xs font-semibold border bg-amber-500/15 border-amber-500/35 text-amber-300">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Second Failure Warning</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-xs font-semibold border bg-rose-500/10 border-rose-500/30 text-rose-300">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Exam Failed • Attempt 1 of 2</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Headline & Narrative */}
+              <div className="space-y-1.5">
+                <h2 className="font-jakarta text-2xl font-bold text-paper tracking-tight">
+                  {levelResult.isPassed
+                    ? `Level ${activeSection.number} Passed`
+                    : levelResult.isLocked
+                    ? 'Course Progression Locked'
+                    : levelResult.isSecondFailureInLevel
+                    ? `Level ${activeSection.number} Failed Twice`
+                    : 'Exam Failed'}
+                </h2>
+                <p className="text-slate text-xs sm:text-sm max-w-md mx-auto leading-relaxed">
+                  {levelResult.isPassed
+                    ? `Congratulations! You scored ${levelResult.percentage}%, successfully meeting the passing requirement of more than 80%. Your consecutive failure streak has reset to 0.`
+                    : levelResult.isLocked
+                    ? 'You have reached 3 consecutive failed levels. Progression is locked. Please reach out to our team to review concepts and unlock further levels.'
+                    : levelResult.isSecondFailureInLevel
+                    ? levelResult.streak === 1
+                      ? `You have failed Level ${activeSection.number} twice. You have 2 more warnings remaining before course progression is locked.`
+                      : `Warning: You failed Level ${activeSection.number} twice. Only 1 more warning remaining before course progression is locked.`
+                    : 'Your score was below 80%. Click "Reset Questions" to receive fresh questions and retry the level.'}
+                </p>
+              </div>
+
+              {/* Scorecard Metrics */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 max-w-lg mx-auto">
+                <div className={`p-3.5 rounded-xl border flex flex-col items-center justify-center ${
+                  levelResult.isPassed ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-white/[0.03] border-white/10'
+                }`}>
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Score</span>
+                  <span className={`font-mono text-2xl sm:text-3xl font-bold mt-0.5 ${
+                    levelResult.isPassed ? 'text-emerald-400' : 'text-rose-400'
+                  }`}>
+                    {levelResult.percentage}%
+                  </span>
+                  <span className="text-[10px] font-mono text-slate/50 mt-0.5">Passing: &gt; 80%</span>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col items-center justify-center">
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Correct</span>
+                  <span className="font-mono text-2xl sm:text-3xl font-bold text-paper mt-0.5">
+                    {levelResult.correctCount} <span className="text-slate/50 text-base font-normal">/ {levelResult.totalCount}</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-slate/50 mt-0.5">Questions</span>
+                </div>
+
+                <div className={`p-3.5 rounded-xl border flex flex-col items-center justify-center ${
+                  levelResult.isPassed
+                    ? 'bg-emerald-500/5 border-emerald-500/20'
+                    : levelResult.isLocked
+                    ? 'bg-rose-500/10 border-rose-500/25'
+                    : 'bg-white/[0.03] border-white/10'
+                }`}>
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Failure Streak</span>
+                  <span className={`font-mono text-2xl sm:text-3xl font-bold mt-0.5 ${
+                    levelResult.isPassed ? 'text-emerald-400' : levelResult.isLocked ? 'text-rose-400' : 'text-amber-400'
+                  }`}>
+                    {levelResult.isPassed ? '0' : levelResult.streak}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate/50 mt-0.5">
+                    {levelResult.isPassed ? 'Streak reset to 0' : `${levelResult.streak} of 3 before locked`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons Configured per exact prompt rules */}
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                {levelResult.isPassed ? (
+                  /* PASSED: Continue to next level directly */
                   <button
                     type="button"
-                    onClick={() => setModalOpen(true)}
-                    className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/20 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                    onClick={handleProceedToNextLevel}
+                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
                   >
-                    <span>Contact Team Now</span>
+                    <span>Continue to Next Level</span>
+                    <ArrowRight className="w-4 h-4" />
                   </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setDisclaimerModalOpen(true)}
-                    className="py-2.5 px-5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-1.5 shadow-lg shadow-primary/20 cursor-pointer"
-                  >
-                    <span>Continue to Next Set</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-
+                ) : !levelResult.isSecondFailureInLevel ? (
+                  /* FIRST FAILURE: ONLY "Reset Questions" option */
                   <button
                     type="button"
                     onClick={handleResetQuestions}
-                    className="py-2.5 px-4 rounded-xl bg-white/[0.02] hover:bg-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
+                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
                   >
-                    <span>Reset &amp; Retry Level</span>
+                    <Shuffle className="w-4 h-4" />
+                    <span>Reset Questions</span>
                   </button>
-                </>
-              ) : (
-                /* 3+ CONSECUTIVE FAILURES: Locked! Only Contact Team Available */
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(true)}
-                  className="py-2.5 px-6 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-rose-500/25 cursor-pointer"
-                >
-                  <ShieldAlert className="w-4 h-4" />
-                  <span>Contact Team Now (Required)</span>
-                </button>
-              )}
+                ) : !levelResult.isLocked ? (
+                  /* SECOND CONSECUTIVE FAILURE: Retest failed */
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setDisclaimerModalOpen(true)}
+                      className="py-2.5 px-5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-1.5 shadow-lg shadow-primary/20 cursor-pointer"
+                    >
+                      <span>Continue to Next Level</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleResetQuestions}
+                      className="py-2.5 px-4 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/10 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Shuffle className="w-3.5 h-3.5" />
+                      <span>Reset &amp; Retry Level</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setHelpModalOpen(true)}
+                      className="py-2.5 px-4 rounded-xl bg-white/[0.02] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
+                    >
+                      <span>Contact Team Now</span>
+                    </button>
+                  </>
+                ) : (
+                  /* 3+ CONSECUTIVE FAILURES: Locked */
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setHelpModalOpen(true)}
+                      className="py-2.5 px-5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer"
+                    >
+                      <ShieldAlert className="w-4 h-4" />
+                      <span>Contact Team Now</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        ) : (
+        )
+      ) : (
           /* SCENARIO 3: Active Question View */
           <div className="w-full my-auto space-y-3">
-            <div className="bg-panel/90 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4 shadow-2xl relative w-full">
+            <div className="bg-panel/90 border border-white/10 rounded-2xl p-5 sm:p-7 space-y-5 shadow-2xl relative w-full">
               
               {/* Card Header: Level progress, remaining items & compact timer */}
               <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-white/10">
@@ -793,10 +1207,6 @@ export const PythonPart1Page: React.FC = () => {
                   <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                   <span className="font-mono text-xs font-bold text-primary uppercase tracking-wide">
                     Level {activeSection.number} • Question {currentLevelQuestionNumber} of {totalLevelQuestions}
-                  </span>
-
-                  <span className="text-[11px] font-mono text-slate/70 bg-white/[0.04] border border-white/10 px-2.5 py-0.5 rounded-full">
-                    {remainingLevelQuestions === 0 ? 'Final question in level' : `${remainingLevelQuestions} remaining`}
                   </span>
                 </div>
 
@@ -834,7 +1244,7 @@ export const PythonPart1Page: React.FC = () => {
                     className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold border transition-all duration-300 flex items-center gap-1.5 ${
                       isSolved
                         ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-[0_0_12px_rgba(0,255,157,0.2)]'
-                        : 'bg-white/[0.04] border-white/10 text-slate'
+                        : 'bg-white/[0.04] border-white/10 text-white'
                     }`}
                   >
                     <span>1 Pt</span>
@@ -853,41 +1263,41 @@ export const PythonPart1Page: React.FC = () => {
               </div>
 
               {/* 2-Column Content: Concept on Left, Question on Right */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 
                 {/* Left Column: Concept Reference Note & Code (No timer) */}
-                <div className="lg:col-span-5 space-y-3 bg-black/40 border border-white/5 rounded-xl p-3.5 flex flex-col justify-between">
-                  <div className="space-y-2.5">
-                    <div className="space-y-1">
+                <div className="lg:col-span-6 space-y-3.5 p-4 sm:p-5 bg-black/40 border border-white/5 rounded-xl flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
                       <span className="text-[10px] font-mono uppercase font-bold text-primary tracking-wider block">
                         Concept Reference
                       </span>
-                      <h4 className="text-sm font-bold text-paper">
+                      <h4 className="text-sm font-bold text-white">
                         {currentBlock.heading}
                       </h4>
-                      <p className="text-slate text-xs leading-relaxed">
+                      <p className="text-white text-xs leading-relaxed">
                         {currentBlock.text}
                       </p>
                     </div>
 
                     {currentBlock.codeSnippet && (
                       <div className="rounded-lg border border-white/10 bg-black/80 overflow-hidden text-xs font-mono">
-                        <div className="px-2.5 py-1 bg-white/[0.02] border-b border-white/5 flex items-center justify-between text-[10px] text-slate/50">
+                        <div className="px-2.5 py-1 bg-white/[0.02] border-b border-white/5 flex items-center justify-between text-[10px] text-white">
                           <span>example.py</span>
                           <button
                             type="button"
                             onClick={() => handleCopyCode(currentBlock.codeSnippet!, `code-${activeQuestionIdx}`)}
-                            className="hover:text-paper cursor-pointer"
+                            className="text-white hover:text-white cursor-pointer"
                           >
                             {copiedId === `code-${activeQuestionIdx}` ? 'Copied' : 'Copy'}
                           </button>
                         </div>
-                        <pre className="p-2 text-xs text-paper overflow-x-auto leading-relaxed max-h-24">
+                        <pre className="p-2.5 text-xs text-white overflow-x-auto leading-relaxed max-h-48">
                           {currentBlock.codeSnippet}
                         </pre>
                         {currentBlock.terminalOutput && (
                           <div className="px-2.5 py-1 border-t border-white/5 bg-black text-[11px] text-primary flex items-center gap-1.5">
-                            <span className="text-slate/60 text-[10px] uppercase font-bold">Output:</span>
+                            <span className="text-white text-[10px] uppercase font-bold">Output:</span>
                             <span className="truncate">{currentBlock.terminalOutput.replace(/\n/g, ' | ')}</span>
                           </div>
                         )}
@@ -897,11 +1307,11 @@ export const PythonPart1Page: React.FC = () => {
 
                   {/* Continue button below note to reveal question */}
                   {isStudyPhase && !isLocked && (
-                    <div className="pt-2.5 border-t border-white/5">
+                    <div className="pt-3 border-t border-white/5">
                       <button
                         type="button"
                         onClick={handleStartQuestion}
-                        className="w-full py-2 px-3.5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 flex items-center justify-center gap-2 group"
+                        className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 flex items-center justify-center gap-2 group"
                       >
                         <span>Continue to Question</span>
                         <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -911,7 +1321,7 @@ export const PythonPart1Page: React.FC = () => {
                 </div>
 
                 {/* Right Column: Question & Choices */}
-                <div className="lg:col-span-7 space-y-3 relative overflow-hidden rounded-xl min-h-[300px]">
+                <div className="lg:col-span-6 space-y-3.5 relative overflow-hidden rounded-xl min-h-[300px]">
                   
                   {/* Study Phase Blur Overlay */}
                   {isStudyPhase && !isLocked && (
@@ -919,10 +1329,10 @@ export const PythonPart1Page: React.FC = () => {
                       onClick={handleStartQuestion}
                       className="absolute inset-0 z-20 backdrop-blur-md bg-black/70 rounded-xl border border-white/10 flex flex-col items-center justify-center p-6 text-center animate-fade-in cursor-pointer select-none"
                     >
-                      <h4 className="text-sm font-bold text-paper mb-1">
+                      <h4 className="text-sm font-bold text-white mb-1">
                         Question is Locked
                       </h4>
-                      <p className="text-xs text-slate/80 max-w-xs leading-relaxed">
+                      <p className="text-xs text-white max-w-xs leading-relaxed">
                         Read and understand the concept note on the left first. Click "Continue to Question" to unlock.
                       </p>
                     </div>
@@ -932,11 +1342,11 @@ export const PythonPart1Page: React.FC = () => {
                   <div className={`space-y-3 transition-all duration-300 ${
                     isStudyPhase && !isLocked ? 'filter blur-sm select-none pointer-events-none opacity-20' : ''
                   }`}>
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-mono uppercase font-bold text-primary/80 tracking-wider block">
+                    <div className="space-y-1 pl-1">
+                      <span className="text-[10px] font-mono uppercase font-bold text-primary tracking-wider block">
                         Multiple Choice Question
                       </span>
-                      <h3 className="font-jakarta text-base sm:text-lg font-bold text-paper leading-snug">
+                      <h3 className="font-jakarta text-base sm:text-lg font-bold text-white leading-snug">
                         {currentMcq.question}
                       </h3>
                     </div>
@@ -962,7 +1372,7 @@ export const PythonPart1Page: React.FC = () => {
                                 ? 'bg-rose-500/15 border-rose-500/40 text-rose-200 ring-1 ring-rose-500/30 shadow-md'
                                 : isLocked || isTimeUpWaiting
                                 ? 'bg-black/30 border-white/5 text-slate/40 cursor-default opacity-50'
-                                : 'bg-black/50 border-white/10 hover:border-primary/50 hover:bg-white/[0.03] text-paper cursor-pointer'
+                                : 'bg-black/50 border-white/10 hover:border-primary/50 hover:bg-white/[0.03] text-white cursor-pointer'
                             }`}
                           >
                             <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
@@ -970,7 +1380,7 @@ export const PythonPart1Page: React.FC = () => {
                                 ? 'bg-emerald-500 text-ink font-bold'
                                 : isChosenWrong
                                 ? 'bg-rose-500 text-white'
-                                : 'bg-white/10 text-slate'
+                                : 'bg-white/10 text-white'
                             }`}>
                               {showAsCorrect ? '✓' : isChosenWrong ? '✗' : opt.id}
                             </span>
@@ -1045,7 +1455,7 @@ export const PythonPart1Page: React.FC = () => {
                         </div>
 
                         <div className="flex items-center justify-between pt-1">
-                          <span className="text-[11px] font-mono text-slate/50">
+                          <span className="text-[11px] font-mono text-white">
                             {isUserWrongAnswer
                               ? 'Review the explanation above, then click Continue:'
                               : correctCountdown !== null
@@ -1159,7 +1569,7 @@ export const PythonPart1Page: React.FC = () => {
                   setDisclaimerModalOpen(false);
                   setDisclaimerConfirmed(false);
                 }}
-                className="py-2.5 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
+                className="py-2.5 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
               >
                 Cancel
               </button>
@@ -1191,24 +1601,40 @@ export const PythonPart1Page: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setPart2ModalOpen(false);
-                  navigate('/course/python-core/part-2');
+                  if (hasPurchased) {
+                    navigate('/course/python-core/part-2');
+                  } else {
+                    setPurchaseModalOpen(true);
+                  }
                 }}
                 className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 flex items-center justify-center gap-1.5"
               >
-                <span>Start Part 2: Conditionals &amp; Simple Loops</span>
+                <span>{hasPurchased ? 'Start Part 2: Conditionals & Simple Loops' : 'Buy Course to Start Part 2'}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
 
               <button
                 type="button"
                 onClick={() => setPart2ModalOpen(false)}
-                className="w-full py-2 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
+                className="w-full py-2 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
               >
                 Review Part 1 Notes
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Course Purchase & Coupon Modal */}
+      {pricing && (
+        <CoursePurchaseModal
+          isOpen={purchaseModalOpen}
+          onClose={() => setPurchaseModalOpen(false)}
+          courseId="python-core"
+          courseTitle="Python Programming & Automation"
+          pricing={pricing}
+          onSuccess={handlePostPurchaseUnlock}
+        />
       )}
 
     </div>

@@ -8,9 +8,9 @@ export interface RewardRequest {
   studentPhone?: string;
   collegeOrCompany?: string;
   courseTitle?: string;
-  milestoneId: string;       // e.g. 'cash-50', 'cash-100', 'cash-250', 'cash-500'
-  milestonePoints: number;   // e.g. 50, 100, 250, 500
-  rewardAmount: number;      // e.g. 50, 100, 250, 500
+  milestoneId: string;       // e.g. 'cash-200', 'cash-400', 'cash-700', 'cash-1000'
+  milestonePoints: number;   // e.g. 200, 400, 700, 1000
+  rewardAmount: number;      // e.g. 200, 400, 700, 1000
   pointsBalance: number;     // e.g. 52
   status: 'pending' | 'approved';
   requestedAt: string;       // ISO date string
@@ -20,55 +20,29 @@ export interface RewardRequest {
 
 export const REWARDS_STORAGE_KEY = 'dopilot_reward_requests_v1';
 
-const INITIAL_DEMO_REWARDS: RewardRequest[] = [
-  {
-    id: 'REW-501',
-    studentId: 'demo-std-1',
-    studentName: 'Rahul Verma',
-    studentEmail: 'rahul.verma@techsprint.io',
-    studentPhone: '+91 98450 12345',
-    collegeOrCompany: 'IIT Bombay',
-    courseTitle: 'Complete Python Course',
-    milestoneId: 'cash-50',
-    milestonePoints: 50,
-    rewardAmount: 50,
-    pointsBalance: 58,
-    status: 'pending',
-    requestedAt: new Date(Date.now() - 4 * 3600000).toISOString()
-  },
-  {
-    id: 'REW-502',
-    studentId: 'demo-std-2',
-    studentName: 'Priya Patel',
-    studentEmail: 'priya.patel@gmail.com',
-    studentPhone: '+91 98765 43210',
-    collegeOrCompany: 'SRM Institute',
-    courseTitle: 'Complete Python Course',
-    milestoneId: 'cash-50',
-    milestonePoints: 50,
-    rewardAmount: 50,
-    pointsBalance: 62,
-    status: 'approved',
-    requestedAt: new Date(Date.now() - 24 * 3600000).toISOString(),
-    approvedAt: new Date(Date.now() - 12 * 3600000).toISOString()
-  }
-];
+const INITIAL_DEMO_REWARDS: RewardRequest[] = [];
 
 export const getRewardRequests = (): RewardRequest[] => {
   try {
     const raw = localStorage.getItem(REWARDS_STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(REWARDS_STORAGE_KEY, JSON.stringify(INITIAL_DEMO_REWARDS));
-      return INITIAL_DEMO_REWARDS;
+      localStorage.setItem(REWARDS_STORAGE_KEY, JSON.stringify([]));
+      return [];
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed;
+      const realOnly = parsed.filter(
+        (r: any) => !r.studentId?.startsWith('demo-std') && !r.studentEmail?.includes('techsprint.io')
+      );
+      if (realOnly.length !== parsed.length) {
+        localStorage.setItem(REWARDS_STORAGE_KEY, JSON.stringify(realOnly));
+      }
+      return realOnly;
     }
-    return INITIAL_DEMO_REWARDS;
+    return [];
   } catch (err) {
     console.error('Failed to read reward requests from storage:', err);
-    return INITIAL_DEMO_REWARDS;
+    return [];
   }
 };
 

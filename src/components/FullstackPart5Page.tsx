@@ -16,6 +16,7 @@ import {
   recordLevelAttemptResultFullstackPart5, resetConsecutiveFailuresFullstackPart5,
   setLevelAttemptCountFullstackPart5
 } from '../data/fullstackPart5Data';
+import { useCourseQuestionResume } from '../utils/courseProgressSyncService';
 import { playTwinkleSound } from '../utils/audioEffects';
 
 const TIMER_DURATION = 30; // 30 seconds
@@ -141,6 +142,22 @@ export const FullstackPart5Page: React.FC = () => {
       }
     } catch {}
     return false;
+  });
+
+  useCourseQuestionResume({
+    courseId: 'fullstack-open',
+    partNum: 5,
+    studentEmail: user?.email,
+    activeSectionId,
+    setActiveSectionId,
+    activeQuestionIdx,
+    setActiveQuestionIdx,
+    setSelectedAnswers,
+    setIsStudyPhase,
+    setIsTimeUpWaiting,
+    setTimeLeft,
+    setTargetEndTime,
+    validSectionIds: FULLSTACK_PART_5_SECTIONS.map(s => s.id)
   });
 
   const [isCourseComplete, setIsCourseComplete] = useState<boolean>(() => {

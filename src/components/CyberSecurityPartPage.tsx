@@ -3,7 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, Clock, ArrowRight, Trophy, RotateCcw,
-  CheckCircle2, AlertCircle, Shuffle, Sparkles, AlertTriangle, ShieldAlert
+  CheckCircle2, AlertCircle, Shuffle, Sparkles, AlertTriangle, ShieldAlert, Award
 } from 'lucide-react';
 import { CyberTerminalLauncherButton } from './compiler/CyberTerminalModal';
 import { useCoursePoints } from '../context/CoursePointsContext';
@@ -11,6 +11,7 @@ import { useUserAuth } from '../context/UserAuthContext';
 import { ContactModal } from './ContactModal';
 import { NeedHelpModal } from './NeedHelpModal';
 import { CertificateModal } from './CertificateModal';
+import { CourseCompletionCard } from './CourseCompletionCard';
 import { 
   CYBER_SECURITY_PARTS, TheoryBlock, McqQuestion,
   getActiveQuestionsForLevelCyber, getConsecutiveFailedLevelsCyber,
@@ -18,6 +19,7 @@ import {
   setLevelAttemptCountCyber
 } from '../data/cyberSecurityData';
 import { CyberSecurityPart1Page } from './CyberSecurityPart1Page';
+import { useCourseQuestionResume } from '../utils/courseProgressSyncService';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -52,6 +54,21 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
 
   // Consistent student identifier
   const studentId = user?.id || user?.email || 'default_student';
+
+  // Immediate redirect to homepage if user is not authenticated or signs out
+  useEffect(() => {
+    if (!user) {
+      navigate('/', { replace: true });
+    }
+  }, [user, navigate]);
+
+  useEffect(() => {
+    const handleLogout = () => {
+      navigate('/', { replace: true });
+    };
+    window.addEventListener('dopilot_user_logged_out', handleLogout);
+    return () => window.removeEventListener('dopilot_user_logged_out', handleLogout);
+  }, [navigate]);
 
   // Persistent Active Section ID
   const [activeSectionId, setActiveSectionId] = useState<string>(() => {
@@ -153,6 +170,22 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
       }
     } catch {}
     return false;
+  });
+
+  useCourseQuestionResume({
+    courseId: 'cyber-security',
+    partNum: currentPartNum,
+    studentEmail: user?.email,
+    activeSectionId,
+    setActiveSectionId,
+    activeQuestionIdx,
+    setActiveQuestionIdx,
+    setSelectedAnswers,
+    setIsStudyPhase,
+    setIsTimeUpWaiting,
+    setTimeLeft,
+    setTargetEndTime,
+    validSectionIds: partSections.map(s => s.id)
   });
 
   const [isPartComplete, setIsPartComplete] = useState<boolean>(() => {
@@ -509,6 +542,61 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     }
   };
 
+  /* [DEV_TEST_CERTIFICATE_WORKFLOW] Temporary testing helper: jumps directly to final question of Cyber Security Part 14 */
+  const handleJumpToLastQuestion = () => {
+    const lastSec = partSections[partSections.length - 1];
+    const lastQIdx = lastSec.theoryBlocks.length - 1;
+    const qList = getActiveQuestionsForLevelCyber(lastSec, studentId, false);
+    const answers: Record<string, string> = {};
+
+    for (let i = 0; i < lastQIdx; i++) {
+      const q = qList[i] || lastSec.theoryBlocks[i]?.mcq;
+      if (q) {
+        const tid = `cyber-p${currentPartNum}-${lastSec.id}-${q.id || i}`;
+        if (i < lastQIdx - 1) {
+          answers[tid] = q.correctAnswer;
+        } else {
+          // Exactly 4 of first 5 are correct; 1 is wrong so that user MUST pass final question to score > 80% (5/6)
+          const wrongOpt = q.options?.find(opt => opt.id !== q.correctAnswer)?.id || 'INCORRECT_DEV_TEST_CHOICE';
+          answers[tid] = wrongOpt;
+        }
+      }
+    }
+
+    setActiveSectionId(lastSec.id);
+    setActiveQuestionIdx(lastQIdx);
+    setIsStudyPhase(false);
+    setLevelResult(null);
+    setIsPartComplete(false);
+    setSelectedAnswers(answers);
+    const freshEndTime = Date.now() + 60000;
+    setTargetEndTime(freshEndTime);
+    setTimeLeft(60);
+    setIsTimeUpWaiting(false);
+
+    try {
+      localStorage.setItem(`dopilot_cyber_part${currentPartNum}_mcq_answers`, JSON.stringify(answers));
+      localStorage.setItem(`dopilot_cyber_part${currentPartNum}_active_section_id`, lastSec.id);
+      localStorage.setItem(`dopilot_cyber_part${currentPartNum}_active_q_idx`, String(lastQIdx));
+      localStorage.setItem(`dopilot_cyber_part${currentPartNum}_study_phase`, 'false');
+      localStorage.setItem(`dopilot_cyber_part${currentPartNum}_q_target_end_time`, String(freshEndTime));
+      localStorage.removeItem(`dopilot_cyber_part${currentPartNum}_time_up`);
+      localStorage.removeItem(`dopilot_cyber_part${currentPartNum}_completed`);
+      localStorage.setItem('dopilot_cyber_security_last_part', String(currentPartNum));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    try {
+      if (currentPartNum === 14 && localStorage.getItem('dopilot_cyber_part14_jump_to_last_q') === 'true') {
+        localStorage.removeItem('dopilot_cyber_part14_jump_to_last_q');
+        handleJumpToLastQuestion();
+      }
+    } catch {}
+  }, [currentPartNum]);
+
   const handleCopyCode = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
@@ -532,7 +620,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/course/cyber-security')}
-            className="flex items-center gap-1.5 py-1 px-2.5 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
+            className="flex items-center gap-1.5 py-1 px-2.5 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
             title="Leave Course (Progress and remaining balance saved)"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
@@ -590,15 +678,9 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
                 </AnimatePresence>
               </div>
 
-              <span className="text-slate/60 text-[10px]">pts</span>
+              <span className="text-white text-[10px]">pts</span>
             </Link>
-
-            
           </div>
-
-          
-
-          
 
           <button
             type="button"
@@ -611,31 +693,33 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
       </header>
 
       {/* Main Focus Arena */}
-      <main className="flex-1 flex flex-col items-center justify-center max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto">
+      <main className={`flex-1 flex flex-col items-center justify-center ${!isPartComplete && !levelResult?.isFinished ? 'max-w-7xl' : 'max-w-5xl'} w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto transition-all`}>
         
-        {/* SCENARIO 1: Part Course Completed */}
+        {/* SCENARIO 1: Part / Course Completed */}
         {isPartComplete ? (
-          <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
+          currentPartNum === 14 ? (
+            <CourseCompletionCard onClaimCertificate={() => setCertificateModalOpen(true)} />
+          ) : (
+            <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
 
-            <div className="flex items-center justify-center pt-2">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Part {currentPartNum} Fully Certified</span>
-              </span>
-            </div>
+              <div className="flex items-center justify-center pt-2">
+                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Part {currentPartNum} Fully Certified</span>
+                </span>
+              </div>
 
-            <div className="space-y-2">
-              <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
-                Part {currentPartNum} Complete! 🎉
-              </h2>
-              <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                You have passed all levels in {currentPart.title}. You scored &gt; 80% across all sections and earned {points} course points!
-              </p>
-            </div>
+              <div className="space-y-2">
+                <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
+                  Part {currentPartNum} Complete! 🎉
+                </h2>
+                <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
+                  You have passed all levels in {currentPart.title}. You scored &gt; 80% across all sections and earned {points} course points!
+                </p>
+              </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
-              {currentPartNum < 14 ? (
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
                 <button
                   type="button"
                   onClick={() => navigate(`/course/cyber-security/part-${currentPartNum + 1}`)}
@@ -644,26 +728,17 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
                   <span>Continue to Part {currentPartNum + 1}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
-              ) : (
+
                 <button
                   type="button"
-                  onClick={() => setCertificateModalOpen(true)}
-                  className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                  onClick={() => navigate('/course/cyber-security')}
+                  className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Claim Cyber Security Certificate</span>
+                  <span>Back to Overview</span>
                 </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => navigate('/course/cyber-security')}
-                className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>Back to Overview</span>
-              </button>
+              </div>
             </div>
-          </div>
+          )
         ) : levelResult?.isFinished ? (
           /* SCENARIO 2: Level Evaluation Result (Pass, First Failure, Second Failure, or Locked) */
           <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
@@ -723,7 +798,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
                   : levelResult.isSecondFailureInLevel
                   ? levelResult.streak === 1
                     ? `You have failed Level ${activeSection.number} twice. You have 2 more warnings remaining before course progression is locked.`
-                    : 'Warning: Only 1 more warning remaining! If you fail the next level twice, your course progression will be completely locked.'
+                    : `Warning: You failed Level ${activeSection.number} twice. Only 1 more warning remaining! If you fail the next level twice, your course progression will be completely locked.`
                   : 'Your score was 80% or below. The passing requirement is more than 80%. Click "Reset Questions" to receive a completely new set of questions testing the same concepts with no duplicates.'}
               </p>
             </div>
@@ -810,7 +885,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
                   <button
                     type="button"
                     onClick={handleResetQuestions}
-                    className="py-2.5 px-4 rounded-xl bg-white/[0.02] hover:bg-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
+                    className="py-2.5 px-4 rounded-xl bg-white/[0.02] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
                   >
                     <span>Reset &amp; Retry Level</span>
                   </button>
@@ -829,20 +904,16 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
             </div>
           </div>
         ) : (
-          /* SCENARIO 3: Active Question View (Matches Python single card layout 1:1) */
+          /* SCENARIO 3: Active Question View */
           <div className="w-full my-auto space-y-3">
-            <div className="bg-panel/90 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4 shadow-2xl relative w-full">
+            <div className="bg-panel/90 border border-white/10 rounded-2xl p-5 sm:p-7 space-y-5 shadow-2xl relative w-full">
               
-              {/* Card Header: Level progress, remaining items & compact timer */}
+              {/* Card Header: Level progress & compact timer */}
               <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-white/10">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                   <span className="font-mono text-xs font-bold text-primary uppercase tracking-wide">
                     Level {activeSection.number} • Question {currentLevelQuestionNumber} of {totalLevelQuestions}
-                  </span>
-
-                  <span className="text-[11px] font-mono text-slate/70 bg-white/[0.04] border border-white/10 px-2.5 py-0.5 rounded-full">
-                    {remainingLevelQuestions === 0 ? 'Final question in level' : `${remainingLevelQuestions} remaining`}
                   </span>
                 </div>
 
@@ -880,7 +951,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
                     className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold border transition-all duration-300 flex items-center gap-1.5 ${
                       isSolved
                         ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-[0_0_12px_rgba(0,255,157,0.2)]'
-                        : 'bg-white/[0.04] border-white/10 text-slate'
+                        : 'bg-white/[0.04] border-white/10 text-white'
                     }`}
                   >
                     <span>1 Pt</span>
@@ -899,41 +970,41 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
               </div>
 
               {/* 2-Column Content: Concept on Left, Question on Right */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 
-                {/* Left Column: Concept Reference Note & Code (No timer pressure) */}
-                <div className="lg:col-span-5 space-y-3 bg-black/40 border border-white/5 rounded-xl p-3.5 flex flex-col justify-between">
-                  <div className="space-y-2.5">
-                    <div className="space-y-1">
+                {/* Left Column: Concept Reference Note & Code (No timer) */}
+                <div className="lg:col-span-6 space-y-3.5 p-4 sm:p-5 bg-black/40 border border-white/5 rounded-xl flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
                       <span className="text-[10px] font-mono uppercase font-bold text-primary tracking-wider block">
                         Concept Reference
                       </span>
-                      <h4 className="text-sm font-bold text-paper">
+                      <h4 className="text-sm font-bold text-white">
                         {currentBlock.heading}
                       </h4>
-                      <p className="text-slate text-xs leading-relaxed">
+                      <p className="text-white text-xs leading-relaxed">
                         {currentBlock.text}
                       </p>
                     </div>
 
                     {currentBlock.codeSnippet && (
                       <div className="rounded-lg border border-white/10 bg-black/80 overflow-hidden text-xs font-mono">
-                        <div className="px-2.5 py-1 bg-white/[0.02] border-b border-white/5 flex items-center justify-between text-[10px] text-slate/50">
+                        <div className="px-2.5 py-1 bg-white/[0.02] border-b border-white/5 flex items-center justify-between text-[10px] text-white">
                           <span>terminal.sh</span>
                           <button
                             type="button"
                             onClick={() => handleCopyCode(currentBlock.codeSnippet!, `code-${activeQuestionIdx}`)}
-                            className="hover:text-paper cursor-pointer"
+                            className="text-white hover:text-white cursor-pointer"
                           >
                             {copiedId === `code-${activeQuestionIdx}` ? 'Copied' : 'Copy'}
                           </button>
                         </div>
-                        <pre className="p-2 text-xs text-paper overflow-x-auto leading-relaxed max-h-24">
+                        <pre className="p-2.5 text-xs text-white overflow-x-auto leading-relaxed max-h-48">
                           {currentBlock.codeSnippet}
                         </pre>
                         {currentBlock.terminalOutput && (
                           <div className="px-2.5 py-1 border-t border-white/5 bg-black text-[11px] text-primary flex items-center gap-1.5">
-                            <span className="text-slate/60 text-[10px] uppercase font-bold">Output:</span>
+                            <span className="text-white text-[10px] uppercase font-bold">Output:</span>
                             <span className="truncate">{currentBlock.terminalOutput.replace(/\n/g, ' | ')}</span>
                           </div>
                         )}
@@ -943,11 +1014,11 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
 
                   {/* Continue button below note to reveal question */}
                   {isStudyPhase && !isLocked && (
-                    <div className="pt-2.5 border-t border-white/5">
+                    <div className="pt-3 border-t border-white/5">
                       <button
                         type="button"
                         onClick={handleStartQuestion}
-                        className="w-full py-2 px-3.5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 flex items-center justify-center gap-2 group"
+                        className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 flex items-center justify-center gap-2 group"
                       >
                         <span>Continue to Question</span>
                         <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -957,18 +1028,18 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
                 </div>
 
                 {/* Right Column: Question & Choices */}
-                <div className="lg:col-span-7 space-y-3 relative overflow-hidden rounded-xl min-h-[300px]">
+                <div className="lg:col-span-6 space-y-3.5 relative overflow-hidden rounded-xl min-h-[300px]">
                   
-                  {/* Study Phase Blur Overlay (Exact Python question locking) */}
+                  {/* Study Phase Blur Overlay */}
                   {isStudyPhase && !isLocked && (
                     <div 
                       onClick={handleStartQuestion}
                       className="absolute inset-0 z-20 backdrop-blur-md bg-black/70 rounded-xl border border-white/10 flex flex-col items-center justify-center p-6 text-center animate-fade-in cursor-pointer select-none"
                     >
-                      <h4 className="text-sm font-bold text-paper mb-1">
+                      <h4 className="text-sm font-bold text-white mb-1">
                         Question is Locked
                       </h4>
-                      <p className="text-xs text-slate/80 max-w-xs leading-relaxed">
+                      <p className="text-xs text-white max-w-xs leading-relaxed">
                         Read and understand the concept note on the left first. Click "Continue to Question" to unlock.
                       </p>
                     </div>
@@ -978,11 +1049,11 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
                   <div className={`space-y-3 transition-all duration-300 ${
                     isStudyPhase && !isLocked ? 'filter blur-sm select-none pointer-events-none opacity-20' : ''
                   }`}>
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-mono uppercase font-bold text-primary/80 tracking-wider block">
+                    <div className="space-y-1 pl-1">
+                      <span className="text-[10px] font-mono uppercase font-bold text-primary tracking-wider block">
                         Multiple Choice Question
                       </span>
-                      <h3 className="font-jakarta text-base sm:text-lg font-bold text-paper leading-snug">
+                      <h3 className="font-jakarta text-base sm:text-lg font-bold text-white leading-snug">
                         {currentMcq.question}
                       </h3>
                     </div>
@@ -1008,7 +1079,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
                                 ? 'bg-rose-500/15 border-rose-500/40 text-rose-200 ring-1 ring-rose-500/30 shadow-md'
                                 : isLocked || isTimeUpWaiting
                                 ? 'bg-black/30 border-white/5 text-slate/40 cursor-default opacity-50'
-                                : 'bg-black/50 border-white/10 hover:border-primary/50 hover:bg-white/[0.03] text-paper cursor-pointer'
+                                : 'bg-black/50 border-white/10 hover:border-primary/50 hover:bg-white/[0.03] text-white cursor-pointer'
                             }`}
                           >
                             <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
@@ -1016,7 +1087,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
                                 ? 'bg-emerald-500 text-ink font-bold'
                                 : isChosenWrong
                                 ? 'bg-rose-500 text-white'
-                                : 'bg-white/10 text-slate'
+                                : 'bg-white/10 text-white'
                             }`}>
                               {showAsCorrect ? '✓' : isChosenWrong ? '✗' : opt.id}
                             </span>
@@ -1082,8 +1153,11 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
                             ) : (
                               (() => {
                                 const chosen = currentMcq.options.find(o => o.id === currentChoice);
+                                const wrongText = chosen?.explanationIfWrong || (chosen as any)?.wrong || 'Incorrect choice.';
+                                const note = currentMcq.explanationNote;
+                                const showNote = note && !wrongText.toLowerCase().includes(note.trim().toLowerCase());
                                 return (
-                                  <span><strong className="text-rose-400 font-bold">✕ Not quite: </strong>{chosen?.explanationIfWrong || 'Incorrect choice.'} {currentMcq.explanationNote}</span>
+                                  <span><strong className="text-rose-400 font-bold">✕ Not quite: </strong>{wrongText}{showNote ? ` ${note}` : ''}</span>
                                 );
                               })()
                             )}
@@ -1091,7 +1165,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
                         </div>
 
                         <div className="flex items-center justify-between pt-1">
-                          <span className="text-[11px] font-mono text-slate/50">
+                          <span className="text-[11px] font-mono text-white">
                             {isUserWrongAnswer
                               ? 'Review the explanation above, then click Continue:'
                               : correctCountdown !== null
@@ -1139,6 +1213,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
         isOpen={certificateModalOpen}
         onClose={() => setCertificateModalOpen(false)}
         courseId="cyber-security"
+        courseTitle="Cyber Security Course"
       />
 
       {/* Disclaimer / Confirmation Popup for 2nd Consecutive Failure */}
@@ -1163,11 +1238,11 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
               <p className="text-amber-300 font-medium text-xs sm:text-sm leading-relaxed">
                 {levelResult?.streak === 1
                   ? `Warning: You failed Level ${activeSection.number} twice. You have 2 more warnings remaining before course progression is locked.`
-                  : 'Warning: Only 1 more warning remaining! If you fail the next level twice, your course progression will be completely locked.'}
+                  : `Warning: You failed Level ${activeSection.number} twice. Only 1 more warning remaining! If you fail the next level twice, your course progression will be completely locked.`}
               </p>
               <p className="text-slate text-xs leading-relaxed pt-1">
                 {levelResult?.streak === 1
-                  ? 'You are allowed to continue to the next level. However, if you continue to fail consecutive levels, your course progression will be locked until support intervention.'
+                  ? 'You are allowed to continue to the next level. However, if you continue to fail consecutive levels, you will receive only 1 more warning before your course progression is locked until support intervention.'
                   : 'This is your final warning before course lockdown. You are permitted to advance, but failing the next level twice will require mandatory contact with our support team to unlock progression.'}
               </p>
             </div>
@@ -1212,7 +1287,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
                   setDisclaimerModalOpen(false);
                   setDisclaimerConfirmed(false);
                 }}
-                className="py-2.5 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
+                className="py-2.5 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
               >
                 Cancel
               </button>

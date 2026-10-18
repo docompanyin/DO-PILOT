@@ -14,6 +14,8 @@ import { NeedHelpModal } from './NeedHelpModal';
 import { CoursePurchaseModal } from './checkout/CoursePurchaseModal';
 import { hasCourseAccess, getCoursePricing, CoursePricing } from '../utils/coursePricingService';
 import { getUserInitials } from '../utils/userInitials';
+import { getPostPurchaseStartingPart, getPart1OverallScore } from '../utils/part1ScoreService';
+import { restoreAllStudentCourseProgressFromCloud } from '../utils/courseProgressSyncService';
 
 interface PythonResumeInfo {
   targetPart: number;
@@ -24,13 +26,17 @@ interface PythonResumeInfo {
   heroButtonText: string;
 }
 
-const getPythonResumeInfo = (): PythonResumeInfo => {
+const getPythonResumeInfo = (isPurchased = false, studentId?: string): PythonResumeInfo => {
   try {
     const completedParts: number[] = [];
     for (let i = 1; i <= 14; i++) {
-      const isComp = (i === 1)
-        ? (localStorage.getItem('dopilot_part1_completed') === 'true' || localStorage.getItem('dopilot_completed') === 'true')
-        : (localStorage.getItem(`dopilot_part${i}_completed`) === 'true');
+      let isComp = false;
+      if (i === 1) {
+        const stored = localStorage.getItem('dopilot_part1_completed') === 'true' || localStorage.getItem('dopilot_completed') === 'true';
+        isComp = stored && getPart1OverallScore('python-core', studentId).isAbove50;
+      } else {
+        isComp = localStorage.getItem(`dopilot_part${i}_completed`) === 'true';
+      }
       if (isComp) completedParts.push(i);
     }
 
@@ -49,8 +55,12 @@ const getPythonResumeInfo = (): PythonResumeInfo => {
       };
     }
 
-    // Current eligible part is always the first incomplete part
-    const targetPart = firstUncompletedPart;
+    // Current eligible part is always the first incomplete part.
+    // Post-purchase rule: If Part 1 total score > 50%, start Part 2 directly; if <= 50%, restart Part 1
+    let targetPart = firstUncompletedPart;
+    if (isPurchased && targetPart <= 2) {
+      targetPart = getPostPurchaseStartingPart('python-core', targetPart, studentId);
+    }
 
     const rawLastVisited = Number(localStorage.getItem('dopilot_python_core_last_part'));
     const secKey = targetPart === 1 ? 'dopilot_active_section_id' : `dopilot_part${targetPart}_active_section_id`;
@@ -66,17 +76,18 @@ const getPythonResumeInfo = (): PythonResumeInfo => {
       status: isProgress ? 'in_progress' : 'not_started',
       completedCount: completedParts.length,
       completedParts,
-      buttonText: isProgress ? progressLabel : (targetPart === 1 ? 'Try Part 1 Free' : `Start Part ${targetPart}`),
-      heroButtonText: isProgress ? progressLabel : (targetPart === 1 ? 'Try Now — Start Part 1 Free' : `Start Part ${targetPart}`)
+      buttonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : (targetPart === 1 ? 'Try Part 1 Free' : `Start Part ${targetPart}`)),
+      heroButtonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : (targetPart === 1 ? 'Try Now — Start Part 1 Free' : `Start Part ${targetPart}`))
     };
   } catch {
+    const fallbackTarget = isPurchased ? getPostPurchaseStartingPart('python-core', 1, studentId) : 1;
     return {
-      targetPart: 1,
+      targetPart: fallbackTarget,
       status: 'not_started',
       completedCount: 0,
       completedParts: [],
-      buttonText: 'Try Part 1 Free',
-      heroButtonText: 'Try Now — Start Part 1 Free'
+      buttonText: isPurchased ? 'Start Learning' : (fallbackTarget === 1 ? 'Try Part 1 Free' : 'Start Part 2'),
+      heroButtonText: isPurchased ? 'Start Learning' : (fallbackTarget === 1 ? 'Try Now — Start Part 1 Free' : 'Start Part 2')
     };
   }
 };
@@ -90,12 +101,16 @@ interface JavaResumeInfo {
   heroButtonText: string;
 }
 
-const getJavaResumeInfo = (): JavaResumeInfo => {
+const getJavaResumeInfo = (isPurchased = false, studentId?: string): JavaResumeInfo => {
   try {
     const completedParts: number[] = [];
     for (let i = 1; i <= 14; i++) {
       if (localStorage.getItem(`dopilot_java_part${i}_completed`) === 'true') {
-        completedParts.push(i);
+        if (i === 1 && !getPart1OverallScore('java-core', studentId).isAbove50) {
+          // Score is below 50%, not completed
+        } else {
+          completedParts.push(i);
+        }
       }
     }
 
@@ -113,7 +128,10 @@ const getJavaResumeInfo = (): JavaResumeInfo => {
       };
     }
 
-    const targetPart = firstUncompletedPart;
+    let targetPart = firstUncompletedPart;
+    if (isPurchased && targetPart <= 2) {
+      targetPart = getPostPurchaseStartingPart('java-core', targetPart, studentId);
+    }
 
     const rawLastVisited = Number(localStorage.getItem('dopilot_java_core_last_part'));
     const secKey = targetPart === 1 ? 'dopilot_java_active_section_id' : `dopilot_java_part${targetPart}_active_section_id`;
@@ -129,17 +147,18 @@ const getJavaResumeInfo = (): JavaResumeInfo => {
       status: isProgress ? 'in_progress' : 'not_started',
       completedCount: completedParts.length,
       completedParts,
-      buttonText: isProgress ? progressLabel : (targetPart === 1 ? 'Try Part 1 Free' : `Start Part ${targetPart}`),
-      heroButtonText: isProgress ? progressLabel : (targetPart === 1 ? 'Try Now — Start Part 1 Free' : `Start Part ${targetPart}`)
+      buttonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : (targetPart === 1 ? 'Try Part 1 Free' : `Start Part ${targetPart}`)),
+      heroButtonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : (targetPart === 1 ? 'Try Now — Start Part 1 Free' : `Start Part ${targetPart}`))
     };
   } catch {
+    const fallbackTarget = isPurchased ? getPostPurchaseStartingPart('java-core', 1, studentId) : 1;
     return {
-      targetPart: 1,
+      targetPart: fallbackTarget,
       status: 'not_started',
       completedCount: 0,
       completedParts: [],
-      buttonText: 'Try Part 1 Free',
-      heroButtonText: 'Try Now — Start Part 1 Free'
+      buttonText: isPurchased ? 'Start Learning' : (fallbackTarget === 1 ? 'Try Part 1 Free' : 'Start Part 2'),
+      heroButtonText: isPurchased ? 'Start Learning' : (fallbackTarget === 1 ? 'Try Now — Start Part 1 Free' : 'Start Part 2')
     };
   }
 };
@@ -153,12 +172,16 @@ interface FullStackResumeInfo {
   heroButtonText: string;
 }
 
-const getFullStackResumeInfo = (): FullStackResumeInfo => {
+const getFullStackResumeInfo = (isPurchased = false, studentId?: string): FullStackResumeInfo => {
   try {
     const completedParts: number[] = [];
     for (let i = 0; i <= 13; i++) {
       if (localStorage.getItem(`dopilot_fullstack_part${i}_completed`) === 'true') {
-        completedParts.push(i);
+        if (i === 1 && !getPart1OverallScore('fullstack-open', studentId).isAbove50) {
+          // Score is below 50%, not completed
+        } else {
+          completedParts.push(i);
+        }
       }
     }
 
@@ -176,7 +199,10 @@ const getFullStackResumeInfo = (): FullStackResumeInfo => {
       };
     }
 
-    const targetPart = firstUncompletedPart;
+    let targetPart = firstUncompletedPart;
+    if (isPurchased && targetPart <= 2) {
+      targetPart = getPostPurchaseStartingPart('fullstack-open', targetPart, studentId);
+    }
 
     const rawLastVisited = localStorage.getItem('dopilot_fullstack_core_last_part');
     const lastVisited = (rawLastVisited !== null && !isNaN(Number(rawLastVisited))) ? Number(rawLastVisited) : null;
@@ -193,17 +219,18 @@ const getFullStackResumeInfo = (): FullStackResumeInfo => {
       status: isProgress ? 'in_progress' : 'not_started',
       completedCount: completedParts.length,
       completedParts,
-      buttonText: isProgress ? progressLabel : (targetPart === 0 ? 'Try Part 0 Free' : `Start Part ${targetPart}`),
-      heroButtonText: isProgress ? progressLabel : (targetPart === 0 ? 'Try Now — Start Part 0 Free' : `Start Part ${targetPart}`)
+      buttonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : (targetPart === 0 ? 'Try Part 0 Free' : `Start Part ${targetPart}`)),
+      heroButtonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : (targetPart === 0 ? 'Try Now — Start Part 0 Free' : `Start Part ${targetPart}`))
     };
   } catch {
+    const fallbackTarget = isPurchased ? getPostPurchaseStartingPart('fullstack-open', 1, studentId) : 0;
     return {
-      targetPart: 0,
+      targetPart: fallbackTarget,
       status: 'not_started',
       completedCount: 0,
       completedParts: [],
-      buttonText: 'Try Part 0 Free',
-      heroButtonText: 'Try Now — Start Part 0 Free'
+      buttonText: isPurchased ? 'Start Learning' : (fallbackTarget === 0 ? 'Try Part 0 Free' : 'Start Part 2'),
+      heroButtonText: isPurchased ? 'Start Learning' : (fallbackTarget === 0 ? 'Try Now — Start Part 0 Free' : 'Start Part 2')
     };
   }
 };
@@ -217,12 +244,16 @@ interface CyberSecurityResumeInfo {
   heroButtonText: string;
 }
 
-const getCyberSecurityResumeInfo = (): CyberSecurityResumeInfo => {
+const getCyberSecurityResumeInfo = (isPurchased = false, studentId?: string): CyberSecurityResumeInfo => {
   try {
     const completedParts: number[] = [];
     for (let i = 1; i <= 14; i++) {
       if (localStorage.getItem(`dopilot_cyber_part${i}_completed`) === 'true') {
-        completedParts.push(i);
+        if (i === 1 && !getPart1OverallScore('cyber-security', studentId).isAbove50) {
+          // Score is below 50%, not completed
+        } else {
+          completedParts.push(i);
+        }
       }
     }
 
@@ -240,7 +271,10 @@ const getCyberSecurityResumeInfo = (): CyberSecurityResumeInfo => {
       };
     }
 
-    const targetPart = firstUncompletedPart;
+    let targetPart = firstUncompletedPart;
+    if (isPurchased && targetPart <= 2) {
+      targetPart = getPostPurchaseStartingPart('cyber-security', targetPart, studentId);
+    }
 
     const rawLastVisited = Number(localStorage.getItem('dopilot_cyber_core_last_part'));
     const secKey = `dopilot_cyber_part${targetPart}_active_section_id`;
@@ -256,17 +290,18 @@ const getCyberSecurityResumeInfo = (): CyberSecurityResumeInfo => {
       status: isProgress ? 'in_progress' : 'not_started',
       completedCount: completedParts.length,
       completedParts,
-      buttonText: isProgress ? progressLabel : (targetPart === 1 ? 'Try Part 1 Free' : `Start Part ${targetPart}`),
-      heroButtonText: isProgress ? progressLabel : (targetPart === 1 ? 'Try Now — Start Part 1 Free' : `Start Part ${targetPart}`)
+      buttonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : (targetPart === 1 ? 'Try Part 1 Free' : `Start Part ${targetPart}`)),
+      heroButtonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : (targetPart === 1 ? 'Try Now — Start Part 1 Free' : `Start Part ${targetPart}`))
     };
   } catch {
+    const fallbackTarget = isPurchased ? getPostPurchaseStartingPart('cyber-security', 1, studentId) : 1;
     return {
-      targetPart: 1,
+      targetPart: fallbackTarget,
       status: 'not_started',
       completedCount: 0,
       completedParts: [],
-      buttonText: 'Try Part 1 Free',
-      heroButtonText: 'Try Now — Start Part 1 Free'
+      buttonText: isPurchased ? 'Start Learning' : (fallbackTarget === 1 ? 'Try Part 1 Free' : 'Start Part 2'),
+      heroButtonText: isPurchased ? 'Start Learning' : (fallbackTarget === 1 ? 'Try Now — Start Part 1 Free' : 'Start Part 2')
     };
   }
 };
@@ -281,11 +316,6 @@ export const CourseDetailPage: React.FC = () => {
   const [certModalOpen, setCertModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
-  const [resumeInfo, setResumeInfo] = useState<PythonResumeInfo>(() => getPythonResumeInfo());
-  const [javaResumeInfo, setJavaResumeInfo] = useState<JavaResumeInfo>(() => getJavaResumeInfo());
-  const [fullstackResumeInfo, setFullstackResumeInfo] = useState<FullStackResumeInfo>(() => getFullStackResumeInfo());
-  const [cyberResumeInfo, setCyberResumeInfo] = useState<CyberSecurityResumeInfo>(() => getCyberSecurityResumeInfo());
-
   // Find course by id or slug
   const course = courseId ? getCourseById(courseId) : COURSES_DATA[0];
   const safeCourseId = course?.id || courseId || 'python-core';
@@ -296,28 +326,60 @@ export const CourseDetailPage: React.FC = () => {
     return hasCourseAccess(safeCourseId, user?.id || user?.email);
   });
 
+  const [resumeInfo, setResumeInfo] = useState<PythonResumeInfo>(() => {
+    const purchased = hasCourseAccess(safeCourseId, user?.id || user?.email);
+    return getPythonResumeInfo(purchased, user?.id || user?.email);
+  });
+  const [javaResumeInfo, setJavaResumeInfo] = useState<JavaResumeInfo>(() => {
+    const purchased = hasCourseAccess(safeCourseId, user?.id || user?.email);
+    return getJavaResumeInfo(purchased, user?.id || user?.email);
+  });
+  const [fullstackResumeInfo, setFullstackResumeInfo] = useState<FullStackResumeInfo>(() => {
+    const purchased = hasCourseAccess(safeCourseId, user?.id || user?.email);
+    return getFullStackResumeInfo(purchased, user?.id || user?.email);
+  });
+  const [cyberResumeInfo, setCyberResumeInfo] = useState<CyberSecurityResumeInfo>(() => {
+    const purchased = hasCourseAccess(safeCourseId, user?.id || user?.email);
+    return getCyberSecurityResumeInfo(purchased, user?.id || user?.email);
+  });
+
   useEffect(() => {
     const checkAccess = () => {
-      setIsPurchased(hasCourseAccess(safeCourseId, user?.id || user?.email));
+      const studentId = user?.id || user?.email;
+      const purchased = hasCourseAccess(safeCourseId, studentId);
+      setIsPurchased(purchased);
       setPricing(getCoursePricing(safeCourseId));
+      setResumeInfo(getPythonResumeInfo(purchased, studentId));
+      setJavaResumeInfo(getJavaResumeInfo(purchased, studentId));
+      setFullstackResumeInfo(getFullStackResumeInfo(purchased, studentId));
+      setCyberResumeInfo(getCyberSecurityResumeInfo(purchased, studentId));
     };
     checkAccess();
+    if (user?.email) {
+      restoreAllStudentCourseProgressFromCloud(user.email).then(() => {
+        checkAccess();
+      });
+    }
     window.addEventListener('dopilot_course_purchased', checkAccess);
     window.addEventListener('dopilot_pricing_updated', checkAccess);
+    window.addEventListener('dopilot_progress_restored', checkAccess);
     window.addEventListener('storage', checkAccess);
     return () => {
       window.removeEventListener('dopilot_course_purchased', checkAccess);
       window.removeEventListener('dopilot_pricing_updated', checkAccess);
+      window.removeEventListener('dopilot_progress_restored', checkAccess);
       window.removeEventListener('storage', checkAccess);
     };
   }, [course, user?.id, user?.email]);
 
   useEffect(() => {
     const updateProgress = () => {
-      setResumeInfo(getPythonResumeInfo());
-      setJavaResumeInfo(getJavaResumeInfo());
-      setFullstackResumeInfo(getFullStackResumeInfo());
-      setCyberResumeInfo(getCyberSecurityResumeInfo());
+      const studentId = user?.id || user?.email;
+      const purchased = hasCourseAccess(safeCourseId, studentId);
+      setResumeInfo(getPythonResumeInfo(purchased, studentId));
+      setJavaResumeInfo(getJavaResumeInfo(purchased, studentId));
+      setFullstackResumeInfo(getFullStackResumeInfo(purchased, studentId));
+      setCyberResumeInfo(getCyberSecurityResumeInfo(purchased, studentId));
     };
     updateProgress();
     window.addEventListener('focus', updateProgress);
@@ -326,10 +388,14 @@ export const CourseDetailPage: React.FC = () => {
       window.removeEventListener('focus', updateProgress);
       window.removeEventListener('storage', updateProgress);
     };
-  }, [courseId]);
+  }, [courseId, safeCourseId, user?.id, user?.email]);
 
   const handleTryPart1 = () => {
     if (!course) return;
+    if (isPurchased) {
+      handleStartOrResume();
+      return;
+    }
     if (course.id === 'python-core') {
       localStorage.setItem('dopilot_python_core_last_part', '1');
       navigate('/course/python-core/part-1');
@@ -348,20 +414,29 @@ export const CourseDetailPage: React.FC = () => {
   };
 
   const handleStartOrResume = () => {
+    const studentId = user?.id || user?.email;
     if (course && course.id === 'python-core') {
-      const target = resumeInfo.targetPart || 1;
+      const target = isPurchased 
+        ? getPostPurchaseStartingPart('python-core', resumeInfo.targetPart, studentId) 
+        : (resumeInfo.targetPart || 1);
       localStorage.setItem('dopilot_python_core_last_part', String(target));
       navigate(`/course/python-core/part-${target}`);
     } else if (course && (course.id === 'java-core' || course.slug === 'complete-java-programming')) {
-      const target = javaResumeInfo.targetPart || 1;
+      const target = isPurchased 
+        ? getPostPurchaseStartingPart('java-core', javaResumeInfo.targetPart, studentId) 
+        : (javaResumeInfo.targetPart || 1);
       localStorage.setItem('dopilot_java_core_last_part', String(target));
       navigate(`/course/complete-java-programming/part-${target}`);
     } else if (course && (course.id === 'fullstack-open' || course.slug === 'fullstack-open')) {
-      const target = fullstackResumeInfo.targetPart ?? 0;
+      const target = isPurchased 
+        ? getPostPurchaseStartingPart('fullstack-open', fullstackResumeInfo.targetPart ?? 2, studentId) 
+        : (fullstackResumeInfo.targetPart ?? 0);
       localStorage.setItem('dopilot_fullstack_core_last_part', String(target));
       navigate(`/course/fullstack-open/part-${target}`);
     } else if (course && (course.id === 'cyber-security' || course.slug === 'cyber-security-core')) {
-      const target = cyberResumeInfo.targetPart || 1;
+      const target = isPurchased 
+        ? getPostPurchaseStartingPart('cyber-security', cyberResumeInfo.targetPart, studentId) 
+        : (cyberResumeInfo.targetPart || 1);
       localStorage.setItem('dopilot_cyber_core_last_part', String(target));
       navigate(`/course/cyber-security/part-${target}`);
     } else {
@@ -573,6 +648,25 @@ export const CourseDetailPage: React.FC = () => {
                   );
                 }
 
+                // If user has purchased the course and Part 1 is not current, allow reviewing/practicing anytime
+                if (isPurchased && globalIdx === 0 && !isCurrent) {
+                  return (
+                    <div className="pt-3 mt-3 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <span className="font-mono text-[11px] text-slate/80">
+                        Part {partNum} • Foundational Module
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => navigate(partUrl)}
+                        className="w-full sm:w-auto px-4 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/10 border border-white/10 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Play className="w-3 h-3 fill-current text-primary" />
+                        <span>{isCompleted ? `Review Part ${partNum}` : `Practice Part ${partNum}`}</span>
+                      </button>
+                    </div>
+                  );
+                }
+
                 if (isCurrent) {
                   return (
                     <div className="pt-3 mt-3 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
@@ -778,9 +872,11 @@ export const CourseDetailPage: React.FC = () => {
                       <Play className="w-4 h-4 fill-current shrink-0" />
                     )}
                     <span>
-                      {pricing?.isFreeCourse && resumeInfo.status === 'not_started'
-                        ? 'Start Free Course'
-                        : resumeInfo.heroButtonText}
+                      {isPurchased
+                        ? 'Start Learning'
+                        : (pricing?.isFreeCourse && resumeInfo.status === 'not_started'
+                          ? 'Start Free Course'
+                          : resumeInfo.heroButtonText)}
                     </span>
                     <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                   </button>
@@ -819,9 +915,11 @@ export const CourseDetailPage: React.FC = () => {
                       <Play className="w-4 h-4 fill-current shrink-0" />
                     )}
                     <span>
-                      {pricing?.isFreeCourse && javaResumeInfo.status === 'not_started'
-                        ? 'Start Free Course'
-                        : javaResumeInfo.heroButtonText}
+                      {isPurchased
+                        ? 'Start Learning'
+                        : (pricing?.isFreeCourse && javaResumeInfo.status === 'not_started'
+                          ? 'Start Free Course'
+                          : javaResumeInfo.heroButtonText)}
                     </span>
                     <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                   </button>
@@ -860,9 +958,11 @@ export const CourseDetailPage: React.FC = () => {
                       <Play className="w-4 h-4 fill-current shrink-0" />
                     )}
                     <span>
-                      {pricing?.isFreeCourse && fullstackResumeInfo.status === 'not_started'
-                        ? 'Start Free Course'
-                        : fullstackResumeInfo.heroButtonText}
+                      {isPurchased
+                        ? 'Start Learning'
+                        : (pricing?.isFreeCourse && fullstackResumeInfo.status === 'not_started'
+                          ? 'Start Free Course'
+                          : fullstackResumeInfo.heroButtonText)}
                     </span>
                     <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                   </button>
@@ -901,9 +1001,11 @@ export const CourseDetailPage: React.FC = () => {
                       <Play className="w-4 h-4 fill-current shrink-0" />
                     )}
                     <span>
-                      {pricing?.isFreeCourse && cyberResumeInfo.status === 'not_started'
-                        ? 'Start Free Course'
-                        : cyberResumeInfo.heroButtonText}
+                      {isPurchased
+                        ? 'Start Learning'
+                        : (pricing?.isFreeCourse && cyberResumeInfo.status === 'not_started'
+                          ? 'Start Free Course'
+                          : cyberResumeInfo.heroButtonText)}
                     </span>
                     <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                   </button>
@@ -1200,9 +1302,11 @@ export const CourseDetailPage: React.FC = () => {
                         <Play className="w-3.5 h-3.5 fill-current shrink-0" />
                       )}
                       <span>
-                        {pricing?.isFreeCourse && resumeInfo.status === 'not_started'
-                          ? 'Start Free Course'
-                          : resumeInfo.buttonText}
+                        {isPurchased
+                          ? 'Start Learning'
+                          : (pricing?.isFreeCourse && resumeInfo.status === 'not_started'
+                            ? 'Start Free Course'
+                            : resumeInfo.buttonText)}
                       </span>
                     </button>
                   )}
@@ -1219,9 +1323,11 @@ export const CourseDetailPage: React.FC = () => {
                         <Play className="w-3.5 h-3.5 fill-current shrink-0" />
                       )}
                       <span>
-                        {pricing?.isFreeCourse && javaResumeInfo.status === 'not_started'
-                          ? 'Start Free Course'
-                          : javaResumeInfo.buttonText}
+                        {isPurchased
+                          ? 'Start Learning'
+                          : (pricing?.isFreeCourse && javaResumeInfo.status === 'not_started'
+                            ? 'Start Free Course'
+                            : javaResumeInfo.buttonText)}
                       </span>
                     </button>
                   )}
@@ -1238,9 +1344,11 @@ export const CourseDetailPage: React.FC = () => {
                         <Play className="w-3.5 h-3.5 fill-current shrink-0" />
                       )}
                       <span>
-                        {pricing?.isFreeCourse && fullstackResumeInfo.status === 'not_started'
-                          ? 'Start Free Course'
-                          : fullstackResumeInfo.buttonText}
+                        {isPurchased
+                          ? 'Start Learning'
+                          : (pricing?.isFreeCourse && fullstackResumeInfo.status === 'not_started'
+                            ? 'Start Free Course'
+                            : fullstackResumeInfo.buttonText)}
                       </span>
                     </button>
                   )}
@@ -1257,9 +1365,11 @@ export const CourseDetailPage: React.FC = () => {
                         <Play className="w-3.5 h-3.5 fill-current shrink-0" />
                       )}
                       <span>
-                        {pricing?.isFreeCourse && cyberResumeInfo.status === 'not_started'
-                          ? 'Start Free Course'
-                          : cyberResumeInfo.buttonText}
+                        {isPurchased
+                          ? 'Start Learning'
+                          : (pricing?.isFreeCourse && cyberResumeInfo.status === 'not_started'
+                            ? 'Start Free Course'
+                            : cyberResumeInfo.buttonText)}
                       </span>
                     </button>
                   )}
@@ -1344,6 +1454,7 @@ export const CourseDetailPage: React.FC = () => {
         isOpen={certModalOpen}
         onClose={() => setCertModalOpen(false)}
         courseTitle={course.title}
+        courseId={course.id}
       />
 
       {/* Need Help Modal */}

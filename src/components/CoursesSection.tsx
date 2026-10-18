@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, Clock, ArrowUpRight } from 'lucide-react';
 import { useUserAuth } from '../context/UserAuthContext';
 import { useSiteData } from '../context/DataContext';
-import { getCoursePricing } from '../utils/coursePricingService';
+import { getCoursePricing, hasCourseAccess } from '../utils/coursePricingService';
 
 interface CourseItem {
   id: string;
@@ -28,19 +28,23 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
   const cardRef = useRef<HTMLDivElement>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
+  const { user } = useUserAuth();
   const [pricing, setPricing] = useState(() => getCoursePricing(course.id));
+  const [isPurchased, setIsPurchased] = useState(() => hasCourseAccess(course.id, user?.id || user?.email));
 
   React.useEffect(() => {
     const handleUpdate = () => {
       setPricing(getCoursePricing(course.id));
+      setIsPurchased(hasCourseAccess(course.id, user?.id || user?.email));
     };
+    handleUpdate();
     window.addEventListener('dopilot_pricing_updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
     return () => {
       window.removeEventListener('dopilot_pricing_updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
-  }, [course.id]);
+  }, [course.id, user?.id, user?.email]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!cardRef.current) return;
@@ -152,7 +156,7 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
           }}
           className="px-4 py-2 rounded-full bg-primary text-ink font-jakarta font-extrabold text-xs hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all flex items-center gap-1 cursor-pointer min-h-[36px]"
         >
-          <span>{pricing?.isFreeCourse ? 'Start Free' : 'Enroll'}</span>
+          <span>{isPurchased ? 'Start' : (pricing?.isFreeCourse ? 'Start Free' : 'Enroll')}</span>
           <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
         </button>
       </div>

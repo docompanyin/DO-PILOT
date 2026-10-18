@@ -41,104 +41,8 @@ export interface CourseResetAuditEntry {
 export const LOCKED_COURSES_STORAGE_KEY = 'dopilot_locked_courses_registry_v1';
 export const COURSE_RESETS_AUDIT_KEY = 'dopilot_course_resets_audit_v1';
 
-const INITIAL_DEMO_LOCKED_COURSES: LockedCourseRecord[] = [
-  {
-    id: 'LC-101',
-    studentId: 'demo-std-1',
-    studentName: 'Rahul Verma',
-    studentEmail: 'rahul.verma@techsprint.io',
-    studentPhone: '+91 98450 12345',
-    collegeOrCompany: 'IIT Bombay',
-    courseId: 'python',
-    courseName: 'Complete Python Course',
-    partNum: 10,
-    partTitle: 'Part 10: OOP Hierarchies & Inheritance',
-    failedPart: 'Part 10',
-    failedSection: 'OOP Hierarchies & Inheritance',
-    consecutiveFailures: 3,
-    lockStatus: 'locked',
-    lockedAt: new Date(Date.now() - 3 * 3600000).toISOString(),
-    progressSummary: '9 / 14 Parts Completed • 24 Points',
-    earnedPoints: 24
-  },
-  {
-    id: 'LC-102',
-    studentId: 'demo-std-3',
-    studentName: 'Ananya Iyer',
-    studentEmail: 'ananya.iyer99@gmail.com',
-    studentPhone: '+91 98123 45678',
-    collegeOrCompany: 'Anna University',
-    courseId: 'python',
-    courseName: 'Complete Python Course',
-    partNum: 2,
-    partTitle: 'Part 2: Variables & Data Types',
-    failedPart: 'Part 2',
-    failedSection: 'Variables & Data Types',
-    consecutiveFailures: 3,
-    lockStatus: 'locked',
-    lockedAt: new Date(Date.now() - 18 * 3600000).toISOString(),
-    progressSummary: '1 / 14 Parts Completed • 2 Points',
-    earnedPoints: 2
-  },
-  {
-    id: 'LC-103',
-    studentId: 'demo-std-6',
-    studentName: 'Vikramaditya Singh',
-    studentEmail: 'vikram.singh@nitw.ac.in',
-    studentPhone: '+91 97654 32109',
-    collegeOrCompany: 'NIT Warangal',
-    courseId: 'java',
-    courseName: 'Complete Java Course',
-    partNum: 4,
-    partTitle: 'Part 4: Methods, Signatures & Return Types',
-    failedPart: 'Part 4',
-    failedSection: 'Methods, Signatures & Return Types',
-    consecutiveFailures: 3,
-    lockStatus: 'locked',
-    lockedAt: new Date(Date.now() - 26 * 3600000).toISOString(),
-    progressSummary: '3 / 14 Parts Completed • 9 Points',
-    earnedPoints: 9
-  },
-  {
-    id: 'LC-104',
-    studentId: 'demo-std-2',
-    studentName: 'Priya Patel',
-    studentEmail: 'priya.patel@gmail.com',
-    studentPhone: '+91 98765 43210',
-    collegeOrCompany: 'SRM Institute of Science & Technology',
-    courseId: 'cyber',
-    courseName: 'Cyber Security & Ethical Hacking',
-    partNum: 1,
-    partTitle: 'Part 1: Networking & Threat Modeling',
-    failedPart: 'Part 1',
-    failedSection: 'Networking & Threat Modeling',
-    consecutiveFailures: 3,
-    lockStatus: 'unlocked',
-    lockedAt: new Date(Date.now() - 48 * 3600000).toISOString(),
-    unlockedAt: new Date(Date.now() - 12 * 3600000).toISOString(),
-    unlockedBy: 'admin',
-    adminNotes: 'Student contacted support and completed mentor concept review.',
-    progressSummary: '0 / 14 Parts Completed • 12 Points',
-    earnedPoints: 12
-  }
-];
-
-const INITIAL_DEMO_AUDIT_LOGS: CourseResetAuditEntry[] = [
-  {
-    id: 'RST-9001',
-    recordId: 'LC-104',
-    studentId: 'demo-std-2',
-    studentName: 'Priya Patel',
-    studentEmail: 'priya.patel@gmail.com',
-    courseId: 'cyber',
-    courseName: 'Cyber Security & Ethical Hacking',
-    adminIdentifier: 'admin',
-    resetTimestamp: new Date(Date.now() - 12 * 3600000).toISOString(),
-    previousFailures: 3,
-    adminNotes: 'Student contacted support and completed mentor concept review.',
-    status: 'SUCCESS'
-  }
-];
+const INITIAL_DEMO_LOCKED_COURSES: LockedCourseRecord[] = [];
+const INITIAL_DEMO_AUDIT_LOGS: CourseResetAuditEntry[] = [];
 
 /**
  * Scan browser localStorage for live locked keys to discover any newly locked student sessions
@@ -150,18 +54,13 @@ export const scanAndSyncLiveLocks = (): LockedCourseRecord[] => {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        records = parsed;
+        records = parsed.filter(
+          (r: any) => !r.studentId?.startsWith('demo-std') && !r.studentEmail?.includes('techsprint.io')
+        );
       }
     }
   } catch (e) {
     console.error('Failed to parse locked courses registry:', e);
-  }
-
-  if (records.length === 0) {
-    records = [...INITIAL_DEMO_LOCKED_COURSES];
-    try {
-      localStorage.setItem(LOCKED_COURSES_STORAGE_KEY, JSON.stringify(records));
-    } catch {}
   }
 
   // Scan localStorage for live course lock keys
@@ -274,17 +173,23 @@ export const getCourseResetAuditEntries = (): CourseResetAuditEntry[] => {
   try {
     const raw = localStorage.getItem(COURSE_RESETS_AUDIT_KEY);
     if (!raw) {
-      localStorage.setItem(COURSE_RESETS_AUDIT_KEY, JSON.stringify(INITIAL_DEMO_AUDIT_LOGS));
-      return INITIAL_DEMO_AUDIT_LOGS;
+      localStorage.setItem(COURSE_RESETS_AUDIT_KEY, JSON.stringify([]));
+      return [];
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed;
+      const realOnly = parsed.filter(
+        (a: any) => !a.studentId?.startsWith('demo-std') && !a.studentEmail?.includes('techsprint.io')
+      );
+      if (realOnly.length !== parsed.length) {
+        localStorage.setItem(COURSE_RESETS_AUDIT_KEY, JSON.stringify(realOnly));
+      }
+      return realOnly;
     }
-    return INITIAL_DEMO_AUDIT_LOGS;
+    return [];
   } catch (e) {
     console.error('Failed to get course reset audit entries:', e);
-    return INITIAL_DEMO_AUDIT_LOGS;
+    return [];
   }
 };
 

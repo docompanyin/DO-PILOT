@@ -51,16 +51,8 @@ const TrophyCelebration: React.FC<TrophyCelebrationProps> = ({ courseName, onAni
         animRef.current = anim;
         setHasLottieRendered(true);
         anim.setSpeed(1.0);
-        anim.addEventListener('complete', () => {
-          setTimeout(() => {
-            if (!isCancelled) onAnimationEndRef.current();
-          }, 1000);
-        });
       } catch (err) {
         console.error('Lottie play error:', err);
-        setTimeout(() => {
-          if (!isCancelled) onAnimationEndRef.current();
-        }, 3200);
       }
     };
 
@@ -77,29 +69,16 @@ const TrophyCelebration: React.FC<TrophyCelebrationProps> = ({ courseName, onAni
           clearInterval(poll);
         }
       }, 50);
-
-      const safetyTimer = setTimeout(() => {
-        clearInterval(poll);
-        if (!isCancelled) onAnimationEndRef.current();
-      }, 3800);
-
-      return () => {
-        isCancelled = true;
-        clearInterval(poll);
-        clearTimeout(safetyTimer);
-        if (animRef.current) {
-          try { animRef.current.destroy(); } catch {}
-        }
-      };
     }
 
-    const fallbackTimer = setTimeout(() => {
+    // Redirect after exactly 4 seconds
+    const redirectTimer = setTimeout(() => {
       if (!isCancelled) onAnimationEndRef.current();
-    }, 4500);
+    }, 4000);
 
     return () => {
       isCancelled = true;
-      clearTimeout(fallbackTimer);
+      clearTimeout(redirectTimer);
       if (animRef.current) {
         try { animRef.current.destroy(); } catch {}
       }
@@ -136,11 +115,6 @@ const TrophyCelebration: React.FC<TrophyCelebrationProps> = ({ courseName, onAni
         <p className="font-sans text-xs sm:text-sm text-slate leading-relaxed">
           You now have lifetime unlocked access to <strong className="text-paper">{courseName}</strong>.
         </p>
-      </div>
-
-      <div className="flex items-center justify-center gap-2 text-xs font-mono text-primary pt-2 animate-pulse">
-        <Sparkles className="w-4 h-4" />
-        <span>Redirecting to course details page...</span>
       </div>
     </motion.div>
   );
@@ -634,10 +608,13 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
             <TrophyCelebration
               courseName={resolvedCourseName}
               onAnimationEnd={() => {
-                if (onSuccess) onSuccess();
+                if (onSuccess) {
+                  onSuccess();
+                } else {
+                  const targetRoute = getCanonicalCourseRoute(courseId);
+                  navigate(targetRoute);
+                }
                 onClose();
-                const targetRoute = getCanonicalCourseRoute(courseId);
-                navigate(targetRoute);
               }}
             />
           ) : purchaseCompleted ? (

@@ -14,6 +14,7 @@ import {
   recordLevelAttemptResultPart5, resetConsecutiveFailuresPart5,
   setLevelAttemptCountPart5
 } from '../data/javaPart5Data';
+import { useCourseQuestionResume } from '../utils/courseProgressSyncService';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -127,6 +128,22 @@ export const JavaPart5Page: React.FC = () => {
       }
     } catch {}
     return false;
+  });
+
+  useCourseQuestionResume({
+    courseId: 'java-core',
+    partNum: 5,
+    studentEmail: user?.email,
+    activeSectionId,
+    setActiveSectionId,
+    activeQuestionIdx,
+    setActiveQuestionIdx,
+    setSelectedAnswers,
+    setIsStudyPhase,
+    setIsTimeUpWaiting,
+    setTimeLeft,
+    setTargetEndTime,
+    validSectionIds: PART_5_SECTIONS.map(s => s.id)
   });
 
   const [isCourseComplete, setIsCourseComplete] = useState<boolean>(() => {

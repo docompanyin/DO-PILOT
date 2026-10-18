@@ -10,6 +10,8 @@ import { useCoursePoints } from '../context/CoursePointsContext';
 import { useUserAuth } from '../context/UserAuthContext';
 import { ContactModal } from './ContactModal';
 import { NeedHelpModal } from './NeedHelpModal';
+import { CertificateModal } from './CertificateModal';
+import { CourseCompletionCard } from './CourseCompletionCard';
 import { 
   FULLSTACK_PART_13_SECTIONS, TheoryBlock, McqQuestion,
   getActiveQuestionsForLevelFullstackPart13, getConsecutiveFailedLevelsFullstackPart13,
@@ -155,6 +157,7 @@ export const FullstackPart13Page: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
   const [graduationModalOpen, setGraduationModalOpen] = useState(false);
+  const [certModalOpen, setCertModalOpen] = useState(false);
   const [compilerModalOpen, setCompilerModalOpen] = useState(false);
   const [, setActiveTask] = useState<FullstackTaskContext | null>(null);
 
@@ -363,7 +366,6 @@ export const FullstackPart13Page: React.FC = () => {
       }
     } else {
       setIsCourseComplete(true);
-      setGraduationModalOpen(true);
       playTwinkleSound();
       try {
         localStorage.setItem('dopilot_fullstack_part13_completed', 'true');
@@ -371,6 +373,61 @@ export const FullstackPart13Page: React.FC = () => {
       } catch {}
     }
   };
+
+  /* [DEV_TEST_CERTIFICATE_WORKFLOW] Temporary testing helper: jumps directly to final question of Fullstack Part 13 */
+  const handleJumpToLastQuestion = () => {
+    const lastSec = FULLSTACK_PART_13_SECTIONS[FULLSTACK_PART_13_SECTIONS.length - 1];
+    const lastQIdx = lastSec.theoryBlocks.length - 1;
+    const qList = getActiveQuestionsForLevelFullstackPart13(lastSec, studentId, false);
+    const answers: Record<string, string> = {};
+
+    for (let i = 0; i < lastQIdx; i++) {
+      const q = qList[i] || lastSec.theoryBlocks[i]?.mcq;
+      if (q) {
+        const tid = `fullstack-13-${lastSec.id}-${q.id || i}`;
+        if (i < lastQIdx - 1) {
+          answers[tid] = q.correctAnswer;
+        } else {
+          // Exactly 4 of first 5 are correct; 1 is wrong so that user MUST pass final question to score > 80% (5/6)
+          const wrongOpt = q.options?.find(opt => opt.id !== q.correctAnswer)?.id || 'INCORRECT_DEV_TEST_CHOICE';
+          answers[tid] = wrongOpt;
+        }
+      }
+    }
+
+    setActiveSectionId(lastSec.id);
+    setActiveQuestionIdx(lastQIdx);
+    setIsStudyPhase(false);
+    setLevelResult(null);
+    setIsCourseComplete(false);
+    setSelectedAnswers(answers);
+    const freshEndTime = Date.now() + 60000;
+    setTargetEndTime(freshEndTime);
+    setTimeLeft(60);
+    setIsTimeUpWaiting(false);
+
+    try {
+      localStorage.setItem('dopilot_fullstack_part13_mcq_answers', JSON.stringify(answers));
+      localStorage.setItem('dopilot_fullstack_part13_active_section_id', lastSec.id);
+      localStorage.setItem('dopilot_fullstack_part13_active_q_idx', String(lastQIdx));
+      localStorage.setItem('dopilot_fullstack_part13_study_phase', 'false');
+      localStorage.setItem('dopilot_fullstack_part13_q_target_end_time', String(freshEndTime));
+      localStorage.removeItem('dopilot_fullstack_part13_time_up');
+      localStorage.removeItem('dopilot_fullstack_part13_completed');
+      localStorage.setItem('dopilot_fullstack_open_last_part', '13');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('dopilot_fullstack_part13_jump_to_last_q') === 'true') {
+        localStorage.removeItem('dopilot_fullstack_part13_jump_to_last_q');
+        handleJumpToLastQuestion();
+      }
+    } catch {}
+  }, []);
 
   // Auto-skip countdown after answering correctly
   useEffect(() => {
@@ -570,6 +627,16 @@ export const FullstackPart13Page: React.FC = () => {
 
           
 
+          {/* [DEV_TEST_CERTIFICATE_WORKFLOW] Temporary testing button - safe to remove */}
+          <button
+            type="button"
+            onClick={handleJumpToLastQuestion}
+            className="py-1 px-2.5 rounded-full bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 font-mono text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+            title="Temporary Test Button: Jump to Part 13 Last Question"
+          >
+            <span>⚡ Test: Last Q</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setHelpModalOpen(true)}
@@ -583,63 +650,9 @@ export const FullstackPart13Page: React.FC = () => {
       {/* Main Focus Arena */}
       <main className="flex-1 flex flex-col items-center justify-center max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto">
         
-        {/* SCENARIO 1: Course Complete (Entire Full Stack Open Curriculum Mastered!) */}
+        {/* SCENARIO 1: Course Complete */}
         {isCourseComplete ? (
-          <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full mx-auto text-center space-y-6 shadow-2xl my-auto backdrop-blur-xl animate-fade-in relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
-
-            <div className="flex items-center justify-center pt-2">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
-                <Award className="w-4 h-4 text-emerald-400" />
-                <span>Full Stack Open Curriculum Mastered</span>
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
-                Curriculum Graduation Achieved! 🎓
-              </h2>
-              <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                Outstanding dedication! You have successfully completed all 14 parts (Parts 0 through 13) of University of Helsinki Full Stack Open: React, Redux, Node.js, Express, MongoDB, GraphQL, TypeScript, React Native, CI/CD, Containers, Docker, and PostgreSQL with Sequelize. You scored &gt; 80% across all sections and earned {points} course points!
-              </p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex items-center justify-around font-mono text-xs max-w-md mx-auto">
-              <div>
-                <span className="text-slate block text-[10px] uppercase">Parts Mastered</span>
-                <span className="text-primary font-bold text-base">14 / 14</span>
-              </div>
-              <div className="h-6 w-[1px] bg-white/10" />
-              <div>
-                <span className="text-slate block text-[10px] uppercase">Total Levels</span>
-                <span className="text-emerald-400 font-bold text-base">84 Levels</span>
-              </div>
-              <div className="h-6 w-[1px] bg-white/10" />
-              <div>
-                <span className="text-slate block text-[10px] uppercase">Final Points</span>
-                <span className="text-amber-400 font-bold text-base">{points} pts</span>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
-              <button
-                type="button"
-                onClick={() => setGraduationModalOpen(true)}
-                className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>View Graduation Certificate</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => navigate('/course/fullstack-open')}
-                className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>Back to Curriculum Overview</span>
-              </button>
-            </div>
-          </div>
+          <CourseCompletionCard onClaimCertificate={() => setCertModalOpen(true)} />
         ) : levelResult?.isFinished ? (
           /* SCENARIO 2: Level Evaluation Result */
           <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full mx-auto text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
@@ -1143,66 +1156,7 @@ export const FullstackPart13Page: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Graduation Master Certification Celebration Modal */}
-      <AnimatePresence>
-        {graduationModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#0b0e14] border border-primary/40 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl text-center space-y-4"
-            >
-              <div className="w-16 h-16 rounded-2xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-400 mx-auto">
-                <Award className="w-8 h-8" />
-              </div>
 
-              <span className="font-mono text-xs uppercase tracking-widest text-primary font-bold block">
-                Official Graduation Achieved
-              </span>
-
-              <h3 className="font-jakarta font-black text-2xl text-paper">
-                Full Stack Open Curriculum Mastered!
-              </h3>
-
-              <p className="text-slate text-xs sm:text-sm leading-relaxed">
-                Outstanding work! You have successfully completed all 14 parts (Parts 0 through 13) of the Full Stack Open curriculum. You have mastered full-stack JavaScript/TypeScript engineering: React, Node, Express, MongoDB, GraphQL, React Native, CI/CD, Docker, and PostgreSQL with Sequelize.
-              </p>
-
-              <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex items-center justify-around font-mono text-xs">
-                <div>
-                  <span className="text-slate block text-[10px] uppercase">Parts Mastered</span>
-                  <span className="text-primary font-bold text-base">14 / 14</span>
-                </div>
-                <div className="h-6 w-[1px] bg-white/10" />
-                <div>
-                  <span className="text-slate block text-[10px] uppercase">Total Levels</span>
-                  <span className="text-emerald-400 font-bold text-base">84 Levels</span>
-                </div>
-                <div className="h-6 w-[1px] bg-white/10" />
-                <div>
-                  <span className="text-slate block text-[10px] uppercase">Final Points</span>
-                  <span className="text-amber-400 font-bold text-base">{points} pts</span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-center gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGraduationModalOpen(false);
-                    navigate('/course/fullstack-open');
-                  }}
-                  className="px-6 py-3 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer shadow-xl shadow-primary/25 flex items-center gap-2"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>View Certified Course Profile</span>
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Interactive Web Sandbox Modal */}
       <FullstackWebModal
@@ -1216,6 +1170,15 @@ export const FullstackPart13Page: React.FC = () => {
         onClose={() => setHelpModalOpen(false)}
         courseTitle="Full Stack Open Course"
         courseId="fullstack-open"
+      />
+
+      {/* Official Certificate Modal */}
+      <CertificateModal
+        isOpen={certModalOpen}
+        onClose={() => setCertModalOpen(false)}
+        earnedPoints={points}
+        courseId="fullstack-open"
+        courseTitle="Full Stack Open Course"
       />
     </div>
   );

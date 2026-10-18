@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts, PDFName } from 'pdf-lib';
 
 export interface CertificateRecord {
   certificateId: string;
@@ -25,7 +25,7 @@ export interface CourseCertConfig {
 export const COURSE_CERT_CONFIGS: Record<string, CourseCertConfig> = {
   'python-core': {
     courseId: 'python-core',
-    title: 'Python Core & Advanced Software Architecture',
+    title: 'Complete Python Course',
     subtitle: '14 Comprehensive Modules • Core & Advanced Standards • Software Architecture',
     competencies: 'ALGORITHMIC LOGIC   •   DATA STRUCTURES   •   OOP ARCHITECTURE   •   PYGAME ENGINE',
     prefix: 'DOP-PY',
@@ -33,7 +33,7 @@ export const COURSE_CERT_CONFIGS: Record<string, CourseCertConfig> = {
   },
   'java-core': {
     courseId: 'java-core',
-    title: 'Complete Java & Enterprise Architecture',
+    title: 'Complete Java Course',
     subtitle: '14 Comprehensive Modules • Core & Advanced Standards • Software Architecture',
     competencies: 'OBJECT-ORIENTED DESIGN   •   COLLECTIONS   •   STREAMS & LAMBDAS   •   DATA STRUCTURES',
     prefix: 'DOP-JAVA',
@@ -41,7 +41,7 @@ export const COURSE_CERT_CONFIGS: Record<string, CourseCertConfig> = {
   },
   'complete-java-programming': {
     courseId: 'complete-java-programming',
-    title: 'Complete Java & Enterprise Architecture',
+    title: 'Complete Java Course',
     subtitle: '14 Comprehensive Modules • Core & Advanced Standards • Software Architecture',
     competencies: 'OBJECT-ORIENTED DESIGN   •   COLLECTIONS   •   STREAMS & LAMBDAS   •   DATA STRUCTURES',
     prefix: 'DOP-JAVA',
@@ -49,7 +49,7 @@ export const COURSE_CERT_CONFIGS: Record<string, CourseCertConfig> = {
   },
   'fullstack-open': {
     courseId: 'fullstack-open',
-    title: 'Full Stack Web Engineering & Architecture',
+    title: 'Full Stack Open Course',
     subtitle: '14 Comprehensive Modules • Modern Web Standards • Production Architecture',
     competencies: 'REACT 18   •   NODE.JS & EXPRESS   •   TYPESCRIPT   •   GRAPHQL & DOCKER',
     prefix: 'DOP-FS',
@@ -57,7 +57,7 @@ export const COURSE_CERT_CONFIGS: Record<string, CourseCertConfig> = {
   },
   'cyber-security': {
     courseId: 'cyber-security',
-    title: 'Cyber Security & Defensive Enterprise Architecture',
+    title: 'Cyber Security Course',
     subtitle: '14 Comprehensive Modules • STL & BSDM Curriculum • CISSP Governance',
     competencies: 'NETWORK DEFENSE   •   ETHICAL HACKING   •   MALWARE ANALYSIS   •   CISSP GOVERNANCE',
     prefix: 'DOP-CYBER',
@@ -65,7 +65,7 @@ export const COURSE_CERT_CONFIGS: Record<string, CourseCertConfig> = {
   },
   'cyber-security-core': {
     courseId: 'cyber-security',
-    title: 'Cyber Security & Defensive Enterprise Architecture',
+    title: 'Cyber Security Course',
     subtitle: '14 Comprehensive Modules • STL & BSDM Curriculum • CISSP Governance',
     competencies: 'NETWORK DEFENSE   •   ETHICAL HACKING   •   MALWARE ANALYSIS   •   CISSP GOVERNANCE',
     prefix: 'DOP-CYBER',
@@ -206,7 +206,7 @@ export function generateCertificateVectorPdf(
   certificateId: string,
   issueDate: string,
   verificationHash: string,
-  courseTitle: string = 'Python Core & Advanced Software Architecture',
+  courseTitle: string = 'Complete Python Course',
   courseSubtitle: string = '14 Comprehensive Modules • Core & Advanced Standards • Software Architecture',
   competencies: string = 'ALGORITHMIC LOGIC   •   DATA STRUCTURES   •   OOP ARCHITECTURE   •   PYGAME ENGINE'
 ): jsPDF {
@@ -419,21 +419,94 @@ export function generateCertificateVectorPdf(
 }
 
 /**
- * Loads the original Python certificate template PDF, embeds the student's confirmed name
- * centered cleanly above the dotted line, and places the issuance Month & Year beside the "Issue Date :" label.
- * Preserves 100% of the original PDF graphics, background, logos, signatures, and design elements.
+ * Template file candidates for each course.
+ * Uses the course-specific PDF templates located in public/certificates and public/
  */
-export async function generateCertificatePdfFromTemplate(
-  studentName: string,
-  issueDateMonthYear?: string
-): Promise<Uint8Array> {
-  let templateBuffer: ArrayBuffer | null = null;
-  const possibleUrls = [
+const TEMPLATE_URLS_BY_COURSE: Record<string, string[]> = {
+  'python-core': [
     '/certificates/python-certificate-template.pdf',
     './certificates/python-certificate-template.pdf',
     '/PYTHON CERTIFICATE.pdf',
     './PYTHON CERTIFICATE.pdf'
-  ];
+  ],
+  'java-core': [
+    '/certificates/java-certificate-template.pdf',
+    './certificates/java-certificate-template.pdf',
+    '/JAVA CERTIFICATE.pdf',
+    './JAVA CERTIFICATE.pdf'
+  ],
+  'complete-java-programming': [
+    '/certificates/java-certificate-template.pdf',
+    './certificates/java-certificate-template.pdf',
+    '/JAVA CERTIFICATE.pdf',
+    './JAVA CERTIFICATE.pdf'
+  ],
+  'fullstack-open': [
+    '/certificates/fullstack-certificate-template.pdf',
+    './certificates/fullstack-certificate-template.pdf',
+    '/Full Stack Certificate.pdf',
+    './Full Stack Certificate.pdf'
+  ],
+  'cyber-security': [
+    '/certificates/cyber-certificate-template.pdf',
+    './certificates/cyber-certificate-template.pdf',
+    '/CYBER SEC CERTITICATE.pdf',
+    './CYBER SEC CERTITICATE.pdf'
+  ],
+  'cyber-security-core': [
+    '/certificates/cyber-certificate-template.pdf',
+    './certificates/cyber-certificate-template.pdf',
+    '/CYBER SEC CERTITICATE.pdf',
+    './CYBER SEC CERTITICATE.pdf'
+  ]
+};
+
+/**
+ * Exact coordinates and XObject identifiers for the dotted line image placeholders
+ * across all course certificate templates.
+ * Dimensions: Height ~15.75 pt, Width ~657-688 pt, centered around y = 339-342 pt.
+ * Background behind this region across all certificates is solid black #000000 rgb(0,0,0).
+ */
+const DOTTED_LINE_CONFIGS: Record<string, { x: number; y: number; width: number; height: number; xObj: string }> = {
+  'python-core': { x: 282.75, y: 331.875, width: 687.75, height: 15.75, xObj: 'X32' },
+  'java-core': { x: 283.5, y: 332.79, width: 672.0, height: 15.75, xObj: 'X29' },
+  'complete-java-programming': { x: 283.5, y: 332.79, width: 672.0, height: 15.75, xObj: 'X29' },
+  'fullstack-open': { x: 283.5, y: 334.38, width: 687.0, height: 15.75, xObj: 'X34' },
+  'cyber-security': { x: 298.5, y: 333.82, width: 657.0, height: 15.75, xObj: 'X27' },
+  'cyber-security-core': { x: 298.5, y: 333.82, width: 657.0, height: 15.75, xObj: 'X27' }
+};
+
+/**
+ * Exact coordinates for placing the Month & Year issuance date beside the "Issue Date :" label.
+ * Configured independently per course to match each template's distinct label position,
+ * typography baseline, and natural spacing:
+ * - Python: x = 886, y = 135.5, size = 15 (original reference preserved)
+ * - Java: x = 910, y = 142.8, size = 15
+ * - Full Stack: x = 908, y = 157.5, size = 15
+ * - Cyber Security: x = 907, y = 147.6, size = 15
+ */
+const ISSUE_DATE_CONFIGS: Record<string, { x: number; y: number; size: number }> = {
+  'python-core': { x: 886, y: 135.5, size: 15 },
+  'java-core': { x: 910, y: 142.8, size: 15 },
+  'complete-java-programming': { x: 910, y: 142.8, size: 15 },
+  'fullstack-open': { x: 908, y: 157.5, size: 15 },
+  'cyber-security': { x: 907, y: 147.6, size: 15 },
+  'cyber-security-core': { x: 907, y: 147.6, size: 15 }
+};
+
+/**
+ * Loads the course certificate template PDF, removes any unwanted dotted line
+ * underneath the student's name, embeds the confirmed name centered cleanly at baseline y = 344,
+ * and places the issuance Month & Year beside the "Issue Date :" label.
+ * Preserves 100% of the original PDF graphics, background, logos, signatures, and design elements.
+ */
+export async function generateCertificatePdfFromTemplate(
+  studentName: string,
+  issueDateMonthYear?: string,
+  courseId: string = 'python-core'
+): Promise<Uint8Array> {
+  let templateBuffer: ArrayBuffer | null = null;
+  const possibleUrls = TEMPLATE_URLS_BY_COURSE[courseId] || TEMPLATE_URLS_BY_COURSE['python-core'];
 
   for (const url of possibleUrls) {
     try {
@@ -448,21 +521,61 @@ export async function generateCertificatePdfFromTemplate(
   }
 
   if (!templateBuffer) {
-    throw new Error('Could not load original certificate template PDF.');
+    throw new Error(`Could not load certificate template PDF for course: ${courseId}`);
   }
 
   const pdfDoc = await PDFDocument.load(templateBuffer);
   const page = pdfDoc.getPages()[0];
   const { width } = page.getSize();
+  const lineCfg = DOTTED_LINE_CONFIGS[courseId] || DOTTED_LINE_CONFIGS['python-core'];
+
+  // 1. Remove the unwanted dotted line:
+  // Zero out the opacity mask (SMask) of the dotted line image in the PDF resource dictionary
+  try {
+    const resources = page.node.Resources();
+    const xobjects = resources ? resources.lookup(PDFName.of('XObject')) : null;
+    const xobj = (xobjects && lineCfg.xObj && typeof xobjects.lookup === 'function')
+      ? xobjects.lookup(PDFName.of(lineCfg.xObj))
+      : null;
+    if (xobj && typeof xobj.dict?.lookup === 'function') {
+      const smaskRef = xobj.dict.lookup(PDFName.of('SMask'));
+      const smaskStream = smaskRef ? pdfDoc.context.lookup(smaskRef) : null;
+      if (smaskStream && typeof smaskStream.dict?.lookup === 'function') {
+        const w = smaskStream.dict.lookup(PDFName.of('Width'))?.asNumber?.() || 900;
+        const h = smaskStream.dict.lookup(PDFName.of('Height'))?.asNumber?.() || 21;
+        const transparentBytes = new Uint8Array(w * h);
+        const newSmaskStream = pdfDoc.context.flateStream(transparentBytes, {
+          Type: 'XObject',
+          Subtype: 'Image',
+          Width: w,
+          Height: h,
+          BitsPerComponent: 8,
+          ColorSpace: 'DeviceGray'
+        });
+        xobj.dict.set(PDFName.of('SMask'), pdfDoc.context.register(newSmaskStream));
+      }
+    }
+  } catch {
+    // Gracefully proceed to background-matched overlay
+  }
+
+  // 2. Exact background overlay: The certificate background is solid black #000000 rgb(0,0,0)
+  // Perfectly matches the certificate background tone with zero visible patch or marks.
+  page.drawRectangle({
+    x: lineCfg.x - 2,
+    y: lineCfg.y - 1,
+    width: lineCfg.width + 4,
+    height: lineCfg.height + 2,
+    color: rgb(0, 0, 0),
+  });
 
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-  // 1. Student Name: Centered horizontally over the dotted-line placeholder (center_x = width / 2)
-  // Baseline y = 344 places the text cleanly resting on the dotted line (y = 339.75)
+  // 3. Student Name: Centered horizontally at baseline y = 344 (matching Python reference)
   const trimmedName = studentName.trim();
   let nameSize = 36;
-  const maxAllowedWidth = 620; // Dotted line width is 687.75 pt
+  const maxAllowedWidth = 620;
   let textWidth = fontBold.widthOfTextAtSize(trimmedName, nameSize);
   if (textWidth > maxAllowedWidth) {
     nameSize = Math.max(18, Math.floor((maxAllowedWidth / textWidth) * nameSize));
@@ -479,17 +592,15 @@ export async function generateCertificatePdfFromTemplate(
     color: rgb(1, 1, 1), // Crisp white matching original certificate typography
   });
 
-  // 2. Issue Date: Only Month and Year beside "Issue Date :" label
-  // Label "Issue Date :" starts at ~793 pt, width ~85 pt. Placing at x = 886 pt, y = 135.5 pt
+  // 4. Issue Date: Only Month and Year beside "Issue Date :" label
+  // Positioned independently per certificate template so baseline and spacing align perfectly
+  const dateCfg = ISSUE_DATE_CONFIGS[courseId] || ISSUE_DATE_CONFIGS['python-core'];
   const formattedDate = issueDateMonthYear || new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  const dateSize = 15;
-  const dateX = 886;
-  const dateY = 135.5;
 
   page.drawText(formattedDate, {
-    x: dateX,
-    y: dateY,
-    size: dateSize,
+    x: dateCfg.x,
+    y: dateCfg.y,
+    size: dateCfg.size,
     font: fontRegular,
     color: rgb(0.95, 0.95, 0.95), // Off-white matching certificate subtitle tone
   });
@@ -509,21 +620,23 @@ export async function downloadCertificatePdf(
   courseTitle?: string,
   courseSubtitle?: string,
   competencies?: string,
-  _courseId: string = 'python-core'
+  courseId: string = 'python-core'
 ): Promise<void> {
   const dateObj = issueDate ? new Date(issueDate) : new Date();
   const monthYearStr = !isNaN(dateObj.getTime())
     ? dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
+  const config = COURSE_CERT_CONFIGS[courseId] || COURSE_CERT_CONFIGS['python-core'];
+
   try {
-    const pdfBytes = await generateCertificatePdfFromTemplate(studentName, monthYearStr);
+    const pdfBytes = await generateCertificatePdfFromTemplate(studentName, monthYearStr, courseId);
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     const blobUrl = URL.createObjectURL(blob);
     const cleanName = studentName.trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'Student';
     const a = document.createElement('a');
     a.href = blobUrl;
-    a.download = `DO_PILOT_Certificate_${cleanName}.pdf`;
+    a.download = `DO_PILOT_${config.prefix}_Certificate_${cleanName}.pdf`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -532,7 +645,15 @@ export async function downloadCertificatePdf(
     console.warn('Template PDF loading failed, falling back to vector PDF:', err);
     const dateStr = issueDate || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     const hashStr = verificationHash || generateVerificationHash(studentName, certificateId);
-    const doc = generateCertificateVectorPdf(studentName, certificateId, dateStr, hashStr, courseTitle, courseSubtitle, competencies);
+    const doc = generateCertificateVectorPdf(
+      studentName,
+      certificateId,
+      dateStr,
+      hashStr,
+      courseTitle || config.title,
+      courseSubtitle || config.subtitle,
+      competencies || config.competencies
+    );
     const cleanName = studentName.trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'Student';
     doc.save(`DO_PILOT_Certificate_${cleanName}_${certificateId}.pdf`);
   }
@@ -549,22 +670,32 @@ export async function printCertificate(
   courseTitle?: string,
   courseSubtitle?: string,
   competencies?: string,
-  _courseId: string = 'python-core'
+  courseId: string = 'python-core'
 ): Promise<void> {
   const dateObj = issueDate ? new Date(issueDate) : new Date();
   const monthYearStr = !isNaN(dateObj.getTime())
     ? dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
+  const config = COURSE_CERT_CONFIGS[courseId] || COURSE_CERT_CONFIGS['python-core'];
+
   let blobUrl: string;
   try {
-    const pdfBytes = await generateCertificatePdfFromTemplate(studentName, monthYearStr);
+    const pdfBytes = await generateCertificatePdfFromTemplate(studentName, monthYearStr, courseId);
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     blobUrl = URL.createObjectURL(blob);
   } catch {
     const dateStr = issueDate || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     const hashStr = verificationHash || generateVerificationHash(studentName, certificateId);
-    const doc = generateCertificateVectorPdf(studentName, certificateId, dateStr, hashStr, courseTitle, courseSubtitle, competencies);
+    const doc = generateCertificateVectorPdf(
+      studentName,
+      certificateId,
+      dateStr,
+      hashStr,
+      courseTitle || config.title,
+      courseSubtitle || config.subtitle,
+      competencies || config.competencies
+    );
     const blob = doc.output('blob');
     blobUrl = URL.createObjectURL(blob);
   }

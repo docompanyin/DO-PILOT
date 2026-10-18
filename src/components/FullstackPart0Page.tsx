@@ -39,6 +39,21 @@ export const FullstackPart0Page: React.FC = () => {
 
   const studentId = user?.id || user?.email || 'default_student';
 
+  // Immediate redirect to homepage if user is not authenticated or signs out
+  useEffect(() => {
+    if (!user) {
+      navigate('/', { replace: true });
+    }
+  }, [user, navigate]);
+
+  useEffect(() => {
+    const handleLogout = () => {
+      navigate('/', { replace: true });
+    };
+    window.addEventListener('dopilot_user_logged_out', handleLogout);
+    return () => window.removeEventListener('dopilot_user_logged_out', handleLogout);
+  }, [navigate]);
+
   // Persistent Active Section ID (Defaults to Section 0.1)
   const [activeSectionId, setActiveSectionId] = useState<string>(() => {
     try {
