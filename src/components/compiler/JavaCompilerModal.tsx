@@ -339,42 +339,4 @@ export const JavaCompilerModal: React.FC<JavaCompilerModalProps> = ({
 };
 
 // Floating Round Launcher Button for Java IDE
-export const JavaCompilerLauncherButton: React.FC<{
-  onClick: () => void;
-  isOpen: boolean;
-}> = ({ onClick, isOpen }) => {
-  const { points } = useCoursePoints();
-
-  return (
-    <div className="fixed bottom-6 right-6 z-40">
-      <motion.button
-        type="button"
-        onClick={onClick}
-        whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.94 }}
-        className={`relative group w-14 h-14 rounded-full bg-gradient-to-br from-panel-light via-black to-panel border-2 text-paper shadow-[0_0_25px_rgba(251,191,36,0.35)] hover:shadow-[0_0_35px_rgba(251,191,36,0.6)] flex items-center justify-center transition-all cursor-pointer overflow-visible ${
-          isOpen ? 'border-amber-400 ring-2 ring-amber-400/40' : 'border-amber-400/60'
-        }`}
-        title={isOpen ? 'Java IDE Open' : 'Open Java 21 Cloud IDE'}
-      >
-        {!isOpen && (
-          <span className="absolute -inset-1 rounded-full bg-amber-400/20 animate-ping pointer-events-none" />
-        )}
-
-        <div className="relative z-10 flex items-center justify-center text-amber-400 group-hover:text-white transition-colors">
-          <Code className="w-6 h-6 stroke-[2.2]" />
-        </div>
-
-        <span className="absolute -top-1.5 -right-1.5 px-2 py-0.5 rounded-full bg-amber-400 text-black font-mono text-[10px] font-black border border-black shadow-md flex items-center gap-1">
-          <Trophy className="w-2.5 h-2.5 fill-black/25" />
-          <span>{points}pt</span>
-        </span>
-
-        <div className="absolute right-16 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-xl bg-black/95 border border-white/15 text-paper font-jakarta font-bold text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-xl flex items-center gap-1.5">
-          <span>Java 21 Cloud IDE</span>
-          <ChevronRight className="w-3.5 h-3.5 text-amber-400" />
-        </div>
-      </motion.button>
-    </div>
-  );
-};
+export const JavaCompilerLauncherButton: React.FC<{\n  onClick: () => void;\n  isOpen: boolean;\n}> = () => null;

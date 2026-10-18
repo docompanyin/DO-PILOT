@@ -506,17 +506,6 @@ export const PythonPart1Page: React.FC = () => {
             <span className="hidden sm:inline">Back to Overview</span>
           </button>
 
-          <Link to="/" className="flex items-center gap-2">
-            <img
-              src="https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png"
-              alt="DO PILOT"
-              className="h-6 w-auto object-contain filter drop-shadow-[0_2px_8px_rgba(0,255,157,0.3)]"
-            />
-            <span className="font-jakarta font-black text-xs tracking-wider text-paper">
-              DO PILOT
-            </span>
-          </Link>
-
           
         </div>
 
@@ -1090,14 +1079,6 @@ export const PythonPart1Page: React.FC = () => {
         )}
 
       </main>
-
-      {/* Floating Launcher Button */}
-      <PythonCompilerLauncherButton 
-        isOpen={false}
-        onClick={() => {
-          setActiveTask(null);
-        }}
-      />
 
       {/* Existing Contact Modal reused directly */}
       <NeedHelpModal

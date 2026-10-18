@@ -550,8 +550,10 @@ export const PythonPart10Page: React.FC = () => {
             <ArrowLeft className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Back to Overview</span>
           </button>
+        </div>
 
-                    {/* Live Points Counter Pill with smooth spring pop and floating +1 particle */}
+        <div className="flex items-center gap-2">
+          {/* Live Points Counter Pill with smooth spring pop and floating +1 particle */}
           <div className="relative">
             <Link
               to="/settings"
@@ -1132,14 +1134,6 @@ export const PythonPart10Page: React.FC = () => {
         )}
 
       </main>
-
-      {/* Floating Launcher Button */}
-      <PythonCompilerLauncherButton 
-        isOpen={false}
-        onClick={() => {
-          setActiveTask(null);
-        }}
-      />
 
       {/* Existing Contact Modal reused directly */}
       <NeedHelpModal
