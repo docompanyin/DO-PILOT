@@ -19,7 +19,7 @@ import {
   setLevelAttemptCountCyber
 } from '../data/cyberSecurityData';
 import { CyberSecurityPart1Page } from './CyberSecurityPart1Page';
-import { useCourseQuestionResume } from '../utils/courseProgressSyncService';
+import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState } from '../utils/courseProgressSyncService';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -100,7 +100,15 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
   });
 
   // Track level failure / pass outcome state
-  const [levelResult, setLevelResult] = useState<LevelResultState | null>(null);
+  const [levelResult, setLevelResult] = useState<LevelResultState | null>(() => {
+    try {
+      const keys = getCourseStorageKeys('cyber-security', currentPartNum);
+      const saved = localStorage.getItem(keys.levelResultKey);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
   // Consecutive failure counter
   const [consecutiveFailures, setConsecutiveFailures] = useState<number>(() => {
@@ -121,12 +129,20 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     }
   });
 
+  const prevSectionIdRef = useRef(activeSectionId);
   // Update questions whenever active level changes
   useEffect(() => {
     const qList = getActiveQuestionsForLevelCyber(activeSection, studentId, false);
     setLevelQuestions(qList);
-    setLevelResult(null);
-  }, [activeSectionId, studentId]);
+    if (prevSectionIdRef.current !== activeSectionId) {
+      prevSectionIdRef.current = activeSectionId;
+      setLevelResult(null);
+      try {
+        const keys = getCourseStorageKeys('cyber-security', currentPartNum);
+        localStorage.removeItem(keys.levelResultKey);
+      } catch {}
+    }
+  }, [activeSectionId, studentId, currentPartNum]);
 
   const currentBlock: TheoryBlock = activeSection.theoryBlocks[activeQuestionIdx] || activeSection.theoryBlocks[0];
   const currentMcq: McqQuestion = levelQuestions[activeQuestionIdx] || currentBlock.mcq!;
@@ -160,6 +176,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
 
   const [isTimeUpWaiting, setIsTimeUpWaiting] = useState<boolean>(() => {
     try {
+      if (levelResult?.isFinished) return false;
       if (localStorage.getItem(`dopilot_cyber_part${currentPartNum}_time_up`) === 'true') return true;
       const savedPhase = localStorage.getItem(`dopilot_cyber_part${currentPartNum}_study_phase`);
       if (savedPhase === 'true') return false;
@@ -170,6 +187,14 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
       }
     } catch {}
     return false;
+  });
+
+  const [isPartComplete, setIsPartComplete] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(`dopilot_cyber_part${currentPartNum}_completed`) === 'true';
+    } catch {
+      return false;
+    }
   });
 
   useCourseQuestionResume({
@@ -185,15 +210,10 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     setIsTimeUpWaiting,
     setTimeLeft,
     setTargetEndTime,
+    levelResult,
+    setLevelResult,
+    setIsCourseComplete: setIsPartComplete,
     validSectionIds: partSections.map(s => s.id)
-  });
-
-  const [isPartComplete, setIsPartComplete] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(`dopilot_cyber_part${currentPartNum}_completed`) === 'true';
-    } catch {
-      return false;
-    }
   });
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -315,7 +335,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
       } catch {}
     }
 
-    setLevelResult({
+    const resultState = {
       isFinished: true,
       isPassed,
       correctCount,
@@ -325,6 +345,26 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
       attemptCount: result.attemptCount,
       isSecondFailureInLevel: result.isSecondFailureInLevel,
       isLocked: result.isLocked
+    };
+
+    setLevelResult(resultState);
+    const keys = getCourseStorageKeys('cyber-security', currentPartNum);
+    try {
+      localStorage.setItem(keys.levelResultKey, JSON.stringify(resultState));
+    } catch {}
+
+    saveQuestionProgressState({
+      courseId: 'cyber-security',
+      partNum: currentPartNum,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime,
+      timeLeft,
+      studentEmail: user?.email,
+      levelResult: resultState
     });
   };
 
@@ -447,6 +487,8 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     setTimeLeft(TIMER_DURATION);
 
     try {
+      const keys = getCourseStorageKeys('cyber-security', currentPartNum);
+      localStorage.removeItem(keys.levelResultKey);
       localStorage.removeItem(`dopilot_cyber_part${currentPartNum}_mcq_answers`);
       localStorage.removeItem(`dopilot_cyber_part${currentPartNum}_active_section_id`);
       localStorage.removeItem(`dopilot_cyber_part${currentPartNum}_active_q_idx`);
@@ -487,6 +529,8 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     setTargetEndTime(fresh);
 
     try {
+      const keys = getCourseStorageKeys('cyber-security', currentPartNum);
+      localStorage.removeItem(keys.levelResultKey);
       localStorage.setItem(`dopilot_cyber_part${currentPartNum}_mcq_answers`, JSON.stringify(updatedAnswers));
       localStorage.setItem(`dopilot_cyber_part${currentPartNum}_active_q_idx`, '0');
       localStorage.setItem(`dopilot_cyber_part${currentPartNum}_study_phase`, 'true');
@@ -525,6 +569,8 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
       setLevelQuestions(nextQuestions);
 
       try {
+        const keys = getCourseStorageKeys('cyber-security', currentPartNum);
+        localStorage.removeItem(keys.levelResultKey);
         localStorage.setItem(`dopilot_cyber_part${currentPartNum}_active_section_id`, nextSec.id);
         localStorage.setItem(`dopilot_cyber_part${currentPartNum}_active_q_idx`, '0');
         localStorage.setItem(`dopilot_cyber_part${currentPartNum}_study_phase`, 'true');
@@ -537,6 +583,8 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
       // Finished all sections of this Part!
       setIsPartComplete(true);
       try {
+        const keys = getCourseStorageKeys('cyber-security', currentPartNum);
+        localStorage.removeItem(keys.levelResultKey);
         localStorage.setItem(`dopilot_cyber_part${currentPartNum}_completed`, 'true');
       } catch {}
     }

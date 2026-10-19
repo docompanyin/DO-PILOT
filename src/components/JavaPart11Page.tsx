@@ -61,7 +61,14 @@ export const JavaPart11Page: React.FC = () => {
     return getActiveQuestionsForLevelPart11(activeSection, studentId, false);
   });
 
-  const [levelResult, setLevelResult] = useState<LevelResultState | null>(null);
+  const [levelResult, setLevelResult] = useState<LevelResultState | null>(() => {
+    try {
+      const saved = localStorage.getItem('dopilot_java_part11_level_result');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const [consecutiveFailures, setConsecutiveFailures] = useState<number>(() => {
     return getConsecutiveFailedLevelsPart11(studentId);
@@ -79,10 +86,17 @@ export const JavaPart11Page: React.FC = () => {
     }
   });
 
+  const prevSectionIdRef = useRef(activeSectionId);
   useEffect(() => {
     const qList = getActiveQuestionsForLevelPart11(activeSection, studentId, false);
     setLevelQuestions(qList);
-    setLevelResult(null);
+    if (prevSectionIdRef.current !== activeSectionId) {
+      prevSectionIdRef.current = activeSectionId;
+      setLevelResult(null);
+      try {
+        localStorage.removeItem('dopilot_java_part11_level_result');
+      } catch {}
+    }
   }, [activeSectionId, studentId]);
 
   const currentBlock: TheoryBlock = activeSection.theoryBlocks[activeQuestionIdx] || activeSection.theoryBlocks[0];
@@ -117,6 +131,7 @@ export const JavaPart11Page: React.FC = () => {
 
   const [isTimeUpWaiting, setIsTimeUpWaiting] = useState<boolean>(() => {
     try {
+      if (levelResult?.isFinished) return false;
       if (localStorage.getItem('dopilot_java_part11_time_up') === 'true') return true;
       const savedPhase = localStorage.getItem('dopilot_java_part11_study_phase');
       if (savedPhase === 'true') return false;
@@ -212,6 +227,7 @@ export const JavaPart11Page: React.FC = () => {
       localStorage.setItem('dopilot_java_part11_study_phase', 'false');
       localStorage.setItem('dopilot_java_part11_q_target_end_time', String(freshEnd));
       localStorage.removeItem('dopilot_java_part11_time_up');
+      localStorage.removeItem('dopilot_java_part11_level_result');
     } catch (e) {
       console.error(e);
     }
@@ -239,7 +255,7 @@ export const JavaPart11Page: React.FC = () => {
     const result = recordLevelAttemptResultPart11(activeSection.id, studentId, isPassed);
     setConsecutiveFailures(result.consecutiveFailedLevels);
 
-    setLevelResult({
+    const resultState = {
       isFinished: true,
       isPassed,
       correctCount,
@@ -249,7 +265,11 @@ export const JavaPart11Page: React.FC = () => {
       attemptCount: result.attemptCount,
       isSecondFailureInLevel: result.isSecondFailureInLevel,
       isLocked: result.isLocked
-    });
+    };
+    setLevelResult(resultState);
+    try {
+      localStorage.setItem('dopilot_java_part11_level_result', JSON.stringify(resultState));
+    } catch {}
   };
 
   const advanceToNextQuestion = () => {
@@ -302,6 +322,7 @@ export const JavaPart11Page: React.FC = () => {
       localStorage.setItem('dopilot_java_part11_study_phase', 'true');
       localStorage.setItem('dopilot_java_part11_q_target_end_time', String(fresh));
       localStorage.removeItem('dopilot_java_part11_time_up');
+      localStorage.removeItem('dopilot_java_part11_level_result');
     } catch (e) {
       console.error(e);
     }
@@ -336,6 +357,7 @@ export const JavaPart11Page: React.FC = () => {
         localStorage.setItem('dopilot_java_part11_study_phase', 'true');
         localStorage.setItem('dopilot_java_part11_q_target_end_time', String(fresh));
         localStorage.removeItem('dopilot_java_part11_time_up');
+      localStorage.removeItem('dopilot_java_part11_level_result');
       } catch (e) {
         console.error(e);
       }
@@ -450,6 +472,7 @@ export const JavaPart11Page: React.FC = () => {
       localStorage.removeItem('dopilot_java_part11_active_q_idx');
       localStorage.removeItem('dopilot_java_part11_completed');
       localStorage.removeItem('dopilot_java_part11_time_up');
+      localStorage.removeItem('dopilot_java_part11_level_result');
       localStorage.removeItem('dopilot_java_part11_study_phase');
       localStorage.removeItem('dopilot_java_part11_q_target_end_time');
       localStorage.removeItem(`dopilot_java_part11_locked_${studentId}`);
@@ -507,6 +530,7 @@ export const JavaPart11Page: React.FC = () => {
                     localStorage.setItem('dopilot_java_part11_study_phase', 'true');
                     localStorage.setItem('dopilot_java_part11_q_target_end_time', String(fresh));
                     localStorage.removeItem('dopilot_java_part11_time_up');
+      localStorage.removeItem('dopilot_java_part11_level_result');
                   } catch {}
                 }}
                 className={`px-3 py-1 rounded-full font-mono text-xs transition-all cursor-pointer ${
@@ -1013,6 +1037,7 @@ export const JavaPart11Page: React.FC = () => {
                                 setIsTimeUpWaiting(false);
                                 try {
                                   localStorage.removeItem('dopilot_java_part11_time_up');
+      localStorage.removeItem('dopilot_java_part11_level_result');
                                 } catch {}
                                 advanceToNextQuestion();
                               }}

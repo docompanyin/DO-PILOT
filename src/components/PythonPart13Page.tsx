@@ -68,7 +68,14 @@ export const PythonPart13Page: React.FC = () => {
   });
 
   // Track level failure / pass outcome state
-  const [levelResult, setLevelResult] = useState<LevelResultState | null>(null);
+  const [levelResult, setLevelResult] = useState<LevelResultState | null>(() => {
+    try {
+      const saved = localStorage.getItem('dopilot_part13_level_result');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
   // Consecutive failure counter (loaded dynamically from student record)
   const [, setConsecutiveFailures] = useState<number>(() => {
@@ -90,10 +97,17 @@ export const PythonPart13Page: React.FC = () => {
   });
 
   // Update questions whenever active level changes
+  const prevSectionIdRef = useRef(activeSectionId);
   useEffect(() => {
     const qList = getActiveQuestionsForLevelPart13(activeSection, studentId, false);
     setLevelQuestions(qList);
-    setLevelResult(null);
+    if (prevSectionIdRef.current !== activeSectionId) {
+      prevSectionIdRef.current = activeSectionId;
+      setLevelResult(null);
+      try {
+        localStorage.removeItem('dopilot_part13_level_result');
+      } catch {}
+    }
   }, [activeSectionId, studentId]);
 
   const currentBlock: TheoryBlock = activeSection.theoryBlocks[activeQuestionIdx] || activeSection.theoryBlocks[0];
@@ -131,6 +145,7 @@ export const PythonPart13Page: React.FC = () => {
   // Waiting for Continue click when user didn't enter an answer in time
   const [isTimeUpWaiting, setIsTimeUpWaiting] = useState<boolean>(() => {
     try {
+      if (levelResult?.isFinished) return false;
       if (localStorage.getItem('dopilot_part13_time_up') === 'true') return true;
       const savedPhase = localStorage.getItem('dopilot_part13_study_phase');
       if (savedPhase === 'true') return false;
@@ -254,7 +269,7 @@ export const PythonPart13Page: React.FC = () => {
     const result = recordLevelAttemptResultPart13(activeSection.id, studentId, isPassed);
     setConsecutiveFailures(result.consecutiveFailedLevels);
 
-    setLevelResult({
+    const resultState = {
       isFinished: true,
       isPassed,
       correctCount,
@@ -264,7 +279,11 @@ export const PythonPart13Page: React.FC = () => {
       attemptCount: result.attemptCount,
       isSecondFailureInLevel: result.isSecondFailureInLevel,
       isLocked: result.isLocked
-    });
+    };
+    setLevelResult(resultState);
+    try {
+      localStorage.setItem('dopilot_part13_level_result', JSON.stringify(resultState));
+    } catch {}
   };
 
   // Advance function to go to next question or complete level
@@ -324,6 +343,7 @@ export const PythonPart13Page: React.FC = () => {
       localStorage.setItem('dopilot_part13_study_phase', 'true');
       localStorage.setItem('dopilot_part13_q_target_end_time', String(fresh));
       localStorage.removeItem('dopilot_part13_time_up');
+      localStorage.removeItem('dopilot_part13_level_result');
     } catch (e) {
       console.error(e);
     }
@@ -362,6 +382,7 @@ export const PythonPart13Page: React.FC = () => {
         localStorage.setItem('dopilot_part13_study_phase', 'true');
         localStorage.setItem('dopilot_part13_q_target_end_time', String(fresh));
         localStorage.removeItem('dopilot_part13_time_up');
+      localStorage.removeItem('dopilot_part13_level_result');
       } catch (e) {
         console.error(e);
       }
@@ -990,6 +1011,7 @@ export const PythonPart13Page: React.FC = () => {
                                 setIsTimeUpWaiting(false);
                                 try {
                                   localStorage.removeItem('dopilot_part13_time_up');
+      localStorage.removeItem('dopilot_part13_level_result');
                                 } catch {}
                                 advanceToNextQuestion();
                               }}

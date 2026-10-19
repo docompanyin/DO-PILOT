@@ -106,9 +106,27 @@ export const recordPart1SectionScore = (
 };
 
 /**
- * Calculate the user's overall score across all questions in sections 1.1–1.6
- * Total score = sum(correct) / sum(total questions) across sections 1.1–1.6.
- * "Do not introduce per-section score calculations for the 50% purchase rule."
+ * Get expected section count for Part 1 by track (Python & Cyber = 5, Java & Fullstack = 6)
+ */
+export const getExpectedPart1SectionCount = (courseId: string): number => {
+  const track = normalizeTrackId(courseId);
+  if (track === 'python-core' || track === 'cyber-security') {
+    return 5;
+  }
+  return 6;
+};
+
+/**
+ * Get expected total question count for Part 1 by track (Python & Cyber = 30, Java & Fullstack = 36)
+ */
+export const getExpectedPart1TotalQuestions = (courseId: string): number => {
+  return getExpectedPart1SectionCount(courseId) * 6;
+};
+
+/**
+ * Calculate the user's overall score across all questions in Part 1 sections
+ * (1.1–1.5 for Python & Cyber, 1.1–1.6 for Java & Fullstack)
+ * Total score = sum(correct) / sum(total questions) across Part 1 sections.
  */
 export const getPart1OverallScore = (
   courseId: string,
@@ -130,6 +148,7 @@ export const getPart1OverallScore = (
       let totalQuestions = 0;
       let allPassed = true;
       const entries = Object.values(scores);
+      const expectedSections = getExpectedPart1SectionCount(track);
 
       entries.forEach(s => {
         if (s && typeof s.correct === 'number' && typeof s.total === 'number') {
@@ -144,9 +163,8 @@ export const getPart1OverallScore = (
 
       if (totalQuestions > 0) {
         const percentage = Math.round((totalCorrect / totalQuestions) * 100);
-        // Part 1 consists of 6 sections (1.1 through 1.6).
         const isAbove50 = percentage >= 50;
-        const allSectionsPassed = entries.length >= 6 && allPassed;
+        const allSectionsPassed = entries.length >= expectedSections && allPassed;
         const hasFailedTrial = !isAbove50;
 
         return {

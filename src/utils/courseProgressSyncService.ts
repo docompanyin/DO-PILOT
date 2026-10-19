@@ -1,6 +1,18 @@
 import { useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
+export interface LevelResultRecord {
+  isFinished: boolean;
+  isPassed: boolean;
+  correctCount: number;
+  totalCount: number;
+  percentage: number;
+  streak?: number;
+  attemptCount?: number;
+  isSecondFailureInLevel?: boolean;
+  isLocked?: boolean;
+}
+
 export interface PartQuestionState {
   activeSectionId: string;
   activeQuestionIdx: number;
@@ -10,6 +22,8 @@ export interface PartQuestionState {
   targetEndTime: number;
   timeLeft: number;
   isCompleted?: boolean;
+  isFinishedPart?: boolean;
+  levelResult?: LevelResultRecord | null;
   updatedAt: string;
 }
 
@@ -53,6 +67,8 @@ export const getCourseStorageKeys = (courseId: string, partNum: number) => {
       targetEndTimeKey: partNum === 1 ? 'dopilot_q_target_end_time' : `dopilot_part${partNum}_q_target_end_time`,
       timeUpKey: partNum === 1 ? 'dopilot_time_up' : `dopilot_part${partNum}_time_up`,
       completedKey: `dopilot_part${partNum}_completed`,
+      finishedKey: partNum === 1 ? 'dopilot_part1_finished' : `dopilot_part${partNum}_finished`,
+      levelResultKey: partNum === 1 ? 'dopilot_level_result' : `dopilot_part${partNum}_level_result`,
       lastPartKey: 'dopilot_python_core_last_part'
     };
   } else if (isJava) {
@@ -64,6 +80,8 @@ export const getCourseStorageKeys = (courseId: string, partNum: number) => {
       targetEndTimeKey: partNum === 1 ? 'dopilot_java_q_target_end_time' : `dopilot_java_part${partNum}_q_target_end_time`,
       timeUpKey: partNum === 1 ? 'dopilot_java_time_up' : `dopilot_java_part${partNum}_time_up`,
       completedKey: `dopilot_java_part${partNum}_completed`,
+      finishedKey: partNum === 1 ? 'dopilot_java_part1_finished' : `dopilot_java_part${partNum}_finished`,
+      levelResultKey: partNum === 1 ? 'dopilot_java_level_result' : `dopilot_java_part${partNum}_level_result`,
       lastPartKey: 'dopilot_java_core_last_part'
     };
   } else if (isFullstack) {
@@ -75,6 +93,8 @@ export const getCourseStorageKeys = (courseId: string, partNum: number) => {
       targetEndTimeKey: `dopilot_fullstack_part${partNum}_q_target_end_time`,
       timeUpKey: `dopilot_fullstack_part${partNum}_time_up`,
       completedKey: `dopilot_fullstack_part${partNum}_completed`,
+      finishedKey: `dopilot_fullstack_part${partNum}_finished`,
+      levelResultKey: `dopilot_fullstack_part${partNum}_level_result`,
       lastPartKey: 'dopilot_fullstack_core_last_part'
     };
   } else {
@@ -87,6 +107,8 @@ export const getCourseStorageKeys = (courseId: string, partNum: number) => {
       targetEndTimeKey: `dopilot_cyber_part${partNum}_q_target_end_time`,
       timeUpKey: `dopilot_cyber_part${partNum}_time_up`,
       completedKey: `dopilot_cyber_part${partNum}_completed`,
+      finishedKey: `dopilot_cyber_part${partNum}_finished`,
+      levelResultKey: `dopilot_cyber_part${partNum}_level_result`,
       lastPartKey: 'dopilot_cyber_core_last_part'
     };
   }
@@ -124,6 +146,8 @@ export function parseCourseStorageKey(key: string): { courseId: string; partNum:
     const sub = key.replace('dopilot_java_', '');
     if (sub === 'core_last_part') return { courseId: 'java-core', partNum: 1, field: 'lastPart' };
     if (sub === 'part1_completed') return { courseId: 'java-core', partNum: 1, field: 'completed' };
+    if (sub === 'part1_finished') return { courseId: 'java-core', partNum: 1, field: 'finished' };
+    if (sub === 'level_result' || sub === 'part1_level_result') return { courseId: 'java-core', partNum: 1, field: 'level_result' };
     if (['active_section_id', 'active_q_idx', 'study_phase', 'time_up', 'q_target_end_time', 'mcq_answers'].includes(sub)) {
       return { courseId: 'java-core', partNum: 1, field: sub };
     }
@@ -148,6 +172,8 @@ export function parseCourseStorageKey(key: string): { courseId: string; partNum:
   } else if (key.startsWith('dopilot_')) {
     const sub = key.replace('dopilot_', '');
     if (sub === 'python_core_last_part') return { courseId: 'python-core', partNum: 1, field: 'lastPart' };
+    if (sub === 'level_result' || sub === 'part1_level_result') return { courseId: 'python-core', partNum: 1, field: 'level_result' };
+    if (sub === 'part1_finished') return { courseId: 'python-core', partNum: 1, field: 'finished' };
     if (sub.startsWith('part1_')) {
       const field = sub.replace('part1_', '');
       return { courseId: 'python-core', partNum: 1, field };
@@ -258,6 +284,13 @@ export const initCourseProgressSyncInterceptor = () => {
         } else if (parsed.field === 'study_phase') partState.isStudyPhase = value === 'true';
         else if (parsed.field === 'time_up') partState.isTimeUpWaiting = value === 'true';
         else if (parsed.field === 'q_target_end_time') partState.targetEndTime = Number(value) || 0;
+        else if (parsed.field === 'level_result') {
+          try {
+            partState.levelResult = JSON.parse(value);
+          } catch {}
+        } else if (parsed.field === 'finished') {
+          partState.isFinishedPart = value === 'true';
+        }
         partState.updatedAt = new Date().toISOString();
       }
 
@@ -293,6 +326,14 @@ export const initCourseProgressSyncInterceptor = () => {
         partState.isTimeUpWaiting = false;
         st.updatedAt = new Date().toISOString();
         queueCloudSync(email);
+      } else if (parsed.field === 'level_result') {
+        partState.levelResult = null;
+        st.updatedAt = new Date().toISOString();
+        queueCloudSync(email);
+      } else if (parsed.field === 'finished') {
+        partState.isFinishedPart = false;
+        st.updatedAt = new Date().toISOString();
+        queueCloudSync(email);
       }
     } catch {}
   };
@@ -316,6 +357,8 @@ export const saveQuestionProgressState = (params: {
   timeLeft: number;
   studentEmail?: string;
   isCompleted?: boolean;
+  isFinishedPart?: boolean;
+  levelResult?: LevelResultRecord | null;
 }) => {
   const {
     courseId,
@@ -328,7 +371,9 @@ export const saveQuestionProgressState = (params: {
     targetEndTime,
     timeLeft,
     studentEmail,
-    isCompleted = false
+    isCompleted = false,
+    isFinishedPart = false,
+    levelResult = null
   } = params;
 
   // 1. Immediately persist to localStorage
@@ -347,6 +392,14 @@ export const saveQuestionProgressState = (params: {
     }
     if (isCompleted) {
       localStorage.setItem(keys.completedKey, 'true');
+    }
+    if (isFinishedPart) {
+      localStorage.setItem(keys.finishedKey, 'true');
+    }
+    if (levelResult) {
+      localStorage.setItem(keys.levelResultKey, JSON.stringify(levelResult));
+    } else {
+      localStorage.removeItem(keys.levelResultKey);
     }
   } catch (e) {
     console.error('Failed writing course progress to localStorage:', e);
@@ -388,6 +441,8 @@ export const saveQuestionProgressState = (params: {
     targetEndTime,
     timeLeft,
     isCompleted,
+    isFinishedPart,
+    levelResult: levelResult || null,
     updatedAt: new Date().toISOString()
   };
 
@@ -526,6 +581,20 @@ export const restoreAllStudentCourseProgressFromCloud = async (
           if (partState.isCompleted) {
             localStorage.setItem(partKeys.completedKey, 'true');
           }
+          if (partState.levelResult && partState.levelResult.isFinished) {
+            localStorage.setItem(partKeys.levelResultKey, JSON.stringify(partState.levelResult));
+            if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_level_result', JSON.stringify(partState.levelResult));
+            if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_level_result', JSON.stringify(partState.levelResult));
+          } else {
+            localStorage.removeItem(partKeys.levelResultKey);
+            if (courseId === 'java-core' && pNum === 1) localStorage.removeItem('dopilot_java_level_result');
+            if (courseId === 'python-core' && pNum === 1) localStorage.removeItem('dopilot_level_result');
+          }
+          if (partState.isFinishedPart) {
+            localStorage.setItem(partKeys.finishedKey, 'true');
+            if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_finished', 'true');
+            if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_finished', 'true');
+          }
         });
       }
     });
@@ -592,6 +661,9 @@ export function useCourseQuestionResume(params: {
   setTimeLeft: (time: number) => void;
   setTargetEndTime: (time: number) => void;
   validSectionIds: string[];
+  levelResult?: any;
+  setLevelResult?: (res: any) => void;
+  setIsCourseComplete?: (complete: boolean) => void;
 }) {
   const {
     courseId,
@@ -604,7 +676,9 @@ export function useCourseQuestionResume(params: {
     setIsTimeUpWaiting,
     setTimeLeft,
     setTargetEndTime,
-    validSectionIds
+    validSectionIds,
+    setLevelResult,
+    setIsCourseComplete
   } = params;
 
   const hasHydratedRef = useRef(false);
@@ -623,22 +697,61 @@ export function useCourseQuestionResume(params: {
       if (saved.selectedAnswers) {
         setSelectedAnswers(() => saved.selectedAnswers);
       }
-      if (typeof saved.isStudyPhase === 'boolean') {
-        setIsStudyPhase(saved.isStudyPhase);
+
+      if (saved.isFinishedPart || saved.isCompleted) {
+        setIsCourseComplete?.(true);
       }
 
-      if (saved.isTimeUpWaiting) {
-        setIsTimeUpWaiting(true);
-        setTimeLeft(0);
-      } else if (saved.targetEndTime) {
-        setTargetEndTime(saved.targetEndTime);
-        const diff = Math.ceil((saved.targetEndTime - Date.now()) / 1000);
-        if (diff <= 0) {
-          // Timer expired while user was away!
+      // 1. Result page state: If section exam was completed, restore result page immediately
+      if (saved.levelResult && saved.levelResult.isFinished) {
+        setLevelResult?.(saved.levelResult);
+        setIsStudyPhase(false);
+        setIsTimeUpWaiting(false);
+        setTimeLeft(30);
+        return;
+      } else {
+        setLevelResult?.(null);
+      }
+
+      // 2. Study Phase: If user is reading notes and has not unlocked the question
+      if (saved.isStudyPhase) {
+        setIsStudyPhase(true);
+        setIsTimeUpWaiting(false);
+        setTimeLeft(30);
+        setTargetEndTime(0);
+      } else {
+        // 3. Question Phase (question was unlocked)
+        setIsStudyPhase(false);
+
+        // Check if current question has already been answered
+        const qIdxStr = String(saved.activeQuestionIdx);
+        const hasAnswer = Object.keys(saved.selectedAnswers || {}).some(k => 
+          k.includes(saved.activeSectionId) && (
+            k.includes(`-${qIdxStr}-`) || 
+            k.endsWith(`-${qIdxStr}`)
+          )
+        );
+
+        if (hasAnswer) {
+          // Question already answered: user is reviewing or on explanation screen. Do not show Time's Up!
+          setIsTimeUpWaiting(false);
+        } else if (saved.isTimeUpWaiting) {
           setIsTimeUpWaiting(true);
           setTimeLeft(0);
+        } else if (saved.targetEndTime) {
+          const diff = Math.ceil((saved.targetEndTime - Date.now()) / 1000);
+          if (diff <= 0) {
+            // Unlocked question whose 30s timer genuinely expired
+            setIsTimeUpWaiting(true);
+            setTimeLeft(0);
+          } else {
+            setIsTimeUpWaiting(false);
+            setTimeLeft(Math.min(30, diff));
+            setTargetEndTime(saved.targetEndTime);
+          }
         } else {
-          setTimeLeft(diff);
+          setIsTimeUpWaiting(false);
+          setTimeLeft(30);
         }
       }
     };
@@ -673,6 +786,8 @@ export function useCourseQuestionResume(params: {
     setIsTimeUpWaiting,
     setTimeLeft,
     setTargetEndTime,
-    validSectionIds
+    validSectionIds,
+    setLevelResult,
+    setIsCourseComplete
   ]);
 }

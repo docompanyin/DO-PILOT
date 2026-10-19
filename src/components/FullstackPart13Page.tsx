@@ -70,7 +70,14 @@ export const FullstackPart13Page: React.FC = () => {
   });
 
   // Track level failure / pass outcome state
-  const [levelResult, setLevelResult] = useState<LevelResultState | null>(null);
+  const [levelResult, setLevelResult] = useState<LevelResultState | null>(() => {
+    try {
+      const saved = localStorage.getItem('dopilot_fullstack_part13_level_result');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
   // Consecutive failure counter (loaded dynamically from student record)
   const [consecutiveFailures, setConsecutiveFailures] = useState<number>(() => {
@@ -92,10 +99,17 @@ export const FullstackPart13Page: React.FC = () => {
   });
 
   // Update questions whenever active level changes
+  const prevSectionIdRef = useRef(activeSectionId);
   useEffect(() => {
     const qList = getActiveQuestionsForLevelFullstackPart13(activeSection, studentId, false);
     setLevelQuestions(qList);
-    setLevelResult(null);
+    if (prevSectionIdRef.current !== activeSectionId) {
+      prevSectionIdRef.current = activeSectionId;
+      setLevelResult(null);
+      try {
+        localStorage.removeItem('dopilot_fullstack_part13_level_result');
+      } catch {}
+    }
   }, [activeSectionId, studentId]);
 
   const currentBlock: TheoryBlock = activeSection.theoryBlocks[activeQuestionIdx] || activeSection.theoryBlocks[0];
@@ -133,6 +147,7 @@ export const FullstackPart13Page: React.FC = () => {
   // Waiting for Continue click when user didn't enter an answer in time
   const [isTimeUpWaiting, setIsTimeUpWaiting] = useState<boolean>(() => {
     try {
+      if (levelResult?.isFinished) return false;
       if (localStorage.getItem('dopilot_fullstack_part13_time_up') === 'true') return true;
       const savedPhase = localStorage.getItem('dopilot_fullstack_part13_study_phase');
       if (savedPhase === 'true') return false;
@@ -235,6 +250,7 @@ export const FullstackPart13Page: React.FC = () => {
       localStorage.setItem('dopilot_fullstack_part13_study_phase', 'false');
       localStorage.setItem('dopilot_fullstack_part13_q_target_end_time', String(freshEnd));
       localStorage.removeItem('dopilot_fullstack_part13_time_up');
+      localStorage.removeItem('dopilot_fullstack_part13_level_result');
     } catch (e) {
       console.error(e);
     }
@@ -282,6 +298,9 @@ export const FullstackPart13Page: React.FC = () => {
     };
 
     setLevelResult(outcome);
+    try {
+      localStorage.setItem('dopilot_fullstack_part13_level_result', JSON.stringify(outcome));
+    } catch {}
     setCorrectCountdown(null);
   };
 
@@ -301,6 +320,7 @@ export const FullstackPart13Page: React.FC = () => {
         localStorage.setItem('dopilot_fullstack_part13_study_phase', 'true');
         localStorage.setItem('dopilot_fullstack_part13_q_target_end_time', String(fresh));
         localStorage.removeItem('dopilot_fullstack_part13_time_up');
+      localStorage.removeItem('dopilot_fullstack_part13_level_result');
       } catch (e) {
         console.error(e);
       }
@@ -336,6 +356,7 @@ export const FullstackPart13Page: React.FC = () => {
       localStorage.setItem('dopilot_fullstack_part13_study_phase', 'true');
       localStorage.setItem('dopilot_fullstack_part13_q_target_end_time', String(fresh));
       localStorage.removeItem('dopilot_fullstack_part13_time_up');
+      localStorage.removeItem('dopilot_fullstack_part13_level_result');
     } catch (e) {
       console.error(e);
     }
@@ -361,6 +382,7 @@ export const FullstackPart13Page: React.FC = () => {
         localStorage.setItem('dopilot_fullstack_part13_study_phase', 'true');
         localStorage.setItem('dopilot_fullstack_part13_q_target_end_time', String(fresh));
         localStorage.removeItem('dopilot_fullstack_part13_time_up');
+      localStorage.removeItem('dopilot_fullstack_part13_level_result');
       } catch (e) {
         console.error(e);
       }
@@ -413,6 +435,7 @@ export const FullstackPart13Page: React.FC = () => {
       localStorage.setItem('dopilot_fullstack_part13_study_phase', 'false');
       localStorage.setItem('dopilot_fullstack_part13_q_target_end_time', String(freshEndTime));
       localStorage.removeItem('dopilot_fullstack_part13_time_up');
+      localStorage.removeItem('dopilot_fullstack_part13_level_result');
       localStorage.removeItem('dopilot_fullstack_part13_completed');
       localStorage.setItem('dopilot_fullstack_open_last_part', '13');
     } catch (err) {
@@ -535,6 +558,7 @@ export const FullstackPart13Page: React.FC = () => {
       localStorage.removeItem('dopilot_fullstack_part13_study_phase');
       localStorage.removeItem('dopilot_fullstack_part13_q_target_end_time');
       localStorage.removeItem('dopilot_fullstack_part13_time_up');
+      localStorage.removeItem('dopilot_fullstack_part13_level_result');
       localStorage.removeItem('dopilot_fullstack_part13_completed');
     } catch {}
 
@@ -838,6 +862,7 @@ export const FullstackPart13Page: React.FC = () => {
                           localStorage.setItem('dopilot_fullstack_part13_study_phase', 'true');
                           localStorage.setItem('dopilot_fullstack_part13_q_target_end_time', String(fresh));
                           localStorage.removeItem('dopilot_fullstack_part13_time_up');
+      localStorage.removeItem('dopilot_fullstack_part13_level_result');
                         } catch {}
                       }}
                       className={`h-2 rounded-full transition-all cursor-pointer relative ${
@@ -1063,6 +1088,7 @@ export const FullstackPart13Page: React.FC = () => {
                           localStorage.setItem('dopilot_fullstack_part13_study_phase', 'true');
                           localStorage.setItem('dopilot_fullstack_part13_q_target_end_time', String(fresh));
                           localStorage.removeItem('dopilot_fullstack_part13_time_up');
+      localStorage.removeItem('dopilot_fullstack_part13_level_result');
                         } catch {}
                       }}
                       className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/10 border border-white/10 text-slate hover:text-paper font-jakarta text-xs transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
