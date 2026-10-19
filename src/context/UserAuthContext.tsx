@@ -390,7 +390,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       collegeOrCompany: profile.collegeOrCompany.trim(),
       whereDidYouFindUs: profile.whereDidYouFindUs,
       hasCompletedDetails: true,
-      enrolledCourses: profile.enrolledCourses?.length ? profile.enrolledCourses : ['Complete Python Course']
+      enrolledCourses: ['Complete Python Course']
     };
 
     // 2. Persist to Supabase database
@@ -434,7 +434,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     } catch (e) {}
 
-    // 4. Ensure no stale purchase keys or point caches linger from deleted accounts
+    // 4. Ensure no stale purchase keys, progress, or point caches linger from deleted accounts
     purgeStudentLocalData(finalized.email, finalized.id);
 
     // 5. Save completed session locally

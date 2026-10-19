@@ -497,7 +497,7 @@ export const JavaPart7Page: React.FC = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/course/complete-java-programming')}
-            className="flex items-center gap-1.5 py-1 px-2.5 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
+            className="flex items-center gap-1.5 py-1 px-2.5 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Back to Overview</span>
@@ -593,7 +593,7 @@ export const JavaPart7Page: React.FC = () => {
                 </AnimatePresence>
               </div>
 
-              <span className="text-slate/60 text-[10px]">pts</span>
+              <span className="text-white text-[10px]">pts</span>
             </Link>
 
             
@@ -614,7 +614,7 @@ export const JavaPart7Page: React.FC = () => {
       </header>
 
       {/* Main Focus Arena */}
-      <main className="flex-1 flex flex-col items-center justify-center max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto">
+      <main className={`flex-1 flex flex-col items-center justify-center ${!isCourseComplete && !levelResult?.isFinished ? 'max-w-7xl' : 'max-w-5xl'} w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto transition-all`}>
         
         {/* SCENARIO 1: Entire Part 7 Course Completed */}
         {isCourseComplete ? (
@@ -795,7 +795,7 @@ export const JavaPart7Page: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleResetQuestions}
-                    className="py-2.5 px-4 rounded-xl bg-white/[0.02] hover:bg-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
+                    className="py-2.5 px-4 rounded-xl bg-white/[0.02] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
                   >
                     <span>Reset &amp; Retry Level</span>
                   </button>
@@ -815,17 +815,13 @@ export const JavaPart7Page: React.FC = () => {
         ) : (
           /* SCENARIO 3: Active Question View */
           <div className="w-full my-auto space-y-3">
-            <div className="bg-panel/90 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4 shadow-2xl relative w-full">
+            <div className="bg-panel/90 border border-white/10 rounded-2xl p-5 sm:p-7 space-y-5 shadow-2xl relative w-full">
               
               <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-white/10">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                   <span className="font-mono text-xs font-bold text-primary uppercase tracking-wide">
-                    Part 7 • Level {activeSection.number} • Question {currentLevelQuestionNumber} of {totalLevelQuestions}
-                  </span>
-
-                  <span className="text-[11px] font-mono text-slate/70 bg-white/[0.04] border border-white/10 px-2.5 py-0.5 rounded-full">
-                    {remainingLevelQuestions === 0 ? 'Final question in level' : `${remainingLevelQuestions} remaining`}
+                    Level {activeSection.number} • Question {currentLevelQuestionNumber} of {totalLevelQuestions}
                   </span>
                 </div>
 
@@ -862,7 +858,7 @@ export const JavaPart7Page: React.FC = () => {
                     className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold border transition-all duration-300 flex items-center gap-1.5 ${
                       isSolved
                         ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-[0_0_12px_rgba(0,255,157,0.2)]'
-                        : 'bg-white/[0.04] border-white/10 text-slate'
+                        : 'bg-white/[0.04] border-white/10 text-white'
                     }`}
                   >
                     <span>1 Pt</span>
@@ -880,41 +876,41 @@ export const JavaPart7Page: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 
                 {/* Left Column: Concept Reference Note & Code */}
-                <div className="lg:col-span-5 space-y-3 bg-black/40 border border-white/5 rounded-xl p-3.5 flex flex-col justify-between">
+                <div className="lg:col-span-6 space-y-3.5 p-4 sm:p-5 bg-black/40 border border-white/5 rounded-xl flex flex-col justify-between">
                   <div className="space-y-2.5">
                     <div className="space-y-1">
                       <span className="text-[10px] font-mono uppercase font-bold text-primary tracking-wider block">
                         Concept Reference
                       </span>
-                      <h4 className="text-sm font-bold text-paper">
+                      <h4 className="text-sm font-bold text-white">
                         {currentBlock.heading}
                       </h4>
-                      <p className="text-slate text-xs leading-relaxed">
+                      <p className="text-white text-xs leading-relaxed">
                         {currentBlock.text}
                       </p>
                     </div>
 
                     {currentBlock.codeSnippet && (
                       <div className="rounded-lg border border-white/10 bg-black/80 overflow-hidden text-xs font-mono">
-                        <div className="px-2.5 py-1 bg-white/[0.02] border-b border-white/5 flex items-center justify-between text-[10px] text-slate/50">
+                        <div className="px-2.5 py-1 bg-white/[0.02] border-b border-white/5 flex items-center justify-between text-[10px] text-white">
                           <span>Main.java</span>
                           <button
                             type="button"
                             onClick={() => handleCopyCode(currentBlock.codeSnippet!, `code-part7-${activeQuestionIdx}`)}
-                            className="hover:text-paper cursor-pointer"
+                            className="text-white hover:text-white cursor-pointer"
                           >
                             {copiedId === `code-part7-${activeQuestionIdx}` ? 'Copied' : 'Copy'}
                           </button>
                         </div>
-                        <pre className="p-2 text-xs text-paper overflow-x-auto leading-relaxed max-h-24">
+                        <pre className="p-2.5 text-xs text-white overflow-x-auto leading-relaxed max-h-48">
                           {currentBlock.codeSnippet}
                         </pre>
                         {currentBlock.terminalOutput && (
                           <div className="px-2.5 py-1 border-t border-white/5 bg-black text-[11px] text-primary flex items-center gap-1.5">
-                            <span className="text-slate/60 text-[10px] uppercase font-bold">Output:</span>
+                            <span className="text-white text-[10px] uppercase font-bold">Output:</span>
                             <span className="truncate">{currentBlock.terminalOutput.replace(/\n/g, ' | ')}</span>
                           </div>
                         )}
@@ -922,7 +918,7 @@ export const JavaPart7Page: React.FC = () => {
                     )}
 
                     {currentBlock.tip && (
-                      <div className="p-2 rounded-lg bg-amber-400/[0.06] border border-amber-400/20 text-[11px] text-amber-300 leading-snug">
+                      <div className="p-2.5 rounded-lg bg-amber-400/[0.06] border border-amber-400/20 text-xs text-amber-300 leading-snug">
                         <strong>Tip: </strong>{currentBlock.tip}
                       </div>
                     )}
@@ -934,11 +930,11 @@ export const JavaPart7Page: React.FC = () => {
                   </div>
 
                   {isStudyPhase && !isLocked && (
-                    <div className="pt-2.5 border-t border-white/5">
+                    <div className="pt-3 border-t border-white/5">
                       <button
                         type="button"
                         onClick={handleStartQuestion}
-                        className="w-full py-2 px-3.5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 flex items-center justify-center gap-2 group"
+                        className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 flex items-center justify-center gap-2 group"
                       >
                         <span>Continue to Question</span>
                         <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -948,17 +944,17 @@ export const JavaPart7Page: React.FC = () => {
                 </div>
 
                 {/* Right Column: Question & Choices */}
-                <div className="lg:col-span-7 space-y-3 relative overflow-hidden rounded-xl min-h-[300px]">
+                <div className="lg:col-span-6 space-y-3.5 relative overflow-hidden rounded-xl min-h-[300px]">
                   
                   {isStudyPhase && !isLocked && (
                     <div 
                       onClick={handleStartQuestion}
                       className="absolute inset-0 z-20 backdrop-blur-md bg-black/70 rounded-xl border border-white/10 flex flex-col items-center justify-center p-6 text-center animate-fade-in cursor-pointer select-none"
                     >
-                      <h4 className="text-sm font-bold text-paper mb-1">
+                      <h4 className="text-sm font-bold text-white mb-1">
                         Question is Locked
                       </h4>
-                      <p className="text-xs text-slate/80 max-w-xs leading-relaxed">
+                      <p className="text-xs text-white max-w-xs leading-relaxed">
                         Read and understand the concept note on the left first. Click "Continue to Question" to unlock.
                       </p>
                     </div>
@@ -967,11 +963,11 @@ export const JavaPart7Page: React.FC = () => {
                   <div className={`space-y-3 transition-all duration-300 ${
                     isStudyPhase && !isLocked ? 'filter blur-sm select-none pointer-events-none opacity-20' : ''
                   }`}>
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-mono uppercase font-bold text-primary/80 tracking-wider block">
+                    <div className="space-y-1 pl-1">
+                      <span className="text-[10px] font-mono uppercase font-bold text-primary tracking-wider block">
                         Multiple Choice Question
                       </span>
-                      <h3 className="font-jakarta text-base sm:text-lg font-bold text-paper leading-snug">
+                      <h3 className="font-jakarta text-base sm:text-lg font-bold text-white leading-snug">
                         {currentMcq.question}
                       </h3>
                     </div>
@@ -996,7 +992,7 @@ export const JavaPart7Page: React.FC = () => {
                                 ? 'bg-rose-500/15 border-rose-500/40 text-rose-200 ring-1 ring-rose-500/30 shadow-md'
                                 : isLocked || isTimeUpWaiting
                                 ? 'bg-black/30 border-white/5 text-slate/40 cursor-default opacity-50'
-                                : 'bg-black/50 border-white/10 hover:border-primary/50 hover:bg-white/[0.03] text-paper cursor-pointer'
+                                : 'bg-black/50 border-white/10 hover:border-primary/50 hover:bg-white/[0.03] text-white cursor-pointer'
                             }`}
                           >
                             <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
@@ -1004,7 +1000,7 @@ export const JavaPart7Page: React.FC = () => {
                                 ? 'bg-emerald-500 text-ink font-bold'
                                 : isChosenWrong
                                 ? 'bg-rose-500 text-white'
-                                : 'bg-white/10 text-slate'
+                                : 'bg-white/10 text-white'
                             }`}>
                               {showAsCorrect ? '✓' : isChosenWrong ? '✗' : opt.id}
                             </span>
@@ -1078,7 +1074,7 @@ export const JavaPart7Page: React.FC = () => {
                         </div>
 
                         <div className="flex items-center justify-between pt-1">
-                          <span className="text-[11px] font-mono text-slate/50">
+                          <span className="text-[11px] font-mono text-white">
                             {isUserWrongAnswer
                               ? 'Review the explanation above, then click Continue:'
                               : correctCountdown !== null
@@ -1196,7 +1192,7 @@ export const JavaPart7Page: React.FC = () => {
                   setDisclaimerModalOpen(false);
                   setDisclaimerConfirmed(false);
                 }}
-                className="py-2.5 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
+                className="py-2.5 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
               >
                 Cancel
               </button>
@@ -1250,7 +1246,7 @@ export const JavaPart7Page: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setPart8ModalOpen(false)}
-                className="w-full py-2 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
+                className="w-full py-2 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
               >
                 Review Part 7 Notes
               </button>

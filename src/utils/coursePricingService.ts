@@ -610,6 +610,17 @@ export const hasCourseAccess = (
 
   const targetIdentifier = studentIdOrEmail.toLowerCase().trim();
 
+  // If student is on the permanent deletion blacklist, immediately deny access
+  try {
+    const deletedRaw = localStorage.getItem('dopilot_permanently_deleted_students_v1');
+    if (deletedRaw) {
+      const deletedList = JSON.parse(deletedRaw);
+      if (Array.isArray(deletedList) && deletedList.includes(targetIdentifier)) {
+        return false;
+      }
+    }
+  } catch {}
+
   // 1. Check direct user purchase key in localStorage
   try {
     const userPurchasesRaw =

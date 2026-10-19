@@ -323,15 +323,6 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     if (isPassed) {
       try {
         localStorage.setItem(`dopilot_cyber_part${currentPartNum}_sec_${secId}_passed`, 'true');
-        
-        // Check if all sections in part are passed
-        const allSecPassed = partSections.every(s => 
-          s.id === secId || localStorage.getItem(`dopilot_cyber_part${currentPartNum}_sec_${s.id}_passed`) === 'true'
-        );
-        if (allSecPassed) {
-          localStorage.setItem(`dopilot_cyber_part${currentPartNum}_completed`, 'true');
-          setIsPartComplete(true);
-        }
       } catch {}
     }
 
@@ -746,7 +737,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
         {/* SCENARIO 1: Part / Course Completed */}
         {isPartComplete ? (
           currentPartNum === 14 ? (
-            <CourseCompletionCard onClaimCertificate={() => setCertificateModalOpen(true)} />
+            <CourseCompletionCard courseId="cyber-security" onClaimCertificate={() => setCertificateModalOpen(true)} />
           ) : (
             <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
               <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
@@ -805,7 +796,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
               {levelResult.isPassed ? (
                 <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Level {activeSection.number} Passed • &gt; 80% Scored</span>
+                  <span>{activeIdx === partSections.length - 1 ? `Part ${currentPartNum} Passed • > 80% Scored` : `Level ${activeSection.number} Passed • > 80% Scored`}</span>
                 </span>
               ) : levelResult.isLocked ? (
                 <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-rose-500/20 border-rose-500/50 text-rose-300 shadow-rose-500/25">
@@ -822,7 +813,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
               ) : (
                 <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-rose-500/15 border-rose-500/40 text-rose-300 shadow-rose-500/20">
                   <AlertCircle className="w-4 h-4 text-rose-400" />
-                  <span>Exam Failed • Score ≤ 80% (Attempt 1 of 2)</span>
+                  <span>{activeIdx === partSections.length - 1 ? `Part ${currentPartNum} Exam Failed • Score ≤ 80%` : `Exam Failed • Score ≤ 80% (Attempt 1 of 2)`}</span>
                 </span>
               )}
             </div>
@@ -831,16 +822,22 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
             <div className="space-y-2">
               <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
                 {levelResult.isPassed
-                  ? `Level ${activeSection.number} Passed!`
+                  ? activeIdx === partSections.length - 1
+                    ? `Part ${currentPartNum} Passed!`
+                    : `Level ${activeSection.number} Passed!`
                   : levelResult.isLocked
                   ? 'Contact Team Required'
                   : levelResult.isSecondFailureInLevel
                   ? `Exam Failed (2nd Failure in Level ${activeSection.number})`
+                  : activeIdx === partSections.length - 1
+                  ? `Part ${currentPartNum} Exam Failed`
                   : 'Exam Failed'}
               </h2>
               <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
                 {levelResult.isPassed
-                  ? `Congratulations! You scored ${levelResult.percentage}%, successfully meeting the requirement of more than 80%. Your consecutive-failure streak has reset to 0.`
+                  ? activeIdx === partSections.length - 1
+                    ? `Congratulations! You scored ${levelResult.percentage}%, successfully mastering all concepts in Part ${currentPartNum}. Click Continue to view your overall performance and claim your official certificate.`
+                    : `Congratulations! You scored ${levelResult.percentage}%, successfully meeting the requirement of more than 80%. Your consecutive-failure streak has reset to 0.`
                   : levelResult.isLocked
                   ? 'You have reached 3 consecutive failed levels. Progression is locked. Please reach out to our team to review your concepts and unlock further levels.'
                   : levelResult.isSecondFailureInLevel
@@ -891,13 +888,13 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
               {levelResult.isPassed ? (
-                /* PASSED: Continue to next level normally */
+                /* PASSED: Continue to next level or complete part */
                 <button
                   type="button"
                   onClick={handleProceedToNextLevel}
                   className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
                 >
-                  <span>Continue to Next Level</span>
+                  <span>Continue</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               ) : !levelResult.isSecondFailureInLevel ? (

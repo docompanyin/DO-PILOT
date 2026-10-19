@@ -545,7 +545,7 @@ export const FullstackPart5Page: React.FC = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/course/fullstack-open')}
-            className="flex items-center gap-1.5 py-1 px-2.5 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
+            className="flex items-center gap-1.5 py-1 px-2.5 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
             title="Leave Course (Progress saved)"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
@@ -603,7 +603,7 @@ export const FullstackPart5Page: React.FC = () => {
                 </AnimatePresence>
               </div>
 
-              <span className="text-slate/60 text-[10px]">pts</span>
+              <span className="text-white text-[10px]">pts</span>
             </Link>
 
             
@@ -624,7 +624,7 @@ export const FullstackPart5Page: React.FC = () => {
       </header>
 
       {/* Main Focus Arena (Centered, Identical Layout to Python & Java) */}
-      <main className="flex-1 flex flex-col items-center justify-center max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto">
+      <main className={`flex-1 flex flex-col items-center justify-center ${!isCourseComplete && !levelResult?.isFinished ? 'max-w-7xl' : 'max-w-5xl'} w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto transition-all`}>
         
         {/* SCENARIO 1: Entire Part 5 Course Completed */}
         {isCourseComplete ? (
@@ -811,221 +811,238 @@ export const FullstackPart5Page: React.FC = () => {
             </div>
           </div>
         ) : (
-          /* SCENARIO 3: Active Question Focused Workspace (Identical Python 10/10 Layout) */
-          <div className="bg-panel/90 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4 shadow-2xl relative w-full">
-            
-            {/* Top Bar inside card: Level pills + Question tracker */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-md bg-primary/20 text-primary border border-primary/30">
-                  Level {activeSection.number}
-                </span>
-                <span className="font-jakarta text-xs sm:text-sm font-bold text-paper">
-                  {activeSection.title}
-                </span>
-              </div>
-
-              {/* Progress counter pill */}
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[11px] text-slate/70">
-                  Question <strong className="text-paper">{currentLevelQuestionNumber}</strong> of {totalLevelQuestions}
-                </span>
-                {remainingLevelQuestions > 0 && (
-                  <span className="hidden sm:inline font-mono text-[10px] text-slate/50">
-                    ({remainingLevelQuestions} remaining)
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Split Screen Grid: 5 Cols Minimal Notes / 7 Cols Question & Options */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          /* SCENARIO 3: Active Question View (Exact Python Part 1 Layout) */
+          <div className="w-full my-auto space-y-3">
+            <div className="bg-panel/90 border border-white/10 rounded-2xl p-5 sm:p-7 space-y-5 shadow-2xl relative w-full">
               
-              {/* Left Column (5 Cols): Minimal & Simple Notes + Code Snippet */}
-              <div className="lg:col-span-5 space-y-3">
-                <div className="bg-black/40 border border-white/5 rounded-xl p-3.5 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
-                      <Sparkles className="w-3 h-3" />
-                      <span>{currentBlock.heading}</span>
-                    </span>
-                    <span className="font-mono text-[10px] text-slate/50">
-                      Step {activeQuestionIdx + 1}/{totalLevelQuestions}
-                    </span>
+              {/* Card Header: Level progress, remaining items & compact timer */}
+              <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-white/10">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  <span className="font-mono text-xs font-bold text-primary uppercase tracking-wide">
+                    Level {activeSection.number} • Question {currentLevelQuestionNumber} of {totalLevelQuestions}
+                  </span>
+                </div>
+
+                {/* Compact Timer Pill & Points */}
+                <div className="flex items-center gap-2 shrink-0">
+                  {isStudyPhase && !isLocked ? (
+                    <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-primary">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>30s Ready</span>
+                    </div>
+                  ) : isUserWrongAnswer ? (
+                    <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-rose-400">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Review Answer</span>
+                    </div>
+                  ) : correctCountdown !== null ? (
+                    <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-emerald-400">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Next in {correctCountdown}s</span>
+                    </div>
+                  ) : (
+                    <div className={`flex items-center gap-1.5 font-mono text-xs font-bold transition-all ${
+                      timeLeft <= 10
+                        ? 'text-rose-400 animate-pulse'
+                        : 'text-amber-300'
+                    }`}>
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{timeLeft}s</span>
+                    </div>
+                  )}
+
+                  <motion.span
+                    animate={isSolved ? { scale: [1, 1.15, 1] } : {}}
+                    transition={{ duration: 0.35, ease: 'easeOut' }}
+                    className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold border transition-all duration-300 flex items-center gap-1.5 ${
+                      isSolved
+                        ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-[0_0_12px_rgba(0,255,157,0.2)]'
+                        : 'bg-white/[0.04] border-white/10 text-white'
+                    }`}
+                  >
+                    <span>1 Pt</span>
+                    {isSolved && (
+                      <motion.span
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                        className="text-emerald-400 font-bold"
+                      >
+                        ✓
+                      </motion.span>
+                    )}
+                  </motion.span>
+                </div>
+              </div>
+
+              {/* 2-Column Content: Concept on Left, Question on Right */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                {/* Left Column: Concept Reference Note & Code (Minimal & Simple) */}
+                <div className="lg:col-span-6 space-y-3.5 p-4 sm:p-5 bg-black/40 border border-white/5 rounded-xl flex flex-col justify-between">
+                  <div className="space-y-2.5">
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-mono uppercase font-bold text-primary tracking-wider block">
+                        Concept Reference
+                      </span>
+                      <h4 className="text-sm font-bold text-white">
+                        {currentBlock.heading}
+                      </h4>
+                      <p className="text-white text-xs leading-relaxed">
+                        {currentBlock.text}
+                      </p>
+                    </div>
+
+                    {currentBlock.codeSnippet && (
+                      <div className="rounded-lg border border-white/10 bg-black/80 overflow-hidden text-xs font-mono">
+                        <div className="px-2.5 py-1 bg-white/[0.02] border-b border-white/5 flex items-center justify-between text-[10px] text-white">
+                          <span>App.test.jsx</span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyCode(currentBlock.codeSnippet!, `code-${activeQuestionIdx}`)}
+                            className="text-white hover:text-white cursor-pointer"
+                          >
+                            {copiedId === `code-${activeQuestionIdx}` ? 'Copied' : 'Copy'}
+                          </button>
+                        </div>
+                        <pre className="p-2.5 text-xs text-white overflow-x-auto leading-relaxed max-h-48">
+                          {currentBlock.codeSnippet}
+                        </pre>
+                        {currentBlock.terminalOutput && (
+                          <div className="px-2.5 py-1 border-t border-white/5 bg-black text-[11px] text-primary flex items-center gap-1.5">
+                            <span className="text-white text-[10px] uppercase font-bold">Output:</span>
+                            <span className="truncate">{currentBlock.terminalOutput.replace(/\n/g, ' | ')}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Concise 1-2 sentence core note */}
-                  <p className="text-slate text-xs leading-relaxed font-sans">
-                    {currentBlock.text}
-                  </p>
-
-                  {/* Compact code syntax snippet */}
-                  {currentBlock.codeSnippet && (
-                    <div className="relative group rounded-lg overflow-hidden border border-white/10 bg-[#07090e]">
-                      <div className="flex items-center justify-between px-2.5 py-1 bg-white/[0.03] border-b border-white/5">
-                        <span className="font-mono text-[10px] text-slate/60">React / Testing</span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyCode(currentBlock.codeSnippet!, `code-${activeQuestionIdx}`)}
-                          className="font-mono text-[10px] text-slate hover:text-paper transition-colors cursor-pointer"
-                        >
-                          {copiedId === `code-${activeQuestionIdx}` ? 'Copied!' : 'Copy'}
-                        </button>
-                      </div>
-                      <pre className="p-2.5 font-mono text-[11px] text-emerald-300/90 overflow-x-auto leading-relaxed max-h-28">
-                        <code>{currentBlock.codeSnippet}</code>
-                      </pre>
-                    </div>
-                  )}
-
-                  {/* Optional Terminal or Server Output */}
-                  {currentBlock.terminalOutput && (
-                    <div className="rounded-lg overflow-hidden border border-white/5 bg-black/60 p-2 font-mono text-[10px] text-slate/80">
-                      <span className="text-primary font-bold">Terminal: </span>
-                      {currentBlock.terminalOutput}
-                    </div>
-                  )}
-
-                  {/* Study Phase Action Button (Unlocks 30s timer & Question) */}
-                  {isStudyPhase && !isLocked && !isTimeUpWaiting && (
-                    <div className="pt-1">
+                  {/* Continue button below note to reveal question */}
+                  {isStudyPhase && !isLocked && (
+                    <div className="pt-3 border-t border-white/5">
                       <button
                         type="button"
                         onClick={handleStartQuestion}
-                        className="w-full py-2 px-3 rounded-lg bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 shadow-md shadow-primary/20 cursor-pointer"
+                        className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 flex items-center justify-center gap-2 group"
                       >
                         <span>Continue to Question</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
+                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                       </button>
                     </div>
                   )}
                 </div>
-              </div>
 
-              {/* Right Column (7 Cols): Question Prompt, 30s Timer, and 4 Options */}
-              <div className="lg:col-span-7 space-y-3">
-                
-                {/* Question Card Box */}
-                <div className="bg-black/40 border border-white/5 rounded-xl p-4 space-y-3 relative overflow-hidden">
+                {/* Right Column: Question & Choices */}
+                <div className="lg:col-span-6 space-y-3.5 relative overflow-hidden rounded-xl min-h-[300px]">
                   
-                  {/* Top line of question: Header + Timer */}
-                  <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2">
-                    <span className="font-mono text-[11px] font-bold text-slate/70 uppercase tracking-wider">
-                      Assessment Prompt
-                    </span>
-
-                    {/* 30-Second Countdown Timer Badge */}
-                    <div className="flex items-center gap-1">
-                      <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-mono text-xs font-bold border transition-colors ${
-                        isStudyPhase
-                          ? 'bg-white/[0.04] border-white/10 text-slate/60'
-                          : timeLeft <= 5
-                          ? 'bg-rose-500/20 border-rose-500/50 text-rose-400 animate-pulse'
-                          : timeLeft <= 10
-                          ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                          : 'bg-primary/10 border-primary/30 text-primary'
-                      }`}>
-                        <Clock className="w-3 h-3" />
-                        <span>{isStudyPhase ? '30s' : `${timeLeft}s`}</span>
-                      </div>
+                  {/* Study Phase Blur Overlay */}
+                  {isStudyPhase && !isLocked && (
+                    <div 
+                      onClick={handleStartQuestion}
+                      className="absolute inset-0 z-20 backdrop-blur-md bg-black/70 rounded-xl border border-white/10 flex flex-col items-center justify-center p-6 text-center animate-fade-in cursor-pointer select-none"
+                    >
+                      <h4 className="text-sm font-bold text-white mb-1">
+                        Question is Locked
+                      </h4>
+                      <p className="text-xs text-white max-w-xs leading-relaxed">
+                        Read and understand the concept note on the left first. Click "Continue to Question" to unlock.
+                      </p>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Question Text */}
-                  <h3 className="font-jakarta font-bold text-sm sm:text-base text-paper leading-snug">
-                    {currentMcq.question}
-                  </h3>
+                  {/* Question Content */}
+                  <div className={`space-y-3 transition-all duration-300 ${
+                    isStudyPhase && !isLocked ? 'filter blur-sm select-none pointer-events-none opacity-20' : ''
+                  }`}>
+                    <div className="space-y-1 pl-1">
+                      <span className="text-[10px] font-mono uppercase font-bold text-primary tracking-wider block">
+                        Multiple Choice Question
+                      </span>
+                      <h3 className="font-jakarta text-base sm:text-lg font-bold text-white leading-snug">
+                        {currentMcq.question}
+                      </h3>
+                    </div>
 
-                  {/* Options List or Locked Blur during Study Phase */}
-                  <div className="relative pt-1">
-                    
-                    {isStudyPhase && !isLocked && !isTimeUpWaiting && (
-                      <div className="absolute inset-0 z-20 backdrop-blur-[3px] bg-black/40 rounded-xl flex flex-col items-center justify-center p-4 text-center space-y-2 border border-white/10">
-                        <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider">
-                          Question is Locked
-                        </span>
-                        <p className="text-slate text-xs max-w-xs">
-                          Read and understand the concept note on the left first. Click below when you are ready to answer.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={handleStartQuestion}
-                          className="py-1.5 px-4 rounded-lg bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all shadow-md shadow-primary/25 cursor-pointer flex items-center gap-1.5"
-                        >
-                          <span>Unlock Question (30s)</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-
-                    {/* 4 Interactive Option Buttons */}
-                    <div className="space-y-2">
+                    {/* 4 Choices */}
+                    <div className="flex flex-col gap-2">
                       {currentMcq.options.map((opt) => {
-                        const isChosen = currentChoice === opt.id;
+                        const isSelected = currentChoice === opt.id;
                         const isCorrect = opt.id === currentMcq.correctAnswer;
-                        const showCorrectness = isLocked || isTimeUpWaiting;
-
-                        let btnStyle = 'bg-white/[0.03] hover:bg-white/[0.07] border-white/10 text-paper';
-                        if (showCorrectness) {
-                          if (isCorrect) {
-                            btnStyle = 'bg-emerald-500/20 border-emerald-500/60 text-emerald-200 font-semibold';
-                          } else if (isChosen && !isCorrect) {
-                            btnStyle = 'bg-rose-500/20 border-rose-500/60 text-rose-200 line-through';
-                          } else {
-                            btnStyle = 'bg-white/[0.02] border-white/5 text-slate/40 opacity-50';
-                          }
-                        }
+                        const isChosenWrong = isSelected && !isCorrect;
+                        const showAsCorrect = (isSelected && isCorrect) || (isLocked && isCorrect) || (isTimeUpWaiting && isCorrect) || (isUserWrongAnswer && isCorrect);
 
                         return (
                           <button
                             key={opt.id}
                             type="button"
-                            disabled={isLocked || isTimeUpWaiting || isStudyPhase}
-                            onClick={() => handleSelectOption(taskId, currentBlock.heading, opt.id, opt.id === currentMcq.correctAnswer)}
-                            className={`w-full text-left p-3 rounded-xl border text-xs sm:text-sm transition-all duration-150 flex items-start gap-2.5 cursor-pointer disabled:cursor-default ${btnStyle}`}
+                            disabled={isLocked || isTimeUpWaiting}
+                            onClick={() => handleSelectOption(taskId, currentBlock.heading, opt.id, isCorrect)}
+                            className={`w-full text-left py-2 px-3 rounded-xl border text-xs sm:text-sm transition-all flex items-center gap-2.5 ${
+                              showAsCorrect
+                                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200 ring-1 ring-emerald-500/30 shadow-md'
+                                : isChosenWrong
+                                ? 'bg-rose-500/15 border-rose-500/40 text-rose-200 ring-1 ring-rose-500/30 shadow-md'
+                                : isLocked || isTimeUpWaiting
+                                ? 'bg-black/30 border-white/5 text-slate/40 cursor-default opacity-50'
+                                : 'bg-black/50 border-white/10 hover:border-primary/50 hover:bg-white/[0.03] text-white cursor-pointer'
+                            }`}
                           >
-                            <span className={`w-5 h-5 rounded-md flex items-center justify-center font-mono text-[11px] font-black shrink-0 border ${
-                              showCorrectness && isCorrect
-                                ? 'bg-emerald-500 text-ink border-emerald-400'
-                                : showCorrectness && isChosen && !isCorrect
-                                ? 'bg-rose-500 text-white border-rose-400'
-                                : 'bg-white/[0.05] border-white/10 text-slate'
+                            <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
+                              showAsCorrect
+                                ? 'bg-emerald-500 text-ink font-bold'
+                                : isChosenWrong
+                                ? 'bg-rose-500 text-white'
+                                : 'bg-white/10 text-white'
                             }`}>
-                              {showCorrectness && isCorrect ? '✓' : showCorrectness && isChosen && !isCorrect ? '✕' : opt.id}
+                              {showAsCorrect ? '✓' : isChosenWrong ? '✗' : opt.id}
                             </span>
-                            <span className="flex-1 leading-snug">{opt.text}</span>
+                            <span className="font-sans leading-snug flex-1">
+                              {opt.text}
+                            </span>
+                            {(isTimeUpWaiting || isUserWrongAnswer) && isCorrect && (
+                              <span className="text-[10px] font-mono font-bold text-emerald-300 bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full shrink-0">
+                                Correct Answer
+                              </span>
+                            )}
                           </button>
                         );
                       })}
                     </div>
 
-                    {/* Time-Up Notification (When 30s expired without answer) */}
-                    {isTimeUpWaiting && !currentChoice && (
-                      <div className="mt-3 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-200 text-xs space-y-2">
-                        <div className="flex items-center gap-1.5 font-bold text-rose-300">
-                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                          <span>Time Expired! (30s limit reached)</span>
-                        </div>
-                        <p className="font-sans text-xs text-rose-200/90 leading-relaxed">
-                          The correct answer was <strong className="text-emerald-400 font-mono">Option {currentMcq.correctAnswer}</strong>. Review the explanation note below and click continue:
-                        </p>
-                        <div className="pt-1 flex items-center justify-between">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsTimeUpWaiting(false);
-                              advanceToNextQuestion();
-                            }}
-                            className="py-1.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer flex items-center gap-1.5 ml-auto"
-                          >
-                            <span>Continue to Next</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                    {/* Time is Up */}
+                    {isTimeUpWaiting && (
+                      <div className="space-y-2 pt-1 animate-fade-in">
+                        <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/35 space-y-2.5 shadow-md">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                              <span className="text-xs text-amber-200 font-sans font-medium">
+                                Time's up! You did not select an answer.
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsTimeUpWaiting(false);
+                                try {
+                                  localStorage.removeItem('dopilot_fullstack_part5_time_up');
+      localStorage.removeItem('dopilot_fullstack_part5_level_result');
+                                } catch {}
+                                advanceToNextQuestion();
+                              }}
+                              className="py-1.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 shrink-0 flex items-center gap-1.5"
+                            >
+                              <span>Continue</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
 
-                        <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-200 text-xs leading-relaxed font-sans">
-                          <strong className="text-emerald-400 font-bold">✓ Explanation: </strong>
-                          {currentMcq.explanationNote}
+                          <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-200 text-xs leading-relaxed font-sans">
+                            <strong className="text-emerald-400 font-bold">✓ Explanation: </strong>
+                            {currentMcq.explanationNote}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1053,7 +1070,7 @@ export const FullstackPart5Page: React.FC = () => {
                         </div>
 
                         <div className="flex items-center justify-between pt-1">
-                          <span className="text-[11px] font-mono text-slate/50">
+                          <span className="text-[11px] font-mono text-white">
                             {isUserWrongAnswer
                               ? 'Review the explanation above, then click Continue:'
                               : correctCountdown !== null

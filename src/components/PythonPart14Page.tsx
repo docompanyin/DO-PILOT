@@ -669,7 +669,7 @@ export const PythonPart14Page: React.FC = () => {
               {levelResult.isPassed ? (
                 <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Level {activeSection.number} Passed • &gt; 80% Scored</span>
+                  <span>{activeIdx === PART_14_SECTIONS.length - 1 ? 'Part 14 Passed • > 80% Scored' : `Level ${activeSection.number} Passed • > 80% Scored`}</span>
                 </span>
               ) : levelResult.isLocked ? (
                 <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-rose-500/20 border-rose-500/50 text-rose-300 shadow-rose-500/25">
@@ -686,7 +686,7 @@ export const PythonPart14Page: React.FC = () => {
               ) : (
                 <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-rose-500/15 border-rose-500/40 text-rose-300 shadow-rose-500/20">
                   <AlertCircle className="w-4 h-4 text-rose-400" />
-                  <span>Exam Failed • Score ≤ 80% (Attempt 1 of 2)</span>
+                  <span>{activeIdx === PART_14_SECTIONS.length - 1 ? 'Part 14 Exam Failed • Score ≤ 80%' : `Exam Failed • Score ≤ 80% (Attempt 1 of 2)`}</span>
                 </span>
               )}
             </div>
@@ -695,16 +695,22 @@ export const PythonPart14Page: React.FC = () => {
             <div className="space-y-2">
               <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
                 {levelResult.isPassed
-                  ? `Level ${activeSection.number} Passed!`
+                  ? activeIdx === PART_14_SECTIONS.length - 1
+                    ? 'Part 14 Passed!'
+                    : `Level ${activeSection.number} Passed!`
                   : levelResult.isLocked
                   ? 'Contact Team Required'
                   : levelResult.isSecondFailureInLevel
                   ? `Exam Failed (2nd Failure in Level ${activeSection.number})`
+                  : activeIdx === PART_14_SECTIONS.length - 1
+                  ? 'Part 14 Exam Failed'
                   : 'Exam Failed'}
               </h2>
               <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
                 {levelResult.isPassed
-                  ? `Congratulations! You scored ${levelResult.percentage}%, successfully meeting the requirement of more than 80%. Your consecutive-failure streak has reset to 0.`
+                  ? activeIdx === PART_14_SECTIONS.length - 1
+                    ? `Congratulations! You scored ${levelResult.percentage}%, successfully mastering all concepts in Part 14. Click Continue to view your overall performance and claim your official certificate.`
+                    : `Congratulations! You scored ${levelResult.percentage}%, successfully meeting the requirement of more than 80%. Your consecutive-failure streak has reset to 0.`
                   : levelResult.isLocked
                   ? 'You have reached 3 consecutive failed levels in Part 14. Progression is locked. Please reach out to our team to review your concepts and unlock further levels.'
                   : levelResult.isSecondFailureInLevel
@@ -755,13 +761,13 @@ export const PythonPart14Page: React.FC = () => {
             {/* Action Buttons Configured per exact prompt rules */}
             <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
               {levelResult.isPassed ? (
-                /* PASSED: Continue to next level normally */
+                /* PASSED: Continue to next level or proceed to completion */
                 <button
                   type="button"
                   onClick={handleProceedToNextLevel}
                   className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
                 >
-                  <span>Continue to Next Level</span>
+                  <span>Continue</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               ) : !levelResult.isSecondFailureInLevel ? (

@@ -528,7 +528,7 @@ export const FullstackPart7Page: React.FC = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/course/fullstack-open')}
-            className="flex items-center gap-1.5 py-1 px-2.5 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
+            className="flex items-center gap-1.5 py-1 px-2.5 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
             title="Leave Course (Progress saved)"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
@@ -586,7 +586,7 @@ export const FullstackPart7Page: React.FC = () => {
                 </AnimatePresence>
               </div>
 
-              <span className="text-slate/60 text-[10px]">pts</span>
+              <span className="text-white text-[10px]">pts</span>
             </Link>
 
             
@@ -607,7 +607,7 @@ export const FullstackPart7Page: React.FC = () => {
       </header>
 
       {/* Main Focus Arena (Centered, Identical Layout to Python & Java) */}
-      <main className="flex-1 flex flex-col items-center justify-center max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto">
+      <main className={`flex-1 flex flex-col items-center justify-center ${!isCourseComplete && !levelResult?.isFinished ? 'max-w-7xl' : 'max-w-5xl'} w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto transition-all`}>
         
         {/* SCENARIO 1: Course Complete */}
         {isCourseComplete ? (
@@ -776,316 +776,289 @@ export const FullstackPart7Page: React.FC = () => {
             </div>
           </div>
         ) : (
-          /* SCENARIO 3: Active Question Workspace */
-          <div className="space-y-4">
-            
-            {/* Level Stepper Bar */}
-            <div className="bg-panel/90 border border-white/10 rounded-2xl p-3 sm:p-4 backdrop-blur-md">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-primary font-bold">
-                      LEVEL {activeSection.number}
-                    </span>
-                    <span className="text-slate/40 text-xs">•</span>
-                    <span className="font-jakarta text-xs text-slate">
-                      {activeSection.subtitle}
-                    </span>
-                  </div>
-                  <h1 className="font-jakarta font-extrabold text-lg sm:text-xl text-paper tracking-tight mt-0.5">
-                    {activeSection.title}
-                  </h1>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-slate/70">
-                    Question {currentLevelQuestionNumber} of {totalLevelQuestions}
-                  </span>
-                  {remainingLevelQuestions > 0 && (
-                    <span className="px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/10 font-mono text-[10px] text-slate">
-                      {remainingLevelQuestions} left
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Progress Steps */}
-              <div className="grid grid-cols-6 gap-1.5">
-                {activeSection.theoryBlocks.map((_, idx) => {
-                  const q = levelQuestions[idx] || activeSection.theoryBlocks[idx].mcq!;
-                  const qTId = `fullstack-7-${activeSection.id}-${q.id || idx}`;
-                  const ans = selectedAnswers[qTId];
-                  const isCurrent = idx === activeQuestionIdx;
-                  const isAnswered = Boolean(ans);
-                  const isAnsCorrect = ans === q.correctAnswer;
-
-                  return (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setActiveQuestionIdx(idx);
-                        setIsStudyPhase(true);
-                        setIsTimeUpWaiting(false);
-                        setTimeLeft(TIMER_DURATION);
-                        const fresh = Date.now() + TIMER_DURATION * 1000;
-                        setTargetEndTime(fresh);
-                        try {
-                          localStorage.setItem('dopilot_fullstack_part7_active_q_idx', String(idx));
-                          localStorage.setItem('dopilot_fullstack_part7_study_phase', 'true');
-                          localStorage.setItem('dopilot_fullstack_part7_q_target_end_time', String(fresh));
-                          localStorage.removeItem('dopilot_fullstack_part7_time_up');
-      localStorage.removeItem('dopilot_fullstack_part7_level_result');
-                        } catch {}
-                      }}
-                      className={`h-2 rounded-full transition-all cursor-pointer relative ${
-                        isCurrent
-                          ? 'bg-primary ring-2 ring-primary/40'
-                          : isAnswered
-                          ? isAnsCorrect
-                            ? 'bg-emerald-500'
-                            : 'bg-rose-500'
-                          : 'bg-white/10 hover:bg-white/20'
-                      }`}
-                      title={`Go to Question ${idx + 1}`}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Split Screen Concept Box & MCQ Workspace */}
-            <div className="bg-panel/90 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4 shadow-2xl relative w-full">
+          /* SCENARIO 3: Active Question View (Exact Python Part 1 Layout) */
+          <div className="w-full my-auto space-y-3">
+            <div className="bg-panel/90 border border-white/10 rounded-2xl p-5 sm:p-7 space-y-5 shadow-2xl relative w-full">
               
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-                
-                {/* Left Column: Minimal Concept Note & Syntax Box */}
-                <div className="lg:col-span-5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs text-primary font-bold uppercase tracking-wider flex items-center gap-1.5">
-                      <span>Concept {activeSection.number}.{currentLevelQuestionNumber}</span>
-                    </span>
+              {/* Card Header: Level progress, remaining items & compact timer */}
+              <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-white/10">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  <span className="font-mono text-xs font-bold text-primary uppercase tracking-wide">
+                    Level {activeSection.number} • Question {currentLevelQuestionNumber} of {totalLevelQuestions}
+                  </span>
+                </div>
 
-                    {isStudyPhase && (
-                      <span className="px-2 py-0.5 rounded-full bg-primary/10 border border-primary/30 text-primary font-mono text-[10px] animate-pulse">
-                        Study Mode
-                      </span>
+                {/* Compact Timer Pill & Points */}
+                <div className="flex items-center gap-2 shrink-0">
+                  {isStudyPhase && !isLocked ? (
+                    <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-primary">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>30s Ready</span>
+                    </div>
+                  ) : isUserWrongAnswer ? (
+                    <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-rose-400">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Review Answer</span>
+                    </div>
+                  ) : correctCountdown !== null ? (
+                    <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-emerald-400">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Next in {correctCountdown}s</span>
+                    </div>
+                  ) : (
+                    <div className={`flex items-center gap-1.5 font-mono text-xs font-bold transition-all ${
+                      timeLeft <= 10
+                        ? 'text-rose-400 animate-pulse'
+                        : 'text-amber-300'
+                    }`}>
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{timeLeft}s</span>
+                    </div>
+                  )}
+
+                  <motion.span
+                    animate={isSolved ? { scale: [1, 1.15, 1] } : {}}
+                    transition={{ duration: 0.35, ease: 'easeOut' }}
+                    className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold border transition-all duration-300 flex items-center gap-1.5 ${
+                      isSolved
+                        ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-[0_0_12px_rgba(0,255,157,0.2)]'
+                        : 'bg-white/[0.04] border-white/10 text-white'
+                    }`}
+                  >
+                    <span>1 Pt</span>
+                    {isSolved && (
+                      <motion.span
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                        className="text-emerald-400 font-bold"
+                      >
+                        ✓
+                      </motion.span>
                     )}
-                  </div>
+                  </motion.span>
+                </div>
+              </div>
 
-                  <div className="bg-black/40 border border-white/5 rounded-xl p-3.5 space-y-2.5">
-                    <h3 className="font-jakarta font-bold text-sm text-paper">
-                      {currentBlock.heading}
-                    </h3>
-                    <p className="text-slate text-xs leading-relaxed">
-                      {currentBlock.text}
-                    </p>
+              {/* 2-Column Content: Concept on Left, Question on Right */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                {/* Left Column: Concept Reference Note & Code (Minimal & Simple) */}
+                <div className="lg:col-span-6 space-y-3.5 p-4 sm:p-5 bg-black/40 border border-white/5 rounded-xl flex flex-col justify-between">
+                  <div className="space-y-2.5">
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-mono uppercase font-bold text-primary tracking-wider block">
+                        Concept Reference
+                      </span>
+                      <h4 className="text-sm font-bold text-white">
+                        {currentBlock.heading}
+                      </h4>
+                      <p className="text-white text-xs leading-relaxed">
+                        {currentBlock.text}
+                      </p>
+                    </div>
 
                     {currentBlock.codeSnippet && (
-                      <div className="relative group mt-2">
-                        <pre className="bg-black/60 border border-white/10 rounded-lg p-2.5 font-mono text-[11px] text-emerald-300 overflow-x-auto max-h-28 scrollbar-thin">
-                          <code>{currentBlock.codeSnippet}</code>
+                      <div className="rounded-lg border border-white/10 bg-black/80 overflow-hidden text-xs font-mono">
+                        <div className="px-2.5 py-1 bg-white/[0.02] border-b border-white/5 flex items-center justify-between text-[10px] text-white">
+                          <span>App.jsx</span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyCode(currentBlock.codeSnippet!, `code-${activeQuestionIdx}`)}
+                            className="text-white hover:text-white cursor-pointer"
+                          >
+                            {copiedId === `code-${activeQuestionIdx}` ? 'Copied' : 'Copy'}
+                          </button>
+                        </div>
+                        <pre className="p-2.5 text-xs text-white overflow-x-auto leading-relaxed max-h-48">
+                          {currentBlock.codeSnippet}
                         </pre>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyCode(currentBlock.codeSnippet!, `code-${activeQuestionIdx}`)}
-                          className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 text-[10px] font-mono text-slate hover:text-paper transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          {copiedId === `code-${activeQuestionIdx}` ? 'Copied' : 'Copy'}
-                        </button>
+                        {currentBlock.terminalOutput && (
+                          <div className="px-2.5 py-1 border-t border-white/5 bg-black text-[11px] text-primary flex items-center gap-1.5">
+                            <span className="text-white text-[10px] uppercase font-bold">Output:</span>
+                            <span className="truncate">{currentBlock.terminalOutput.replace(/\n/g, ' | ')}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
 
-                  {/* Continue Button to unlock question and start 30s timer */}
-                  {isStudyPhase && (
-                    <button
-                      type="button"
-                      onClick={handleStartQuestion}
-                      className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 cursor-pointer"
-                    >
-                      <span>Continue to Question</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Right Column: Question Workspace */}
-                <div className="lg:col-span-7 space-y-3 relative">
-                  
-                  {/* Locked study phase overlay */}
-                  {isStudyPhase && (
-                    <div className="absolute inset-0 z-20 bg-black/75 backdrop-blur-[2px] rounded-xl flex flex-col items-center justify-center p-6 text-center space-y-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center text-primary">
-                        <Clock className="w-5 h-5" />
-                      </div>
-                      <div className="space-y-1">
-                        <h4 className="font-jakarta font-bold text-sm text-paper">
-                          Question is Locked
-                        </h4>
-                        <p className="text-slate text-xs max-w-xs">
-                          Read and understand the concept note on the left first. Click <span className="text-primary font-bold">"Continue to Question"</span> to begin your 30-second timer.
-                        </p>
-                      </div>
+                  {/* Continue button below note to reveal question */}
+                  {isStudyPhase && !isLocked && (
+                    <div className="pt-3 border-t border-white/5">
                       <button
                         type="button"
                         onClick={handleStartQuestion}
-                        className="py-2 px-5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all shadow-md shadow-primary/20 cursor-pointer"
+                        className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 flex items-center justify-center gap-2 group"
                       >
-                        Start Question Now
+                        <span>Continue to Question</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                       </button>
                     </div>
                   )}
+                </div>
 
-                  {/* Question Header & Timer Bar */}
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs text-slate/70">
-                      Question {currentLevelQuestionNumber}
-                    </span>
-
-                    {/* 30s Countdown timer */}
-                    <div className="flex items-center gap-1.5 font-mono text-xs">
-                      <Clock className={`w-3.5 h-3.5 ${timeLeft <= 5 && !isLocked ? 'text-rose-400 animate-spin' : 'text-slate/60'}`} />
-                      <span className={`font-bold ${
-                        timeLeft <= 5 && !isLocked
-                          ? 'text-rose-400 font-extrabold text-sm'
-                          : timeLeft <= 10 && !isLocked
-                          ? 'text-amber-400'
-                          : 'text-slate'
-                      }`}>
-                        {timeLeft}s
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Question Text */}
-                  <h3 className="font-jakarta font-bold text-sm sm:text-base text-paper leading-snug">
-                    {currentMcq.question}
-                  </h3>
-
-                  {/* Options List */}
-                  <div className="space-y-2 pt-1">
-                    {currentMcq.options.map((opt) => {
-                      const isChosen = currentChoice === opt.id;
-                      const isCorrect = opt.id === currentMcq.correctAnswer;
-                      const showCorrect = isLocked && isCorrect;
-                      const showWrong = isLocked && isChosen && !isCorrect;
-
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          disabled={isLocked || isTimeUpWaiting || isStudyPhase}
-                          onClick={() => handleSelectOption(taskId, currentBlock.heading, opt.id, opt.id === currentMcq.correctAnswer)}
-                          className={`w-full p-3 rounded-xl border text-left font-sans text-xs transition-all flex items-start gap-2.5 cursor-pointer disabled:cursor-default ${
-                            showCorrect
-                              ? 'bg-emerald-500/15 border-emerald-500/50 text-paper font-semibold shadow-sm shadow-emerald-500/10'
-                              : showWrong
-                              ? 'bg-rose-500/15 border-rose-500/50 text-paper font-semibold shadow-sm shadow-rose-500/10'
-                              : isChosen
-                              ? 'bg-primary/20 border-primary/50 text-paper'
-                              : 'bg-white/[0.03] hover:bg-white/[0.07] border-white/10 text-paper/90'
-                          }`}
-                        >
-                          <span className={`w-5 h-5 rounded-md flex items-center justify-center font-mono text-[10px] font-bold shrink-0 mt-0.5 border ${
-                            showCorrect
-                              ? 'bg-emerald-500 border-emerald-400 text-black'
-                              : showWrong
-                              ? 'bg-rose-500 border-rose-400 text-white'
-                              : 'bg-white/10 border-white/15 text-slate'
-                          }`}>
-                            {showCorrect ? '✓' : showWrong ? '✕' : opt.id}
-                          </span>
-                          <span className="flex-1 leading-relaxed">
-                            {opt.text}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Feedback / Explanation Box */}
-                  {isLocked && (
-                    <div className={`p-3.5 rounded-xl border space-y-1.5 text-xs animate-fade-in ${
-                      isUserWrongAnswer
-                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-200'
-                        : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
-                    }`}>
-                      <div className="flex items-center gap-1.5 font-bold">
-                        {isUserWrongAnswer ? (
-                          <>
-                            <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-                            <span>Incorrect</span>
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Correct!</span>
-                          </>
-                        )}
-                      </div>
-                      <p className="text-slate/90 leading-relaxed text-[11px]">
-                        {currentMcq.explanationNote}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Time's Up Notice */}
-                  {isTimeUpWaiting && !isLocked && (
-                    <div className="p-3.5 rounded-xl border bg-amber-500/10 border-amber-500/30 text-amber-200 space-y-1.5 text-xs animate-fade-in">
-                      <div className="flex items-center gap-1.5 font-bold">
-                        <Clock className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Time's Up!</span>
-                      </div>
-                      <p className="text-slate/90 leading-relaxed text-[11px]">
-                        The 30-second timer has elapsed for this question. You can review the explanation or proceed to the next question.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Bottom Navigation Buttons */}
-                  <div className="flex items-center justify-between pt-2">
-                    <button
-                      type="button"
-                      disabled={activeQuestionIdx === 0}
-                      onClick={() => {
-                        const prevQ = activeQuestionIdx - 1;
-                        setActiveQuestionIdx(prevQ);
-                        setIsStudyPhase(true);
-                        setIsTimeUpWaiting(false);
-                        setTimeLeft(TIMER_DURATION);
-                        const fresh = Date.now() + TIMER_DURATION * 1000;
-                        setTargetEndTime(fresh);
-                        try {
-                          localStorage.setItem('dopilot_fullstack_part7_active_q_idx', String(prevQ));
-                          localStorage.setItem('dopilot_fullstack_part7_study_phase', 'true');
-                          localStorage.setItem('dopilot_fullstack_part7_q_target_end_time', String(fresh));
-                          localStorage.removeItem('dopilot_fullstack_part7_time_up');
-      localStorage.removeItem('dopilot_fullstack_part7_level_result');
-                        } catch {}
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/10 border border-white/10 text-slate hover:text-paper font-jakarta text-xs transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                {/* Right Column: Question & Choices */}
+                <div className="lg:col-span-6 space-y-3.5 relative overflow-hidden rounded-xl min-h-[300px]">
+                  
+                  {/* Study Phase Blur Overlay */}
+                  {isStudyPhase && !isLocked && (
+                    <div 
+                      onClick={handleStartQuestion}
+                      className="absolute inset-0 z-20 backdrop-blur-md bg-black/70 rounded-xl border border-white/10 flex flex-col items-center justify-center p-6 text-center animate-fade-in cursor-pointer select-none"
                     >
-                      Previous
-                    </button>
+                      <h4 className="text-sm font-bold text-white mb-1">
+                        Question is Locked
+                      </h4>
+                      <p className="text-xs text-white max-w-xs leading-relaxed">
+                        Read and understand the concept note on the left first. Click "Continue to Question" to unlock.
+                      </p>
+                    </div>
+                  )}
 
-                    {(isLocked || isTimeUpWaiting) && (
-                      <button
-                        type="button"
-                        onClick={advanceToNextQuestion}
-                        className="px-4 py-1.5 rounded-lg bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-1.5 shadow-md shadow-primary/20 cursor-pointer"
-                      >
-                        <span>
-                          {activeQuestionIdx + 1 < totalLevelQuestions
-                            ? correctCountdown !== null
-                              ? `Next Question (${correctCountdown}s)`
-                              : 'Next Question'
-                            : 'Complete Level'}
-                        </span>
-                        <ArrowRight className="w-3 h-3" />
-                      </button>
+                  {/* Question Content */}
+                  <div className={`space-y-3 transition-all duration-300 ${
+                    isStudyPhase && !isLocked ? 'filter blur-sm select-none pointer-events-none opacity-20' : ''
+                  }`}>
+                    <div className="space-y-1 pl-1">
+                      <span className="text-[10px] font-mono uppercase font-bold text-primary tracking-wider block">
+                        Multiple Choice Question
+                      </span>
+                      <h3 className="font-jakarta text-base sm:text-lg font-bold text-white leading-snug">
+                        {currentMcq.question}
+                      </h3>
+                    </div>
+
+                    {/* 4 Choices */}
+                    <div className="flex flex-col gap-2">
+                      {currentMcq.options.map((opt) => {
+                        const isSelected = currentChoice === opt.id;
+                        const isCorrect = opt.id === currentMcq.correctAnswer;
+                        const isChosenWrong = isSelected && !isCorrect;
+                        const showAsCorrect = (isSelected && isCorrect) || (isLocked && isCorrect) || (isTimeUpWaiting && isCorrect) || (isUserWrongAnswer && isCorrect);
+
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            disabled={isLocked || isTimeUpWaiting}
+                            onClick={() => handleSelectOption(taskId, currentBlock.heading, opt.id, isCorrect)}
+                            className={`w-full text-left py-2 px-3 rounded-xl border text-xs sm:text-sm transition-all flex items-center gap-2.5 ${
+                              showAsCorrect
+                                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200 ring-1 ring-emerald-500/30 shadow-md'
+                                : isChosenWrong
+                                ? 'bg-rose-500/15 border-rose-500/40 text-rose-200 ring-1 ring-rose-500/30 shadow-md'
+                                : isLocked || isTimeUpWaiting
+                                ? 'bg-black/30 border-white/5 text-slate/40 cursor-default opacity-50'
+                                : 'bg-black/50 border-white/10 hover:border-primary/50 hover:bg-white/[0.03] text-white cursor-pointer'
+                            }`}
+                          >
+                            <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
+                              showAsCorrect
+                                ? 'bg-emerald-500 text-ink font-bold'
+                                : isChosenWrong
+                                ? 'bg-rose-500 text-white'
+                                : 'bg-white/10 text-white'
+                            }`}>
+                              {showAsCorrect ? '✓' : isChosenWrong ? '✗' : opt.id}
+                            </span>
+                            <span className="font-sans leading-snug flex-1">
+                              {opt.text}
+                            </span>
+                            {(isTimeUpWaiting || isUserWrongAnswer) && isCorrect && (
+                              <span className="text-[10px] font-mono font-bold text-emerald-300 bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full shrink-0">
+                                Correct Answer
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Time is Up */}
+                    {isTimeUpWaiting && (
+                      <div className="space-y-2 pt-1 animate-fade-in">
+                        <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/35 space-y-2.5 shadow-md">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                              <span className="text-xs text-amber-200 font-sans font-medium">
+                                Time's up! You did not select an answer.
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsTimeUpWaiting(false);
+                                try {
+                                  localStorage.removeItem('dopilot_fullstack_part7_time_up');
+      localStorage.removeItem('dopilot_fullstack_part7_level_result');
+                                } catch {}
+                                advanceToNextQuestion();
+                              }}
+                              className="py-1.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 shrink-0 flex items-center gap-1.5"
+                            >
+                              <span>Continue</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-200 text-xs leading-relaxed font-sans">
+                            <strong className="text-emerald-400 font-bold">✓ Explanation: </strong>
+                            {currentMcq.explanationNote}
+                          </div>
+                        </div>
+                      </div>
                     )}
-                  </div>
 
+                    {/* Answered: Show feedback note & manual continue */}
+                    {currentChoice && (
+                      <div className="space-y-2 pt-1">
+                        <div className={`p-2.5 rounded-xl border text-xs leading-relaxed ${
+                          currentChoice === currentMcq.correctAnswer
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
+                            : 'bg-rose-500/10 border-rose-500/30 text-rose-200'
+                        }`}>
+                          <p className="font-sans text-xs">
+                            {currentChoice === currentMcq.correctAnswer ? (
+                              <span><strong className="text-emerald-400 font-bold">✓ Correct! </strong>{currentMcq.explanationNote}</span>
+                            ) : (
+                              (() => {
+                                const chosen = currentMcq.options.find(o => o.id === currentChoice);
+                                return (
+                                  <span><strong className="text-rose-400 font-bold">✕ Not quite: </strong>{chosen?.explanationIfWrong || 'Incorrect choice.'} {currentMcq.explanationNote}</span>
+                                );
+                              })()
+                            )}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[11px] font-mono text-white">
+                            {isUserWrongAnswer
+                              ? 'Review the explanation above, then click Continue:'
+                              : correctCountdown !== null
+                              ? `Next question in ${correctCountdown}s, or click Continue:`
+                              : 'Click Continue to proceed:'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCorrectCountdown(null);
+                              setIsTimeUpWaiting(false);
+                              advanceToNextQuestion();
+                            }}
+                            className="py-1.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 flex items-center gap-1.5"
+                          >
+                            <span>Continue</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                  </div>
                 </div>
 
               </div>
@@ -1112,7 +1085,7 @@ export const FullstackPart7Page: React.FC = () => {
                 <span>Progression Risk Notice</span>
               </div>
 
-              <p className="text-slate text-xs leading-relaxed">
+              <p className="text-white text-xs leading-relaxed">
                 You scored below 80% on your second attempt. If you choose to continue rather than retesting with alternative questions, this will count as <strong>1 consecutive level failure</strong>. If you reach <strong>3 consecutive failures</strong>, progression will be locked until advisor unlock.
               </p>
 

@@ -141,6 +141,21 @@ export const queueCloudSync = (email: string) => {
   }, 250);
 };
 
+export const clearMemoryCourseState = (email?: string) => {
+  if (syncTimeout) {
+    clearTimeout(syncTimeout);
+    syncTimeout = null;
+  }
+  if (!email) {
+    Object.keys(memoryCourseState).forEach((k) => delete memoryCourseState[k]);
+    return;
+  }
+  const cleanEmail = normalizeStudentEmail(email);
+  if (cleanEmail && memoryCourseState[cleanEmail]) {
+    delete memoryCourseState[cleanEmail];
+  }
+};
+
 export function parseCourseStorageKey(key: string): { courseId: string; partNum: number; field: string } | null {
   if (key.startsWith('dopilot_java_')) {
     const sub = key.replace('dopilot_java_', '');

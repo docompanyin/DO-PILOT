@@ -78,6 +78,7 @@ export default async function handler(req, res) {
 
     const cleanEmail = (email || '').trim().toLowerCase();
     const cleanId = (studentId || '').trim();
+    const emailSafe = cleanEmail ? cleanEmail.replace(/[^a-z0-9_]/g, '_') : '';
 
     // Safety guard: NEVER delete protected admin accounts
     if (cleanEmail && PROTECTED_ADMIN_EMAILS.some(a => cleanEmail === a.toLowerCase())) {
@@ -90,7 +91,12 @@ export default async function handler(req, res) {
     const results = {
       student_profiles: false,
       student_progress: false,
+      site_content: false,
       student_leads: false,
+      course_purchases: false,
+      reward_requests: false,
+      locked_courses: false,
+      course_resets: false,
       auth_user: false
     };
 
@@ -107,52 +113,123 @@ export default async function handler(req, res) {
       }
     }
 
-    // 2. Delete from student_profiles (by email or id)
+    // 2. Delete from site_content (student_course_state_*)
     try {
-      let q = supabase.from('student_profiles').delete();
-      if (cleanEmail && cleanId) {
-        q = q.or(`email.ilike.${cleanEmail},id.eq.${cleanId}`);
-      } else if (cleanEmail) {
-        q = q.ilike('email', cleanEmail);
-      } else {
-        q = q.eq('id', cleanId);
+      if (emailSafe) {
+        const { error: siteErr } = await supabase
+          .from('site_content')
+          .delete()
+          .eq('id', `student_course_state_${emailSafe}`);
+        if (!siteErr) results.site_content = true;
       }
-      const { error: profErr } = await q;
-      if (!profErr) results.student_profiles = true;
+      if (cleanEmail && cleanEmail !== emailSafe) {
+        await supabase
+          .from('site_content')
+          .delete()
+          .eq('id', `student_course_state_${cleanEmail}`);
+      }
+      // Also catch any row matching email pattern
+      if (cleanEmail) {
+        const { data: matchedRows } = await supabase
+          .from('site_content')
+          .select('id')
+          .ilike('id', `%${cleanEmail}%`);
+        if (Array.isArray(matchedRows) && matchedRows.length > 0) {
+          for (const row of matchedRows) {
+            await supabase.from('site_content').delete().eq('id', row.id);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error deleting site_content:', e);
+    }
+
+    // 3. Delete from student_profiles (by email AND id explicitly)
+    try {
+      let deletedProfiles = false;
+      if (cleanEmail) {
+        const { error: profEmailErr } = await supabase
+          .from('student_profiles')
+          .delete()
+          .ilike('email', cleanEmail);
+        if (!profEmailErr) deletedProfiles = true;
+      }
+      if (cleanId) {
+        const { error: profIdErr } = await supabase
+          .from('student_profiles')
+          .delete()
+          .eq('id', cleanId);
+        if (!profIdErr) deletedProfiles = true;
+      }
+      results.student_profiles = deletedProfiles;
     } catch (e) {
       console.warn('Error deleting student_profiles:', e);
     }
 
-    // 3. Delete from student_leads (by email)
-    if (cleanEmail) {
-      try {
+    // 4. Delete from student_leads (by email and id)
+    try {
+      if (cleanEmail) {
         const { error: leadErr } = await supabase
           .from('student_leads')
           .delete()
           .ilike('email', cleanEmail);
         if (!leadErr) results.student_leads = true;
-      } catch (e) {
-        console.warn('Error deleting student_leads:', e);
       }
-    }
-
-    // 4. Delete from course_purchases and reward_requests (by email and studentId)
-    try {
-      if (cleanEmail && cleanId) {
-        await supabase.from('course_purchases').delete().or(`student_email.ilike.${cleanEmail},student_id.eq.${cleanId}`);
-        await supabase.from('reward_requests').delete().or(`student_email.ilike.${cleanEmail},student_id.eq.${cleanId}`);
-      } else if (cleanEmail) {
-        await supabase.from('course_purchases').delete().ilike('student_email', cleanEmail);
-        await supabase.from('reward_requests').delete().ilike('student_email', cleanEmail);
-      } else if (cleanId) {
-        await supabase.from('course_purchases').delete().eq('student_id', cleanId);
-        await supabase.from('reward_requests').delete().eq('student_id', cleanId);
+      if (cleanId) {
+        await supabase.from('student_leads').delete().eq('id', cleanId);
       }
     } catch (e) {
-      console.warn('Error deleting course_purchases or reward_requests:', e);
+      console.warn('Error deleting student_leads:', e);
     }
 
-    // 5. If SUPABASE_SERVICE_ROLE_KEY is available, attempt Supabase Auth deletion
+    // 5. Delete from course_purchases, reward_requests, locked_courses, course_resets
+    try {
+      if (cleanEmail) {
+        await supabase.from('course_purchases').delete().ilike('student_email', cleanEmail);
+        results.course_purchases = true;
+      }
+      if (cleanId) {
+        await supabase.from('course_purchases').delete().eq('student_id', cleanId);
+        results.course_purchases = true;
+      }
+    } catch (e) {
+      // Table may not exist or optional
+    }
+
+    try {
+      if (cleanEmail) {
+        await supabase.from('reward_requests').delete().ilike('student_email', cleanEmail);
+        results.reward_requests = true;
+      }
+      if (cleanId) {
+        await supabase.from('reward_requests').delete().eq('student_id', cleanId);
+        results.reward_requests = true;
+      }
+    } catch (e) {}
+
+    try {
+      if (cleanEmail) {
+        await supabase.from('locked_courses').delete().ilike('student_email', cleanEmail);
+        results.locked_courses = true;
+      }
+      if (cleanId) {
+        await supabase.from('locked_courses').delete().eq('student_id', cleanId);
+        results.locked_courses = true;
+      }
+    } catch (e) {}
+
+    try {
+      if (cleanEmail) {
+        await supabase.from('course_resets').delete().ilike('student_email', cleanEmail);
+        results.course_resets = true;
+      }
+      if (cleanId) {
+        await supabase.from('course_resets').delete().eq('student_id', cleanId);
+        results.course_resets = true;
+      }
+    } catch (e) {}
+
+    // 6. If SUPABASE_SERVICE_ROLE_KEY is available, attempt Supabase Auth deletion
     if (SUPABASE_SERVICE_ROLE_KEY) {
       try {
         if (cleanId) {
@@ -161,7 +238,7 @@ export default async function handler(req, res) {
         }
         if (!results.auth_user && cleanEmail && supabase.auth?.admin?.listUsers) {
           const { data: userList } = await supabase.auth.admin.listUsers();
-          const targetUser = userList?.users?.find((u) => u.email?.toLowerCase() === cleanEmail);
+          const targetUser = userList?.users?.find((u) => (u.email || '').toLowerCase() === cleanEmail);
           if (targetUser) {
             const { error: deleteErr } = await supabase.auth.admin.deleteUser(targetUser.id);
             if (!deleteErr) results.auth_user = true;
