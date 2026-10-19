@@ -532,14 +532,14 @@ export async function generateCertificatePdfFromTemplate(
   // 1. Remove the unwanted dotted line:
   // Zero out the opacity mask (SMask) of the dotted line image in the PDF resource dictionary
   try {
-    const resources = page.node.Resources();
-    const xobjects = resources ? resources.lookup(PDFName.of('XObject')) : null;
-    const xobj = (xobjects && lineCfg.xObj && typeof xobjects.lookup === 'function')
+    const resources: any = page.node.Resources();
+    const xobjects: any = resources?.lookup ? resources.lookup(PDFName.of('XObject')) : null;
+    const xobj: any = (xobjects && lineCfg.xObj && typeof xobjects.lookup === 'function')
       ? xobjects.lookup(PDFName.of(lineCfg.xObj))
       : null;
     if (xobj && typeof xobj.dict?.lookup === 'function') {
       const smaskRef = xobj.dict.lookup(PDFName.of('SMask'));
-      const smaskStream = smaskRef ? pdfDoc.context.lookup(smaskRef) : null;
+      const smaskStream: any = smaskRef ? (pdfDoc.context as any).lookup(smaskRef) : null;
       if (smaskStream && typeof smaskStream.dict?.lookup === 'function') {
         const w = smaskStream.dict.lookup(PDFName.of('Width'))?.asNumber?.() || 900;
         const h = smaskStream.dict.lookup(PDFName.of('Height'))?.asNumber?.() || 21;
