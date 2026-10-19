@@ -211,6 +211,7 @@ export function parseCourseStorageKey(key: string): { courseId: string; partNum:
  * Initializes automatic transparent localStorage synchronization to cloud for logged in students.
  */
 let isInterceptorInitialized = false;
+let isRestoringFromCloud = false;
 export const initCourseProgressSyncInterceptor = () => {
   if (typeof window === 'undefined' || !window.localStorage || isInterceptorInitialized) return;
   isInterceptorInitialized = true;
@@ -220,6 +221,8 @@ export const initCourseProgressSyncInterceptor = () => {
 
   window.localStorage.setItem = (key: string, value: string) => {
     originalSetItem(key, value);
+
+    if (isRestoringFromCloud) return;
 
     try {
       const sessionRaw = window.localStorage.getItem('dopilot_student_session_v1');
@@ -534,14 +537,47 @@ export const restoreAllStudentCourseProgressFromCloud = async (
     const cloudState = data.content as StudentAllCoursesState;
     if (!cloudState || !cloudState.courses) return null;
 
-    memoryCourseState[cleanEmail] = cloudState;
+    isRestoringFromCloud = true;
 
-    // Apply cloud state directly into localStorage
+    // Merge cloud state into memory cache instead of blindly replacing it
+    if (!memoryCourseState[cleanEmail]) {
+      memoryCourseState[cleanEmail] = cloudState;
+    } else {
+      const curMem = memoryCourseState[cleanEmail];
+      Object.entries(cloudState.courses).forEach(([cId, cRec]) => {
+        if (!curMem.courses[cId]) {
+          curMem.courses[cId] = cRec;
+        } else {
+          const memCourse = curMem.courses[cId];
+          memCourse.lastPart = Math.max(memCourse.lastPart || 1, cRec.lastPart || 1);
+          memCourse.completedParts = Array.from(new Set([...(memCourse.completedParts || []), ...(cRec.completedParts || [])]));
+          if (cRec.parts) {
+            Object.entries(cRec.parts).forEach(([pStr, cPart]) => {
+              if (!memCourse.parts[pStr]) {
+                memCourse.parts[pStr] = cPart;
+              } else {
+                const memPart = memCourse.parts[pStr];
+                memPart.selectedAnswers = { ...(cPart.selectedAnswers || {}), ...(memPart.selectedAnswers || {}) };
+                memPart.activeQuestionIdx = Math.max(memPart.activeQuestionIdx || 0, cPart.activeQuestionIdx || 0);
+                if (memPart.isStudyPhase === false) {
+                  // Keep unlocked!
+                } else {
+                  memPart.isStudyPhase = cPart.isStudyPhase;
+                }
+              }
+            });
+          }
+        }
+      });
+    }
+
+    // Apply cloud state directly into localStorage safely
     Object.entries(cloudState.courses).forEach(([courseId, courseRec]) => {
       // 1. Last visited part
       const sampleKeys = getCourseStorageKeys(courseId, 1);
       if (courseRec.lastPart) {
-        localStorage.setItem(sampleKeys.lastPartKey, String(courseRec.lastPart));
+        const curLast = parseInt(localStorage.getItem(sampleKeys.lastPartKey) || '1', 10);
+        localStorage.setItem(sampleKeys.lastPartKey, String(Math.max(curLast, courseRec.lastPart)));
       }
 
       // 2. Completed parts
@@ -560,29 +596,54 @@ export const restoreAllStudentCourseProgressFromCloud = async (
           const partKeys = getCourseStorageKeys(courseId, pNum);
 
           if (partState.activeSectionId) {
-            localStorage.setItem(partKeys.sectionIdKey, partState.activeSectionId);
-            if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_active_section_id', partState.activeSectionId);
-            if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_active_section_id', partState.activeSectionId);
+            const curSec = localStorage.getItem(partKeys.sectionIdKey);
+            if (!curSec) {
+              localStorage.setItem(partKeys.sectionIdKey, partState.activeSectionId);
+              if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_active_section_id', partState.activeSectionId);
+              if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_active_section_id', partState.activeSectionId);
+            }
           }
-          if (typeof partState.activeQuestionIdx === 'number') {
-            localStorage.setItem(partKeys.questionIdxKey, String(partState.activeQuestionIdx));
-            if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_active_q_idx', String(partState.activeQuestionIdx));
-            if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_active_q_idx', String(partState.activeQuestionIdx));
+
+          // Merge answers: NEVER overwrite newer local answers with older cloud answers!
+          let localAnswers: Record<string, string> = {};
+          try {
+            const curAns = localStorage.getItem(partKeys.answersKey);
+            if (curAns) localAnswers = JSON.parse(curAns);
+          } catch {}
+          const mergedAnswers = { ...(partState.selectedAnswers || {}), ...localAnswers };
+          localStorage.setItem(partKeys.answersKey, JSON.stringify(mergedAnswers));
+          if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_mcq_answers', JSON.stringify(mergedAnswers));
+          if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_mcq_answers_v2', JSON.stringify(mergedAnswers));
+
+          // Question Index: Keep max index so user does not jump backwards
+          const curIdxStr = localStorage.getItem(partKeys.questionIdxKey);
+          const curIdx = curIdxStr !== null ? parseInt(curIdxStr, 10) : -1;
+          const targetIdx = curIdx >= 0 ? Math.max(curIdx, partState.activeQuestionIdx || 0) : (partState.activeQuestionIdx || 0);
+          localStorage.setItem(partKeys.questionIdxKey, String(targetIdx));
+          if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_active_q_idx', String(targetIdx));
+          if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_active_q_idx', String(targetIdx));
+
+          // Study Phase: NEVER relock if already unlocked locally or if target question is answered!
+          const curPhase = localStorage.getItem(partKeys.studyPhaseKey);
+          const sec = partState.activeSectionId || localStorage.getItem(partKeys.sectionIdKey) || '';
+          const isAnswered = Object.keys(mergedAnswers).some(k => 
+            k.includes(sec) && (k.endsWith(`-${targetIdx}`) || k.includes(`-${targetIdx}-`))
+          );
+          let targetStudyPhase = partState.isStudyPhase;
+          if (curPhase === 'false' || isAnswered) {
+            targetStudyPhase = false;
           }
-          if (partState.selectedAnswers) {
-            localStorage.setItem(partKeys.answersKey, JSON.stringify(partState.selectedAnswers));
-            if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_mcq_answers', JSON.stringify(partState.selectedAnswers));
-            if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_mcq_answers_v2', JSON.stringify(partState.selectedAnswers));
-          }
-          if (typeof partState.isStudyPhase === 'boolean') {
-            localStorage.setItem(partKeys.studyPhaseKey, String(partState.isStudyPhase));
-            if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_study_phase', String(partState.isStudyPhase));
-            if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_study_phase', String(partState.isStudyPhase));
-          }
+          localStorage.setItem(partKeys.studyPhaseKey, String(targetStudyPhase));
+          if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_study_phase', String(targetStudyPhase));
+          if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_study_phase', String(targetStudyPhase));
+
           if (partState.targetEndTime) {
-            localStorage.setItem(partKeys.targetEndTimeKey, String(partState.targetEndTime));
-            if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_q_target_end_time', String(partState.targetEndTime));
-            if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_q_target_end_time', String(partState.targetEndTime));
+            const curEnd = Number(localStorage.getItem(partKeys.targetEndTimeKey) || '0');
+            if (!curEnd || curEnd < Date.now()) {
+              localStorage.setItem(partKeys.targetEndTimeKey, String(partState.targetEndTime));
+              if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_q_target_end_time', String(partState.targetEndTime));
+              if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_q_target_end_time', String(partState.targetEndTime));
+            }
           }
           if (partState.isTimeUpWaiting) {
             localStorage.setItem(partKeys.timeUpKey, 'true');
@@ -617,12 +678,20 @@ export const restoreAllStudentCourseProgressFromCloud = async (
     // 4. Restore Part 1 score service records if saved
     if (cloudState.part1SectionScores) {
       Object.entries(cloudState.part1SectionScores).forEach(([k, v]) => {
-        localStorage.setItem(k, JSON.stringify(v));
+        let existingScores: any = {};
+        try {
+          const raw = localStorage.getItem(k);
+          if (raw) existingScores = JSON.parse(raw);
+        } catch {}
+        const merged = { ...v, ...existingScores };
+        localStorage.setItem(k, JSON.stringify(merged));
       });
     }
     if (cloudState.trialAttempted) {
       Object.entries(cloudState.trialAttempted).forEach(([k, v]) => {
-        localStorage.setItem(k, String(v));
+        if (v || localStorage.getItem(k) === 'true') {
+          localStorage.setItem(k, 'true');
+        }
       });
     }
 
@@ -635,6 +704,8 @@ export const restoreAllStudentCourseProgressFromCloud = async (
   } catch (err) {
     console.error('Failed to restore student course progress from cloud:', err);
     return null;
+  } finally {
+    isRestoringFromCloud = false;
   }
 };
 
@@ -728,8 +799,20 @@ export function useCourseQuestionResume(params: {
         setLevelResult?.(null);
       }
 
-      // 2. Study Phase: If user is reading notes and has not unlocked the question
-      if (saved.isStudyPhase) {
+      // 2. Study Phase: Check if user already unlocked locally or already answered this question
+      const partKeys = getCourseStorageKeys(courseId, partNum);
+      const curLocalStudy = localStorage.getItem(partKeys.studyPhaseKey);
+      const qIdxStr = String(saved.activeQuestionIdx);
+      const hasAnswer = Object.keys(saved.selectedAnswers || {}).some(k => 
+        k.includes(saved.activeSectionId) && (
+          k.includes(`-${qIdxStr}-`) || 
+          k.endsWith(`-${qIdxStr}`)
+        )
+      );
+
+      if (curLocalStudy === 'false' || hasAnswer) {
+        setIsStudyPhase(false);
+      } else if (saved.isStudyPhase) {
         setIsStudyPhase(true);
         setIsTimeUpWaiting(false);
         setTimeLeft(30);
@@ -737,15 +820,6 @@ export function useCourseQuestionResume(params: {
       } else {
         // 3. Question Phase (question was unlocked)
         setIsStudyPhase(false);
-
-        // Check if current question has already been answered
-        const qIdxStr = String(saved.activeQuestionIdx);
-        const hasAnswer = Object.keys(saved.selectedAnswers || {}).some(k => 
-          k.includes(saved.activeSectionId) && (
-            k.includes(`-${qIdxStr}-`) || 
-            k.endsWith(`-${qIdxStr}`)
-          )
-        );
 
         if (hasAnswer) {
           // Question already answered: user is reviewing or on explanation screen. Do not show Time's Up!
@@ -801,7 +875,7 @@ export function useCourseQuestionResume(params: {
     setIsTimeUpWaiting,
     setTimeLeft,
     setTargetEndTime,
-    validSectionIds,
+    validSectionIds.join(','),
     setLevelResult,
     setIsCourseComplete
   ]);

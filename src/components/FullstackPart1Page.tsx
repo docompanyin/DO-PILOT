@@ -34,6 +34,9 @@ interface LevelResultState {
   isPassed: boolean;
   correctCount: number;
   totalCount: number;
+  attemptedCount?: number;
+  incorrectCount?: number;
+  skippedCount?: number;
   percentage: number;
   streak: number;
   attemptCount: number;
@@ -228,11 +231,19 @@ export const FullstackPart1Page: React.FC = () => {
   const currentMcq: McqQuestion = levelQuestions[activeQuestionIdx] || currentBlock.mcq!;
   const taskId = `fullstack-1-${activeSection.id}-${currentMcq.id || activeQuestionIdx}`;
 
+  const candidateCurrentKeys = [
+    taskId,
+    `fullstack-1-${activeSection.id}-${activeQuestionIdx}`,
+    currentMcq.id ? `fullstack-1-${activeSection.id}-${currentMcq.id}` : '',
+    `${activeSection.id}-${currentMcq.id || activeQuestionIdx}`,
+    `${activeSection.id}-${activeQuestionIdx}`
+  ].filter(Boolean);
+
   // Whether user is currently in Study Phase (reading note with no timer pressure) or Question Phase (30s timer)
   const [isStudyPhase, setIsStudyPhase] = useState<boolean>(() => {
     try {
       const answers = JSON.parse(localStorage.getItem('dopilot_fullstack_part1_mcq_answers') || '{}');
-      if (answers[taskId]) return false; // Already answered
+      if (candidateCurrentKeys.some(k => Boolean(answers[k]))) return false; // Already answered, show unblurred
       const savedPhase = localStorage.getItem('dopilot_fullstack_part1_study_phase');
       if (savedPhase !== null) return savedPhase === 'true';
     } catch {}
@@ -397,20 +408,52 @@ export const FullstackPart1Page: React.FC = () => {
   const evaluateLevelScore = () => {
     const qList = stateRef.current.levelQuestions;
     const secId = stateRef.current.activeSectionId;
-    const currentAnswers = stateRef.current.selectedAnswers;
+
+    // Read from both localStorage and stateRef to guarantee NO answers are lost
+    let localAnswers: Record<string, string> = {};
+    try {
+      const saved = localStorage.getItem('dopilot_fullstack_part1_mcq_answers');
+      if (saved) localAnswers = JSON.parse(saved);
+    } catch {}
+    const answers = { ...localAnswers, ...stateRef.current.selectedAnswers };
 
     let correctCount = 0;
+    let attemptedCount = 0;
+    let incorrectCount = 0;
+    let skippedCount = 0;
     const totalCount = qList.length;
 
     qList.forEach((q, idx) => {
-      const qTaskId = `fullstack-1-${secId}-${q.id || idx}`;
-      const chosen = currentAnswers[qTaskId];
-      if (chosen === q.correctAnswer) {
-        correctCount += 1;
+      const candidateKeys = [
+        `fullstack-1-${secId}-${q.id}`,
+        `fullstack-1-${secId}-${idx}`,
+        `fullstack-1-${secId}-${q.id || idx}`,
+        `${secId}-${q.id}`,
+        `${secId}-${idx}`,
+        q.id ? `${secId}-${q.id || idx}` : ''
+      ].filter(Boolean);
+
+      let userChoice: string | undefined = undefined;
+      for (const k of candidateKeys) {
+        if (answers[k]) {
+          userChoice = answers[k];
+          break;
+        }
+      }
+
+      if (userChoice) {
+        attemptedCount++;
+        if (userChoice === q.correctAnswer) {
+          correctCount++;
+        } else {
+          incorrectCount++;
+        }
+      } else {
+        skippedCount++;
       }
     });
 
-    const percentage = Math.round((correctCount / totalCount) * 100);
+    const percentage = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
     const isPassed = percentage > 80;
 
     // Record section score for post-purchase overall Part 1 calculation (> 50% overall across 1.1-1.6)
@@ -435,6 +478,9 @@ export const FullstackPart1Page: React.FC = () => {
       isPassed,
       correctCount,
       totalCount,
+      attemptedCount,
+      incorrectCount,
+      skippedCount,
       percentage,
       streak: outcome.consecutiveFailedLevels,
       attemptCount: outcome.attemptCount,
@@ -453,7 +499,7 @@ export const FullstackPart1Page: React.FC = () => {
       partNum: 1,
       activeSectionId: activeSection.id,
       activeQuestionIdx,
-      selectedAnswers,
+      selectedAnswers: answers,
       isStudyPhase: false,
       isTimeUpWaiting: false,
       targetEndTime,
@@ -469,16 +515,18 @@ export const FullstackPart1Page: React.FC = () => {
     }
   };
 
+  const isAdvancingRef = useRef(false);
+
   // Advance function to go to next question or complete level
   const advanceToNextQuestion = () => {
+    if (isAdvancingRef.current) return;
+    isAdvancingRef.current = true;
+    setTimeout(() => { isAdvancingRef.current = false; }, 300);
+
     setCorrectCountdown(null);
     setIsTimeUpWaiting(false);
-    setIsStudyPhase(true);
-    try {
-      localStorage.setItem('dopilot_fullstack_part1_study_phase', 'true');
-    } catch {}
 
-    const { activeQuestionIdx: qIdx, levelQuestions: qList } = stateRef.current;
+    const { activeQuestionIdx: qIdx, levelQuestions: qList, selectedAnswers: currentAns } = stateRef.current;
     const nextQ = qIdx + 1;
 
     if (nextQ < qList.length) {
@@ -488,6 +536,29 @@ export const FullstackPart1Page: React.FC = () => {
         localStorage.setItem('dopilot_fullstack_part1_active_q_idx', String(nextQ));
       } catch (e) {
         console.error(e);
+      }
+
+      // Check if next question has already been answered
+      const nextMcq = qList[nextQ] || activeSection.theoryBlocks[nextQ]?.mcq;
+      const nextKeys = [
+        `fullstack-1-${activeSection.id}-${nextMcq?.id || nextQ}`,
+        `fullstack-1-${activeSection.id}-${nextQ}`,
+        nextMcq?.id ? `fullstack-1-${activeSection.id}-${nextMcq.id}` : '',
+        `${activeSection.id}-${nextMcq?.id || nextQ}`,
+        `${activeSection.id}-${nextQ}`
+      ].filter(Boolean);
+      const isNextAnswered = nextKeys.some(k => Boolean(currentAns[k]));
+
+      if (isNextAnswered) {
+        setIsStudyPhase(false);
+        try {
+          localStorage.setItem('dopilot_fullstack_part1_study_phase', 'false');
+        } catch {}
+      } else {
+        setIsStudyPhase(true);
+        try {
+          localStorage.setItem('dopilot_fullstack_part1_study_phase', 'true');
+        } catch {}
       }
     } else {
       evaluateLevelScore();
@@ -693,9 +764,26 @@ export const FullstackPart1Page: React.FC = () => {
   };
 
   const isSolved = isTaskSolved(taskId);
-  const currentChoice = selectedAnswers[taskId] || (isSolved ? currentMcq.correctAnswer : undefined);
+  let currentChoice: string | undefined = undefined;
+  for (const k of candidateCurrentKeys) {
+    if (selectedAnswers[k]) {
+      currentChoice = selectedAnswers[k];
+      break;
+    }
+  }
+  if (!currentChoice && isSolved) {
+    currentChoice = currentMcq.correctAnswer;
+  }
   const isLocked = Boolean(currentChoice);
   const isUserWrongAnswer = Boolean(currentChoice && currentChoice !== currentMcq.correctAnswer);
+
+  // When viewing an already answered question, ensure it remains unblurred and timer is inactive
+  useEffect(() => {
+    if (currentChoice) {
+      setIsStudyPhase(false);
+      setIsTimeUpWaiting(false);
+    }
+  }, [activeSectionId, activeQuestionIdx, currentChoice]);
 
   return (
     <div className="min-h-screen bg-black text-paper selection:bg-primary selection:text-ink relative overflow-x-hidden font-sans flex flex-col">
@@ -1063,11 +1151,13 @@ export const FullstackPart1Page: React.FC = () => {
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col items-center justify-center">
-                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Correct</span>
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Attempted</span>
                   <span className="font-mono text-2xl sm:text-3xl font-bold text-paper mt-0.5">
-                    {levelResult.correctCount} <span className="text-slate/50 text-base font-normal">/ {levelResult.totalCount}</span>
+                    {levelResult.attemptedCount ?? levelResult.totalCount} <span className="text-slate/50 text-base font-normal">/ {levelResult.totalCount}</span>
                   </span>
-                  <span className="text-[10px] font-mono text-slate/50 mt-0.5">Questions</span>
+                  <span className="text-[10px] font-mono text-slate/50 mt-0.5">
+                    {levelResult.correctCount} Correct • {(levelResult.attemptedCount ?? levelResult.totalCount) - levelResult.correctCount} Incorrect
+                  </span>
                 </div>
               </div>
 
@@ -1159,11 +1249,13 @@ export const FullstackPart1Page: React.FC = () => {
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col items-center justify-center">
-                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Correct</span>
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Attempted</span>
                   <span className="font-mono text-2xl sm:text-3xl font-bold text-paper mt-0.5">
-                    {levelResult.correctCount} <span className="text-slate/50 text-base font-normal">/ {levelResult.totalCount}</span>
+                    {levelResult.attemptedCount ?? levelResult.totalCount} <span className="text-slate/50 text-base font-normal">/ {levelResult.totalCount}</span>
                   </span>
-                  <span className="text-[10px] font-mono text-slate/50 mt-0.5">Questions</span>
+                  <span className="text-[10px] font-mono text-slate/50 mt-0.5">
+                    {levelResult.correctCount} Correct • {(levelResult.attemptedCount ?? levelResult.totalCount) - levelResult.correctCount} Incorrect
+                  </span>
                 </div>
 
                 <div className={`p-3.5 rounded-xl border flex flex-col items-center justify-center ${
