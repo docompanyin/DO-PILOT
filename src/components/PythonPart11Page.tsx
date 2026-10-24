@@ -1,12 +1,13 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  ArrowLeft, Terminal, Clock, ArrowRight, Trophy, RotateCcw,
+  ArrowLeft, BookOpen, Terminal, Clock, ArrowRight, Trophy, RotateCcw,
   CheckCircle2, AlertCircle, Shuffle, Check, Star, Sparkles, AlertTriangle, ShieldAlert
 } from 'lucide-react';
 import { PythonCompilerLauncherButton, TaskContext } from './compiler/PythonCompilerModal';
 import { useCoursePoints } from '../context/CoursePointsContext';
+import { getSavedCertificate } from '../utils/certificateGenerator';
 import { useUserAuth } from '../context/UserAuthContext';
 import { ContactModal } from './ContactModal';
 import { NeedHelpModal } from './NeedHelpModal';
@@ -38,6 +39,8 @@ export const PythonPart11Page: React.FC = () => {
 
   // Consistent student identifier for tracking seen questions and consecutive failure streaks
   const studentId = user?.id || 'default_student';
+  const [searchParams] = useSearchParams();
+  const isReviewMode = searchParams.get('review') === 'true' && Boolean(getSavedCertificate('python-core'));
 
   // Persistent Active Section ID (Defaults to Section 2.1)
   const [activeSectionId, setActiveSectionId] = useState<string>(() => {
@@ -116,6 +119,7 @@ export const PythonPart11Page: React.FC = () => {
 
   // Whether user is currently in Study Phase (reading note with no timer pressure) or Question Phase (30s timer)
   const [isStudyPhase, setIsStudyPhase] = useState<boolean>(() => {
+    if (isReviewMode) return false;
     try {
       const answers = JSON.parse(localStorage.getItem('dopilot_part11_mcq_answers_v2') || '{}');
       if (answers[taskId]) return false; // Already answered, show unblurred
@@ -298,6 +302,27 @@ export const PythonPart11Page: React.FC = () => {
     const { activeQuestionIdx: qIdx, levelQuestions: qList } = stateRef.current;
     const nextQ = qIdx + 1;
 
+    if (isReviewMode) {
+      if (nextQ < qList.length) {
+        setActiveQuestionIdx(nextQ);
+        setIsStudyPhase(false);
+        return;
+      } else {
+        const nextSecIdx = activeIdx + 1;
+        if (nextSecIdx < PART_11_SECTIONS.length) {
+          const nextSec = PART_11_SECTIONS[nextSecIdx];
+          setActiveSectionId(nextSec.id);
+          setActiveQuestionIdx(0);
+          setIsStudyPhase(false);
+          setLevelResult(null);
+          return;
+        } else {
+          navigate('/course/python-core/part-12?review=true');
+          return;
+        }
+      }
+    }
+
     if (nextQ < qList.length) {
       // Advance to next question in same level
       setActiveQuestionIdx(nextQ);
@@ -411,7 +436,7 @@ export const PythonPart11Page: React.FC = () => {
 
   // Timer Tick: Checks every 250ms against exact target timestamp ONLY when study phase is finished!
   useEffect(() => {
-    if (isCourseComplete || isStudyPhase || levelResult?.isFinished) return;
+    if (isReviewMode || isCourseComplete || isStudyPhase || levelResult?.isFinished) return;
 
     const interval = setInterval(() => {
       if (stateRef.current.isTimeUpWaiting || stateRef.current.isStudyPhase) return;
@@ -456,7 +481,7 @@ export const PythonPart11Page: React.FC = () => {
 
   // Locked answer selection: once chosen, cannot be changed
   const handleSelectOption = (tId: string, heading: string, optId: string, isCorrect: boolean) => {
-    if (selectedAnswers[tId] || isTaskSolved(tId) || isTimeUpWaiting || isStudyPhase || levelResult?.isFinished) {
+    if (isReviewMode || selectedAnswers[tId] || isTaskSolved(tId) || isTimeUpWaiting || isStudyPhase || levelResult?.isFinished) {
       return;
     }
     const updated = { ...selectedAnswers, [tId]: optId };
@@ -538,6 +563,13 @@ export const PythonPart11Page: React.FC = () => {
             <ArrowLeft className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Back to Overview</span>
           </button>
+
+          {isReviewMode && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 font-mono text-xs font-bold shadow-sm shadow-emerald-500/20">
+              <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Review Mode (Read Only)</span>
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -833,6 +865,11 @@ export const PythonPart11Page: React.FC = () => {
                       <Clock className="w-3.5 h-3.5" />
                       <span>Next in {correctCountdown}s</span>
                     </div>
+                  ) : isReviewMode ? (
+                    <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-emerald-400">
+                      <BookOpen className="w-3.5 h-3.5" />
+                      <span>Reviewing Answer</span>
+                    </div>
                   ) : (
                     <div className={`flex items-center gap-1.5 font-mono text-xs font-bold transition-all ${
                       timeLeft <= 10
@@ -848,12 +885,14 @@ export const PythonPart11Page: React.FC = () => {
                     animate={isSolved ? { scale: [1, 1.15, 1] } : {}}
                     transition={{ duration: 0.35, ease: 'easeOut' }}
                     className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold border transition-all duration-300 flex items-center gap-1.5 ${
-                      isSolved
+                      isReviewMode
+                        ? 'bg-white/[0.06] border-white/15 text-paper'
+                        : isSolved
                         ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-[0_0_12px_rgba(0,255,157,0.2)]'
                         : 'bg-white/[0.04] border-white/10 text-white'
                     }`}
                   >
-                    <span>1 Pt</span>
+                    <span>{isReviewMode ? 'Review' : '1 Pt'}</span>
                     {isSolved && (
                       <motion.span
                         initial={{ scale: 0, opacity: 0 }}
@@ -969,7 +1008,7 @@ export const PythonPart11Page: React.FC = () => {
                           <button
                             key={opt.id}
                             type="button"
-                            disabled={isLocked || isTimeUpWaiting}
+                            disabled={isReviewMode || isLocked || isTimeUpWaiting}
                             onClick={() => handleSelectOption(taskId, currentBlock.heading, opt.id, isCorrect)}
                             className={`w-full text-left py-2 px-3 rounded-xl border text-xs sm:text-sm transition-all flex items-center gap-2.5 ${
                               showAsCorrect
@@ -1003,6 +1042,32 @@ export const PythonPart11Page: React.FC = () => {
                         );
                       })}
                     </div>
+
+                    {isReviewMode && !currentChoice && !isTimeUpWaiting && (
+                      <div className="space-y-2 pt-1 animate-fade-in">
+                        <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 space-y-2.5">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-xs text-slate font-sans">
+                              (Unanswered question in this attempt)
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                advanceToNextQuestion();
+                              }}
+                              className="py-1.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 shrink-0 flex items-center gap-1.5"
+                            >
+                              <span>Continue</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-200 text-xs leading-relaxed font-sans">
+                            <strong className="text-emerald-400 font-bold">✓ Correct Answer Explanation: </strong>
+                            {currentMcq.explanationNote}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Time is Up */}
                     {isTimeUpWaiting && (

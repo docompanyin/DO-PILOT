@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  ArrowLeft, Clock, ArrowRight, Trophy, RotateCcw,
+  ArrowLeft, BookOpen, Clock, ArrowRight, Trophy, RotateCcw,
   CheckCircle2, AlertCircle, Shuffle, Check, Sparkles, AlertTriangle, ShieldAlert, ShoppingBag
 } from 'lucide-react';
 import { CyberTerminalLauncherButton } from './compiler/CyberTerminalModal';
 import { useCoursePoints } from '../context/CoursePointsContext';
+import { getSavedCertificate } from '../utils/certificateGenerator';
 import { useUserAuth } from '../context/UserAuthContext';
 import { ContactModal } from './ContactModal';
 import { NeedHelpModal } from './NeedHelpModal';
@@ -51,6 +52,8 @@ export const CyberSecurityPart1Page: React.FC = () => {
 
   // Consistent student identifier
   const studentId = user?.id || user?.email || 'default_student';
+  const [searchParams] = useSearchParams();
+  const isReviewMode = searchParams.get('review') === 'true' && Boolean(getSavedCertificate('cyber-security') || getSavedCertificate('cyber-security-core'));
 
   // Persistent Active Section ID (Defaults to Section 1.1)
   const [activeSectionId, setActiveSectionId] = useState<string>(() => {
@@ -240,6 +243,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
 
   // Study Phase vs Question Phase (Study phase by default, no timer pressure until user clicks continue)
   const [isStudyPhase, setIsStudyPhase] = useState<boolean>(() => {
+    if (isReviewMode) return false;
     try {
       const answers = JSON.parse(localStorage.getItem('dopilot_cyber_part1_mcq_answers') || '{}');
       if (candidateCurrentKeys.some(k => Boolean(answers[k]))) return false; // Already answered, show unblurred
@@ -535,6 +539,28 @@ export const CyberSecurityPart1Page: React.FC = () => {
     const { activeQuestionIdx: qIdx, levelQuestions: qList, selectedAnswers: currentAns } = stateRef.current;
     const nextQ = qIdx + 1;
 
+    if (isReviewMode) {
+      if (nextQ < qList.length) {
+        setActiveQuestionIdx(nextQ);
+        setIsStudyPhase(false);
+        return;
+      } else {
+        const nextSecIdx = activeIdx + 1;
+        if (nextSecIdx < PART_1_SECTIONS.length) {
+          const nextSec = PART_1_SECTIONS[nextSecIdx];
+          setActiveSectionId(nextSec.id);
+          setActiveQuestionIdx(0);
+          setIsStudyPhase(false);
+          setLevelResult(null);
+          return;
+        } else {
+          navigate('/course/cyber-security/part-2?review=true');
+          return;
+        }
+      }
+    }
+
+
     if (nextQ < qList.length) {
       setActiveQuestionIdx(nextQ);
       setTimeLeft(TIMER_DURATION);
@@ -693,7 +719,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
 
   // Main 30-Second Countdown Timer Loop
   useEffect(() => {
-    if (isCourseComplete || isStudyPhase || levelResult?.isFinished) return;
+    if (isReviewMode || isCourseComplete || isStudyPhase || levelResult?.isFinished) return;
 
     const interval = setInterval(() => {
       if (stateRef.current.isTimeUpWaiting || stateRef.current.isStudyPhase) return;
@@ -737,7 +763,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
 
   // Locked answer selection: once chosen, cannot be changed
   const handleSelectOption = (tId: string, heading: string, optId: string, isCorrect: boolean) => {
-    if (selectedAnswers[tId] || isTaskSolved(tId) || isTimeUpWaiting || isStudyPhase || levelResult?.isFinished) {
+    if (isReviewMode || selectedAnswers[tId] || isTaskSolved(tId) || isTimeUpWaiting || isStudyPhase || levelResult?.isFinished) {
       return;
     }
     const updated = { ...selectedAnswers, [tId]: optId };
@@ -836,6 +862,12 @@ export const CyberSecurityPart1Page: React.FC = () => {
             <ArrowLeft className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Back to Overview</span>
           </button>
+          {isReviewMode && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 font-mono text-xs font-bold shadow-sm shadow-emerald-500/20">
+              <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Review Mode (Read Only)</span>
+            </span>
+          )}
 
           
         </div>
@@ -1398,6 +1430,11 @@ export const CyberSecurityPart1Page: React.FC = () => {
                       <Clock className="w-3.5 h-3.5" />
                       <span>Review Answer</span>
                     </div>
+                  ) : isReviewMode ? (
+                    <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-emerald-400">
+                      <BookOpen className="w-3.5 h-3.5" />
+                      <span>Reviewing Answer</span>
+                    </div>
                   ) : correctCountdown !== null ? (
                     <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-emerald-400">
                       <Clock className="w-3.5 h-3.5" />
@@ -1423,7 +1460,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
                         : 'bg-white/[0.04] border-white/10 text-white'
                     }`}
                   >
-                    <span>1 Pt</span>
+                    <span>{isReviewMode ? 'Review' : '1 Pt'}</span>
                     {isSolved && (
                       <motion.span
                         initial={{ scale: 0, opacity: 0 }}
@@ -1539,7 +1576,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
                           <button
                             key={opt.id}
                             type="button"
-                            disabled={isLocked || isTimeUpWaiting}
+                            disabled={isReviewMode || isLocked || isTimeUpWaiting}
                             onClick={() => handleSelectOption(taskId, currentBlock.heading, opt.id, isCorrect)}
                             className={`w-full text-left py-2 px-3 rounded-xl border text-xs sm:text-sm transition-all flex items-center gap-2.5 ${
                               showAsCorrect
@@ -1573,6 +1610,31 @@ export const CyberSecurityPart1Page: React.FC = () => {
                       })}
                     </div>
 
+                    {isReviewMode && !currentChoice && !isTimeUpWaiting && (
+                      <div className="space-y-2 pt-1 animate-fade-in">
+                        <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 space-y-2.5">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-xs text-slate font-sans">
+                              (Unanswered question in this attempt)
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                advanceToNextQuestion();
+                              }}
+                              className="py-1.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 shrink-0 flex items-center gap-1.5"
+                            >
+                              <span>Continue</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-200 text-xs leading-relaxed font-sans">
+                            <strong className="text-emerald-400 font-bold">✓ Correct Answer Explanation: </strong>
+                            {currentMcq.explanationNote}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {/* Time is Up */}
                     {isTimeUpWaiting && (
                       <div className="space-y-2 pt-1 animate-fade-in">
