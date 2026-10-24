@@ -22,7 +22,7 @@ import {
 import { 
   recordPart1SectionScore, getPart1OverallScore, 
   markPart1RestartUsed, clearPart1ScoresOnRestart,
-  hasUsedPart1Restart,
+  hasUsedPart1Restart, setPostPurchaseDecision, getPostPurchaseDecision,
   markTrialAttempted, hasAttemptedTrial 
 } from '../utils/part1ScoreService';
 import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState } from '../utils/courseProgressSyncService';
@@ -149,6 +149,21 @@ export const PythonPart1Page: React.FC = () => {
     } catch {}
 
     const overallScore = getPart1OverallScore('python-core', studentId);
+    const savedDecision = getPostPurchaseDecision('python-core', studentId);
+
+    if (savedDecision === 'continue_to_part2') {
+      try {
+        localStorage.setItem('dopilot_part1_completed', 'true');
+        localStorage.setItem('dopilot_python_core_last_part', '2');
+      } catch {}
+      navigate('/course/python-core/part-2');
+      return;
+    }
+    if (savedDecision === 'retry_part1') {
+      setIsCourseComplete(false);
+      return;
+    }
+
     // Users who passed the free trial (50% or higher) redirect directly to Part 2:
     if (overallScore.isAbove50) {
       try {
@@ -164,6 +179,7 @@ export const PythonPart1Page: React.FC = () => {
   };
 
   const handleRetryPart1 = () => {
+    setPostPurchaseDecision('python-core', 'retry_part1', studentId);
     markPart1RestartUsed('python-core', studentId);
     clearPart1ScoresOnRestart('python-core', studentId);
     try {
@@ -196,6 +212,7 @@ export const PythonPart1Page: React.FC = () => {
   };
 
   const handleContinueToPart2 = () => {
+    setPostPurchaseDecision('python-core', 'continue_to_part2', studentId);
     try {
       localStorage.setItem('dopilot_part1_completed', 'true');
       localStorage.setItem('dopilot_python_core_last_part', '2');
@@ -309,6 +326,10 @@ export const PythonPart1Page: React.FC = () => {
 
   const [isCourseComplete, setIsCourseComplete] = useState<boolean>(() => {
     try {
+      const decision = getPostPurchaseDecision('python-core', studentId);
+      if (decision === 'retry_part1') {
+        return false;
+      }
       const finished = localStorage.getItem('dopilot_part1_finished') === 'true';
       const saved = localStorage.getItem('dopilot_part1_completed') === 'true';
       if (saved || finished) return true;
@@ -1032,7 +1053,8 @@ export const PythonPart1Page: React.FC = () => {
           } else {
             // PURCHASED USER:
             const hasUsedRetry = hasUsedPart1Restart('python-core', studentId);
-            return (overall.isAbove50 || hasUsedRetry || overall.allSectionsPassed) ? (
+            const savedDecision = getPostPurchaseDecision('python-core', studentId);
+            return (overall.isAbove50 || hasUsedRetry || overall.allSectionsPassed || savedDecision === 'continue_to_part2') ? (
               /* Passed free trial OR overall score >= 50%: continue directly to Part 2 */
               <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
@@ -1094,7 +1116,7 @@ export const PythonPart1Page: React.FC = () => {
                 </div>
 
                 {/* Scorecard */}
-                <div className="grid grid-cols-3 gap-3 max-w-md mx-auto py-2">
+                <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto py-2">
                   <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
                     <div className="text-[11px] font-mono text-slate">Overall Score</div>
                     <div className="text-xl font-bold font-mono text-rose-400 mt-0.5">{overall.percentage}%</div>
@@ -1102,10 +1124,6 @@ export const PythonPart1Page: React.FC = () => {
                   <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
                     <div className="text-[11px] font-mono text-slate">Questions</div>
                     <div className="text-xl font-bold font-mono text-paper mt-0.5">{overall.totalCorrect}/{overall.totalQuestions}</div>
-                  </div>
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
-                    <div className="text-[11px] font-mono text-slate">Choice</div>
-                    <div className="text-xs font-bold font-mono text-amber-400 mt-1.5">Retry or Continue</div>
                   </div>
                 </div>
 

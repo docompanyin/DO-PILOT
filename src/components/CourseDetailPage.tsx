@@ -14,7 +14,7 @@ import { NeedHelpModal } from './NeedHelpModal';
 import { CoursePurchaseModal } from './checkout/CoursePurchaseModal';
 import { hasCourseAccess, getCoursePricing, CoursePricing } from '../utils/coursePricingService';
 import { getUserInitials } from '../utils/userInitials';
-import { getPostPurchaseStartingPart, getPart1OverallScore } from '../utils/part1ScoreService';
+import { getPostPurchaseStartingPart, getPart1OverallScore, getPostPurchaseDecision } from '../utils/part1ScoreService';
 import { restoreAllStudentCourseProgressFromCloud } from '../utils/courseProgressSyncService';
 import { getSavedCertificate } from '../utils/certificateGenerator';
 
@@ -34,7 +34,8 @@ const getPythonResumeInfo = (isPurchased = false, studentId?: string): PythonRes
       let isComp = false;
       if (i === 1) {
         const stored = localStorage.getItem('dopilot_part1_completed') === 'true' || localStorage.getItem('dopilot_completed') === 'true';
-        isComp = stored && getPart1OverallScore('python-core', studentId).isAbove50;
+        const decision = getPostPurchaseDecision('python-core', studentId);
+        isComp = stored && (getPart1OverallScore('python-core', studentId).isAbove50 || decision === 'continue_to_part2');
       } else {
         isComp = localStorage.getItem(`dopilot_part${i}_completed`) === 'true';
       }
@@ -107,8 +108,9 @@ const getJavaResumeInfo = (isPurchased = false, studentId?: string): JavaResumeI
     const completedParts: number[] = [];
     for (let i = 1; i <= 14; i++) {
       if (localStorage.getItem(`dopilot_java_part${i}_completed`) === 'true') {
-        if (i === 1 && !getPart1OverallScore('java-core', studentId).isAbove50) {
-          // Score is below 50%, not completed
+        const decision = getPostPurchaseDecision('java-core', studentId);
+        if (i === 1 && !getPart1OverallScore('java-core', studentId).isAbove50 && decision !== 'continue_to_part2') {
+          // Score is below 50% and user hasn't chosen to continue to Part 2, not completed
         } else {
           completedParts.push(i);
         }
@@ -178,8 +180,9 @@ const getFullStackResumeInfo = (isPurchased = false, studentId?: string): FullSt
     const completedParts: number[] = [];
     for (let i = 0; i <= 13; i++) {
       if (localStorage.getItem(`dopilot_fullstack_part${i}_completed`) === 'true') {
-        if (i === 1 && !getPart1OverallScore('fullstack-open', studentId).isAbove50) {
-          // Score is below 50%, not completed
+        const decision = getPostPurchaseDecision('fullstack-open', studentId);
+        if (i === 1 && !getPart1OverallScore('fullstack-open', studentId).isAbove50 && decision !== 'continue_to_part2') {
+          // Score is below 50% and user hasn't chosen to continue to Part 2, not completed
         } else {
           completedParts.push(i);
         }
@@ -250,8 +253,9 @@ const getCyberSecurityResumeInfo = (isPurchased = false, studentId?: string): Cy
     const completedParts: number[] = [];
     for (let i = 1; i <= 14; i++) {
       if (localStorage.getItem(`dopilot_cyber_part${i}_completed`) === 'true') {
-        if (i === 1 && !getPart1OverallScore('cyber-security', studentId).isAbove50) {
-          // Score is below 50%, not completed
+        const decision = getPostPurchaseDecision('cyber-security', studentId);
+        if (i === 1 && !getPart1OverallScore('cyber-security', studentId).isAbove50 && decision !== 'continue_to_part2') {
+          // Score is below 50% and user hasn't chosen to continue to Part 2, not completed
         } else {
           completedParts.push(i);
         }

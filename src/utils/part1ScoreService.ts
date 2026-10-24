@@ -208,6 +208,15 @@ export const getPostPurchaseStartingPart = (
     return currentUncompletedPart;
   }
 
+  // Check if student made an explicit post-purchase choice (retry or continue)
+  const savedDecision = getPostPurchaseDecision(track, studentId);
+  if (savedDecision === 'continue_to_part2') {
+    return 2;
+  }
+  if (savedDecision === 'retry_part1') {
+    return 1;
+  }
+
   // Check if student attempted the free trial before purchase
   const trialAttempted = hasAttemptedTrial(track, studentId);
   if (!trialAttempted) {
@@ -221,6 +230,43 @@ export const getPostPurchaseStartingPart = (
   // Total score >= 50% -> start directly from Part 2
   // Total score < 50% -> start again from Part 1
   return isAbove50 ? 2 : 1;
+};
+
+export type PostPurchaseDecision = 'retry_part1' | 'continue_to_part2';
+
+/**
+ * Check if the user has already chosen between Retry Part 1 and Continue to Part 2
+ */
+export const getPostPurchaseDecision = (courseId: string, studentId?: string): PostPurchaseDecision | null => {
+  try {
+    const track = normalizeTrackId(courseId);
+    const prefix = getStoragePrefix(track);
+    const studentKey = `${prefix}_post_purchase_decision${studentId ? `_${studentId}` : ''}`;
+    const raw = localStorage.getItem(studentKey) || localStorage.getItem(`${prefix}_post_purchase_decision`);
+    if (raw === 'retry_part1' || raw === 'continue_to_part2') {
+      return raw;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Save the user's explicit choice so the Course Unlocked page appears only once
+ */
+export const setPostPurchaseDecision = (
+  courseId: string,
+  decision: PostPurchaseDecision,
+  studentId?: string
+): void => {
+  try {
+    const track = normalizeTrackId(courseId);
+    const prefix = getStoragePrefix(track);
+    const studentKey = `${prefix}_post_purchase_decision${studentId ? `_${studentId}` : ''}`;
+    localStorage.setItem(studentKey, decision);
+    localStorage.setItem(`${prefix}_post_purchase_decision`, decision);
+  } catch {}
 };
 
 /**
