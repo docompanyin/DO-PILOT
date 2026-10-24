@@ -39,9 +39,15 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
     };
     handleUpdate();
     window.addEventListener('dopilot_pricing_updated', handleUpdate);
+    window.addEventListener('dopilot_course_purchased', handleUpdate);
+    window.addEventListener('dopilot_access_granted', handleUpdate);
+    window.addEventListener('dopilot_student_roster_updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
     return () => {
       window.removeEventListener('dopilot_pricing_updated', handleUpdate);
+      window.removeEventListener('dopilot_course_purchased', handleUpdate);
+      window.removeEventListener('dopilot_access_granted', handleUpdate);
+      window.removeEventListener('dopilot_student_roster_updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
   }, [course.id, user?.id, user?.email]);

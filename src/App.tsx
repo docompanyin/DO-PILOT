@@ -69,6 +69,7 @@ import { CyberSecurityPartPage } from './components/CyberSecurityPartPage';
 import { CyberSecurityPart1Page } from './components/CyberSecurityPart1Page';
 import { CoursePaidGuard } from './components/checkout/CoursePaidGuard';
 import { CourseAuthGuard } from './components/auth/CourseAuthGuard';
+import { ScrollManager } from './components/ScrollManager';
 import './App.css';
 
 // Module-scoped state: resets to false ONLY on manual page refresh (F5 / reload) or cold browser load.
@@ -333,6 +334,7 @@ export const App: React.FC = () => {
       <CoursePointsProvider>
         <PythonProvider>
           <PointTwinkleEffect />
+          <ScrollManager />
           <Routes>
             <Route path="/" element={<MainHome />} />
             <Route path="/login" element={<AuthPage mode="login" />} />

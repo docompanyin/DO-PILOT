@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { CyberTerminalLauncherButton } from './compiler/CyberTerminalModal';
 import { useCoursePoints } from '../context/CoursePointsContext';
+import { logQuestionAttempt } from '../utils/studentTelemetryService';
 import { getSavedCertificate } from '../utils/certificateGenerator';
 import { useUserAuth } from '../context/UserAuthContext';
 import { ContactModal } from './ContactModal';
@@ -47,7 +48,7 @@ interface LevelResultState {
 
 export const CyberSecurityPart1Page: React.FC = () => {
   const navigate = useNavigate();
-  const { points, isTaskSolved, awardPoint, resetProgress } = useCoursePoints();
+  const { points, isTaskSolved, awardPoint, recordWrongAttempt, resetProgress } = useCoursePoints();
   const { user } = useUserAuth();
 
   // Consistent student identifier
@@ -793,19 +794,54 @@ export const CyberSecurityPart1Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    const timeSpent = Math.max(0.5, Math.min(30, Number((TIMER_DURATION - timeLeft).toFixed(1))));
+    const isRetestAttempt = (() => {
+      try {
+        const raw = localStorage.getItem(`dopilot_cyber_attempt_${activeSection.id}_${studentId}`);
+        return raw ? Number(raw) > 1 : false;
+      } catch {
+        return false;
+      }
+    })();
+    const attemptNum = isRetestAttempt ? 2 : 1;
+
+    // Log exact question telemetry
+    logQuestionAttempt(user?.email || studentId, {
+      courseId: 'cyber-security',
+      partNum: 1,
+      sectionId: activeSection.id,
+      sectionTitle: activeSection.title,
+      subQuestionLabel: `Part 1 -> Sec 1.${activeIdx + 1} -> Q${activeQuestionIdx + 1}`,
+      questionIndex: activeQuestionIdx + 1,
+      questionTitle: heading,
+      questionPrompt: currentMcq?.question || heading,
+      codeSnippet: currentBlock?.codeSnippet,
+      studentOptionId: optId,
+      studentAnswer: currentMcq?.options.find(o => o.id === optId)?.text || optId,
+      correctOptionId: currentMcq?.correctAnswer || 'A',
+      correctAnswer: currentMcq?.options.find(o => o.id === currentMcq?.correctAnswer)?.text || 'Correct',
+      isCorrect,
+      timeTakenSeconds: timeSpent,
+      timeLimitSeconds: TIMER_DURATION,
+      attemptNumber: attemptNum,
+      isRetest: isRetestAttempt,
+      status: isCorrect ? 'passed' : 'failed',
+      explanation: currentMcq?.explanationNote
+    });
+
     if (isCorrect) {
-      const isRetestAttempt = (() => {
-        try {
-          const raw = localStorage.getItem(`dopilot_cyber_attempt_${activeSection.id}_${studentId}`);
-          return raw ? Number(raw) > 1 : false;
-        } catch {
-          return false;
-        }
-      })();
       if (!isRetestAttempt) {
         awardPoint(tId, heading, optId);
       }
       setCorrectCountdown(3);
+    } else {
+      const chosenOpt = currentMcq?.options.find(o => o.id === optId);
+      recordWrongAttempt(
+        heading,
+        activeSection.title,
+        `Selected Option ${optId}: "${chosenOpt?.text || ''}". Correct was Option ${currentMcq?.correctAnswer}.`
+      );
     }
   };
 
@@ -1224,16 +1260,12 @@ export const CyberSecurityPart1Page: React.FC = () => {
                   }`}>
                     {levelResult.percentage}%
                   </span>
-                  <span className="text-[10px] font-mono text-slate/50 mt-0.5">Passing: &gt; 80%</span>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col items-center justify-center">
-                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Attempted</span>
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Correct Answers</span>
                   <span className="font-mono text-2xl sm:text-3xl font-bold text-paper mt-0.5">
-                    {levelResult.attemptedCount ?? levelResult.totalCount} <span className="text-slate/50 text-base font-normal">/ {levelResult.totalCount}</span>
-                  </span>
-                  <span className="text-[10px] font-mono text-slate/50 mt-0.5">
-                    {levelResult.correctCount} Correct • {(levelResult.attemptedCount ?? levelResult.totalCount) - levelResult.correctCount} Incorrect
+                    {levelResult.correctCount} <span className="text-slate/50 text-base font-normal">/ {levelResult.totalCount}</span>
                   </span>
                 </div>
               </div>
@@ -1322,16 +1354,12 @@ export const CyberSecurityPart1Page: React.FC = () => {
                   }`}>
                     {levelResult.percentage}%
                   </span>
-                  <span className="text-[10px] font-mono text-slate/50 mt-0.5">Passing: &gt; 80%</span>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col items-center justify-center">
-                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Attempted</span>
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Correct Answers</span>
                   <span className="font-mono text-2xl sm:text-3xl font-bold text-paper mt-0.5">
-                    {levelResult.attemptedCount ?? levelResult.totalCount} <span className="text-slate/50 text-base font-normal">/ {levelResult.totalCount}</span>
-                  </span>
-                  <span className="text-[10px] font-mono text-slate/50 mt-0.5">
-                    {levelResult.correctCount} Correct • {(levelResult.attemptedCount ?? levelResult.totalCount) - levelResult.correctCount} Incorrect
+                    {levelResult.correctCount} <span className="text-slate/50 text-base font-normal">/ {levelResult.totalCount}</span>
                   </span>
                 </div>
 

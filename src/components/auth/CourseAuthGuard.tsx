@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { useUserAuth, USER_SESSION_KEY } from '../../context/UserAuthContext';
+import { useUserAuth, USER_SESSION_KEY, hasAuthCookie } from '../../context/UserAuthContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { purgeStudentLocalData } from '../../utils/studentDataPurge';
 
@@ -13,17 +13,20 @@ interface CourseAuthGuardProps {
  * 
  * Strict authentication & access-control guard for all course question-answering pages:
  * 1. Blocks direct URL entry, bookmarked links, refresh, and back-button navigation for unauthenticated users.
- * 2. Immediately redirects to homepage ('/') if the user signs out.
+ * 2. Immediately redirects to homepage ('/') if the user signs out or clears authentication cookies.
  * 3. Immediately invalidates session and redirects to homepage ('/') if an admin permanently deletes the account.
  * 4. Actively verifies session existence and integrity against backend/Supabase database.
+ * 5. Captures any user interaction (button clicks, answer selection, navigation) and verifies active auth cookies.
  */
 export const CourseAuthGuard: React.FC<CourseAuthGuardProps> = ({ children }) => {
   const { user, isLoggedIn, logout } = useUserAuth();
   const navigate = useNavigate();
 
   // Fast synchronous check to prevent content flash for unauthenticated users
+  // Verifies both authentication cookies and local session storage
   const isLocallyAuthenticated = useCallback((): boolean => {
     try {
+      if (!hasAuthCookie()) return false;
       const raw = localStorage.getItem(USER_SESSION_KEY);
       if (!raw) return false;
       const parsed = JSON.parse(raw);
@@ -44,7 +47,7 @@ export const CourseAuthGuard: React.FC<CourseAuthGuardProps> = ({ children }) =>
   }, []);
 
   const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
-    return (isLoggedIn && Boolean(user?.email)) || isLocallyAuthenticated();
+    return ((isLoggedIn && Boolean(user?.email)) || isLocallyAuthenticated()) && hasAuthCookie();
   });
 
   const handleUnauthorized = useCallback((email?: string, id?: string) => {
@@ -166,15 +169,30 @@ export const CourseAuthGuard: React.FC<CourseAuthGuardProps> = ({ children }) =>
       }
     };
 
-    // 7. Background heartbeat check every 10 seconds to catch admin deletions in real-time
+    // 7. Click interceptor: if user cleared auth cookies while on question answering page,
+    // intercept any click (answering, continue, etc.) and redirect immediately to home in signed-out state
+    const handleCaptureClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const clickable = target?.closest('button, a, [role="button"], input, label');
+      if (clickable) {
+        if (!isLocallyAuthenticated()) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleUnauthorized();
+        }
+      }
+    };
+
+    // 8. Background heartbeat check every 5 seconds to catch cookie clearing or admin deletions in real-time
     const heartbeatTimer = setInterval(() => {
       if (!isLocallyAuthenticated()) {
         handleUnauthorized();
       } else {
         validateSessionAgainstBackend();
       }
-    }, 10000);
+    }, 5000);
 
+    window.addEventListener('click', handleCaptureClick, true);
     window.addEventListener('dopilot_user_logged_out', onLogout);
     window.addEventListener('storage', onStorageChange);
     window.addEventListener('pageshow', onPageShow);
@@ -183,6 +201,7 @@ export const CourseAuthGuard: React.FC<CourseAuthGuardProps> = ({ children }) =>
 
     return () => {
       clearInterval(heartbeatTimer);
+      window.removeEventListener('click', handleCaptureClick, true);
       window.removeEventListener('dopilot_user_logged_out', onLogout);
       window.removeEventListener('storage', onStorageChange);
       window.removeEventListener('pageshow', onPageShow);

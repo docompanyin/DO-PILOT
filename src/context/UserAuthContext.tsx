@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { purgeStudentLocalData } from '../utils/studentDataPurge';
 import { restoreAllStudentCourseProgressFromCloud } from '../utils/courseProgressSyncService';
+import { syncUserPurchasesFromCloud, normalizeCourseId } from '../utils/coursePricingService';
 
 export interface UserProfile {
   id: string;
@@ -37,6 +38,24 @@ interface UserAuthContextType {
 
 export const USER_SESSION_KEY = 'dopilot_student_session_v1';
 export const USER_PENDING_KEY = 'dopilot_pending_registration_v1';
+export const AUTH_COOKIE_NAME = 'dopilot_auth_session';
+
+export const setAuthCookie = (): void => {
+  if (typeof document === 'undefined') return;
+  // Set persistent cookie for 30 days
+  const maxAge = 60 * 60 * 24 * 30;
+  document.cookie = `${AUTH_COOKIE_NAME}=active; path=/; max-age=${maxAge}; SameSite=Lax`;
+};
+
+export const clearAuthCookie = (): void => {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${AUTH_COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+};
+
+export const hasAuthCookie = (): boolean => {
+  if (typeof document === 'undefined') return false;
+  return document.cookie.split(';').some(item => item.trim().startsWith(`${AUTH_COOKIE_NAME}=`));
+};
 
 const UserAuthContext = createContext<UserAuthContextType | undefined>(undefined);
 
@@ -74,9 +93,11 @@ const getInitialUserSession = (): UserProfile | null => {
         parsed.name === 'New Student'
       ) {
         localStorage.removeItem(USER_SESSION_KEY);
+        clearAuthCookie();
         return null;
       }
       if (parsed.hasCompletedDetails === true) {
+        setAuthCookie();
         return parsed;
       }
     }
@@ -122,12 +143,25 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const saveUserSession = useCallback((newUser: UserProfile | null) => {
     setUser(newUser);
     if (newUser && newUser.hasCompletedDetails) {
+      setAuthCookie();
       localStorage.setItem(USER_SESSION_KEY, JSON.stringify(newUser));
       localStorage.removeItem(USER_PENDING_KEY);
       setPendingUserState(null);
+
+      // Immediately seed local purchased courses key from newUser.enrolledCourses synchronously
+      if (Array.isArray(newUser.enrolledCourses) && newUser.enrolledCourses.length > 0) {
+        const mapped = Array.from(new Set(newUser.enrolledCourses.map(c => normalizeCourseId(c))));
+        if (newUser.id) {
+          localStorage.setItem(`dopilot_purchased_courses_${newUser.id}`, JSON.stringify(mapped));
+        }
+        if (newUser.email) {
+          localStorage.setItem(`dopilot_purchased_courses_${newUser.email.toLowerCase().trim()}`, JSON.stringify(mapped));
+        }
+      }
       
       if (newUser.email && isSupabaseConfigured()) {
         restoreAllStudentCourseProgressFromCloud(newUser.email);
+        syncUserPurchasesFromCloud(newUser.email, newUser.id);
         Promise.resolve(
           supabase
             .from('student_profiles')
@@ -153,6 +187,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       }
     } else {
+      clearAuthCookie();
       localStorage.removeItem(USER_SESSION_KEY);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('dopilot_student_roster_updated'));
@@ -237,6 +272,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     refreshUserSession();
     if (user?.email) {
       restoreAllStudentCourseProgressFromCloud(user.email);
+      syncUserPurchasesFromCloud(user.email, user.id);
     }
   }, []);
 
@@ -290,6 +326,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             createdAt: data.created_at || new Date().toISOString()
           };
           saveUserSession(fullProfile);
+          await syncUserPurchasesFromCloud(fullProfile.email, fullProfile.id);
           return fullProfile;
         }
 
@@ -458,6 +495,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (currentEmail) {
       purgeStudentLocalData(currentEmail, currentId);
     }
+    clearAuthCookie();
     setUser(null);
     setPendingUserState(null);
     localStorage.removeItem(USER_SESSION_KEY);

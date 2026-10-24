@@ -615,8 +615,26 @@ export const hasCourseAccess = (
     const deletedRaw = localStorage.getItem('dopilot_permanently_deleted_students_v1');
     if (deletedRaw) {
       const deletedList = JSON.parse(deletedRaw);
-      if (Array.isArray(deletedList) && deletedList.includes(targetIdentifier)) {
+      if (Array.isArray(deletedList) && (deletedList.includes(targetIdentifier) || (studentIdOrEmail && deletedList.includes(studentIdOrEmail.toLowerCase().trim())))) {
         return false;
+      }
+    }
+  } catch {}
+
+  // 0. Check active user session enrolledCourses in localStorage
+  try {
+    const rawSession = localStorage.getItem('dopilot_student_session_v1');
+    if (rawSession) {
+      const session = JSON.parse(rawSession);
+      const sessionEmail = (session.email || '').toLowerCase().trim();
+      const sessionId = (session.id || '').toLowerCase().trim();
+      if (
+        (sessionEmail && (sessionEmail === targetIdentifier || targetIdentifier.includes(sessionEmail))) ||
+        (sessionId && (sessionId === targetIdentifier || targetIdentifier.includes(sessionId)))
+      ) {
+        if (Array.isArray(session.enrolledCourses) && session.enrolledCourses.some((c: string) => courseMatches(c))) {
+          return true;
+        }
       }
     }
   } catch {}
@@ -785,6 +803,135 @@ export const recordCoursePurchase = (
   }
 
   return { success: true, record: newRecord };
+};
+
+/**
+ * Synchronize purchased / claimed courses from Supabase database into localStorage
+ * and broadcast access granted events across all open components.
+ */
+export const syncUserPurchasesFromCloud = async (
+  email?: string,
+  studentId?: string
+): Promise<string[]> => {
+  if (!email || !isSupabaseConfigured()) return [];
+
+  const cleanEmail = email.toLowerCase().trim();
+  const cleanId = (studentId || '').trim();
+
+  // If student is on permanent deletion blacklist, deny and skip
+  try {
+    const deletedRaw = localStorage.getItem('dopilot_permanently_deleted_students_v1');
+    if (deletedRaw) {
+      const deletedList = JSON.parse(deletedRaw);
+      if (Array.isArray(deletedList) && (deletedList.includes(cleanEmail) || (cleanId && deletedList.includes(cleanId.toLowerCase())))) {
+        return [];
+      }
+    }
+  } catch {}
+
+  const restoredCourseIds = new Set<string>();
+
+  try {
+    // 1. Fetch from student_profiles (enrolled_courses array)
+    const { data: profile } = await supabase
+      .from('student_profiles')
+      .select('enrolled_courses')
+      .eq('email', cleanEmail)
+      .maybeSingle();
+
+    if (profile && Array.isArray((profile as any).enrolled_courses)) {
+      (profile as any).enrolled_courses.forEach((cTitle: string) => {
+        const norm = normalizeCourseId(cTitle);
+        if (norm) restoredCourseIds.add(norm);
+      });
+    }
+
+    // 2. Fetch from course_purchases table
+    const { data: purchases } = await supabase
+      .from('course_purchases')
+      .select('*')
+      .eq('student_email', cleanEmail)
+      .in('status', ['completed', 'pending_verification'])
+      .eq('access_granted', true);
+
+    if (purchases && Array.isArray(purchases)) {
+      purchases.forEach((p: any) => {
+        const norm = normalizeCourseId(p.course_id || p.course_name);
+        if (norm) restoredCourseIds.add(norm);
+      });
+
+      // Also merge into dopilot_course_purchases_v1 so getCoursePurchases() has them
+      const localPurchases = getCoursePurchases();
+      let purchasesUpdated = false;
+      purchases.forEach((dbP: any) => {
+        const exists = localPurchases.some(lp => lp.id === dbP.id || (lp.courseId === normalizeCourseId(dbP.course_id) && lp.studentEmail?.toLowerCase() === cleanEmail));
+        if (!exists) {
+          localPurchases.unshift({
+            id: dbP.id || `ORD-${Date.now().toString().slice(-6)}`,
+            studentId: dbP.student_id || cleanId || cleanEmail,
+            studentName: dbP.student_name || 'Student',
+            studentEmail: dbP.student_email || cleanEmail,
+            studentPhone: dbP.student_phone || undefined,
+            courseId: normalizeCourseId(dbP.course_id || dbP.course_name),
+            courseName: dbP.course_name || 'Course',
+            originalPrice: dbP.original_price || 0,
+            discountAmount: dbP.discount_amount || 0,
+            finalAmount: dbP.final_amount || 0,
+            couponCodeApplied: dbP.coupon_code_applied || undefined,
+            paymentMethod: dbP.payment_method || 'razorpay',
+            paymentId: dbP.payment_id || undefined,
+            orderId: dbP.order_id || undefined,
+            utrNumber: dbP.utr_number || undefined,
+            status: dbP.status || 'completed',
+            purchasedAt: dbP.purchased_at || new Date().toISOString(),
+            accessGranted: true
+          });
+          purchasesUpdated = true;
+        }
+      });
+
+      if (purchasesUpdated) {
+        try {
+          localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(localPurchases));
+        } catch {}
+      }
+    }
+
+    const courseList = Array.from(restoredCourseIds);
+    if (courseList.length > 0) {
+      // Save to dopilot_purchased_courses_ keys
+      if (cleanId) {
+        localStorage.setItem(`dopilot_purchased_courses_${cleanId}`, JSON.stringify(courseList));
+      }
+      localStorage.setItem(`dopilot_purchased_courses_${cleanEmail}`, JSON.stringify(courseList));
+
+      // Also update session enrolledCourses if in localStorage
+      try {
+        const rawSession = localStorage.getItem('dopilot_student_session_v1');
+        if (rawSession) {
+          const session = JSON.parse(rawSession);
+          if (session) {
+            const currentEnrolled = Array.isArray(session.enrolledCourses) ? session.enrolledCourses : [];
+            const merged = Array.from(new Set([...currentEnrolled, ...courseList]));
+            session.enrolledCourses = merged;
+            localStorage.setItem('dopilot_student_session_v1', JSON.stringify(session));
+          }
+        }
+      } catch {}
+
+      // Dispatch events for immediate UI reactivity
+      courseList.forEach((cId) => {
+        window.dispatchEvent(new CustomEvent('dopilot_access_granted', { detail: { courseId: cId, studentId: cleanId || cleanEmail } }));
+      });
+      window.dispatchEvent(new CustomEvent('dopilot_course_purchased', { detail: { studentEmail: cleanEmail, courses: courseList } }));
+      window.dispatchEvent(new CustomEvent('dopilot_student_roster_updated'));
+    }
+
+    return courseList;
+  } catch (err) {
+    console.warn('Failed to sync user purchases from cloud:', err);
+    return Array.from(restoredCourseIds);
+  }
 };
 
 export interface PaymentQRConfig {

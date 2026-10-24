@@ -7,12 +7,12 @@ import {
   Tag, ShoppingBag, CreditCard
 } from 'lucide-react';
 import { COURSES_DATA, getCourseById } from '../data/coursesData';
-import { useUserAuth } from '../context/UserAuthContext';
+import { useUserAuth, USER_SESSION_KEY, hasAuthCookie } from '../context/UserAuthContext';
 import { ContactModal } from './ContactModal';
 import { CertificateModal } from './CertificateModal';
 import { NeedHelpModal } from './NeedHelpModal';
 import { CoursePurchaseModal } from './checkout/CoursePurchaseModal';
-import { hasCourseAccess, getCoursePricing, CoursePricing } from '../utils/coursePricingService';
+import { hasCourseAccess, getCoursePricing, CoursePricing, syncUserPurchasesFromCloud } from '../utils/coursePricingService';
 import { getUserInitials } from '../utils/userInitials';
 import { getPostPurchaseStartingPart, getPart1OverallScore, getPostPurchaseDecision } from '../utils/part1ScoreService';
 import { restoreAllStudentCourseProgressFromCloud } from '../utils/courseProgressSyncService';
@@ -314,7 +314,43 @@ const getCyberSecurityResumeInfo = (isPurchased = false, studentId?: string): Cy
 export const CourseDetailPage: React.FC = () => {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
-  const { user, isLoggedIn, enrollInCourse } = useUserAuth();
+  const { user, isLoggedIn, enrollInCourse, logout } = useUserAuth();
+
+  // Track if user was authenticated when viewing course details
+  const wasLoggedInRef = React.useRef<boolean>(Boolean(isLoggedIn && (user?.id || user?.email)));
+  useEffect(() => {
+    if (isLoggedIn && (user?.id || user?.email)) {
+      wasLoggedInRef.current = true;
+    }
+  }, [isLoggedIn, user?.id, user?.email]);
+
+  // Click interceptor: If the user cleared authentication cookies while on Course Details page,
+  // clicking ANY button or action immediately redirects them to the Home page in a signed-out state.
+  useEffect(() => {
+    const handleCoursePageClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const clickable = target?.closest('button, a, [role="button"], input, label');
+      if (clickable) {
+        // If the user was signed in, verify that auth cookies and localStorage session are still active
+        if (wasLoggedInRef.current) {
+          const raw = localStorage.getItem(USER_SESSION_KEY);
+          const hasCookie = hasAuthCookie();
+          if (!hasCookie || !raw) {
+            e.preventDefault();
+            e.stopPropagation();
+            wasLoggedInRef.current = false;
+            logout();
+            navigate('/', { replace: true });
+          }
+        }
+      }
+    };
+
+    window.addEventListener('click', handleCoursePageClick, true);
+    return () => {
+      window.removeEventListener('click', handleCoursePageClick, true);
+    };
+  }, [logout, navigate]);
 
   const [openModules, setOpenModules] = useState<number[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
@@ -366,17 +402,22 @@ export const CourseDetailPage: React.FC = () => {
     };
     checkAccess();
     if (user?.email) {
+      syncUserPurchasesFromCloud(user.email, user.id).then(() => {
+        checkAccess();
+      });
       restoreAllStudentCourseProgressFromCloud(user.email).then(() => {
         checkAccess();
       });
     }
     window.addEventListener('dopilot_course_purchased', checkAccess);
+    window.addEventListener('dopilot_access_granted', checkAccess);
     window.addEventListener('dopilot_pricing_updated', checkAccess);
     window.addEventListener('dopilot_progress_restored', checkAccess);
     window.addEventListener('dopilot_certificate_claimed', checkAccess);
     window.addEventListener('storage', checkAccess);
     return () => {
       window.removeEventListener('dopilot_course_purchased', checkAccess);
+      window.removeEventListener('dopilot_access_granted', checkAccess);
       window.removeEventListener('dopilot_pricing_updated', checkAccess);
       window.removeEventListener('dopilot_progress_restored', checkAccess);
       window.removeEventListener('dopilot_certificate_claimed', checkAccess);
@@ -457,7 +498,7 @@ export const CourseDetailPage: React.FC = () => {
   };
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo(0, 0);
     if (course) {
       document.title = `${course.title} — DO PILOT`;
     }

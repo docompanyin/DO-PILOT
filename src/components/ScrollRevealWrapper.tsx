@@ -31,6 +31,9 @@ export const ScrollRevealWrapper: React.FC<ScrollRevealWrapperProps> = ({ childr
     // Sync Lenis with GSAP ScrollTrigger
     lenis.on('scroll', ScrollTrigger.update);
 
+    // Expose lenis instance globally so route and scroll managers can coordinate immediate positioning
+    (window as any).__lenisInstance = lenis;
+
     gsap.ticker.add((time) => {
       lenis.raf(time * 1000);
     });
@@ -64,6 +67,9 @@ export const ScrollRevealWrapper: React.FC<ScrollRevealWrapperProps> = ({ childr
     });
 
     return () => {
+      if ((window as any).__lenisInstance === lenis) {
+        (window as any).__lenisInstance = null;
+      }
       lenis.destroy();
       ScrollTrigger.getAll().forEach((t) => t.kill());
     };

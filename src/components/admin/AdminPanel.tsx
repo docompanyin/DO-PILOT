@@ -59,10 +59,15 @@ import {
   updateCourseCoupon,
   deleteCourseCoupon,
   toggleCourseCouponActive,
-  hasCourseAccess
+  hasCourseAccess,
+  normalizeCourseId
 } from '../../utils/coursePricingService';
 import { getUserInitials } from '../../utils/userInitials';
 import { purgeStudentLocalData, purgeAllDummyDemoData, markStudentPermanentlyDeleted } from '../../utils/studentDataPurge';
+import {
+  buildStudentActivitySequence,
+  QuestionTelemetryRecord
+} from '../../utils/studentTelemetryService';
 
 export const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
@@ -456,6 +461,8 @@ export const AdminPanel: React.FC = () => {
     timeTakenSeconds: number;
     timeLimitSeconds: number;
     attemptsCount: number;
+    attemptNumber?: number;
+    isRetest?: boolean;
     attemptedAt: string;
     speedCategory: 'fast' | 'normal' | 'slow' | 'timeout';
     status: 'passed' | 'failed' | 'timeout';
@@ -548,103 +555,44 @@ export const AdminPanel: React.FC = () => {
       return student.questionAttempts;
     }
 
-    const totalAttempted = student.testsAttemptedCount || student.points || 0;
-    if (totalAttempted === 0) {
-      return [];
+    // Determine target course for telemetry
+    const targetCourse = selectedCourseFilter !== 'all'
+      ? selectedCourseFilter
+      : (student.enrolledCourses && student.enrolledCourses.length > 0
+          ? student.enrolledCourses[0]
+          : 'python-core');
+
+    const sequence = buildStudentActivitySequence(student, targetCourse);
+
+    if (sequence && sequence.length > 0) {
+      return sequence.map((item, idx) => ({
+        id: item.id || `att-${student.id}-${idx + 1}`,
+        questionNumber: item.questionIndex || (idx + 1),
+        subQuestionLabel: item.subQuestionLabel || `Part ${item.partNum} → Sec ${item.sectionId} → Q${item.questionIndex}`,
+        partNum: item.partNum,
+        section: item.sectionTitle || `Part ${item.partNum}`,
+        levelTitle: item.subQuestionLabel ? `Level ${item.subQuestionLabel}` : `Question ${idx + 1}`,
+        questionTitle: item.questionTitle,
+        questionPrompt: item.questionPrompt,
+        codeSnippet: item.codeSnippet,
+        studentOptionId: item.studentOptionId,
+        studentAnswer: item.studentAnswer,
+        correctOptionId: item.correctOptionId,
+        correctAnswer: item.correctAnswer,
+        isCorrect: item.isCorrect,
+        timeTakenSeconds: item.timeTakenSeconds,
+        timeLimitSeconds: item.timeLimitSeconds || 30,
+        attemptsCount: item.attemptNumber || (item.isRetest ? 2 : 1),
+        attemptNumber: item.attemptNumber || 1,
+        isRetest: Boolean(item.isRetest || (item.attemptNumber && item.attemptNumber > 1)),
+        attemptedAt: item.attemptedAt ? new Date(item.attemptedAt).toLocaleString() : new Date().toLocaleString(),
+        speedCategory: item.speedCategory,
+        status: item.status,
+        explanation: item.explanation
+      }));
     }
 
-    const defaultTimes = [
-      5.8, 7.2, 8.9, 6.4, 9.1, 11.5, 10.3, 7.8, 13.4, 9.6,
-      8.2, 14.1, 11.0, 15.7, 12.3, 6.9, 10.8, 14.2, 7.5, 8.4,
-      13.9, 12.0, 16.5, 18.2
-    ];
-
-    const attempts: StudentQuestionAttempt[] = [];
-    const maxQ = Math.min(totalAttempted, PYTHON_CURRICULUM_QUESTIONS.length);
-    const studentPassedCount = student.testsPassedCount;
-    const wrongList = student.wrongAttempts || [];
-
-    for (let i = 0; i < maxQ; i++) {
-      const qBase = PYTHON_CURRICULUM_QUESTIONS[i];
-      const isLastAWrong = (i >= studentPassedCount) && wrongList.length > 0;
-      const matchingWrong = wrongList.find(w =>
-        w.taskTitle.toLowerCase().includes(qBase.questionTitle.toLowerCase()) ||
-        w.section.includes(`Part ${qBase.partNum}`)
-      );
-
-      const isWrong = Boolean(matchingWrong || isLastAWrong);
-      let timeTaken = defaultTimes[i % defaultTimes.length];
-
-      if (student.name.includes('Rahul')) {
-        timeTaken = defaultTimes[i];
-      } else if (student.name.includes('Priya')) {
-        timeTaken = Number((defaultTimes[i] * 1.35).toFixed(1));
-        if (isWrong) timeTaken = Math.min(30.0, Number((26.0 + (i % 4) * 1.3).toFixed(1)));
-      } else if (student.name.includes('Ananya')) {
-        timeTaken = Number((defaultTimes[i] * 1.7).toFixed(1));
-        if (isWrong) timeTaken = Math.min(30.0, Number((25.5 + (i % 5) * 1.1).toFixed(1)));
-      }
-
-      let studentOpt = qBase.correctOptionId;
-      let studentAns = qBase.correctAnswer;
-      let status: 'passed' | 'failed' | 'timeout' = 'passed';
-      let isCorrect = true;
-
-      if (isWrong) {
-        isCorrect = false;
-        const wrongOpts = ['A', 'B', 'C', 'D'].filter(o => o !== qBase.correctOptionId);
-        studentOpt = wrongOpts[i % wrongOpts.length];
-        studentAns = matchingWrong?.detail || 'Incorrect answer selected under time constraint';
-        if (timeTaken >= 30.0) {
-          status = 'timeout';
-          timeTaken = 30.0;
-          studentAns = 'Timed out (>30s) — No option submitted within time limit';
-        } else {
-          status = 'failed';
-        }
-      }
-
-      let speedCategory: 'fast' | 'normal' | 'slow' | 'timeout' = 'normal';
-      if (status === 'timeout' || timeTaken >= 30.0) {
-        speedCategory = 'timeout';
-      } else if (timeTaken < 12.0) {
-        speedCategory = 'fast';
-      } else if (timeTaken <= 20.0) {
-        speedCategory = 'normal';
-      } else {
-        speedCategory = 'slow';
-      }
-
-      const baseDate = new Date(student.createdAt).getTime();
-      const attemptTime = new Date(baseDate + (i + 1) * 3600000 * 4).toLocaleString();
-      const subQuestionLabel = qBase.subQuestionLabel || `${qBase.partNum}.${(i % 6) + 1}`;
-
-      attempts.push({
-        id: `att-${student.id}-${i + 1}`,
-        questionNumber: i + 1,
-        subQuestionLabel,
-        partNum: qBase.partNum,
-        section: qBase.section,
-        levelTitle: qBase.levelTitle,
-        questionTitle: qBase.questionTitle,
-        questionPrompt: qBase.questionPrompt,
-        codeSnippet: qBase.codeSnippet,
-        studentOptionId: studentOpt,
-        studentAnswer: studentAns,
-        correctOptionId: qBase.correctOptionId,
-        correctAnswer: qBase.correctAnswer,
-        isCorrect,
-        timeTakenSeconds: timeTaken,
-        timeLimitSeconds: 30,
-        attemptsCount: isCorrect ? 1 : 2,
-        attemptedAt: attemptTime,
-        speedCategory,
-        status,
-        explanation: qBase.explanation
-      });
-    }
-
-    return attempts;
+    return [];
   };
 
   const computeTelemetryMetrics = (attempts: StudentQuestionAttempt[]) => {
@@ -668,14 +616,17 @@ export const AdminPanel: React.FC = () => {
     const passed = attempts.filter(a => a.isCorrect).length;
     const failed = attempts.filter(a => !a.isCorrect && a.status !== 'timeout').length;
     const timeouts = attempts.filter(a => a.status === 'timeout').length;
-    const times = attempts.map(a => a.timeTakenSeconds);
+
+    // Only compute times for attempts where actual duration was recorded (> 0)
+    const timedAttempts = attempts.filter(a => a.timeTakenSeconds > 0);
+    const times = timedAttempts.map(a => a.timeTakenSeconds);
     const sumTime = times.reduce((acc, t) => acc + t, 0);
-    const avgTime = Number((sumTime / total).toFixed(1));
-    const fastestTime = Math.min(...times);
-    const slowestTime = Math.max(...times);
-    const fastCount = attempts.filter(a => a.speedCategory === 'fast').length;
-    const normalCount = attempts.filter(a => a.speedCategory === 'normal').length;
-    const slowCount = attempts.filter(a => a.speedCategory === 'slow').length;
+    const avgTime = timedAttempts.length > 0 ? Number((sumTime / timedAttempts.length).toFixed(1)) : 0;
+    const fastestTime = times.length > 0 ? Math.min(...times) : 0;
+    const slowestTime = times.length > 0 ? Math.max(...times) : 0;
+    const fastCount = attempts.filter(a => a.speedCategory === 'fast' && a.timeTakenSeconds > 0).length;
+    const normalCount = attempts.filter(a => a.speedCategory === 'normal' && a.timeTakenSeconds > 0).length;
+    const slowCount = attempts.filter(a => (a.speedCategory === 'slow' || a.speedCategory === 'timeout') && a.timeTakenSeconds > 0).length;
     const accuracyPct = Math.round((passed / total) * 100);
 
     return {
@@ -696,7 +647,7 @@ export const AdminPanel: React.FC = () => {
   const [students, setStudents] = useState<StudentAdminRecord[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [studentSearch, setStudentSearch] = useState('');
-  const [studentFilter, setStudentFilter] = useState<'all' | 'started' | 'completed' | 'top_points' | 'low_marks' | 'registered_only' | 'rewards'>('all');
+  const [studentFilter, setStudentFilter] = useState<'all' | 'started' | 'completed' | 'top_points' | 'low_marks' | 'coupon_purchases' | 'registered_only' | 'rewards'>('all');
   const [rewardRequests, setRewardRequests] = useState<RewardRequest[]>(() => getRewardRequests());
   const [rewardStatusFilter, setRewardStatusFilter] = useState<'all' | 'pending' | 'approved'>('all');
   const [rewardSearch, setRewardSearch] = useState('');
@@ -4465,14 +4416,15 @@ export const AdminPanel: React.FC = () => {
         doc.line(40, yPos + 20, pageWidth - 40, yPos + 20);
 
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(7.5);
+        doc.setFontSize(7);
         doc.setTextColor(30, 41, 59);
 
-        doc.text("#", 46, yPos + 13);
-        doc.text("QUESTION / CONCEPT TITLE", 65, yPos + 13);
-        doc.text("TIME TAKEN (30s LIMIT)", 265, yPos + 13);
-        doc.text("STUDENT ANSWER", 370, yPos + 13);
-        doc.text("RESULT", 480, yPos + 13);
+        doc.text("QUESTION HIERARCHY", 46, yPos + 13);
+        doc.text("QUESTION / CONCEPT TITLE", 185, yPos + 13);
+        doc.text("ATTEMPT", 325, yPos + 13);
+        doc.text("TIME TAKEN", 375, yPos + 13);
+        doc.text("ANSWER", 445, yPos + 13);
+        doc.text("RESULT", 500, yPos + 13);
         return yPos + 20;
       };
 
@@ -4500,49 +4452,65 @@ export const AdminPanel: React.FC = () => {
           doc.setDrawColor(226, 232, 240);
           doc.line(40, y + 22, pageWidth - 40, y + 22);
 
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(7.5);
-          doc.setTextColor(100, 116, 139);
-          doc.text(String(att.subQuestionLabel || att.questionNumber), 46, y + 14);
+          // Question Hierarchy (e.g. Part 1 -> Sec 1.1 -> Q1)
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(6.5);
+          doc.setTextColor(14, 116, 144);
+          doc.text(String(att.subQuestionLabel || `Part ${att.partNum} -> Q${att.questionNumber}`).slice(0, 32), 46, y + 14);
 
           // Question Title
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(8);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7.5);
           doc.setTextColor(15, 23, 42);
-          doc.text(att.questionTitle.slice(0, 36), 65, y + 14);
+          doc.text(att.questionTitle.slice(0, 28), 185, y + 14);
+
+          // Attempt type
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(6.5);
+          const isRetest = Boolean(att.isRetest || (att.attemptNumber && att.attemptNumber > 1));
+          if (isRetest) {
+            doc.setTextColor(180, 83, 9);
+            doc.text(`Retest (${att.attemptNumber || 2})`, 325, y + 14);
+          } else {
+            doc.setTextColor(100, 116, 139);
+            doc.text("Attempt 1", 325, y + 14);
+          }
 
           // Time Taken
           doc.setFont("helvetica", "normal");
-          doc.setFontSize(7.5);
-          if (att.timeTakenSeconds < 12) {
+          doc.setFontSize(7);
+          if (att.timeTakenSeconds <= 0) {
+            doc.setTextColor(148, 163, 184);
+            doc.text("—", 375, y + 14);
+          } else if (att.timeTakenSeconds < 12) {
             doc.setTextColor(5, 150, 105);
-            doc.text(`${att.timeTakenSeconds.toFixed(1)}s (Fast)`, 265, y + 14);
+            doc.text(`${att.timeTakenSeconds.toFixed(1)}s (Fast)`, 375, y + 14);
           } else if (att.timeTakenSeconds <= 20) {
             doc.setTextColor(30, 41, 59);
-            doc.text(`${att.timeTakenSeconds.toFixed(1)}s (Normal)`, 265, y + 14);
+            doc.text(`${att.timeTakenSeconds.toFixed(1)}s (Normal)`, 375, y + 14);
           } else {
             doc.setTextColor(190, 18, 60);
-            doc.text(`${att.timeTakenSeconds.toFixed(1)}s (Slow)`, 265, y + 14);
+            doc.text(`${att.timeTakenSeconds.toFixed(1)}s (Slow)`, 375, y + 14);
           }
 
-          // Student Choice (Option only: Option A / B / C / D)
+          // Student Choice
           doc.setFont("helvetica", "bold");
-          doc.setFontSize(7.5);
+          doc.setFontSize(7);
           doc.setTextColor(att.isCorrect ? 71 : 190, att.isCorrect ? 85 : 18, att.isCorrect ? 105 : 60);
-          doc.text(`Option ${att.studentOptionId || 'A'}`, 370, y + 14);
+          doc.text(`Opt ${att.studentOptionId || 'A'}`, 445, y + 14);
 
           // Status Badge
           doc.setFont("helvetica", "bold");
           doc.setFontSize(7.5);
           if (att.isCorrect) {
             doc.setTextColor(5, 150, 105);
-            doc.text("PASSED", 480, y + 14);
+            doc.text("PASSED", 500, y + 14);
           } else if (att.status === 'timeout') {
             doc.setTextColor(180, 83, 9);
-            doc.text("TIMEOUT", 480, y + 14);
+            doc.text("TIMEOUT", 500, y + 14);
           } else {
             doc.setTextColor(190, 18, 60);
-            doc.text("FAILED", 480, y + 14);
+            doc.text("FAILED", 500, y + 14);
           }
 
           y += 22;
@@ -4664,16 +4632,17 @@ export const AdminPanel: React.FC = () => {
     const filteredAttempts = attempts.filter((att) => {
       if (telemetryFilter === 'correct' && !att.isCorrect) return false;
       if (telemetryFilter === 'wrong' && att.isCorrect) return false;
-      if (telemetryFilter === 'fast' && att.speedCategory !== 'fast') return false;
-      if (telemetryFilter === 'normal' && att.speedCategory !== 'normal') return false;
-      if (telemetryFilter === 'slow' && att.speedCategory !== 'slow' && att.speedCategory !== 'timeout') return false;
+      if (telemetryFilter === 'fast' && (att.speedCategory !== 'fast' || att.timeTakenSeconds <= 0)) return false;
+      if (telemetryFilter === 'normal' && (att.speedCategory !== 'normal' || att.timeTakenSeconds <= 0)) return false;
+      if (telemetryFilter === 'slow' && ((att.speedCategory !== 'slow' && att.speedCategory !== 'timeout') || att.timeTakenSeconds <= 0)) return false;
       if (telemetrySearch.trim()) {
         const q = telemetrySearch.toLowerCase();
         return (
           att.questionTitle.toLowerCase().includes(q) ||
           att.questionPrompt.toLowerCase().includes(q) ||
           att.section.toLowerCase().includes(q) ||
-          att.studentAnswer.toLowerCase().includes(q)
+          att.studentAnswer.toLowerCase().includes(q) ||
+          (att.subQuestionLabel && att.subQuestionLabel.toLowerCase().includes(q))
         );
       }
       return true;
@@ -5006,29 +4975,44 @@ export const AdminPanel: React.FC = () => {
                 ) : (
                   <div className="space-y-2.5">
                     {filteredAttempts.map((att) => {
-                      const questionLabel = att.subQuestionLabel ? `Question ${att.subQuestionLabel}` : `Question ${att.questionNumber}`;
+                      const questionLabel = att.subQuestionLabel || `Part ${att.partNum} → Sec ${att.section} → Question ${att.questionNumber}`;
+                      const isRetest = Boolean(att.isRetest || (att.attemptNumber && att.attemptNumber > 1));
 
                       return (
                         <div
                           key={att.id}
                           className="p-3.5 sm:p-4 rounded-2xl bg-[#121316] border border-white/10 hover:border-white/20 transition-all space-y-2.5"
                         >
-                          {/* Top Line: Question Number, Concept Name, Time to Answer, Status */}
+                          {/* Top Line: Question Hierarchy, Title, Attempt Type, Time, Status */}
                           <div className="flex flex-wrap items-center justify-between gap-2.5">
                             <div className="flex items-center gap-2.5 flex-wrap">
-                              <span className="font-mono text-xs font-bold text-paper px-2 py-0.5 rounded-lg bg-white/5 border border-white/10">
+                              <span className="font-mono text-xs font-bold text-primary px-2.5 py-0.5 rounded-lg bg-primary/10 border border-primary/20">
                                 {questionLabel}
                               </span>
                               <span className="font-jakarta font-bold text-sm text-paper">
                                 {att.questionTitle}
                               </span>
+                              {isRetest ? (
+                                <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                  Retest (Attempt {att.attemptNumber || 2})
+                                </span>
+                              ) : (
+                                <span className="font-mono text-[10px] font-medium px-2 py-0.5 rounded-md bg-white/5 text-slate/70 border border-white/10">
+                                  Attempt 1
+                                </span>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-2">
                               {/* Time Taken to Answer */}
                               <span className="font-mono text-xs font-medium text-slate/80 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 flex items-center gap-1.5">
                                 <Clock className="w-3.5 h-3.5 text-slate/50" />
-                                <span>Time to answer: <strong className="text-paper">{att.timeTakenSeconds.toFixed(1)}s</strong></span>
+                                <span>
+                                  Time to answer:{" "}
+                                  <strong className="text-paper">
+                                    {att.timeTakenSeconds > 0 ? `${att.timeTakenSeconds.toFixed(1)}s` : "—"}
+                                  </strong>
+                                </span>
                               </span>
 
                               {/* Result Badge */}
@@ -5044,30 +5028,30 @@ export const AdminPanel: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* Show Question Prompt & Selected Answer ONLY for Wrong / Timeout Questions */}
-                          {!att.isCorrect && (
-                            <div className="space-y-2 pt-1 border-t border-white/5">
-                              <p className="text-xs text-paper/90 font-jakarta leading-relaxed">
-                                <strong className="text-rose-400 mr-1.5 font-mono">Question:</strong>
-                                {att.questionPrompt}
-                              </p>
+                          {/* Selected Answer & Question Details */}
+                          <div className="space-y-2 pt-1 border-t border-white/5">
+                            <p className="text-xs text-paper/90 font-jakarta leading-relaxed">
+                              <strong className="text-slate/60 mr-1.5 font-mono">Question:</strong>
+                              {att.questionPrompt}
+                            </p>
 
-                              <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1 font-mono">
-                                <div>
-                                  <span className="text-slate/60">Student Answer: </span>
-                                  <strong className="text-rose-300 font-bold">
-                                    Option {att.studentOptionId}
-                                  </strong>
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1 font-mono">
+                              <div>
+                                <span className="text-slate/60">Student Answer: </span>
+                                <strong className={att.isCorrect ? "text-emerald-300 font-bold" : "text-rose-300 font-bold"}>
+                                  Option {att.studentOptionId}: {att.studentAnswer}
+                                </strong>
+                                {!att.isCorrect && (
                                   <span className="text-emerald-400 ml-3">
-                                    • Correct: <strong className="text-emerald-400 font-bold">Option {att.correctOptionId}</strong>
+                                    • Correct: <strong className="text-emerald-400 font-bold">Option {att.correctOptionId}: {att.correctAnswer}</strong>
                                   </span>
-                                </div>
-                                <span className="text-[10px] text-slate/50">
-                                  {att.attemptedAt}
-                                </span>
+                                )}
                               </div>
+                              <span className="text-[10px] text-slate/50">
+                                {att.attemptedAt}
+                              </span>
                             </div>
-                          )}
+                          </div>
                         </div>
                       );
                     })}
@@ -6062,10 +6046,41 @@ export const AdminPanel: React.FC = () => {
     // Scoped pool by Course Filter + Date Period
     const studentsInDateAndCourse = studentsInSelectedCourse.filter((s) => matchesDateFilter(s.createdAt));
 
+    // Coupon Purchases matching helper: checks if a student purchased or claimed a course with a coupon code
+    const studentHasCouponPurchase = (s: StudentAdminRecord): boolean => {
+      const email = (s.email || '').toLowerCase().trim();
+      const id = (s.id || '').trim();
+      return coursePurchases.some((p) => {
+        const matchesStudent =
+          (email && p.studentEmail && p.studentEmail.toLowerCase().trim() === email) ||
+          (id && p.studentId === id);
+        if (!matchesStudent) return false;
+
+        // Must be in a completed or verified status with course access
+        const isAccessGranted = p.accessGranted || p.status === 'completed';
+        if (!isAccessGranted) return false;
+
+        // If scoped to a specific course filter, match the course
+        if (selectedCourseFilter !== 'all') {
+          const matchCourse =
+            p.courseName?.toLowerCase() === selectedCourseFilter.toLowerCase() ||
+            p.courseId?.toLowerCase() === selectedCourseFilter.toLowerCase() ||
+            normalizeCourseId(p.courseId) === normalizeCourseId(selectedCourseFilter);
+          if (!matchCourse) return false;
+        }
+
+        // Must have used a coupon code or coupon free unlock
+        const hasCouponCode = Boolean(p.couponCodeApplied && p.couponCodeApplied.trim() !== '');
+        const isCouponUnlock = p.paymentMethod === 'coupon_free_unlock';
+        return hasCouponCode || isCouponUnlock;
+      });
+    };
+
     // Counts for filter pills (scoped to selected course & active date range)
     const totalCount = studentsInDateAndCourse.length;
     const startedCount = studentsInDateAndCourse.filter((s) => s.courseProgressStatus === 'in_progress' || s.courseProgressStatus === 'completed').length;
     const completedCount = studentsInDateAndCourse.filter((s) => s.courseProgressStatus === 'completed').length;
+    const couponPurchasesCount = studentsInDateAndCourse.filter((s) => studentHasCouponPurchase(s)).length;
     const maxPointsInCourse = studentsInDateAndCourse.length > 0
       ? Math.max(...studentsInDateAndCourse.map((s) => s.points), 0)
       : 0;
@@ -6102,6 +6117,9 @@ export const AdminPanel: React.FC = () => {
       }
       if (studentFilter === 'completed') {
         return s.courseProgressStatus === 'completed';
+      }
+      if (studentFilter === 'coupon_purchases') {
+        return studentHasCouponPurchase(s);
       }
       if (studentFilter === 'top_points') {
         if (selectedCourseFilter !== 'all') {
@@ -6502,6 +6520,7 @@ export const AdminPanel: React.FC = () => {
             {[
               { id: 'all', label: selectedCourseFilter === 'all' ? 'All Students' : 'All in Course', count: totalCount },
               { id: 'top_points', label: selectedCourseFilter === 'all' ? 'Top Points (≥10)' : 'Course Topper', count: topPointsCount },
+              { id: 'coupon_purchases', label: 'Coupon Purchases', count: couponPurchasesCount, isCoupon: true },
               { id: 'low_marks', label: 'Failed / Struggling', count: lowMarksCount },
               { id: 'completed', label: 'Completed', count: completedCount },
               { id: 'started', label: 'Course Started', count: startedCount },
@@ -6524,6 +6543,7 @@ export const AdminPanel: React.FC = () => {
                   }`}
                 >
                   {(tab as any).isReward && <Trophy className="w-3.5 h-3.5 shrink-0 text-amber-400" />}
+                  {(tab as any).isCoupon && <Tag className="w-3.5 h-3.5 shrink-0 text-primary" />}
                   <span>{tab.label}</span>
                   <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
                     active
