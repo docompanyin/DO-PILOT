@@ -165,6 +165,11 @@ export const purgeStudentLocalData = (studentEmail?: string, studentId?: string)
   try {
     localStorage.removeItem('dopilot_course_points_v3');
     localStorage.removeItem('dopilot_active_student_certificate_v1');
+    localStorage.removeItem('dopilot_python_certificate_record');
+    localStorage.removeItem('dopilot_java_certificate_record');
+    localStorage.removeItem('dopilot_fullstack_certificate_record');
+    localStorage.removeItem('dopilot_cyber_certificate_record');
+    localStorage.removeItem('dopilot_claimed_courses_v1');
     localStorage.removeItem('dopilot_quiz_wrong_attempts_v1');
     localStorage.removeItem('dopilot_fullstack_course_fully_certified');
     localStorage.removeItem('dopilot_active_section_id');

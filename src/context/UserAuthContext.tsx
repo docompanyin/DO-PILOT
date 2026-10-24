@@ -141,7 +141,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               college_or_company: newUser.collegeOrCompany || null,
               learning_goal: newUser.learningGoal || null,
               has_completed_details: true,
-              enrolled_courses: newUser.enrolledCourses || ['Complete Python Course'],
+              enrolled_courses: newUser.enrolledCourses || [],
               joined_live_class: Boolean(newUser.joinedLiveClass),
               updated_at: new Date().toISOString()
             })
@@ -191,7 +191,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             collegeOrCompany: data.college_or_company || user?.collegeOrCompany || undefined,
             learningGoal: data.learning_goal || user?.learningGoal || undefined,
             hasCompletedDetails: true,
-            enrolledCourses: data.enrolled_courses || ['Complete Python Course'],
+            enrolledCourses: Array.isArray(data.enrolled_courses) ? data.enrolled_courses : [],
             joinedLiveClass: Boolean(data.joined_live_class),
             createdAt: data.created_at || user?.createdAt || new Date().toISOString()
           };
@@ -209,7 +209,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             collegeOrCompany: data.college_or_company || pendingUser?.collegeOrCompany || undefined,
             learningGoal: data.learning_goal || pendingUser?.learningGoal || undefined,
             hasCompletedDetails: false,
-            enrolledCourses: data.enrolled_courses || ['Complete Python Course'],
+            enrolledCourses: Array.isArray(data.enrolled_courses) ? data.enrolled_courses : [],
             joinedLiveClass: Boolean(data.joined_live_class),
             createdAt: data.created_at || new Date().toISOString()
           };
@@ -285,7 +285,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             collegeOrCompany: data.college_or_company || undefined,
             learningGoal: data.learning_goal || undefined,
             hasCompletedDetails: true,
-            enrolledCourses: data.enrolled_courses || ['Complete Python Course'],
+            enrolledCourses: Array.isArray(data.enrolled_courses) ? data.enrolled_courses : [],
             joinedLiveClass: Boolean(data.joined_live_class),
             createdAt: data.created_at || new Date().toISOString()
           };
@@ -306,7 +306,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             collegeOrCompany: data.college_or_company || undefined,
             learningGoal: data.learning_goal || undefined,
             hasCompletedDetails: false,
-            enrolledCourses: data.enrolled_courses || ['Complete Python Course'],
+            enrolledCourses: Array.isArray(data.enrolled_courses) ? data.enrolled_courses : [],
             joinedLiveClass: Boolean(data.joined_live_class),
             createdAt: data.created_at || new Date().toISOString()
           };
@@ -339,7 +339,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       avatar: realAvatar,
       provider: 'google',
       hasCompletedDetails: false,
-      enrolledCourses: ['Complete Python Course'],
+      enrolledCourses: [],
       joinedLiveClass: false,
       createdAt: new Date().toISOString()
     };
@@ -390,7 +390,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       collegeOrCompany: profile.collegeOrCompany.trim(),
       whereDidYouFindUs: profile.whereDidYouFindUs,
       hasCompletedDetails: true,
-      enrolledCourses: ['Complete Python Course']
+      enrolledCourses: Array.isArray(profile.enrolledCourses) ? profile.enrolledCourses : []
     };
 
     // 2. Persist to Supabase database

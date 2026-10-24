@@ -817,7 +817,7 @@ export const AdminPanel: React.FC = () => {
               collegeOrCompany: p.college_or_company,
               learningGoal: p.learning_goal,
               hasCompletedDetails: Boolean(p.has_completed_details),
-              enrolledCourses: (Array.isArray(p.enrolled_courses) ? p.enrolled_courses : ['Complete Python Course']).map((c: string) => c.replace(/Programming/gi, 'Course')),
+              enrolledCourses: (Array.isArray(p.enrolled_courses) ? p.enrolled_courses : []).map((c: string) => c.replace(/Programming/gi, 'Course')),
               joinedLiveClass: Boolean(p.joined_live_class),
               createdAt: p.created_at || new Date().toISOString(),
               points,
@@ -894,7 +894,7 @@ export const AdminPanel: React.FC = () => {
                 collegeOrCompany: lu.collegeOrCompany,
                 learningGoal: lu.learningGoal,
                 hasCompletedDetails: Boolean(lu.hasCompletedDetails),
-                enrolledCourses: (lu.enrolledCourses && lu.enrolledCourses.length > 0 ? lu.enrolledCourses : ['Complete Python Course']).map((c: string) => c.replace(/Programming/gi, 'Course')),
+                enrolledCourses: (lu.enrolledCourses && lu.enrolledCourses.length > 0 ? lu.enrolledCourses : []).map((c: string) => c.replace(/Programming/gi, 'Course')),
                 joinedLiveClass: Boolean(lu.joinedLiveClass),
                 createdAt: lu.createdAt || new Date().toISOString(),
                 points: localPoints,
@@ -936,7 +936,7 @@ export const AdminPanel: React.FC = () => {
                 collegeOrCompany: pu.collegeOrCompany,
                 learningGoal: pu.learningGoal,
                 hasCompletedDetails: false,
-                enrolledCourses: (pu.enrolledCourses && pu.enrolledCourses.length > 0 ? pu.enrolledCourses : ['Complete Python Course']).map((c: string) => c.replace(/Programming/gi, 'Course')),
+                enrolledCourses: (pu.enrolledCourses && pu.enrolledCourses.length > 0 ? pu.enrolledCourses : []).map((c: string) => c.replace(/Programming/gi, 'Course')),
                 joinedLiveClass: false,
                 createdAt: pu.createdAt || new Date().toISOString(),
                 points: 0,
@@ -1066,23 +1066,47 @@ export const AdminPanel: React.FC = () => {
 
           // C. course_purchases, reward_requests, locked_courses, course_resets
           try {
-            if (targetEmail) await supabase.from('course_purchases').delete().ilike('student_email', targetEmail);
-            if (targetId) await supabase.from('course_purchases').delete().eq('student_id', targetId);
+            if (targetEmail) {
+              await supabase.from('course_purchases').delete().ilike('student_email', targetEmail);
+              await supabase.from('course_purchases').delete().ilike('student_id', targetEmail);
+            }
+            if (targetId) {
+              await supabase.from('course_purchases').delete().eq('student_id', targetId);
+              await supabase.from('course_purchases').delete().eq('student_email', targetId);
+            }
           } catch (e) {}
 
           try {
-            if (targetEmail) await supabase.from('reward_requests').delete().ilike('student_email', targetEmail);
-            if (targetId) await supabase.from('reward_requests').delete().eq('student_id', targetId);
+            if (targetEmail) {
+              await supabase.from('reward_requests').delete().ilike('student_email', targetEmail);
+              await supabase.from('reward_requests').delete().ilike('student_id', targetEmail);
+            }
+            if (targetId) {
+              await supabase.from('reward_requests').delete().eq('student_id', targetId);
+              await supabase.from('reward_requests').delete().eq('student_email', targetId);
+            }
           } catch (e) {}
 
           try {
-            if (targetEmail) await supabase.from('locked_courses').delete().ilike('student_email', targetEmail);
-            if (targetId) await supabase.from('locked_courses').delete().eq('student_id', targetId);
+            if (targetEmail) {
+              await supabase.from('locked_courses').delete().ilike('student_email', targetEmail);
+              await supabase.from('locked_courses').delete().ilike('student_id', targetEmail);
+            }
+            if (targetId) {
+              await supabase.from('locked_courses').delete().eq('student_id', targetId);
+              await supabase.from('locked_courses').delete().eq('student_email', targetId);
+            }
           } catch (e) {}
 
           try {
-            if (targetEmail) await supabase.from('course_resets').delete().ilike('student_email', targetEmail);
-            if (targetId) await supabase.from('course_resets').delete().eq('student_id', targetId);
+            if (targetEmail) {
+              await supabase.from('course_resets').delete().ilike('student_email', targetEmail);
+              await supabase.from('course_resets').delete().ilike('student_id', targetEmail);
+            }
+            if (targetId) {
+              await supabase.from('course_resets').delete().eq('student_id', targetId);
+              await supabase.from('course_resets').delete().eq('student_email', targetId);
+            }
           } catch (e) {}
 
           // D. CRITICAL: Delete from student_profiles (by email AND id explicitly)
