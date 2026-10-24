@@ -467,7 +467,17 @@ export const PythonPart8Page: React.FC = () => {
       console.error(e);
     }
     if (isCorrect) {
-      awardPoint(tId, heading, optId);
+      const isRetestAttempt = (() => {
+        try {
+          const raw = localStorage.getItem(`dopilot_part8_attempt_${activeSection.id}_${studentId}`);
+          return raw ? Number(raw) > 1 : false;
+        } catch {
+          return false;
+        }
+      })();
+      if (!isRetestAttempt) {
+        awardPoint(tId, heading, optId);
+      }
       setCorrectCountdown(3);
     }
   };
@@ -1206,13 +1216,7 @@ export const PythonPart8Page: React.FC = () => {
                 Start Part 9: Object References &amp; Encapsulation
               </button>
 
-              <button
-                type="button"
-                onClick={() => setPart9ModalOpen(false)}
-                className="w-full py-2 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
-              >
-                Review Part 8 Notes
-              </button>
+
             </div>
           </div>
         </div>

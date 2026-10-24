@@ -470,7 +470,17 @@ export const PythonPart14Page: React.FC = () => {
       console.error(e);
     }
     if (isCorrect) {
-      awardPoint(tId, heading, optId);
+      const isRetestAttempt = (() => {
+        try {
+          const raw = localStorage.getItem(`dopilot_part14_attempt_${activeSection.id}_${studentId}`);
+          return raw ? Number(raw) > 1 : false;
+        } catch {
+          return false;
+        }
+      })();
+      if (!isRetestAttempt) {
+        awardPoint(tId, heading, optId);
+      }
       setCorrectCountdown(3);
     }
   };

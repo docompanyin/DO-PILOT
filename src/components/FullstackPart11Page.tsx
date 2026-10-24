@@ -457,7 +457,17 @@ export const FullstackPart11Page: React.FC = () => {
       console.error(e);
     }
     if (isCorrect) {
-      awardPoint(tId, heading, optId);
+      const isRetestAttempt = (() => {
+        try {
+          const raw = localStorage.getItem(`dopilot_fullstack_p11_attempt_${activeSection.id}_${studentId}`);
+          return raw ? Number(raw) > 1 : false;
+        } catch {
+          return false;
+        }
+      })();
+      if (!isRetestAttempt) {
+        awardPoint(tId, heading, optId);
+      }
       setCorrectCountdown(3);
     } else {
       const chosenOpt = currentMcq.options.find(o => o.id === optId);

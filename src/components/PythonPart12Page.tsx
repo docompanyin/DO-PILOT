@@ -467,7 +467,17 @@ export const PythonPart12Page: React.FC = () => {
       console.error(e);
     }
     if (isCorrect) {
-      awardPoint(tId, heading, optId);
+      const isRetestAttempt = (() => {
+        try {
+          const raw = localStorage.getItem(`dopilot_part12_attempt_${activeSection.id}_${studentId}`);
+          return raw ? Number(raw) > 1 : false;
+        } catch {
+          return false;
+        }
+      })();
+      if (!isRetestAttempt) {
+        awardPoint(tId, heading, optId);
+      }
       setCorrectCountdown(3);
     }
   };
@@ -1206,13 +1216,7 @@ export const PythonPart12Page: React.FC = () => {
                 Start Part 13: Pygame, Animation &amp; Events
               </button>
 
-              <button
-                type="button"
-                onClick={() => setPart13ModalOpen(false)}
-                className="w-full py-2 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
-              >
-                Review Part 12 Notes
-              </button>
+
             </div>
           </div>
         </div>

@@ -16,6 +16,7 @@ import { hasCourseAccess, getCoursePricing, CoursePricing } from '../utils/cours
 import { getUserInitials } from '../utils/userInitials';
 import { getPostPurchaseStartingPart, getPart1OverallScore } from '../utils/part1ScoreService';
 import { restoreAllStudentCourseProgressFromCloud } from '../utils/courseProgressSyncService';
+import { getSavedCertificate } from '../utils/certificateGenerator';
 
 interface PythonResumeInfo {
   targetPart: number;
@@ -343,6 +344,10 @@ export const CourseDetailPage: React.FC = () => {
     return getCyberSecurityResumeInfo(purchased, user?.id || user?.email);
   });
 
+  const [hasClaimedCert, setHasClaimedCert] = useState<boolean>(() => {
+    return Boolean(getSavedCertificate(safeCourseId));
+  });
+
   useEffect(() => {
     const checkAccess = () => {
       const studentId = user?.id || user?.email;
@@ -353,6 +358,7 @@ export const CourseDetailPage: React.FC = () => {
       setJavaResumeInfo(getJavaResumeInfo(purchased, studentId));
       setFullstackResumeInfo(getFullStackResumeInfo(purchased, studentId));
       setCyberResumeInfo(getCyberSecurityResumeInfo(purchased, studentId));
+      setHasClaimedCert(Boolean(getSavedCertificate(safeCourseId)));
     };
     checkAccess();
     if (user?.email) {
@@ -363,11 +369,13 @@ export const CourseDetailPage: React.FC = () => {
     window.addEventListener('dopilot_course_purchased', checkAccess);
     window.addEventListener('dopilot_pricing_updated', checkAccess);
     window.addEventListener('dopilot_progress_restored', checkAccess);
+    window.addEventListener('dopilot_certificate_claimed', checkAccess);
     window.addEventListener('storage', checkAccess);
     return () => {
       window.removeEventListener('dopilot_course_purchased', checkAccess);
       window.removeEventListener('dopilot_pricing_updated', checkAccess);
       window.removeEventListener('dopilot_progress_restored', checkAccess);
+      window.removeEventListener('dopilot_certificate_claimed', checkAccess);
       window.removeEventListener('storage', checkAccess);
     };
   }, [course, user?.id, user?.email]);
@@ -590,6 +598,26 @@ export const CourseDetailPage: React.FC = () => {
                   isCurrent = (cyberResumeInfo.targetPart === partNum) && (cyberResumeInfo.status !== 'all_completed');
                   isStarted = isCurrent && (cyberResumeInfo.status === 'in_progress');
                   partUrl = `/course/cyber-security/part-${partNum}`;
+                }
+
+                // If user has claimed official certificate for this course: allow reviewing answers for ANY part directly
+                if (hasClaimedCert) {
+                  return (
+                    <div className="pt-3 mt-3 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-emerald-400 font-bold">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span>Part {partNum} Completed</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`${partUrl}?review=true`)}
+                        className="w-full sm:w-auto px-3.5 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <BookOpen className="w-3 h-3 text-primary shrink-0" />
+                        <span>Review Answers</span>
+                      </button>
+                    </div>
+                  );
                 }
 
                 // If user has not purchased the course, lock Part 2 to 14
@@ -847,17 +875,17 @@ export const CourseDetailPage: React.FC = () => {
                       className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-xs sm:text-sm hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-amber-500/20 group"
                     >
                       <Award className="w-5 h-5 text-black shrink-0" />
-                      <span>Claim Official Certificate</span>
+                      <span>{hasClaimedCert ? 'View Certificate' : 'Claim Official Certificate'}</span>
                       <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => navigate('/course/python-core/part-1')}
+                      onClick={() => navigate(hasClaimedCert ? '/course/python-core/part-1?review=true' : '/course/python-core/part-1')}
                       className="w-full sm:w-auto px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       <RotateCcw className="w-3.5 h-3.5 text-primary shrink-0" />
-                      <span>Review Course</span>
+                      <span>{hasClaimedCert ? 'Review Answers' : 'Review Course'}</span>
                     </button>
                   </div>
                 ) : (
@@ -890,17 +918,17 @@ export const CourseDetailPage: React.FC = () => {
                       className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-xs sm:text-sm hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-amber-500/20 group"
                     >
                       <Award className="w-5 h-5 text-black shrink-0" />
-                      <span>Claim Official Certificate</span>
+                      <span>{hasClaimedCert ? 'View Certificate' : 'Claim Official Certificate'}</span>
                       <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => navigate('/course/complete-java-programming/part-1')}
+                      onClick={() => navigate(hasClaimedCert ? '/course/complete-java-programming/part-1?review=true' : '/course/complete-java-programming/part-1')}
                       className="w-full sm:w-auto px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       <RotateCcw className="w-3.5 h-3.5 text-primary shrink-0" />
-                      <span>Review Course</span>
+                      <span>{hasClaimedCert ? 'Review Answers' : 'Review Course'}</span>
                     </button>
                   </div>
                 ) : (
@@ -933,17 +961,17 @@ export const CourseDetailPage: React.FC = () => {
                       className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-xs sm:text-sm hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-amber-500/20 group"
                     >
                       <Award className="w-5 h-5 text-black shrink-0" />
-                      <span>Claim Official Certificate</span>
+                      <span>{hasClaimedCert ? 'View Certificate' : 'Claim Official Certificate'}</span>
                       <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => navigate('/course/fullstack-open/part-0')}
+                      onClick={() => navigate(hasClaimedCert ? '/course/fullstack-open/part-0?review=true' : '/course/fullstack-open/part-0')}
                       className="w-full sm:w-auto px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       <RotateCcw className="w-3.5 h-3.5 text-primary shrink-0" />
-                      <span>Review Course</span>
+                      <span>{hasClaimedCert ? 'Review Answers' : 'Review Course'}</span>
                     </button>
                   </div>
                 ) : (
@@ -976,17 +1004,17 @@ export const CourseDetailPage: React.FC = () => {
                       className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-gradient-to-r from-cyan-400 via-primary to-emerald-400 text-black font-jakarta font-black text-xs sm:text-sm hover:opacity-95 hover:shadow-xl hover:shadow-cyan-500/25 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-cyan-500/20 group"
                     >
                       <Award className="w-5 h-5 text-black shrink-0" />
-                      <span>Claim Cyber Security Certificate</span>
+                      <span>{hasClaimedCert ? 'View Certificate' : 'Claim Cyber Security Certificate'}</span>
                       <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => navigate('/course/cyber-security/part-1')}
+                      onClick={() => navigate(hasClaimedCert ? '/course/cyber-security/part-1?review=true' : '/course/cyber-security/part-1')}
                       className="w-full sm:w-auto px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       <RotateCcw className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                      <span>Review Course</span>
+                      <span>{hasClaimedCert ? 'Review Answers' : 'Review Course'}</span>
                     </button>
                   </div>
                 ) : (
@@ -1293,7 +1321,13 @@ export const CourseDetailPage: React.FC = () => {
                   {course.id === 'python-core' && (
                     <button
                       type="button"
-                      onClick={handleStartOrResume}
+                      onClick={() => {
+                        if (hasClaimedCert && resumeInfo.status === 'all_completed') {
+                          navigate('/course/python-core/part-1?review=true');
+                        } else {
+                          handleStartOrResume();
+                        }
+                      }}
                       className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-primary/20"
                     >
                       {resumeInfo.status === 'in_progress' ? (
@@ -1302,7 +1336,9 @@ export const CourseDetailPage: React.FC = () => {
                         <Play className="w-3.5 h-3.5 fill-current shrink-0" />
                       )}
                       <span>
-                        {isPurchased
+                        {hasClaimedCert && resumeInfo.status === 'all_completed'
+                          ? 'Review Answers'
+                          : isPurchased
                           ? 'Start Learning'
                           : (pricing?.isFreeCourse && resumeInfo.status === 'not_started'
                             ? 'Start Free Course'
@@ -1314,7 +1350,13 @@ export const CourseDetailPage: React.FC = () => {
                   {course.id === 'java-core' && (
                     <button
                       type="button"
-                      onClick={handleStartOrResume}
+                      onClick={() => {
+                        if (hasClaimedCert && javaResumeInfo.status === 'all_completed') {
+                          navigate('/course/complete-java-programming/part-1?review=true');
+                        } else {
+                          handleStartOrResume();
+                        }
+                      }}
                       className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-primary/20"
                     >
                       {javaResumeInfo.status === 'in_progress' ? (
@@ -1323,7 +1365,9 @@ export const CourseDetailPage: React.FC = () => {
                         <Play className="w-3.5 h-3.5 fill-current shrink-0" />
                       )}
                       <span>
-                        {isPurchased
+                        {hasClaimedCert && javaResumeInfo.status === 'all_completed'
+                          ? 'Review Answers'
+                          : isPurchased
                           ? 'Start Learning'
                           : (pricing?.isFreeCourse && javaResumeInfo.status === 'not_started'
                             ? 'Start Free Course'
@@ -1335,7 +1379,13 @@ export const CourseDetailPage: React.FC = () => {
                   {(course.id === 'fullstack-open' || course.slug === 'fullstack-open') && (
                     <button
                       type="button"
-                      onClick={handleStartOrResume}
+                      onClick={() => {
+                        if (hasClaimedCert && fullstackResumeInfo.status === 'all_completed') {
+                          navigate('/course/fullstack-open/part-0?review=true');
+                        } else {
+                          handleStartOrResume();
+                        }
+                      }}
                       className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-primary/20"
                     >
                       {fullstackResumeInfo.status === 'in_progress' ? (
@@ -1344,7 +1394,9 @@ export const CourseDetailPage: React.FC = () => {
                         <Play className="w-3.5 h-3.5 fill-current shrink-0" />
                       )}
                       <span>
-                        {isPurchased
+                        {hasClaimedCert && fullstackResumeInfo.status === 'all_completed'
+                          ? 'Review Answers'
+                          : isPurchased
                           ? 'Start Learning'
                           : (pricing?.isFreeCourse && fullstackResumeInfo.status === 'not_started'
                             ? 'Start Free Course'
@@ -1356,7 +1408,13 @@ export const CourseDetailPage: React.FC = () => {
                   {(course.id === 'cyber-security' || course.slug === 'cyber-security-core') && (
                     <button
                       type="button"
-                      onClick={handleStartOrResume}
+                      onClick={() => {
+                        if (hasClaimedCert && cyberResumeInfo.status === 'all_completed') {
+                          navigate('/course/cyber-security/part-1?review=true');
+                        } else {
+                          handleStartOrResume();
+                        }
+                      }}
                       className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1.5 rounded-full bg-cyan-500 text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-cyan-500/20"
                     >
                       {cyberResumeInfo.status === 'in_progress' ? (
@@ -1365,7 +1423,9 @@ export const CourseDetailPage: React.FC = () => {
                         <Play className="w-3.5 h-3.5 fill-current shrink-0" />
                       )}
                       <span>
-                        {isPurchased
+                        {hasClaimedCert && cyberResumeInfo.status === 'all_completed'
+                          ? 'Review Answers'
+                          : isPurchased
                           ? 'Start Learning'
                           : (pricing?.isFreeCourse && cyberResumeInfo.status === 'not_started'
                             ? 'Start Free Course'

@@ -111,6 +111,9 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({
 
       saveCertificate(newRecord, courseId);
       setCertRecord(newRecord);
+      try {
+        window.dispatchEvent(new Event('dopilot_certificate_claimed'));
+      } catch {}
 
       await downloadCertificatePdf(
         newRecord.studentName,

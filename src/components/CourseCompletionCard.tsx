@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Award, CheckCircle2, FileText, Check, AlertCircle } from 'lucide-react';
+import { Award, CheckCircle2, FileText, Check, AlertCircle, BookOpen } from 'lucide-react';
 import { congratsAnimationData } from '../data/congratsAnimation';
 import { getCourseOverallSummary, CourseOverallSummary } from '../utils/coursePerformanceSummary';
+import { getSavedCertificate } from '../utils/certificateGenerator';
 
 interface CourseCompletionCardProps {
   courseId?: string;
@@ -13,12 +15,29 @@ export const CourseCompletionCard: React.FC<CourseCompletionCardProps> = ({
   courseId = 'python-core',
   onClaimCertificate
 }) => {
+  const navigate = useNavigate();
   const animContainerRef = useRef<HTMLDivElement>(null);
   const [animationFinished, setAnimationFinished] = useState(false);
   const [summary, setSummary] = useState<CourseOverallSummary>(() => getCourseOverallSummary(courseId));
+  const [hasClaimedCert, setHasClaimedCert] = useState<boolean>(() => {
+    return Boolean(getSavedCertificate(courseId));
+  });
 
   useEffect(() => {
     setSummary(getCourseOverallSummary(courseId));
+    setHasClaimedCert(Boolean(getSavedCertificate(courseId)));
+  }, [courseId]);
+
+  useEffect(() => {
+    const handleStorage = () => {
+      setHasClaimedCert(Boolean(getSavedCertificate(courseId)));
+    };
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('dopilot_certificate_claimed', handleStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('dopilot_certificate_claimed', handleStorage);
+    };
   }, [courseId]);
 
   useEffect(() => {
@@ -175,16 +194,33 @@ export const CourseCompletionCard: React.FC<CourseCompletionCardProps> = ({
               </div>
             </div>
 
-            {/* Exactly ONE Button on Final Completion Screen: Claim Official Certificate (PDF) */}
-            <div className="pt-2">
+            {/* Action buttons: Claim Official Certificate (PDF) & Compact Review Answers if claimed */}
+            <div className="pt-2 space-y-2">
               <button
                 type="button"
                 onClick={onClaimCertificate}
                 className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:brightness-105 text-black font-jakarta font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg shadow-amber-500/25 transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98"
               >
                 <Award className="w-4 h-4 text-black shrink-0" />
-                <span>Claim Official Certificate (PDF)</span>
+                <span>{hasClaimedCert ? 'View / Download Certificate (PDF)' : 'Claim Official Certificate (PDF)'}</span>
               </button>
+
+              {hasClaimedCert && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const firstPart = courseId === 'fullstack-open' ? 'part-0' : 'part-1';
+                    const targetCourse = (courseId === 'java-core' || courseId === 'complete-java-programming')
+                      ? 'complete-java-programming'
+                      : courseId;
+                    navigate(`/course/${targetCourse}/${firstPart}?review=true`);
+                  }}
+                  className="w-full py-2.5 px-4 rounded-xl bg-white/[0.06] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98"
+                >
+                  <BookOpen className="w-3.5 h-3.5 text-primary shrink-0" />
+                  <span>Review Answers</span>
+                </button>
+              )}
             </div>
           </motion.div>
         )}

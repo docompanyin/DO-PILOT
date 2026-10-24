@@ -484,7 +484,17 @@ export const PythonPart5Page: React.FC = () => {
       console.error(e);
     }
     if (isCorrect) {
-      awardPoint(tId, heading, optId);
+      const isRetestAttempt = (() => {
+        try {
+          const raw = localStorage.getItem(`dopilot_part5_attempt_${activeSection.id}_${studentId}`);
+          return raw ? Number(raw) > 1 : false;
+        } catch {
+          return false;
+        }
+      })();
+      if (!isRetestAttempt) {
+        awardPoint(tId, heading, optId);
+      }
       setCorrectCountdown(3);
     }
   };
@@ -1224,13 +1234,7 @@ export const PythonPart5Page: React.FC = () => {
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
 
-              <button
-                type="button"
-                onClick={() => setPart6ModalOpen(false)}
-                className="w-full py-2 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
-              >
-                Review Part 5 Notes
-              </button>
+
             </div>
           </div>
         </div>

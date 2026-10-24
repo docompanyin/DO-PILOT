@@ -758,7 +758,17 @@ export const JavaPart1Page: React.FC = () => {
       console.error(e);
     }
     if (isCorrect) {
-      awardPoint(tId, heading, optId);
+      const isRetestAttempt = (() => {
+        try {
+          const raw = localStorage.getItem(`dopilot_java_attempt_${activeSection.id}_${studentId}`);
+          return raw ? Number(raw) > 1 : false;
+        } catch {
+          return false;
+        }
+      })();
+      if (!isRetestAttempt) {
+        awardPoint(tId, heading, optId);
+      }
       setCorrectCountdown(3);
     } else {
       const chosenOpt = currentMcq.options.find(o => o.id === optId);
@@ -1816,13 +1826,7 @@ export const JavaPart1Page: React.FC = () => {
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
 
-              <button
-                type="button"
-                onClick={() => setPart2ModalOpen(false)}
-                className="w-full py-2 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
-              >
-                Review Part 1 Notes
-              </button>
+
             </div>
           </div>
         </div>
