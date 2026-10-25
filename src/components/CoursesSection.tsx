@@ -86,7 +86,7 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.96 }}
+      initial={false}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ duration: 0.22, ease: 'easeOut' }}
@@ -409,7 +409,7 @@ export const CoursesSection: React.FC<CoursesSectionProps> = ({ onEnroll }) => {
 
         {/* Course Grid with Stable Dimensions */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6" style={{ contentVisibility: 'auto', containIntrinsicSize: '1px 500px' }}>
-          <AnimatePresence>
+          <AnimatePresence initial={false}>
             {filteredCourses.map((course) => (
               <SpotlightCard
                 key={course.id}

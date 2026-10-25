@@ -42,29 +42,36 @@ export const ScrollRevealWrapper: React.FC<ScrollRevealWrapperProps> = ({ childr
     gsap.ticker.lagSmoothing(0);
 
     // Global Section Scroll Reveal Rule (excludes pinned horizontal scroll sections)
+    // Only run initial scroll reveal animation on initial cold page load
+    const isReturningToHome = sessionStorage.getItem('dopilot_home_scroll_pos') !== null;
     const sections = document.querySelectorAll('section:not([data-no-reveal="true"])');
 
     sections.forEach((section) => {
       const childrenToAnimate = section.querySelectorAll('h2, h3, p, .grid > *, button, .btn, .card');
       if (childrenToAnimate.length > 0) {
-        gsap.fromTo(
-          childrenToAnimate,
-          { opacity: 0, y: 40, scale: 0.96 },
-          {
-            opacity: 1,
-            y: 0,
-            scale: 1,
-            stagger: 0.08,
-            duration: 0.7,
-            ease: 'power3.out',
-            clearProps: 'transform,willChange',
-            scrollTrigger: {
-              trigger: section,
-              start: 'top 80%',
-              once: true,
-            },
-          }
-        );
+        if (isReturningToHome) {
+          // Returning to home from another route: ensure elements are immediately visible without blank flashes
+          gsap.set(childrenToAnimate, { opacity: 1, y: 0, scale: 1, clearProps: 'transform,willChange' });
+        } else {
+          gsap.fromTo(
+            childrenToAnimate,
+            { opacity: 0, y: 40, scale: 0.96 },
+            {
+              opacity: 1,
+              y: 0,
+              scale: 1,
+              stagger: 0.08,
+              duration: 0.7,
+              ease: 'power3.out',
+              clearProps: 'transform,willChange',
+              scrollTrigger: {
+                trigger: section,
+                start: 'top 80%',
+                once: true,
+              },
+            }
+          );
+        }
       }
     });
 

@@ -89,10 +89,10 @@ export const ScrollManager: React.FC = () => {
 
     // 2. Returning to Home Page (from Course Details or other pages via Back or button)
     if (currentPath === '/') {
-      const isComingFromCourse = prevPath && (prevPath.startsWith('/course/') || prevPath.startsWith('/login'));
+      const isComingFromOtherPage = prevPath && prevPath !== '/';
       const isPop = navType === NavigationType.Pop;
 
-      if (isPop || isComingFromCourse) {
+      if (isPop || isComingFromOtherPage) {
         const savedPos = sessionStorage.getItem(HOME_SCROLL_KEY);
         if (savedPos !== null) {
           const targetY = parseInt(savedPos, 10) || 0;
@@ -113,8 +113,8 @@ export const ScrollManager: React.FC = () => {
           const timers: number[] = [];
           requestAnimationFrame(() => applyScroll(targetY));
 
-          // Run checks at 30ms, 80ms, 180ms, and 350ms to ensure GSAP ScrollTrigger and images don't shift position
-          [30, 80, 180, 350].forEach((delay) => {
+          // Run checks to ensure GSAP ScrollTrigger, images, and layout do not shift position
+          [20, 50, 100, 200, 350].forEach((delay) => {
             timers.push(
               window.setTimeout(() => {
                 applyScroll(targetY);
@@ -125,6 +125,13 @@ export const ScrollManager: React.FC = () => {
           return () => {
             timers.forEach((id) => clearTimeout(id));
           };
+        } else if (location.hash) {
+          // If a hash was targeted (e.g. #courses), scroll to that section
+          const targetId = location.hash.replace('#', '');
+          const targetElem = document.getElementById(targetId);
+          if (targetElem) {
+            targetElem.scrollIntoView({ behavior: 'auto' });
+          }
         }
       } else if (navType === NavigationType.Push && prevPath !== '/') {
         // Navigating back to home via an explicit push: scroll to top if not targeting a section anchor
