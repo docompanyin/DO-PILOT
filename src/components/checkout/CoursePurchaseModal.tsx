@@ -5,6 +5,8 @@ import {
   X, Check, Sparkles, Tag, ArrowRight, ArrowLeft, AlertCircle, Award, CheckCircle2,
   QrCode, Clock, Copy, RefreshCw, ShieldCheck, ShieldAlert
 } from 'lucide-react';
+import loadingAnimationData from '../../assets/loading.json';
+import successAnimationData from '../../assets/Success.json';
 import trophyAnimationData from '../../assets/Trophy.json';
 import { useUserAuth } from '../../context/UserAuthContext';
 import {
@@ -21,6 +23,90 @@ import {
   CourseCoupon,
   CoursePricing
 } from '../../utils/coursePricingService';
+
+interface ClaimFlowOverlayProps {
+  courseName: string;
+  stage: 'loading' | 'success';
+}
+
+const ClaimFlowOverlay: React.FC<ClaimFlowOverlayProps> = ({ courseName, stage }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const animRef = useRef<any>(null);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const playAnim = (lottieInstance: any) => {
+      if (!containerRef.current || isCancelled) return;
+      if (animRef.current) {
+        try { animRef.current.destroy(); } catch {}
+      }
+      try {
+        const anim = lottieInstance.loadAnimation({
+          container: containerRef.current,
+          renderer: 'svg',
+          loop: stage === 'loading',
+          autoplay: true,
+          animationData: stage === 'loading' ? loadingAnimationData : successAnimationData,
+        });
+        animRef.current = anim;
+        anim.setSpeed(1.0);
+      } catch (err) {
+        console.error('Lottie play error:', err);
+      }
+    };
+
+    if (typeof window !== 'undefined' && (window as any).lottie) {
+      playAnim((window as any).lottie);
+    } else {
+      let attempts = 0;
+      const poll = setInterval(() => {
+        attempts++;
+        if (typeof window !== 'undefined' && (window as any).lottie) {
+          clearInterval(poll);
+          playAnim((window as any).lottie);
+        } else if (attempts > 40) {
+          clearInterval(poll);
+        }
+      }, 50);
+    }
+
+    return () => {
+      isCancelled = true;
+      if (animRef.current) {
+        try { animRef.current.destroy(); } catch {}
+      }
+    };
+  }, [stage]);
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center p-4 select-none">
+      {stage === 'loading' && (
+        <div
+          ref={containerRef}
+          className="w-56 h-56 sm:w-72 sm:h-72 md:w-80 md:h-80 flex items-center justify-center pointer-events-none"
+        />
+      )}
+
+      {stage === 'success' && (
+        <div className="flex flex-col items-center justify-center text-center space-y-4 max-w-md mx-auto animate-fade-in">
+          <div
+            ref={containerRef}
+            className="w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 flex items-center justify-center pointer-events-none"
+          />
+          <div className="space-y-1.5 px-4">
+            <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
+              Course Purchase Successful
+            </h2>
+            <p className="font-jakarta text-sm sm:text-base text-slate font-medium">
+              {courseName}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface TrophyCelebrationProps {
   courseName: string;
@@ -231,7 +317,10 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [purchaseCompleted, setPurchaseCompleted] = useState(false);
   const [isClaimCelebration, setIsClaimCelebration] = useState(false);
+  const [claimFlowStage, setClaimFlowStage] = useState<'idle' | 'loading' | 'success'>('idle');
   const [showPaymentUnavailableModal, setShowPaymentUnavailableModal] = useState(false);
+  const claimTimeoutRef = useRef<any>(null);
+  const redirectTimeoutRef = useRef<any>(null);
 
   // Step: 'checkout' (course info & "Pay ₹999") | 'qr_page' (separate clean QR payment page)
   const [paymentStep, setPaymentStep] = useState<'checkout' | 'qr_page'>('checkout');
@@ -293,10 +382,21 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
       setSubmittedUtr('');
       setActiveSessionId(null);
       setIsClaimCelebration(false);
+      setClaimFlowStage('idle');
+      if (claimTimeoutRef.current) clearTimeout(claimTimeoutRef.current);
+      if (redirectTimeoutRef.current) clearTimeout(redirectTimeoutRef.current);
       setShowPaymentUnavailableModal(false);
     }
     wasOpenRef.current = isOpen;
   }, [isOpen, courseId]);
+
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      if (claimTimeoutRef.current) clearTimeout(claimTimeoutRef.current);
+      if (redirectTimeoutRef.current) clearTimeout(redirectTimeoutRef.current);
+    };
+  }, []);
 
   // 2-Minute QR Code Timer Countdown (Active only on qr_page)
   // IMPORTANT: Expiration must not automatically mark payment as successful!
@@ -440,7 +540,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
         }
       }
 
-      // 2. Server-side coupon & eligibility validation + Supabase enrollment
+      // 2. Server-side coupon & eligibility pre-validation check
       try {
         const res = await fetch('/api/claim-course', {
           method: 'POST',
@@ -451,7 +551,8 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
             studentId,
             studentEmail,
             studentName,
-            studentPhone
+            studentPhone,
+            validateOnly: true
           })
         });
 
@@ -465,33 +566,72 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
         console.warn('Backend claim endpoint request issue, falling back to local persistence:', err);
       }
 
-      // 3. Record course purchase locally and grant permanent access
-      const result = recordCoursePurchase({
-        studentId,
-        studentName,
-        studentEmail: studentEmail || `${studentId}@student.dopilot.io`,
-        studentPhone,
-        courseId: normalizedCourse,
-        courseName: resolvedCourseName,
-        originalPrice: pricing.salePrice || pricing.regularPrice,
-        discountAmount: pricing.salePrice || pricing.regularPrice,
-        finalAmount: 0,
-        couponCodeApplied: couponCode,
-        paymentMethod: 'coupon_free_unlock',
-        status: 'completed'
-      });
+      // Validation succeeded! Start 5-second loading stage.
+      // NOTE: Purchase confirmation MUST NOT happen yet.
+      setIsProcessing(false);
+      setClaimFlowStage('loading');
 
-      if (result.success) {
-        if (isLoggedIn) {
-          enrollInCourse(resolvedCourseName);
+      // Stage 1: Exactly 5 seconds loading animation
+      claimTimeoutRef.current = setTimeout(async () => {
+        // Now entering Stage 2: Success stage
+        setClaimFlowStage('success');
+
+        // Confirm purchase & grant access ONLY AFTER success stage is reached
+        try {
+          // Grant access locally
+          const result = recordCoursePurchase({
+            studentId,
+            studentName,
+            studentEmail: studentEmail || `${studentId}@student.dopilot.io`,
+            studentPhone,
+            courseId: normalizedCourse,
+            courseName: resolvedCourseName,
+            originalPrice: pricing.salePrice || pricing.regularPrice,
+            discountAmount: pricing.salePrice || pricing.regularPrice,
+            finalAmount: 0,
+            couponCodeApplied: couponCode,
+            paymentMethod: 'coupon_free_unlock',
+            status: 'completed'
+          });
+
+          // Confirm with backend if available
+          try {
+            await fetch('/api/claim-course', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                courseId: normalizedCourse,
+                couponCode,
+                studentId,
+                studentEmail,
+                studentName,
+                studentPhone
+              })
+            });
+          } catch {}
+
+          if (result.success && isLoggedIn) {
+            enrollInCourse(resolvedCourseName);
+          }
+        } catch (confirmErr) {
+          console.error('Error confirming purchase at success stage:', confirmErr);
         }
-        setIsClaimCelebration(true);
-      } else {
-        setCouponError(result.error || 'Could not complete course claim.');
-      }
+
+        // Stage 3: Keep success animation and message visible briefly (2.6 seconds), then redirect to Course Details page
+        redirectTimeoutRef.current = setTimeout(() => {
+          setClaimFlowStage('idle');
+          if (onSuccess) {
+            onSuccess();
+          }
+          const targetRoute = getCanonicalCourseRoute(courseId);
+          navigate(targetRoute);
+          onClose();
+        }, 2600);
+
+      }, 5000);
+
     } catch (err: any) {
       setCouponError(err?.message || 'Error granting course access.');
-    } finally {
       setIsProcessing(false);
     }
   };
@@ -546,7 +686,14 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 md:p-6 overflow-y-auto">
+      {/* FULL SCREEN ANIMATION OVERLAY FOR ZERO-AMOUNT COUPON CLAIM */}
+      {claimFlowStage !== 'idle' ? (
+        <ClaimFlowOverlay
+          courseName={resolvedCourseName}
+          stage={claimFlowStage}
+        />
+      ) : (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 md:p-6 overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, scale: 0.96, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1046,6 +1193,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
           onClose={() => setShowPaymentUnavailableModal(false)}
         />
       </div>
+      )}
     </AnimatePresence>
   );
 };

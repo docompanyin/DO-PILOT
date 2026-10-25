@@ -444,57 +444,77 @@ export const CourseDetailPage: React.FC = () => {
     };
   }, [courseId, safeCourseId, user?.id, user?.email]);
 
+  const isCoursePython = course?.id === 'python-core' || course?.slug === 'complete-python-programming' || safeCourseId === 'python-core';
+  const isCourseJava = course?.id === 'java-core' || course?.slug === 'complete-java-programming' || safeCourseId === 'java-core' || safeCourseId === 'complete-java-programming';
+  const isCourseFullstack = course?.id === 'fullstack-open' || course?.slug === 'fullstack-open' || safeCourseId === 'fullstack-open' || safeCourseId === 'full-stack-web';
+  const isCourseCyber = course?.id === 'cyber-security' || course?.slug === 'cyber-security-core' || safeCourseId === 'cyber-security' || safeCourseId === 'cyber-security-core';
+
   const handleTryPart1 = () => {
-    if (!course) return;
+    // If not logged in, take the student to login with a clean return redirect
+    if (!isLoggedIn) {
+      navigate(`/login?redirect=/course/${course?.id || safeCourseId}/part-1`);
+      return;
+    }
+
     if (isPurchased) {
       handleStartOrResume();
       return;
     }
-    if (course.id === 'python-core') {
+
+    if (isCoursePython) {
       localStorage.setItem('dopilot_python_core_last_part', '1');
       navigate('/course/python-core/part-1');
-    } else if (course.id === 'java-core' || course.slug === 'complete-java-programming') {
+    } else if (isCourseJava) {
       localStorage.setItem('dopilot_java_core_last_part', '1');
       navigate('/course/complete-java-programming/part-1');
-    } else if (course.id === 'fullstack-open' || course.slug === 'fullstack-open') {
+    } else if (isCourseFullstack) {
       localStorage.setItem('dopilot_fullstack_core_last_part', '1');
       navigate('/course/fullstack-open/part-1');
-    } else if (course.id === 'cyber-security' || course.slug === 'cyber-security-core') {
+    } else if (isCourseCyber) {
       localStorage.setItem('dopilot_cyber_core_last_part', '1');
       navigate('/course/cyber-security/part-1');
     } else {
-      navigate('/#courses');
+      navigate('/course/python-core/part-1');
     }
   };
 
   const handleStartOrResume = () => {
     const studentId = user?.id || user?.email;
-    if (course && course.id === 'python-core') {
+
+    // If not logged in, cleanly direct to login
+    if (!isLoggedIn) {
+      navigate(`/login?redirect=/course/${course?.id || safeCourseId}`);
+      return;
+    }
+
+    if (isCoursePython) {
       const target = isPurchased 
         ? getPostPurchaseStartingPart('python-core', resumeInfo.targetPart, studentId) 
         : (resumeInfo.targetPart || 1);
       localStorage.setItem('dopilot_python_core_last_part', String(target));
       navigate(`/course/python-core/part-${target}`);
-    } else if (course && (course.id === 'java-core' || course.slug === 'complete-java-programming')) {
+    } else if (isCourseJava) {
       const target = isPurchased 
         ? getPostPurchaseStartingPart('java-core', javaResumeInfo.targetPart, studentId) 
         : (javaResumeInfo.targetPart || 1);
       localStorage.setItem('dopilot_java_core_last_part', String(target));
       navigate(`/course/complete-java-programming/part-${target}`);
-    } else if (course && (course.id === 'fullstack-open' || course.slug === 'fullstack-open')) {
+    } else if (isCourseFullstack) {
       const target = isPurchased 
         ? getPostPurchaseStartingPart('fullstack-open', fullstackResumeInfo.targetPart ?? 2, studentId) 
         : (fullstackResumeInfo.targetPart ?? 0);
       localStorage.setItem('dopilot_fullstack_core_last_part', String(target));
       navigate(`/course/fullstack-open/part-${target}`);
-    } else if (course && (course.id === 'cyber-security' || course.slug === 'cyber-security-core')) {
+    } else if (isCourseCyber) {
       const target = isPurchased 
         ? getPostPurchaseStartingPart('cyber-security', cyberResumeInfo.targetPart, studentId) 
         : (cyberResumeInfo.targetPart || 1);
       localStorage.setItem('dopilot_cyber_core_last_part', String(target));
       navigate(`/course/cyber-security/part-${target}`);
     } else {
-      setModalOpen(true);
+      // Direct navigation fallback - NEVER pop up ContactModal on learning start/resume
+      localStorage.setItem('dopilot_python_core_last_part', '1');
+      navigate('/course/python-core/part-1');
     }
   };
 
@@ -939,7 +959,7 @@ export const CourseDetailPage: React.FC = () => {
                     <span>Try Part 1 — Free Trial</span>
                   </button>
                 </div>
-              ) : course.id === 'python-core' ? (
+              ) : isCoursePython ? (
                 resumeInfo.status === 'all_completed' ? (
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                     <button
@@ -982,7 +1002,7 @@ export const CourseDetailPage: React.FC = () => {
                     <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                   </button>
                 )
-              ) : course.id === 'java-core' ? (
+              ) : isCourseJava ? (
                 javaResumeInfo.status === 'all_completed' ? (
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                     <button
@@ -1025,7 +1045,7 @@ export const CourseDetailPage: React.FC = () => {
                     <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                   </button>
                 )
-              ) : (course.id === 'fullstack-open' || course.slug === 'fullstack-open') ? (
+              ) : isCourseFullstack ? (
                 fullstackResumeInfo.status === 'all_completed' ? (
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                     <button
@@ -1068,7 +1088,7 @@ export const CourseDetailPage: React.FC = () => {
                     <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" />
                   </button>
                 )
-              ) : (course.id === 'cyber-security' || course.slug === 'cyber-security-core') ? (
+              ) : isCourseCyber ? (
                 cyberResumeInfo.status === 'all_completed' ? (
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                     <button
@@ -1391,7 +1411,7 @@ export const CourseDetailPage: React.FC = () => {
                 </>
               ) : (
                 <>
-                  {course.id === 'python-core' && (
+                  {isCoursePython && (
                     <button
                       type="button"
                       onClick={() => {
@@ -1420,7 +1440,7 @@ export const CourseDetailPage: React.FC = () => {
                     </button>
                   )}
 
-                  {course.id === 'java-core' && (
+                  {isCourseJava && (
                     <button
                       type="button"
                       onClick={() => {
@@ -1449,7 +1469,7 @@ export const CourseDetailPage: React.FC = () => {
                     </button>
                   )}
 
-                  {(course.id === 'fullstack-open' || course.slug === 'fullstack-open') && (
+                  {isCourseFullstack && (
                     <button
                       type="button"
                       onClick={() => {
@@ -1478,7 +1498,7 @@ export const CourseDetailPage: React.FC = () => {
                     </button>
                   )}
 
-                  {(course.id === 'cyber-security' || course.slug === 'cyber-security-core') && (
+                  {isCourseCyber && (
                     <button
                       type="button"
                       onClick={() => {

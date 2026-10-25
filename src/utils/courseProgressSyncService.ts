@@ -32,11 +32,15 @@ export interface CourseProgressRecord {
   lastPart: number;
   completedParts: number[];
   parts: Record<string, PartQuestionState>;
+  lockedKeys?: Record<string, boolean>;
+  consecutiveFailures?: Record<string, number>;
 }
 
 export interface StudentAllCoursesState {
   email: string;
   courses: Record<string, CourseProgressRecord>;
+  globalLockedKeys?: Record<string, boolean>;
+  consecutiveFailures?: Record<string, number>;
   part1SectionScores?: Record<string, any>;
   trialAttempted?: Record<string, boolean>;
   postPurchaseDecisions?: Record<string, string>;
@@ -177,13 +181,23 @@ export function parseCourseStorageKey(key: string): { courseId: string; partNum:
   } else if (key.startsWith('dopilot_fullstack_')) {
     const sub = key.replace('dopilot_fullstack_', '');
     if (sub === 'core_last_part') return { courseId: 'fullstack-open', partNum: 1, field: 'lastPart' };
-    const m = sub.match(/^part(\d+)_(.+)$/);
-    if (m) {
-      return { courseId: 'fullstack-open', partNum: parseInt(m[1], 10), field: m[2] };
+    const mPart = sub.match(/^part(\d+)_(.+)$/);
+    if (mPart) {
+      return { courseId: 'fullstack-open', partNum: parseInt(mPart[1], 10), field: mPart[2] };
+    }
+    const mP = sub.match(/^p(\d+)_(.+)$/);
+    if (mP) {
+      return { courseId: 'fullstack-open', partNum: parseInt(mP[1], 10), field: mP[2] };
     }
   } else if (key.startsWith('dopilot_cyber_')) {
     const sub = key.replace('dopilot_cyber_', '');
     if (sub === 'core_last_part') return { courseId: 'cyber-security', partNum: 1, field: 'lastPart' };
+    if (sub === 'part1_completed') return { courseId: 'cyber-security', partNum: 1, field: 'completed' };
+    if (sub === 'part1_finished') return { courseId: 'cyber-security', partNum: 1, field: 'finished' };
+    if (sub === 'part1_level_result' || sub === 'level_result') return { courseId: 'cyber-security', partNum: 1, field: 'level_result' };
+    if (['active_section_id', 'active_q_idx', 'study_phase', 'time_up', 'q_target_end_time', 'mcq_answers'].includes(sub)) {
+      return { courseId: 'cyber-security', partNum: 1, field: sub };
+    }
     const m = sub.match(/^part(\d+)_(.+)$/);
     if (m) {
       return { courseId: 'cyber-security', partNum: parseInt(m[1], 10), field: m[2] };
@@ -283,6 +297,22 @@ export const initCourseProgressSyncInterceptor = () => {
         return;
       }
 
+      // Intercept and persist lock keys to cloud
+      if (key.startsWith('dopilot_locked_') || key.includes('_locked_')) {
+        if (!st.globalLockedKeys) st.globalLockedKeys = {};
+        st.globalLockedKeys[key] = value === 'true';
+        st.updatedAt = new Date().toISOString();
+        queueCloudSync(email);
+      }
+
+      // Intercept and persist consecutive failure / streak counters to cloud
+      if (key.includes('consecutive_failures') || key.includes('failed_levels_streak')) {
+        if (!st.consecutiveFailures) st.consecutiveFailures = {};
+        st.consecutiveFailures[key] = Number(value) || 0;
+        st.updatedAt = new Date().toISOString();
+        queueCloudSync(email);
+      }
+
       const parsed = parseCourseStorageKey(key);
       if (!parsed) return;
       if (!st.courses[parsed.courseId]) {
@@ -345,9 +375,6 @@ export const initCourseProgressSyncInterceptor = () => {
     originalRemoveItem(key);
 
     try {
-      const parsed = parseCourseStorageKey(key);
-      if (!parsed) return;
-
       const sessionRaw = window.localStorage.getItem('dopilot_student_session_v1');
       if (!sessionRaw) return;
       const session = JSON.parse(sessionRaw);
@@ -355,6 +382,26 @@ export const initCourseProgressSyncInterceptor = () => {
       if (!email || !memoryCourseState[email]) return;
 
       const st = memoryCourseState[email];
+
+      if (key.startsWith('dopilot_locked_') || key.includes('_locked_')) {
+        if (st.globalLockedKeys) {
+          delete st.globalLockedKeys[key];
+          st.updatedAt = new Date().toISOString();
+          queueCloudSync(email);
+        }
+      }
+
+      if (key.includes('consecutive_failures') || key.includes('failed_levels_streak')) {
+        if (st.consecutiveFailures) {
+          delete st.consecutiveFailures[key];
+          st.updatedAt = new Date().toISOString();
+          queueCloudSync(email);
+        }
+      }
+
+      const parsed = parseCourseStorageKey(key);
+      if (!parsed) return;
+
       const cRec = st.courses[parsed.courseId];
       if (!cRec) return;
 
@@ -699,15 +746,18 @@ export const restoreAllStudentCourseProgressFromCloud = async (
             localStorage.setItem(partKeys.levelResultKey, JSON.stringify(partState.levelResult));
             if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_level_result', JSON.stringify(partState.levelResult));
             if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_level_result', JSON.stringify(partState.levelResult));
+            if (courseId === 'cyber-security' && pNum === 1) localStorage.setItem('dopilot_cyber_part1_level_result', JSON.stringify(partState.levelResult));
           } else {
             localStorage.removeItem(partKeys.levelResultKey);
             if (courseId === 'java-core' && pNum === 1) localStorage.removeItem('dopilot_java_level_result');
             if (courseId === 'python-core' && pNum === 1) localStorage.removeItem('dopilot_level_result');
+            if (courseId === 'cyber-security' && pNum === 1) localStorage.removeItem('dopilot_cyber_part1_level_result');
           }
           if (partState.isFinishedPart) {
             localStorage.setItem(partKeys.finishedKey, 'true');
             if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_finished', 'true');
             if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_finished', 'true');
+            if (courseId === 'cyber-security' && pNum === 1) localStorage.setItem('dopilot_cyber_part1_finished', 'true');
           }
         });
       }
@@ -767,7 +817,24 @@ export const restoreAllStudentCourseProgressFromCloud = async (
       });
     }
 
-    // 7. Restore student question answering telemetry from cloud
+    // 7. Restore student locked status keys & consecutive failure counters
+    if (cloudState.globalLockedKeys) {
+      Object.entries(cloudState.globalLockedKeys).forEach(([k, isLocked]) => {
+        if (isLocked) {
+          localStorage.setItem(k, 'true');
+        } else {
+          localStorage.removeItem(k);
+        }
+      });
+    }
+
+    if (cloudState.consecutiveFailures) {
+      Object.entries(cloudState.consecutiveFailures).forEach(([k, count]) => {
+        localStorage.setItem(k, String(count));
+      });
+    }
+
+    // 8. Restore student question answering telemetry from cloud
     try {
       await restoreStudentTelemetryFromCloud(cleanEmail);
     } catch (e) {

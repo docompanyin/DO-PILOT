@@ -1417,27 +1417,28 @@ export const SettingsPage: React.FC = () => {
       {/* ========================================================================= */}
       <AnimatePresence>
         {isEditModalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-panel border border-white/15 rounded-3xl max-w-md w-full p-5 sm:p-7 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto"
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-panel border border-white/15 rounded-3xl max-w-md w-full p-4 sm:p-7 space-y-4 shadow-2xl relative max-h-[92vh] sm:max-h-[90vh] overflow-y-auto overscroll-contain my-auto"
             >
               <div className="flex items-center justify-between pb-3 border-b border-white/10">
-                <h3 className="font-jakarta font-black text-base text-paper">
+                <h3 className="font-jakarta font-black text-base sm:text-lg text-paper">
                   Edit Profile
                 </h3>
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="w-8 h-8 rounded-lg bg-white/[0.06] hover:bg-white/15 text-slate hover:text-paper flex items-center justify-center cursor-pointer"
+                  className="w-8 h-8 rounded-lg bg-white/[0.06] hover:bg-white/15 text-slate hover:text-paper flex items-center justify-center cursor-pointer transition-colors"
+                  aria-label="Close modal"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <form onSubmit={handleSaveProfile} className="space-y-3.5">
+              <form onSubmit={handleSaveProfile} className="space-y-3.5 sm:space-y-4">
                 <div className="space-y-1">
                   <label className="block text-xs font-jakarta font-bold text-paper">
                     Full Legal Name *
@@ -1447,7 +1448,7 @@ export const SettingsPage: React.FC = () => {
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-sm focus:outline-none focus:border-primary"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-base sm:text-sm focus:outline-none focus:border-primary transition-colors"
                   />
                 </div>
 
@@ -1466,7 +1467,7 @@ export const SettingsPage: React.FC = () => {
                     }}
                     required
                     placeholder="10-digit mobile number"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-sm focus:outline-none focus:border-primary tracking-wide"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-base sm:text-sm focus:outline-none focus:border-primary tracking-wide transition-colors"
                   />
                 </div>
 
@@ -1479,7 +1480,7 @@ export const SettingsPage: React.FC = () => {
                     value={editCollegeOrCompany}
                     onChange={(e) => setEditCollegeOrCompany(e.target.value)}
                     placeholder="e.g. IIT Madras, BITS, or Company Name"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-sm focus:outline-none focus:border-primary"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-base sm:text-sm focus:outline-none focus:border-primary transition-colors"
                   />
                 </div>
 
@@ -1490,7 +1491,7 @@ export const SettingsPage: React.FC = () => {
                   <select
                     value={editWhereDidYouFindUs}
                     onChange={(e) => setEditWhereDidYouFindUs(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-sm focus:outline-none focus:border-primary cursor-pointer"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-base sm:text-sm focus:outline-none focus:border-primary cursor-pointer transition-colors"
                   >
                     <option value="">Select option</option>
                     <option value="Instagram">Instagram</option>
@@ -1509,17 +1510,17 @@ export const SettingsPage: React.FC = () => {
                   </p>
                 )}
 
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
+                <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 pt-3 border-t border-white/10">
                   <button
                     type="button"
                     onClick={() => setIsEditModalOpen(false)}
-                    className="px-4 py-2 rounded-xl text-xs font-mono text-slate hover:text-paper cursor-pointer"
+                    className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-mono text-slate hover:text-paper hover:bg-white/[0.04] transition-colors cursor-pointer text-center"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs hover:bg-white transition-colors cursor-pointer"
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs hover:bg-white transition-colors cursor-pointer shadow-md shadow-primary/20 text-center"
                   >
                     Save Changes
                   </button>
