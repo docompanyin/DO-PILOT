@@ -119,10 +119,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
   const searchParams = new URLSearchParams(location.search);
   const redirectTarget = searchParams.get('redirect') || '/';
 
+  // Check if user arrived at AuthPage with an active session on mount
+  const initialLoggedInRef = useRef<boolean>(Boolean(isLoggedIn && user));
+
   useEffect(() => {
     markAppLoaded();
-    // If the user is already authenticated with completed details, redirect them directly
-    if (isLoggedIn && user && !loginSuccess) {
+    // If the user arrived at /login or /signup while already logged in, redirect them immediately
+    if (initialLoggedInRef.current && isLoggedIn && user && !loginSuccess) {
       navigate(redirectTarget, { replace: true });
     }
   }, [isLoggedIn, user, loginSuccess, navigate, redirectTarget]);

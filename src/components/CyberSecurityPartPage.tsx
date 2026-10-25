@@ -21,6 +21,7 @@ import {
 } from '../data/cyberSecurityData';
 import { CyberSecurityPart1Page } from './CyberSecurityPart1Page';
 import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState } from '../utils/courseProgressSyncService';
+import { logQuestionAttempt } from '../utils/studentTelemetryService';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -479,15 +480,44 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     } catch (e) {
       console.error(e);
     }
+
+    // Calculate exact time spent answering
+    const timeSpent = Math.max(0.1, Number((TIMER_DURATION - timeLeft).toFixed(1)));
+    const isRetestAttempt = (() => {
+      try {
+        const raw = localStorage.getItem(`dopilot_cyber_attempt_${activeSection.id}_${studentId}`);
+        return raw ? Number(raw) > 1 : false;
+      } catch {
+        return false;
+      }
+    })();
+    const attemptNum = isRetestAttempt ? 2 : 1;
+
+    // Log exact question telemetry
+    logQuestionAttempt(user?.email || studentId, {
+      courseId: 'cyber-security',
+      partNum: currentPartNum,
+      sectionId: activeSection.id,
+      sectionTitle: activeSection.title,
+      subQuestionLabel: `Part ${currentPartNum} -> Sec ${currentPartNum}.${activeIdx + 1} -> Q${activeQuestionIdx + 1}`,
+      questionIndex: activeQuestionIdx + 1,
+      questionTitle: heading,
+      questionPrompt: currentMcq?.question || heading,
+      codeSnippet: currentBlock?.codeSnippet,
+      studentOptionId: optId,
+      studentAnswer: currentMcq?.options.find(o => o.id === optId)?.text || optId,
+      correctOptionId: currentMcq?.correctAnswer || 'A',
+      correctAnswer: currentMcq?.options.find(o => o.id === currentMcq?.correctAnswer)?.text || 'Correct',
+      isCorrect,
+      timeTakenSeconds: timeSpent,
+      timeLimitSeconds: TIMER_DURATION,
+      attemptNumber: attemptNum,
+      isRetest: isRetestAttempt,
+      status: isCorrect ? 'passed' : 'failed',
+      explanation: currentMcq?.explanationNote
+    });
+
     if (isCorrect) {
-      const isRetestAttempt = (() => {
-        try {
-          const raw = localStorage.getItem(`dopilot_cyber_attempt_${activeSection.id}_${studentId}`);
-          return raw ? Number(raw) > 1 : false;
-        } catch {
-          return false;
-        }
-      })();
       if (!isRetestAttempt) {
         awardPoint(tId, heading, optId);
       }

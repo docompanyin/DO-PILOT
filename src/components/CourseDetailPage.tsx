@@ -497,12 +497,43 @@ export const CourseDetailPage: React.FC = () => {
     }
   };
 
+  // Instantly force page scroll to top on mount before browser paint
+  React.useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+    const lenis = (window as any).__lenisInstance;
+    if (lenis && typeof lenis.scrollTo === 'function') {
+      try {
+        lenis.scrollTo(0, { immediate: true });
+      } catch {
+        // ignore
+      }
+    }
+    requestAnimationFrame(() => {
+      window.scrollTo(0, 0);
+    });
+    const t1 = setTimeout(() => window.scrollTo(0, 0), 50);
+    const t2 = setTimeout(() => window.scrollTo(0, 0), 150);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [courseId]);
+
   useEffect(() => {
     window.scrollTo(0, 0);
     if (course) {
       document.title = `${course.title} — DO PILOT`;
     }
   }, [course]);
+
+  // Handle back navigation to Home (preserving exact scroll position)
+  const handleBackToCourses = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/#courses');
+    }
+  };
 
   // If course not found, provide fallback
   if (!course) {
@@ -513,7 +544,7 @@ export const CourseDetailPage: React.FC = () => {
           The course track you are looking for does not exist or has been moved.
         </p>
         <button
-          onClick={() => navigate('/#courses')}
+          onClick={handleBackToCourses}
           className="px-6 py-3 rounded-full bg-primary text-ink font-jakarta font-bold text-xs hover:bg-white transition-all cursor-pointer flex items-center gap-2"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -803,7 +834,7 @@ export const CourseDetailPage: React.FC = () => {
       <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-white/10 px-4 sm:px-8 py-3 sm:py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3 sm:gap-4">
           <button
-            onClick={() => navigate('/#courses')}
+            onClick={handleBackToCourses}
             className="flex items-center gap-2 py-1.5 px-3 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-slate hover:text-paper font-mono text-xs transition-all cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />

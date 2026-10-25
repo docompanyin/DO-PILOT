@@ -1,5 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { PDFDocument, rgb, StandardFonts, PDFName } from 'pdf-lib';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { normalizeStudentEmail, memoryCourseState, queueCloudSync } from './courseProgressSyncService';
 
 export interface CertificateRecord {
   certificateId: string;
@@ -92,12 +94,53 @@ export function getSavedCertificate(courseId: string = 'python-core'): Certifica
 }
 
 /**
- * Persist certificate record to localStorage for a specific course
+ * Persist certificate record to localStorage and backend cloud for a specific course
  */
-export function saveCertificate(record: CertificateRecord, courseId: string = 'python-core'): void {
+export function saveCertificate(record: CertificateRecord, courseId: string = 'python-core', studentEmail?: string): void {
   try {
     const config = COURSE_CERT_CONFIGS[courseId] || COURSE_CERT_CONFIGS['python-core'];
     localStorage.setItem(config.storageKey, JSON.stringify(record));
+
+    // Determine student email from argument, currentUser localStorage, or session
+    let email = studentEmail;
+    if (!email && typeof window !== 'undefined') {
+      try {
+        const u = localStorage.getItem('dopilot_current_user');
+        if (u) {
+          const parsed = JSON.parse(u);
+          if (parsed && parsed.email) email = parsed.email;
+        }
+      } catch {}
+    }
+
+    const cleanEmail = normalizeStudentEmail(email);
+    if (cleanEmail) {
+      if (!memoryCourseState[cleanEmail]) {
+        memoryCourseState[cleanEmail] = {
+          email: cleanEmail,
+          courses: {},
+          updatedAt: new Date().toISOString()
+        };
+      }
+      const state = memoryCourseState[cleanEmail];
+      if (!state.certificates) state.certificates = {};
+      state.certificates[config.storageKey] = record;
+      state.updatedAt = new Date().toISOString();
+      queueCloudSync(cleanEmail);
+
+      // Also persist to Supabase student_progress table if configured
+      if (isSupabaseConfigured()) {
+        Promise.resolve(
+          supabase
+            .from('student_progress')
+            .update({
+              certificate_issued: true,
+              certificate_id: record.certificateId
+            })
+            .eq('user_email', cleanEmail)
+        ).catch(() => {});
+      }
+    }
   } catch (err) {
     console.error('Failed to save certificate record:', err);
   }

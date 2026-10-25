@@ -252,6 +252,8 @@ export const getPostPurchaseDecision = (courseId: string, studentId?: string): P
   }
 };
 
+import { normalizeStudentEmail, memoryCourseState, queueCloudSync } from './courseProgressSyncService';
+
 /**
  * Save the user's explicit choice so the Course Unlocked page appears only once
  */
@@ -266,6 +268,25 @@ export const setPostPurchaseDecision = (
     const studentKey = `${prefix}_post_purchase_decision${studentId ? `_${studentId}` : ''}`;
     localStorage.setItem(studentKey, decision);
     localStorage.setItem(`${prefix}_post_purchase_decision`, decision);
+
+    // Sync to backend student state immediately
+    const cleanEmail = normalizeStudentEmail(studentId && studentId.includes('@') ? studentId : undefined);
+    if (cleanEmail) {
+      if (!memoryCourseState[cleanEmail]) {
+        memoryCourseState[cleanEmail] = {
+          email: cleanEmail,
+          courses: {},
+          updatedAt: new Date().toISOString()
+        };
+      }
+      const st = memoryCourseState[cleanEmail];
+      if (!st.postPurchaseDecisions) st.postPurchaseDecisions = {};
+      const courseShort = track.replace('-core', '').replace('-open', '');
+      st.postPurchaseDecisions[courseShort] = decision;
+      st.postPurchaseDecisions[track] = decision;
+      st.updatedAt = new Date().toISOString();
+      queueCloudSync(cleanEmail);
+    }
   } catch {}
 };
 
@@ -294,6 +315,25 @@ export const markPart1RestartUsed = (courseId: string, studentId?: string): void
     localStorage.setItem(key, 'true');
     // Also mirror to generic key
     localStorage.setItem(`${prefix}_part1_restart_used`, 'true');
+
+    // Sync to backend student state immediately
+    const cleanEmail = normalizeStudentEmail(studentId && studentId.includes('@') ? studentId : undefined);
+    if (cleanEmail) {
+      if (!memoryCourseState[cleanEmail]) {
+        memoryCourseState[cleanEmail] = {
+          email: cleanEmail,
+          courses: {},
+          updatedAt: new Date().toISOString()
+        };
+      }
+      const st = memoryCourseState[cleanEmail];
+      if (!st.part1RestartUsed) st.part1RestartUsed = {};
+      const courseShort = track.replace('-core', '').replace('-open', '');
+      st.part1RestartUsed[courseShort] = true;
+      st.part1RestartUsed[track] = true;
+      st.updatedAt = new Date().toISOString();
+      queueCloudSync(cleanEmail);
+    }
   } catch {}
 };
 

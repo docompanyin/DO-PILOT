@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { restoreStudentTelemetryFromCloud } from './studentTelemetryService';
 
 export interface LevelResultRecord {
   isFinished: boolean;
@@ -38,6 +39,9 @@ export interface StudentAllCoursesState {
   courses: Record<string, CourseProgressRecord>;
   part1SectionScores?: Record<string, any>;
   trialAttempted?: Record<string, boolean>;
+  postPurchaseDecisions?: Record<string, string>;
+  part1RestartUsed?: Record<string, boolean>;
+  certificates?: Record<string, any>;
   updatedAt: string;
 }
 
@@ -261,6 +265,24 @@ export const initCourseProgressSyncInterceptor = () => {
         return;
       }
 
+      if (key.includes('_post_purchase_decision')) {
+        if (!st.postPurchaseDecisions) st.postPurchaseDecisions = {};
+        const matchedCourse = ['python', 'java', 'fullstack', 'cyber'].find(c => key.includes(c)) || 'python';
+        st.postPurchaseDecisions[matchedCourse] = value;
+        st.updatedAt = new Date().toISOString();
+        queueCloudSync(email);
+        return;
+      }
+
+      if (key.includes('_part1_restart_used')) {
+        if (!st.part1RestartUsed) st.part1RestartUsed = {};
+        const matchedCourse = ['python', 'java', 'fullstack', 'cyber'].find(c => key.includes(c)) || 'python';
+        st.part1RestartUsed[matchedCourse] = value === 'true';
+        st.updatedAt = new Date().toISOString();
+        queueCloudSync(email);
+        return;
+      }
+
       const parsed = parseCourseStorageKey(key);
       if (!parsed) return;
       if (!st.courses[parsed.courseId]) {
@@ -463,6 +485,22 @@ export const saveQuestionProgressState = (params: {
     levelResult: levelResult || null,
     updatedAt: new Date().toISOString()
   };
+
+  // Keep post-purchase decisions & restart flags synchronized in student state
+  try {
+    const courses = ['python', 'java', 'fullstack', 'cyber'];
+    if (!studentState.postPurchaseDecisions) studentState.postPurchaseDecisions = {};
+    if (!studentState.part1RestartUsed) studentState.part1RestartUsed = {};
+    courses.forEach(c => {
+      const dec = localStorage.getItem(`dopilot_${c}_post_purchase_decision`) || 
+                  localStorage.getItem(`dopilot_${c}_core_post_purchase_decision`);
+      if (dec) studentState.postPurchaseDecisions![c] = dec;
+
+      const rst = localStorage.getItem(`dopilot_${c}_part1_restart_used`) ||
+                  localStorage.getItem(`dopilot_${c}_core_part1_restart_used`);
+      if (rst === 'true') studentState.part1RestartUsed![c] = true;
+    });
+  } catch {}
 
   studentState.updatedAt = new Date().toISOString();
   queueCloudSync(cleanEmail);
@@ -693,6 +731,47 @@ export const restoreAllStudentCourseProgressFromCloud = async (
           localStorage.setItem(k, 'true');
         }
       });
+    }
+
+    // 5. Restore Post-Purchase decisions and Part 1 restart flags across all courses
+    if (cloudState.postPurchaseDecisions) {
+      Object.entries(cloudState.postPurchaseDecisions).forEach(([c, dec]) => {
+        if (dec) {
+          localStorage.setItem(`dopilot_${c}_post_purchase_decision`, dec);
+          localStorage.setItem(`dopilot_${c}_core_post_purchase_decision`, dec);
+          localStorage.setItem(`dopilot_${c}_post_purchase_decision_${cleanEmail}`, dec);
+          localStorage.setItem(`dopilot_${c}_core_post_purchase_decision_${cleanEmail}`, dec);
+        }
+      });
+    }
+    if (cloudState.part1RestartUsed) {
+      Object.entries(cloudState.part1RestartUsed).forEach(([c, used]) => {
+        if (used) {
+          localStorage.setItem(`dopilot_${c}_part1_restart_used`, 'true');
+          localStorage.setItem(`dopilot_${c}_core_part1_restart_used`, 'true');
+          localStorage.setItem(`dopilot_${c}_part1_restart_used_${cleanEmail}`, 'true');
+          localStorage.setItem(`dopilot_${c}_core_part1_restart_used_${cleanEmail}`, 'true');
+        }
+      });
+    }
+
+    // 6. Restore student certificates across courses if stored in cloud state
+    if (cloudState.certificates) {
+      Object.entries(cloudState.certificates).forEach(([storageKey, certRec]) => {
+        if (certRec) {
+          try {
+            const raw = typeof certRec === 'string' ? certRec : JSON.stringify(certRec);
+            localStorage.setItem(storageKey, raw);
+          } catch {}
+        }
+      });
+    }
+
+    // 7. Restore student question answering telemetry from cloud
+    try {
+      await restoreStudentTelemetryFromCloud(cleanEmail);
+    } catch (e) {
+      console.warn('Telemetry cloud hydration error:', e);
     }
 
     if (typeof window !== 'undefined') {

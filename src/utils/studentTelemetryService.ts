@@ -81,6 +81,10 @@ export const logQuestionAttempt = (
       if (!isDuplicate) {
         list.push(newRecord);
         localStorage.setItem(key, JSON.stringify(list));
+        const cleanEmail = normalizeStudentEmail(studentEmailOrId);
+        if (cleanEmail) {
+          memoryTelemetryCache[cleanEmail] = list;
+        }
 
         // Sync to cloud site_content under student telemetry document
         if (studentEmailOrId.includes('@') && isSupabaseConfigured()) {
@@ -103,22 +107,93 @@ export const logQuestionAttempt = (
   return newRecord;
 };
 
+// In-memory cache of student telemetry records to ensure instant retrieval even after cookie clearing
+export const memoryTelemetryCache: Record<string, QuestionTelemetryRecord[]> = {};
+
 /**
- * Retrieve all logged question attempts for a student
+ * Retrieve all logged question attempts for a student.
+ * Checks memory cache first, then localStorage.
  */
 export const getStudentLoggedTelemetry = (studentEmailOrId: string): QuestionTelemetryRecord[] => {
+  const cleanEmail = normalizeStudentEmail(studentEmailOrId);
+  const memKey = cleanEmail || (studentEmailOrId || '').toLowerCase().trim();
+  if (memKey && memoryTelemetryCache[memKey] && memoryTelemetryCache[memKey].length > 0) {
+    return memoryTelemetryCache[memKey];
+  }
+
   if (typeof window === 'undefined' || !window.localStorage) return [];
   try {
     const key = getStudentTelemetryStorageKey(studentEmailOrId);
     const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        if (memKey) memoryTelemetryCache[memKey] = parsed;
+        return parsed;
+      }
     }
   } catch (e) {
     console.warn('Failed to read telemetry:', e);
   }
   return [];
+};
+
+/**
+ * Restores student telemetry records directly from Supabase Cloud (site_content)
+ * and hydrates both in-memory cache and localStorage.
+ */
+export const restoreStudentTelemetryFromCloud = async (
+  studentEmailOrId: string
+): Promise<QuestionTelemetryRecord[]> => {
+  const cleanEmail = normalizeStudentEmail(studentEmailOrId);
+  if (!cleanEmail || !isSupabaseConfigured()) {
+    return getStudentLoggedTelemetry(studentEmailOrId);
+  }
+
+  const docId = `telemetry_${cleanEmail.replace(/[^a-z0-9_]/g, '_')}`;
+
+  try {
+    const { data, error } = await supabase
+      .from('site_content')
+      .select('content')
+      .eq('id', docId)
+      .maybeSingle();
+
+    if (error || !data || !data.content || !Array.isArray(data.content)) {
+      return getStudentLoggedTelemetry(cleanEmail);
+    }
+
+    const cloudRecords = data.content as QuestionTelemetryRecord[];
+
+    // Merge cloud records with local records without duplicating
+    const local = getStudentLoggedTelemetry(cleanEmail);
+    const mergedMap = new Map<string, QuestionTelemetryRecord>();
+
+    // Cloud records
+    cloudRecords.forEach(r => {
+      if (r && r.id) mergedMap.set(r.id, r);
+    });
+
+    // Local records
+    local.forEach(r => {
+      if (r && r.id) mergedMap.set(r.id, r);
+    });
+
+    const merged = Array.from(mergedMap.values());
+    memoryTelemetryCache[cleanEmail] = merged;
+
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const key = getStudentTelemetryStorageKey(cleanEmail);
+        localStorage.setItem(key, JSON.stringify(merged));
+      } catch {}
+    }
+
+    return merged;
+  } catch (err) {
+    console.warn('Error fetching student telemetry from cloud:', err);
+    return getStudentLoggedTelemetry(cleanEmail);
+  }
 };
 
 // Import course curriculum sections across all courses

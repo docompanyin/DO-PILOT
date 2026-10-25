@@ -63,33 +63,68 @@ export const ScrollManager: React.FC = () => {
     if (isCourseDetailsPage) {
       // Instantly position at the top before browser paint
       window.scrollTo(0, 0);
-      return;
+
+      // Immediately inform Lenis if it was active to cancel any pending momentum scrolls
+      const lenis = (window as any).__lenisInstance;
+      if (lenis && typeof lenis.scrollTo === 'function') {
+        try {
+          lenis.scrollTo(0, { immediate: true });
+        } catch {
+          // ignore
+        }
+      }
+
+      // Reinforce top position across animation frame and early ticks to prevent browser carrying over scroll
+      requestAnimationFrame(() => {
+        window.scrollTo(0, 0);
+      });
+      const t1 = setTimeout(() => window.scrollTo(0, 0), 40);
+      const t2 = setTimeout(() => window.scrollTo(0, 0), 120);
+
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     }
 
-    // 2. Returning to Home Page via Browser Back (POP)
+    // 2. Returning to Home Page (from Course Details or other pages via Back or button)
     if (currentPath === '/') {
-      if (navType === NavigationType.Pop) {
+      const isComingFromCourse = prevPath && (prevPath.startsWith('/course/') || prevPath.startsWith('/login'));
+      const isPop = navType === NavigationType.Pop;
+
+      if (isPop || isComingFromCourse) {
         const savedPos = sessionStorage.getItem(HOME_SCROLL_KEY);
         if (savedPos !== null) {
           const targetY = parseInt(savedPos, 10) || 0;
-          // Apply instant scroll
-          window.scrollTo(0, targetY);
 
-          // If Lenis smooth-scroll is active on Home page, inform it immediately
-          const lenis = (window as any).__lenisInstance;
-          if (lenis && typeof lenis.scrollTo === 'function') {
-            lenis.scrollTo(targetY, { immediate: true });
-          }
-
-          // Follow up on next animation frames in case components are mounting
-          requestAnimationFrame(() => {
-            window.scrollTo(0, targetY);
-            const activeLenis = (window as any).__lenisInstance;
-            if (activeLenis && typeof activeLenis.scrollTo === 'function') {
-              activeLenis.scrollTo(targetY, { immediate: true });
+          // Helper to synchronize scroll with window and Lenis
+          const applyScroll = (y: number) => {
+            window.scrollTo(0, y);
+            const lenis = (window as any).__lenisInstance;
+            if (lenis && typeof lenis.scrollTo === 'function') {
+              lenis.scrollTo(y, { immediate: true });
             }
+          };
+
+          // Apply immediately before browser paint
+          applyScroll(targetY);
+
+          // Retry across initial render and layout stabilization cycles
+          const timers: number[] = [];
+          requestAnimationFrame(() => applyScroll(targetY));
+
+          // Run checks at 30ms, 80ms, 180ms, and 350ms to ensure GSAP ScrollTrigger and images don't shift position
+          [30, 80, 180, 350].forEach((delay) => {
+            timers.push(
+              window.setTimeout(() => {
+                applyScroll(targetY);
+              }, delay)
+            );
           });
-          return;
+
+          return () => {
+            timers.forEach((id) => clearTimeout(id));
+          };
         }
       } else if (navType === NavigationType.Push && prevPath !== '/') {
         // Navigating back to home via an explicit push: scroll to top if not targeting a section anchor
