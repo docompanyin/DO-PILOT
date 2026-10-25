@@ -95,22 +95,28 @@ export const recordNavRoute = (pathname: string, search: string = '') => {
  * Handles back navigation consistently across website buttons and browser actions
  */
 export const navigateBackOrFallback = (navigate: NavigateFunction, currentPathname: string) => {
-  const stack = getNavStack();
   const fallback = getIntendedFallbackRoute(currentPathname);
 
-  // If stack has previous entry
+  // 1. Any course page (Question Answering, Passed, Failed, Consecutive Failure, Locked, etc.):
+  // Must go DIRECTLY to Course Details page without visiting any intermediate course steps.
+  if (currentPathname.startsWith('/course/') && currentPathname.includes('/part-')) {
+    navigate(fallback, { replace: true });
+    return;
+  }
+
+  // 2. Course Details page:
+  // Must go DIRECTLY to Home Page, allowing Home Page scroll position to be restored.
+  if (currentPathname.startsWith('/course/')) {
+    navigate('/', { replace: true });
+    return;
+  }
+
+  // 3. For all other pages, use history stack or intended parent fallback
+  const stack = getNavStack();
   if (stack.length > 1) {
     stack.pop(); // remove current page
     const previousTarget = stack[stack.length - 1];
     sessionStorage.setItem(NAV_STACK_KEY, JSON.stringify(stack));
-
-    // Special validation: Question Answering page should never go back to another question/part
-    if (currentPathname.startsWith('/course/') && currentPathname.includes('/part-')) {
-      if (!previousTarget || previousTarget.includes('/part-')) {
-        navigate(fallback);
-        return;
-      }
-    }
 
     if (window.history.length > 1) {
       navigate(-1);

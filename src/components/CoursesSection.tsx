@@ -208,13 +208,11 @@ export const CoursesSection: React.FC<CoursesSectionProps> = ({ onEnroll }) => {
   const description = coursesSectionData?.description || 'Practical courses designed to take you from fundamentals to job-ready projects.';
 
   const handleEnrollCourse = (courseItem: CourseItem) => {
+    // Navigate directly to the course details page without triggering the Contact/Enroll modal
     if (!isLoggedIn) {
       navigate(`/login?redirect=/course/${courseItem.id}`);
     } else {
       navigate(`/course/${courseItem.id}`);
-    }
-    if (onEnroll) {
-      onEnroll(courseItem.title);
     }
   };
 

@@ -127,7 +127,7 @@ const MainHome: React.FC = () => {
       <ScrollRevealWrapper>
         <Hero onOpenContact={handleOpenEnroll} />
         <WhyUsSection />
-        <CoursesSection onEnroll={handleOpenEnroll} />
+        <CoursesSection />
         <ReviewsSection />
         <CodeLabSection />
         <LiveClassSection onJoin={handleOpenEnroll} />

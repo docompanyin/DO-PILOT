@@ -549,7 +549,7 @@ export const CourseDetailPage: React.FC = () => {
 
   // Handle back navigation to Home (preserving exact scroll position)
   const handleBackToCourses = () => {
-    navigateBackOrFallback(navigate, window.location.pathname);
+    navigate('/', { replace: true });
   };
 
   // If course not found, provide fallback

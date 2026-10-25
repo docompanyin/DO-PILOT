@@ -21,20 +21,33 @@ export const NavigationManager: React.FC = () => {
     recordNavRoute(location.pathname, location.search);
   }, [location.pathname, location.search]);
 
-  // Intercept phone / browser hardware Back button for Question Answering pages
+  // Intercept phone / browser hardware Back button for Course pages and Course Details
   useEffect(() => {
     const currentPath = location.pathname;
-    const isQuestionPage = currentPath.startsWith('/course/') && currentPath.includes('/part-');
+    const isCoursePartPage = currentPath.startsWith('/course/') && currentPath.includes('/part-');
+    const isCourseDetailsPage = currentPath.startsWith('/course/') && !currentPath.includes('/part-');
 
-    if (isQuestionPage) {
-      // Determine intended course overview destination
+    if (isCoursePartPage) {
+      // Determine intended Course Details destination
       const courseOverviewPath = getIntendedFallbackRoute(currentPath);
 
       const handlePopState = () => {
-        // When user taps phone back button from a Question Answering page,
-        // guarantee they land cleanly on the Course Details page rather than
-        // skipping backwards through answered levels, tasks, or older sessions.
+        // When user taps phone/browser back button from any course page (Question Answering, Passed, Failed, Consecutive Failure, Locked, etc.),
+        // guarantee they land directly on the Course Details page, without visiting previous levels/questions or intermediate pages.
         navigate(courseOverviewPath, { replace: true });
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+
+    if (isCourseDetailsPage) {
+      const handlePopState = () => {
+        // When user taps phone/browser back button from Course Details,
+        // navigate directly to Home Page and restore the previous scroll position.
+        navigate('/', { replace: true });
       };
 
       window.addEventListener('popstate', handlePopState);

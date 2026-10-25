@@ -109,12 +109,12 @@ export const ScrollManager: React.FC = () => {
           // Apply immediately before browser paint
           applyScroll(targetY);
 
-          // Retry across initial render and layout stabilization cycles
+          // Retry across initial render and layout stabilization cycles (covers both mobile & laptop layout shifts)
           const timers: number[] = [];
           requestAnimationFrame(() => applyScroll(targetY));
 
           // Run checks to ensure GSAP ScrollTrigger, images, and layout do not shift position
-          [20, 50, 100, 200, 350].forEach((delay) => {
+          [20, 50, 100, 180, 300, 500, 800].forEach((delay) => {
             timers.push(
               window.setTimeout(() => {
                 applyScroll(targetY);
