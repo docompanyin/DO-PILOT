@@ -116,9 +116,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const searchParams = new URLSearchParams(location.search);
+  const redirectTarget = searchParams.get('redirect') || '/';
+
   useEffect(() => {
     markAppLoaded();
-  }, []);
+    // If the user is already authenticated with completed details, redirect them directly
+    if (isLoggedIn && user && !loginSuccess) {
+      navigate(redirectTarget, { replace: true });
+    }
+  }, [isLoggedIn, user, loginSuccess, navigate, redirectTarget]);
 
   const handleAnimationComplete = useCallback(() => {
     markAppLoaded();
@@ -134,9 +141,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
   const [formWhereDidYouFindUs, setFormWhereDidYouFindUs] = useState(activePending?.whereDidYouFindUs || '');
   const [formCollege, setFormCollege] = useState(activePending?.collegeOrCompany || '');
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-
-  const searchParams = new URLSearchParams(location.search);
-  const redirectTarget = searchParams.get('redirect') || '/';
 
   // Sync tab with url or props
   useEffect(() => {
@@ -676,67 +680,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
                   </div>
                 </div>
               </form>
-            </div>
-          ) : isLoggedIn && user && !loginSuccess ? (
-            /* STEP 2: Already Logged In View with Link to Settings */
-            <div className="text-center py-2 space-y-6">
-              <div className="relative inline-block mx-auto">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/25 via-primary/15 to-primary/5 border-2 border-primary text-primary flex items-center justify-center font-jakarta font-black text-2xl tracking-wider mx-auto shadow-lg shadow-primary/20">
-                  {getUserInitials(user.name)}
-                </div>
-                <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-primary border-2 border-black flex items-center justify-center text-[10px] text-ink font-bold">
-                  ✓
-                </span>
-              </div>
-
-              <div>
-                <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-widest bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
-                  ACTIVE STUDENT SESSION
-                </span>
-                <h3 className="font-jakarta text-2xl font-black text-paper mt-2.5">
-                  {user.name}
-                </h3>
-                <p className="font-mono text-xs text-slate mt-0.5">{user.email}</p>
-                {user.phone && (
-                  <p className="font-mono text-xs text-slate/70 mt-1">
-                    Phone: {user.phone}
-                  </p>
-                )}
-              </div>
-
-              {/* Action Buttons to Settings */}
-              <div className="space-y-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => navigate(redirectTarget)}
-                  className="w-full py-3.5 px-4 rounded-xl bg-primary text-ink font-jakarta font-extrabold text-xs tracking-wide hover:bg-white hover:shadow-lg hover:shadow-primary/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Settings className="w-4 h-4" />
-                  <span>Go to Student Workspace</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => navigate('/course/python-core')}
-                  className="w-full py-3 px-4 rounded-xl bg-panel-light border border-white/10 text-paper font-jakarta font-bold text-xs hover:border-primary/40 transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <BookOpen className="w-4 h-4 text-primary" />
-                  <span>Continue Python Course</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    logout();
-                    navigate('/');
-                  }}
-                  className="w-full py-2.5 px-4 text-xs font-mono text-slate hover:text-red-400 transition-colors flex items-center justify-center gap-1.5 cursor-pointer mt-1"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
             </div>
           ) : loginSuccess ? (
             <div className="py-16" />
