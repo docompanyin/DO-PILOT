@@ -24,10 +24,11 @@ interface CoursesSectionProps {
 }
 
 // Interactive Spotlight Card with Cursor Follower (Option 2)
-const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: CourseItem) => void }> = ({ course, onEnrollCourse }) => {
+const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: CourseItem) => void }> = React.memo(({ course, onEnrollCourse }) => {
   const cardRef = useRef<HTMLDivElement>(null);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [isHovered, setIsHovered] = useState(false);
+  const glowRef = useRef<HTMLDivElement>(null);
+  const borderGlowRef = useRef<HTMLDivElement>(null);
+  const rafIdRef = useRef<number | null>(null);
   const { user } = useUserAuth();
   const [pricing, setPricing] = useState(() => getCoursePricing(course.id));
   const [isPurchased, setIsPurchased] = useState(() => hasCourseAccess(course.id, user?.id || user?.email));
@@ -37,7 +38,6 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
       setPricing(getCoursePricing(course.id));
       setIsPurchased(hasCourseAccess(course.id, user?.id || user?.email));
     };
-    handleUpdate();
     window.addEventListener('dopilot_pricing_updated', handleUpdate);
     window.addEventListener('dopilot_course_purchased', handleUpdate);
     window.addEventListener('dopilot_access_granted', handleUpdate);
@@ -49,64 +49,90 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
       window.removeEventListener('dopilot_access_granted', handleUpdate);
       window.removeEventListener('dopilot_student_roster_updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
     };
   }, [course.id, user?.id, user?.email]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    setMousePos({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+    // Only update on devices with fine pointer
+    if (window.matchMedia('(hover: none)').matches) return;
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+
+    if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+    rafIdRef.current = requestAnimationFrame(() => {
+      if (!cardRef.current) return;
+      const rect = cardRef.current.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      if (glowRef.current) {
+        glowRef.current.style.background = `radial-gradient(400px circle at ${x}px ${y}px, rgba(0, 255, 157, 0.12), transparent 75%)`;
+      }
+      if (borderGlowRef.current) {
+        borderGlowRef.current.style.background = `radial-gradient(220px circle at ${x}px ${y}px, rgba(0, 255, 157, 0.35), transparent 70%)`;
+      }
     });
+  };
+
+  const handleMouseEnter = () => {
+    if (glowRef.current) glowRef.current.style.opacity = '1';
+    if (borderGlowRef.current) borderGlowRef.current.style.opacity = '1';
+  };
+
+  const handleMouseLeave = () => {
+    if (glowRef.current) glowRef.current.style.opacity = '0';
+    if (borderGlowRef.current) borderGlowRef.current.style.opacity = '0';
   };
 
   return (
     <motion.div
-      layout="position"
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ duration: 0.22, ease: 'easeOut' }}
       ref={cardRef}
       onMouseMove={handleMouseMove}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       onClick={() => onEnrollCourse(course)}
+      style={{ transform: 'translateZ(0)', willChange: 'transform' }}
       className="group relative rounded-2xl bg-panel border border-white/10 overflow-hidden hover:border-primary/40 hover:shadow-xl hover:shadow-primary/5 transition-colors duration-300 flex flex-col justify-between cursor-pointer"
     >
       {/* Dynamic Cursor Spotlight Glow (Option 2) */}
       <div
-        className="pointer-events-none absolute -inset-px rounded-2xl transition-opacity duration-300 z-10"
+        ref={glowRef}
+        className="pointer-events-none absolute -inset-px rounded-2xl transition-opacity duration-300 z-10 opacity-0"
         style={{
-          opacity: isHovered ? 1 : 0,
-          background: `radial-gradient(400px circle at ${mousePos.x}px ${mousePos.y}px, rgba(0, 255, 157, 0.12), transparent 75%)`,
+          background: `radial-gradient(400px circle at 50% 50%, rgba(0, 255, 157, 0.12), transparent 75%)`,
+          transform: 'translateZ(0)',
         }}
       />
 
       {/* Border Spotlight Glow */}
       <div
-        className="pointer-events-none absolute -inset-px rounded-2xl transition-opacity duration-300 z-20"
+        ref={borderGlowRef}
+        className="pointer-events-none absolute -inset-px rounded-2xl transition-opacity duration-300 z-20 opacity-0"
         style={{
-          opacity: isHovered ? 1 : 0,
-          background: `radial-gradient(220px circle at ${mousePos.x}px ${mousePos.y}px, rgba(0, 255, 157, 0.35), transparent 70%)`,
+          background: `radial-gradient(220px circle at 50% 50%, rgba(0, 255, 157, 0.35), transparent 70%)`,
           mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
           maskComposite: 'exclude',
           WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
           WebkitMaskComposite: 'xor',
           padding: '1px',
+          transform: 'translateZ(0)',
         }}
       />
 
       <div className="relative z-10">
         {/* Course Image Header with Aspect Ratio Lock */}
-        <div className="relative aspect-[16/10] w-full overflow-hidden bg-black/60 shrink-0" style={{ aspectRatio: '16/10' }}>
+        <div className="relative aspect-[16/10] w-full overflow-hidden bg-black/60 shrink-0" style={{ aspectRatio: '16/10', transform: 'translateZ(0)' }}>
           <img
             src={course.image}
             alt={course.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
             loading="lazy"
-            style={{ aspectRatio: '16/10' }}
+            decoding="async"
+            style={{ aspectRatio: '16/10', willChange: 'transform' }}
           />
           {/* Subtle Image Gradient Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-panel via-panel/20 to-transparent" />
@@ -168,7 +194,7 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
       </div>
     </motion.div>
   );
-};
+});
 
 export const CoursesSection: React.FC<CoursesSectionProps> = ({ onEnroll }) => {
   const navigate = useNavigate();
@@ -334,7 +360,10 @@ export const CoursesSection: React.FC<CoursesSectionProps> = ({ onEnroll }) => {
   return (
     <section id="courses" className="py-16 sm:py-24 lg:py-32 bg-black relative border-t border-white/10 select-none">
       {/* Background ambient glow */}
-      <div className="absolute top-1/3 right-10 w-[280px] sm:w-[500px] h-[280px] sm:h-[500px] bg-primary/10 blur-[100px] sm:blur-[150px] rounded-full pointer-events-none" />
+      <div
+        className="absolute top-1/3 right-10 w-[280px] sm:w-[500px] h-[280px] sm:h-[500px] bg-primary/10 blur-[100px] sm:blur-[150px] rounded-full pointer-events-none"
+        style={{ transform: 'translate3d(0,0,0)', willChange: 'transform' }}
+      />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
@@ -379,7 +408,7 @@ export const CoursesSection: React.FC<CoursesSectionProps> = ({ onEnroll }) => {
         </div>
 
         {/* Course Grid with Stable Dimensions */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6" style={{ contentVisibility: 'auto', containIntrinsicSize: '1px 500px' }}>
           <AnimatePresence>
             {filteredCourses.map((course) => (
               <SpotlightCard

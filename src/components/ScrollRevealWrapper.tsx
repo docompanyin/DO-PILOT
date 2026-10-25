@@ -21,11 +21,12 @@ export const ScrollRevealWrapper: React.FC<ScrollRevealWrapperProps> = ({ childr
     }
 
     // Initialize Lenis Smooth Scroll
+    const isTouch = window.matchMedia('(pointer: coarse)').matches;
     const lenis = new Lenis({
-      duration: 1.2,
+      duration: isTouch ? 0.9 : 1.1,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       smoothWheel: true,
-      touchMultiplier: 2,
+      touchMultiplier: 1.5,
     });
 
     // Sync Lenis with GSAP ScrollTrigger
@@ -53,12 +54,13 @@ export const ScrollRevealWrapper: React.FC<ScrollRevealWrapperProps> = ({ childr
             opacity: 1,
             y: 0,
             scale: 1,
-            stagger: 0.09,
-            duration: 0.8,
+            stagger: 0.08,
+            duration: 0.7,
             ease: 'power3.out',
+            clearProps: 'transform,willChange',
             scrollTrigger: {
               trigger: section,
-              start: 'top 75%',
+              start: 'top 80%',
               once: true,
             },
           }

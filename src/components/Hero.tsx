@@ -71,7 +71,10 @@ export const Hero: React.FC<HeroProps> = ({ onOpenContact: _onOpenContact }) => 
     <section className="relative min-h-[100dvh] sm:min-h-[92vh] pt-24 pb-6 sm:pt-36 sm:pb-16 lg:pt-40 lg:pb-20 flex flex-col justify-between overflow-hidden bg-gradient-to-b from-[#010c08] via-black to-black select-none">
       
       {/* Dark Subtle Ambient Glow */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] sm:w-[850px] h-[400px] pointer-events-none z-0 opacity-15">
+      <div
+        className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] sm:w-[850px] h-[400px] pointer-events-none z-0 opacity-15"
+        style={{ transform: 'translate3d(-50%, -50%, 0)', willChange: 'transform' }}
+      >
         <div className="w-full h-full bg-gradient-to-tr from-[#00ff9d]/30 via-[#00d2ff]/20 to-transparent blur-[140px] rounded-full" />
       </div>
 

@@ -75,7 +75,10 @@ export const ReviewsSection: React.FC = () => {
   return (
     <section id="reviews" className="py-16 sm:py-24 lg:py-32 bg-black relative border-t border-white/10 select-none overflow-hidden">
       {/* Background ambient glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[700px] h-[250px] sm:h-[350px] bg-primary/10 blur-[100px] sm:blur-[150px] rounded-full pointer-events-none" />
+      <div
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[700px] h-[250px] sm:h-[350px] bg-primary/10 blur-[100px] sm:blur-[150px] rounded-full pointer-events-none"
+        style={{ transform: 'translate3d(-50%, -50%, 0)', willChange: 'transform' }}
+      />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 mb-8 sm:mb-14">
         
@@ -109,7 +112,7 @@ export const ReviewsSection: React.FC = () => {
         {/* Sliding Marquee Track */}
         <div 
           className="flex gap-4 sm:gap-6 w-max animate-marquee group-hover:[animation-play-state:paused] py-2 sm:py-4 px-2 sm:px-4"
-          style={{ animationDuration: '75s' }}
+          style={{ animationDuration: '75s', transform: 'translateZ(0)', willChange: 'transform' }}
         >
           {slidingReviews.map((item, idx) => (
             <div

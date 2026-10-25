@@ -84,7 +84,10 @@ export const WhyUsSection: React.FC = () => {
   return (
     <section id="why-us" className="py-16 sm:py-24 lg:py-32 bg-black relative border-t border-white/10 select-none">
       {/* Background glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[600px] h-[250px] sm:h-[400px] bg-primary/10 blur-[90px] sm:blur-[130px] rounded-full pointer-events-none" />
+      <div
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[600px] h-[250px] sm:h-[400px] bg-primary/10 blur-[90px] sm:blur-[130px] rounded-full pointer-events-none"
+        style={{ transform: 'translate3d(-50%, -50%, 0)', willChange: 'transform' }}
+      />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
