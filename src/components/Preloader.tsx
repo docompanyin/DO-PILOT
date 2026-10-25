@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSiteData } from '../context/DataContext';
 
@@ -14,25 +14,52 @@ export const Preloader: React.FC<PreloaderProps> = ({ onComplete }) => {
   const [progress, setProgress] = useState(0);
   const [isDone, setIsDone] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const onCompleteCalledRef = useRef(false);
 
   useEffect(() => {
-    let current = 0;
-    const interval = setInterval(() => {
-      current += Math.floor(Math.random() * 12) + 8;
-      if (current >= 100) {
-        current = 100;
+    // Ultra-smooth, high-precision timer completing within 1.5 seconds maximum total:
+    // 0% -> 100% progress animation: ~900ms
+    // Hold at 100%: 120ms
+    // Polished wipe transition: 450ms
+    // Total lifetime: ~1.47s
+    const startTime = performance.now();
+    const TARGET_DURATION = 900; // ms to reach 100%
+
+    let rafId: number;
+
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const rawPct = Math.min(1, elapsed / TARGET_DURATION);
+      
+      // Easing curve for a fast initial burst followed by a smooth finish to 100%
+      const easedPct = 1 - Math.pow(1 - rawPct, 2.5);
+      const currentVal = Math.min(100, Math.floor(easedPct * 100));
+
+      setProgress(currentVal);
+
+      if (rawPct < 1) {
+        rafId = requestAnimationFrame(tick);
+      } else {
         setProgress(100);
-        clearInterval(interval);
+        // Brief pause at 100% so user perceives completion
         setTimeout(() => {
           setIsDone(true);
-          setTimeout(onComplete, 600); // Allow clip-path wipe animation to complete
-        }, 300);
-      } else {
-        setProgress(current);
+          // Complete wipe transition and reveal home page
+          setTimeout(() => {
+            if (!onCompleteCalledRef.current) {
+              onCompleteCalledRef.current = true;
+              onComplete();
+            }
+          }, 450);
+        }, 120);
       }
-    }, 45);
+    };
 
-    return () => clearInterval(interval);
+    rafId = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, [onComplete]);
 
   if (isDone) return null;
@@ -43,7 +70,7 @@ export const Preloader: React.FC<PreloaderProps> = ({ onComplete }) => {
         <motion.div
           initial={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%)' }}
           exit={{ clipPath: 'polygon(0 0, 100% 0, 100% 0, 0 0)' }}
-          transition={{ duration: 0.7, ease: [0.76, 0, 0.24, 1] }}
+          transition={{ duration: 0.45, ease: [0.76, 0, 0.24, 1] }}
           className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-ink select-none"
         >
           {/* Logo & Counter Container */}
@@ -51,7 +78,7 @@ export const Preloader: React.FC<PreloaderProps> = ({ onComplete }) => {
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.4 }}
+              transition={{ duration: 0.3 }}
               className="flex items-center justify-center"
             >
               {companyLogo && !imageError ? (
@@ -84,7 +111,7 @@ export const Preloader: React.FC<PreloaderProps> = ({ onComplete }) => {
               <motion.div
                 className="h-full bg-gradient-to-r from-primary to-secondary"
                 style={{ width: `${progress}%` }}
-                transition={{ duration: 0.1 }}
+                transition={{ duration: 0.05, ease: 'linear' }}
               />
             </div>
           </div>
