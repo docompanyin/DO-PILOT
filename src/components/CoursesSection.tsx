@@ -130,7 +130,7 @@ const SpotlightCard: React.FC<{ course: CourseItem; onEnrollCourse: (course: Cou
             src={course.image}
             alt={course.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-            loading="lazy"
+            loading="eager"
             decoding="async"
             style={{ aspectRatio: '16/10', willChange: 'transform' }}
           />

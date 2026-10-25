@@ -17,13 +17,13 @@ export const Preloader: React.FC<PreloaderProps> = ({ onComplete }) => {
   const onCompleteCalledRef = useRef(false);
 
   useEffect(() => {
-    // Ultra-smooth, high-precision timer completing within 1.5 seconds maximum total:
-    // 0% -> 100% progress animation: ~900ms
-    // Hold at 100%: 120ms
-    // Polished wipe transition: 450ms
-    // Total lifetime: ~1.47s
+    // Ultra-smooth 0% -> 100% progress animation strictly under 1.5 seconds maximum total:
+    // 0% -> 100% counter & bar: 1050ms
+    // Brief hold at 100%: 60ms
+    // Wipe exit transition: 300ms
+    // Total lifetime: ~1.41s
     const startTime = performance.now();
-    const TARGET_DURATION = 900; // ms to reach 100%
+    const TARGET_DURATION = 1050; // ms to reach 100%
 
     let rafId: number;
 
@@ -31,8 +31,10 @@ export const Preloader: React.FC<PreloaderProps> = ({ onComplete }) => {
       const elapsed = now - startTime;
       const rawPct = Math.min(1, elapsed / TARGET_DURATION);
       
-      // Easing curve for a fast initial burst followed by a smooth finish to 100%
-      const easedPct = 1 - Math.pow(1 - rawPct, 2.5);
+      // Smooth sinusoidal cubic easing curve for stutter-free fluid motion
+      const easedPct = rawPct < 0.5 
+        ? 4 * rawPct * rawPct * rawPct 
+        : 1 - Math.pow(-2 * rawPct + 2, 3) / 2;
       const currentVal = Math.min(100, Math.floor(easedPct * 100));
 
       setProgress(currentVal);
@@ -50,8 +52,8 @@ export const Preloader: React.FC<PreloaderProps> = ({ onComplete }) => {
               onCompleteCalledRef.current = true;
               onComplete();
             }
-          }, 450);
-        }, 120);
+          }, 320);
+        }, 60);
       }
     };
 
@@ -70,7 +72,7 @@ export const Preloader: React.FC<PreloaderProps> = ({ onComplete }) => {
         <motion.div
           initial={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%)' }}
           exit={{ clipPath: 'polygon(0 0, 100% 0, 100% 0, 0 0)' }}
-          transition={{ duration: 0.45, ease: [0.76, 0, 0.24, 1] }}
+          transition={{ duration: 0.3, ease: [0.76, 0, 0.24, 1] }}
           className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-ink select-none"
         >
           {/* Logo & Counter Container */}
