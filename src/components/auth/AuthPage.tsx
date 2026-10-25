@@ -10,6 +10,7 @@ import { useUserAuth, UserProfile } from '../../context/UserAuthContext';
 import { getUserInitials } from '../../utils/userInitials';
 import successAnimationData from '../../assets/Success.json';
 import { markAppLoaded } from '../../App';
+import { navigateBackOrFallback } from '../../utils/navigationHelper';
 
 interface AuthPageProps {
   mode?: 'login' | 'signup';
@@ -481,7 +482,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
       {/* Top Bar Navigation - Back button on extreme left */}
       <header className="relative z-10 w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex items-center justify-start">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigateBackOrFallback(navigate, window.location.pathname)}
           className="inline-flex items-center gap-2 text-xs sm:text-sm font-mono text-slate hover:text-primary transition-colors cursor-pointer group"
           aria-label="Back"
         >

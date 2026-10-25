@@ -32,6 +32,7 @@ import {
   submitRewardRequest,
   getStudentRewardRequests
 } from '../../utils/rewardApprovalService';
+import { navigateBackOrFallback } from '../../utils/navigationHelper';
 
 type SettingsTab = 'profile' | 'progress' | 'rewards' | 'certificates';
 
@@ -766,7 +767,7 @@ export const SettingsPage: React.FC = () => {
         <div className="w-full flex items-center justify-between">
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={() => navigateBackOrFallback(navigate, window.location.pathname)}
             className="inline-flex items-center gap-2 text-xs sm:text-sm font-mono text-slate hover:text-primary transition-colors cursor-pointer group"
             aria-label="Back"
           >

@@ -17,6 +17,7 @@ import { getUserInitials } from '../utils/userInitials';
 import { getPostPurchaseStartingPart, getPart1OverallScore, getPostPurchaseDecision } from '../utils/part1ScoreService';
 import { restoreAllStudentCourseProgressFromCloud } from '../utils/courseProgressSyncService';
 import { getSavedCertificate } from '../utils/certificateGenerator';
+import { navigateBackOrFallback } from '../utils/navigationHelper';
 
 interface PythonResumeInfo {
   targetPart: number;
@@ -528,11 +529,7 @@ export const CourseDetailPage: React.FC = () => {
 
   // Handle back navigation to Home (preserving exact scroll position)
   const handleBackToCourses = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate('/#courses');
-    }
+    navigateBackOrFallback(navigate, window.location.pathname);
   };
 
   // If course not found, provide fallback

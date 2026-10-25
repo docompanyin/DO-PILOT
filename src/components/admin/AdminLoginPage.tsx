@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User, KeyRound, ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAdminAuth } from '../../context/AdminAuthContext';
+import { navigateBackOrFallback } from '../../utils/navigationHelper';
 
 export const AdminLoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -197,7 +198,7 @@ export const AdminLoginPage: React.FC = () => {
         {/* Footer Navigation */}
         <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-end text-slate font-mono text-[11px]">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigateBackOrFallback(navigate, window.location.pathname)}
             className="hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
           >
             <ArrowLeft className="w-3 h-3" />

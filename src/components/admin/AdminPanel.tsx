@@ -1241,6 +1241,23 @@ export const AdminPanel: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Synchronize browser/phone back button when Inspect Student Report modal is open
+  useEffect(() => {
+    if (selectedStudentForReport) {
+      // Push state dummy entry to history so back button closes modal rather than leaving admin dashboard
+      window.history.pushState({ adminInspectModal: true }, '');
+
+      const handlePopState = () => {
+        setSelectedStudentForReport(null);
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [selectedStudentForReport]);
+
   useEffect(() => {
     if (selectedStudentForReport) {
       const originalOverflow = document.body.style.overflow;

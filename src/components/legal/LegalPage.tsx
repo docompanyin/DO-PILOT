@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Mail } from 'lucide-react';
+import { navigateBackOrFallback } from '../../utils/navigationHelper';
 
 export type LegalSectionKey = 'privacy' | 'terms' | 'refund';
 
@@ -62,13 +63,14 @@ export const LegalPage: React.FC<LegalPageProps> = ({ defaultSection }) => {
       {/* Top Header */}
       <header className="sticky top-0 z-40 bg-black/90 backdrop-blur-md border-b border-white/10">
         <div className="w-full px-4 sm:px-8 lg:px-12 h-14 flex items-center justify-between text-sm">
-          <Link
-            to="/"
-            className="flex items-center gap-2 text-paper hover:text-primary transition-colors text-sm"
+          <button
+            type="button"
+            onClick={() => navigateBackOrFallback(navigate, window.location.pathname)}
+            className="flex items-center gap-2 text-paper hover:text-primary transition-colors text-sm cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span className="font-mono text-sm font-medium">Back to Home</span>
-          </Link>
+            <span className="font-mono text-sm font-medium">Back</span>
+          </button>
 
           <Link to="/" className="flex items-center gap-2 text-sm">
             <img
