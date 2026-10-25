@@ -4694,58 +4694,125 @@ export const AdminPanel: React.FC = () => {
         doc.text("Clean record! No wrong answers or failed questions on record for this student.", 50, y + 17);
         y += 36;
       } else {
-        actualMistakes.forEach((w) => {
-          // Pre-calculate text wrapping to prevent overlapping and clipping
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(7.5);
-          const promptLines = w.questionPrompt ? doc.splitTextToSize(`Question: ${w.questionPrompt}`, pageWidth - 105) : [];
-          const wrongLines = doc.splitTextToSize(`Student Answer (Opt ${w.studentOptionId}): ${w.studentAnswer || 'Incorrect Answer'}`, (pageWidth - 110) / 2);
-          const correctLines = doc.splitTextToSize(`Correct Answer (Opt ${w.correctOptionId}): ${w.correctAnswer || 'Correct Answer'}`, (pageWidth - 110) / 2);
-          const answerBlockHeight = Math.max(wrongLines.length, correctLines.length) * 11 + 6;
-          const promptBlockHeight = promptLines.length > 0 ? (promptLines.length * 10 + 6) : 0;
-          const cardHeight = 28 + promptBlockHeight + answerBlockHeight + 10;
+        // Group mistakes by Part and Section for clean, non-confusing PDF hierarchy
+        interface PDFSectionGroup {
+          sectionLabel: string;
+          mistakes: typeof actualMistakes;
+        }
+        interface PDFPartGroup {
+          partNum: number;
+          partLabel: string;
+          sections: PDFSectionGroup[];
+        }
 
-          if (y + cardHeight > pageHeight - 50) {
+        const pdfPartGroups: PDFPartGroup[] = [];
+        actualMistakes.forEach((m) => {
+          const partNum = m.partNum || 1;
+          const partLabel = `Part ${partNum}`;
+          const rawSection = m.section || 'General';
+          const sectionLabel = rawSection.replace(/^Part\s*\d+\s*[–—\-:]*\s*/i, '').trim() || 'General';
+
+          let pGroup = pdfPartGroups.find(p => p.partNum === partNum);
+          if (!pGroup) {
+            pGroup = { partNum, partLabel, sections: [] };
+            pdfPartGroups.push(pGroup);
+          }
+
+          let sGroup = pGroup.sections.find(s => s.sectionLabel === sectionLabel);
+          if (!sGroup) {
+            sGroup = { sectionLabel, mistakes: [] };
+            pGroup.sections.push(sGroup);
+          }
+          sGroup.mistakes.push(m);
+        });
+
+        pdfPartGroups.sort((a, b) => a.partNum - b.partNum);
+
+        pdfPartGroups.forEach((pGroup) => {
+          // Part heading
+          if (y > pageHeight - 60) {
             doc.addPage();
             y = 45;
           }
-
-          // Card Background
-          doc.setFillColor(255, 241, 242);
-          doc.setDrawColor(254, 205, 211);
-          doc.rect(40, y, pageWidth - 80, cardHeight, 'FD');
-
-          // Header line
+          doc.setFillColor(241, 245, 249);
+          doc.rect(40, y, pageWidth - 80, 18, 'F');
           doc.setFont("helvetica", "bold");
-          doc.setFontSize(8);
-          doc.setTextColor(190, 18, 60);
-          const sectionLabel = w.section.startsWith('Part') ? w.section : `Part ${w.partNum} → ${w.section}`;
-          const retestTag = w.isRetest ? ` [Retest Attempt ${w.attemptsCount || 2}]` : '';
-          const timeTag = w.timeTakenSeconds > 0 ? ` • Time: ${w.timeTakenSeconds}s` : '';
-          doc.text(`[${sectionLabel}] Question ${w.questionNumber}: ${w.questionTitle}${retestTag}${timeTag}`, 50, y + 14);
+          doc.setFontSize(9.5);
+          doc.setTextColor(15, 23, 42);
+          doc.text(`${pGroup.partLabel.toUpperCase()} ASSESSMENT MISTAKES`, 48, y + 12);
+          y += 24;
 
-          let curY = y + 26;
+          pGroup.sections.forEach((sGroup) => {
+            // Section heading
+            if (y > pageHeight - 50) {
+              doc.addPage();
+              y = 45;
+            }
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(8.5);
+            doc.setTextColor(14, 116, 144);
+            doc.text(`Section ${sGroup.sectionLabel} (${sGroup.mistakes.length} mistakes)`, 44, y);
+            y += 10;
 
-          // Full Question Prompt
-          if (promptLines.length > 0) {
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(7);
-            doc.setTextColor(51, 65, 85);
-            doc.text(promptLines, 50, curY);
-            curY += promptLines.length * 10 + 4;
-          }
+            sGroup.mistakes.forEach((w) => {
+              // Pre-calculate text wrapping to prevent overlapping and clipping
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(7.5);
 
-          // Side-by-side Answers: Left = Student's Wrong Answer, Right = Correct Answer
-          const colWidth = (pageWidth - 110) / 2;
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(7.5);
-          doc.setTextColor(225, 29, 72);
-          doc.text(wrongLines, 50, curY);
+              const promptText = w.questionPrompt || w.questionTitle || `Question ${w.questionNumber}`;
+              const promptLines = doc.splitTextToSize(promptText, pageWidth - 105);
 
-          doc.setTextColor(5, 150, 105);
-          doc.text(correctLines, 50 + colWidth + 10, curY);
+              const wrongLines = doc.splitTextToSize(`Student's Wrong Answer: Option ${w.studentOptionId || '?'}: ${w.studentAnswer || 'Incorrect Answer'}`, pageWidth - 105);
+              const correctLine = `Correct Option: Option ${w.correctOptionId || 'A'}`;
 
-          y += cardHeight + 8;
+              const promptBlockHeight = promptLines.length * 9.5;
+              const wrongBlockHeight = wrongLines.length * 9.5;
+              const cardHeight = 22 + promptBlockHeight + 6 + wrongBlockHeight + 14 + 8;
+
+              if (y + cardHeight > pageHeight - 45) {
+                doc.addPage();
+                y = 45;
+              }
+
+              // Card Background
+              doc.setFillColor(255, 241, 242);
+              doc.setDrawColor(254, 205, 211);
+              doc.rect(40, y, pageWidth - 80, cardHeight, 'FD');
+
+              // Header line: Question number + timing + retest
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(7.5);
+              doc.setTextColor(190, 18, 60);
+              const retestTag = w.isRetest ? ` [Retest Attempt ${w.attemptsCount || 2}]` : '';
+              const timeTag = w.timeTakenSeconds > 0 ? ` • Answering Time: ${w.timeTakenSeconds}s` : '';
+              doc.text(`Question ${w.questionNumber}: ${w.questionTitle}${retestTag}${timeTag}`, 48, y + 12);
+
+              let curY = y + 22;
+
+              // Question Prompt Text (only actual question, no notes/explanations)
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(7);
+              doc.setTextColor(30, 41, 59);
+              doc.text(promptLines, 48, curY);
+              curY += promptBlockHeight + 6;
+
+              // Student's Wrong Answer (full text)
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(7.5);
+              doc.setTextColor(225, 29, 72);
+              doc.text(wrongLines, 48, curY);
+              curY += wrongBlockHeight + 6;
+
+              // Correct Option Only (e.g. Option A, without full answer text)
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(7.5);
+              doc.setTextColor(5, 150, 105);
+              doc.text(correctLine, 48, curY);
+
+              y += cardHeight + 6;
+            });
+            y += 4;
+          });
         });
       }
 
@@ -5640,27 +5707,22 @@ export const AdminPanel: React.FC = () => {
 
                                         {/* Full Question Text */}
                                         {mistake.questionPrompt && (
-                                          <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 space-y-2">
-                                            <span className="text-[10px] font-mono uppercase tracking-wider text-slate/70 block">Question</span>
+                                          <div className="p-3.5 rounded-xl bg-black/50 border border-white/5">
+                                            <span className="text-[10px] font-mono uppercase tracking-wider text-slate/70 block mb-1">Question</span>
                                             <p className="font-sans text-xs sm:text-sm text-paper/95 leading-relaxed whitespace-pre-line">
                                               {mistake.questionPrompt}
                                             </p>
-                                            {mistake.codeSnippet && (
-                                              <pre className="p-3 rounded-lg bg-[#0a0b0d] border border-white/5 font-mono text-xs text-emerald-300 overflow-x-auto">
-                                                <code>{mistake.codeSnippet}</code>
-                                              </pre>
-                                            )}
                                           </div>
                                         )}
 
-                                        {/* Answer Comparison: Student Selected Wrong Answer vs Correct Answer */}
+                                        {/* Answer Comparison: Student Selected Wrong Answer vs Correct Option */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                           {/* Student's Wrong Answer */}
                                           <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-1.5">
                                             <div className="flex items-center justify-between">
                                               <span className="text-[10px] font-mono uppercase tracking-wider text-rose-300 font-bold flex items-center gap-1">
                                                 <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-                                                <span>Student's Selected Answer</span>
+                                                <span>Student's Wrong Answer</span>
                                               </span>
                                               <span className="px-2 py-0.5 rounded-md bg-rose-500 text-white font-mono font-bold text-[11px]">
                                                 Option {mistake.studentOptionId || '?'}
@@ -5671,30 +5733,22 @@ export const AdminPanel: React.FC = () => {
                                             </p>
                                           </div>
 
-                                          {/* Correct Answer */}
-                                          <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-1.5">
+                                          {/* Correct Option */}
+                                          <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col justify-between">
                                             <div className="flex items-center justify-between">
                                               <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-300 font-bold flex items-center gap-1">
                                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                                                <span>Correct Answer</span>
+                                                <span>Correct Option</span>
                                               </span>
-                                              <span className="px-2 py-0.5 rounded-md bg-emerald-500 text-black font-mono font-bold text-[11px]">
+                                              <span className="px-2.5 py-1 rounded-md bg-emerald-500 text-black font-mono font-bold text-xs">
                                                 Option {mistake.correctOptionId || 'A'}
                                               </span>
                                             </div>
-                                            <p className="font-sans text-xs text-emerald-100 font-medium leading-relaxed">
-                                              {mistake.correctAnswer || 'Correct option'}
-                                            </p>
+                                            <div className="pt-2 text-[11px] font-mono text-emerald-300/80">
+                                              Selected: Option {mistake.studentOptionId || '?'} • Correct: Option {mistake.correctOptionId || 'A'}
+                                            </div>
                                           </div>
                                         </div>
-
-                                        {/* Explanation / Notes if available */}
-                                        {mistake.explanation && (
-                                          <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 text-xs text-slate/90 leading-relaxed font-sans">
-                                            <strong className="text-paper block mb-0.5 font-mono text-[10px] uppercase tracking-wider">Explanation / Concept:</strong>
-                                            {mistake.explanation}
-                                          </div>
-                                        )}
                                       </div>
                                     ))}
                                   </div>

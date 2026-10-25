@@ -241,7 +241,11 @@ export const FullstackPart8Page: React.FC = () => {
   });
 
   // Action: Student finishes reading note on left, unlocks question and starts 30-sec timer!
-  const handleStartQuestion = () => {
+  const handleStartQuestion = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setIsStudyPhase(false);
     setIsTimeUpWaiting(false);
     const freshEnd = Date.now() + TIMER_DURATION * 1000;
@@ -936,7 +940,7 @@ export const FullstackPart8Page: React.FC = () => {
                     <div className="pt-3 border-t border-white/5">
                       <button
                         type="button"
-                        onClick={handleStartQuestion}
+                        onClick={(e) => handleStartQuestion(e)}
                         className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 flex items-center justify-center gap-2 group"
                       >
                         <span>Continue to Question</span>
@@ -952,8 +956,7 @@ export const FullstackPart8Page: React.FC = () => {
                   {/* Study Phase Blur Overlay */}
                   {isStudyPhase && !isLocked && (
                     <div 
-                      onClick={handleStartQuestion}
-                      className="absolute inset-0 z-20 backdrop-blur-md bg-black/70 rounded-xl border border-white/10 flex flex-col items-center justify-center p-6 text-center animate-fade-in cursor-pointer select-none"
+                      className="absolute inset-0 z-20 backdrop-blur-md bg-black/70 rounded-xl border border-white/10 flex flex-col items-center justify-center p-6 text-center animate-fade-in select-none"
                     >
                       <h4 className="text-sm font-bold text-white mb-1">
                         Question is Locked
@@ -989,6 +992,7 @@ export const FullstackPart8Page: React.FC = () => {
                           <button
                             key={opt.id}
                             type="button"
+                            data-selected={isSelected}
                             disabled={isReviewMode || isLocked || isTimeUpWaiting}
                             onClick={() => handleSelectOption(taskId, currentBlock.heading, opt.id, isCorrect)}
                             className={`w-full text-left py-2 px-3 rounded-xl border text-xs sm:text-sm transition-all flex items-center gap-2.5 ${

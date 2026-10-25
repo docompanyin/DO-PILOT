@@ -55,6 +55,8 @@ export const PointTwinkleEffect: React.FC = () => {
 
       const activeEl =
         document.querySelector('[data-selected="true"]') ||
+        document.querySelector('[class*="border-emerald"]') ||
+        document.querySelector('[class*="bg-emerald"]') ||
         document.querySelector('.border-emerald-500') ||
         document.querySelector('.bg-emerald-500\\/10') ||
         (document.activeElement &&

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { purgeStudentLocalData } from '../utils/studentDataPurge';
 import { restoreAllStudentCourseProgressFromCloud } from '../utils/courseProgressSyncService';
+import { restoreStudentTelemetryFromCloud } from '../utils/studentTelemetryService';
 import { syncUserPurchasesFromCloud, normalizeCourseId } from '../utils/coursePricingService';
 
 export interface UserProfile {
@@ -161,6 +162,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       
       if (newUser.email && isSupabaseConfigured()) {
         restoreAllStudentCourseProgressFromCloud(newUser.email);
+        restoreStudentTelemetryFromCloud(newUser.email);
         syncUserPurchasesFromCloud(newUser.email, newUser.id);
         Promise.resolve(
           supabase
@@ -272,6 +274,7 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     refreshUserSession();
     if (user?.email) {
       restoreAllStudentCourseProgressFromCloud(user.email);
+      restoreStudentTelemetryFromCloud(user.email);
       syncUserPurchasesFromCloud(user.email, user.id);
     }
   }, []);
