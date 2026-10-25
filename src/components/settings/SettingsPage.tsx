@@ -86,6 +86,20 @@ export const SettingsPage: React.FC = () => {
     user ? getStudentRewardRequests(user.email) : []
   );
 
+  // Lock background scroll when any modal is open to prevent touch/zoom jumping on mobile
+  useEffect(() => {
+    if (isEditModalOpen || requestModalTier || claimSuccessModalTier) {
+      const originalOverflow = document.body.style.overflow;
+      const originalTouchAction = document.body.style.touchAction;
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        document.body.style.touchAction = originalTouchAction;
+      };
+    }
+  }, [isEditModalOpen, requestModalTier, claimSuccessModalTier]);
+
   useEffect(() => {
     if (user) {
       setRewardRequests(getStudentRewardRequests(user.email));
@@ -757,13 +771,13 @@ export const SettingsPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-paper relative flex flex-col justify-between selection:bg-primary selection:text-ink pb-20">
+    <div className="min-h-screen bg-black text-paper relative flex flex-col justify-between selection:bg-primary selection:text-ink pb-20 w-full overflow-x-hidden">
       
       {/* Background Ambient Glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[280px] bg-gradient-to-b from-primary/10 via-transparent to-transparent blur-[120px] pointer-events-none" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] max-w-full h-[280px] bg-gradient-to-b from-primary/10 via-transparent to-transparent blur-[120px] pointer-events-none" />
 
       {/* Top Navbar Header (Pinned to the LEFT like other pages) */}
-      <header className="sticky top-0 z-30 bg-black/80 backdrop-blur-xl border-b border-white/10 px-4 sm:px-8 py-3.5">
+      <header className="sticky top-0 z-30 bg-black/80 backdrop-blur-xl border-b border-white/10 px-4 sm:px-8 py-3.5 w-full">
         <div className="w-full flex items-center justify-between">
           <button
             type="button"
@@ -778,7 +792,7 @@ export const SettingsPage: React.FC = () => {
       </header>
 
       {/* Main Content Area */}
-      <main className="max-w-5xl mx-auto w-full px-4 sm:px-8 pt-6 sm:pt-8 space-y-6 flex-1">
+      <main className="max-w-5xl mx-auto w-full px-4 sm:px-8 pt-6 sm:pt-8 space-y-6 flex-1 overflow-x-hidden">
 
         {/* Global Save / Feedback Toast */}
         <AnimatePresence>
@@ -930,23 +944,23 @@ export const SettingsPage: React.FC = () => {
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 text-xs font-mono">
-                  <div className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-1">
+                  <div className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-1 min-w-0 overflow-hidden">
                     <span className="text-slate/60 text-[10px] uppercase block">Mobile Phone Number</span>
-                    <span className="text-paper font-semibold break-words">
+                    <span className="text-paper font-semibold break-all block">
                       {user.phone || 'Not provided'}
                     </span>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-1">
+                  <div className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-1 min-w-0 overflow-hidden">
                     <span className="text-slate/60 text-[10px] uppercase block">College / University or Company</span>
-                    <span className="text-paper font-semibold break-words">
+                    <span className="text-paper font-semibold break-words block">
                       {user.collegeOrCompany || 'Not provided'}
                     </span>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-1">
+                  <div className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-1 min-w-0 overflow-hidden">
                     <span className="text-slate/60 text-[10px] uppercase block">Discovery Source</span>
-                    <span className="text-paper font-semibold break-words">
+                    <span className="text-paper font-semibold break-words block">
                       {user.whereDidYouFindUs || 'Direct / Web'}
                     </span>
                   </div>
@@ -1413,16 +1427,16 @@ export const SettingsPage: React.FC = () => {
       </main>
 
       {/* ========================================================================= */}
-      {/* EDIT PROFILE MODAL (4 FIELDS: NAME, PHONE, COLLEGE/COMPANY, DISCOVERY)     */}
+      {/* EDIT PROFILE MODAL (MOBILE RESPONSIVE & ZOOM PROOF)                       */}
       {/* ========================================================================= */}
       <AnimatePresence>
         {isEditModalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-panel border border-white/15 rounded-3xl max-w-md w-full p-4 sm:p-7 space-y-4 shadow-2xl relative max-h-[92vh] sm:max-h-[90vh] overflow-y-auto overscroll-contain my-auto"
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              className="bg-panel border border-white/15 rounded-3xl w-full max-w-md p-4 sm:p-7 space-y-4 shadow-2xl relative max-h-[92vh] sm:max-h-[90vh] overflow-y-auto overscroll-contain my-auto box-border"
             >
               <div className="flex items-center justify-between pb-3 border-b border-white/10">
                 <h3 className="font-jakarta font-black text-base sm:text-lg text-paper">
@@ -1448,7 +1462,7 @@ export const SettingsPage: React.FC = () => {
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-base sm:text-sm focus:outline-none focus:border-primary transition-colors"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-base sm:text-sm focus:outline-none focus:border-primary transition-colors box-border"
                   />
                 </div>
 
@@ -1467,7 +1481,7 @@ export const SettingsPage: React.FC = () => {
                     }}
                     required
                     placeholder="10-digit mobile number"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-base sm:text-sm focus:outline-none focus:border-primary tracking-wide transition-colors"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-base sm:text-sm focus:outline-none focus:border-primary tracking-wide transition-colors box-border"
                   />
                 </div>
 
@@ -1480,7 +1494,7 @@ export const SettingsPage: React.FC = () => {
                     value={editCollegeOrCompany}
                     onChange={(e) => setEditCollegeOrCompany(e.target.value)}
                     placeholder="e.g. IIT Madras, BITS, or Company Name"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-base sm:text-sm focus:outline-none focus:border-primary transition-colors"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-base sm:text-sm focus:outline-none focus:border-primary transition-colors box-border"
                   />
                 </div>
 
@@ -1491,7 +1505,7 @@ export const SettingsPage: React.FC = () => {
                   <select
                     value={editWhereDidYouFindUs}
                     onChange={(e) => setEditWhereDidYouFindUs(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-base sm:text-sm focus:outline-none focus:border-primary cursor-pointer transition-colors"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-paper font-jakarta text-base sm:text-sm focus:outline-none focus:border-primary cursor-pointer transition-colors box-border"
                   >
                     <option value="">Select option</option>
                     <option value="Instagram">Instagram</option>
@@ -1504,7 +1518,7 @@ export const SettingsPage: React.FC = () => {
                 </div>
 
                 {editError && (
-                  <p className="text-xs text-rose-400 flex items-center gap-1">
+                  <p className="text-xs text-rose-400 flex items-center gap-1 font-mono">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                     <span>{editError}</span>
                   </p>

@@ -45,7 +45,7 @@ export const COURSES_DATA: CourseDetail[] = [
     slug: 'complete-python-programming',
     category: 'python',
     badge: 'Bestseller',
-    badgeColor: 'bg-primary/20 text-primary',
+    badgeColor: 'bg-primary/20 text-primary border-primary/30',
     image: 'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=1200&auto=format&fit=crop&q=80',
     title: 'Complete Python Course',
     headline: 'Master Python from syntax fundamentals to object-oriented architecture and interactive 2D games.',

@@ -739,35 +739,41 @@ export const AdminPanel: React.FC = () => {
               status = 'registered_only';
             }
 
-            // Calculate section progress (4 core curriculum modules x 6 tasks = 24 questions)
+            // Calculate dynamic section progress based on student's actual course curriculum
+            const primaryCourse = p.course || (p.enrolled_courses && p.enrolled_courses[0]) || 'python-core';
+            const studentCurriculum = getCourseCurriculumQuestions(primaryCourse);
+            const partCurriculumMap = new Map<number, { partNum: number; totalTasks: number }>();
+            studentCurriculum.forEach((q) => {
+              const current = partCurriculumMap.get(q.partNum) || { partNum: q.partNum, totalTasks: 0 };
+              current.totalTasks += 1;
+              partCurriculumMap.set(q.partNum, current);
+            });
+
             const sectionProgress: StudentSectionProgress[] = [];
-            const moduleInfo = [
-              { partNum: 1, title: 'Part 1: Setup & Python Syntax', idMatch: ['1-1', 'part1', 'part-1'] },
-              { partNum: 2, title: 'Part 2: Reading User Input & Variables', idMatch: ['1-2', 'part2', 'part-2'] },
-              { partNum: 3, title: 'Part 3: Data Types & Type Conversion', idMatch: ['1-3', 'part3', 'part-3'] },
-              { partNum: 4, title: 'Part 4: Arithmetic Operations & Precedence', idMatch: ['1-4', 'part4', 'part-4'] }
-            ];
-
             const solvedKeys = Object.keys(solvedTasks);
-            const hasExplicitPartKeys = solvedKeys.some(k => ['1-1', '1-2', '1-3', '1-4', 'part'].some(sub => k.toLowerCase().includes(sub)));
 
-            moduleInfo.forEach((mod, idx) => {
-              let solvedInPart = 0;
-              if (hasExplicitPartKeys) {
-                solvedInPart = solvedKeys.filter(k => mod.idMatch.some(pattern => k.toLowerCase().includes(pattern))).length;
-              } else {
-                const startIdx = idx * 6;
-                solvedInPart = Math.max(0, Math.min(6, solvedCount - startIdx));
-              }
+            // Group parts up to 14 or according to curriculum
+            const maxPart = Math.max(1, ...Array.from(partCurriculumMap.keys()));
+            for (let partNum = 1; partNum <= maxPart; partNum++) {
+              const partTotal = partCurriculumMap.get(partNum)?.totalTasks || 6;
+              const solvedInPart = solvedKeys.filter((k) => {
+                const kLower = k.toLowerCase();
+                return kLower.includes(`part${partNum}`) ||
+                       kLower.includes(`part-${partNum}`) ||
+                       kLower.includes(`${partNum}-`) ||
+                       kLower.startsWith(`${partNum}.`);
+              }).length;
 
-              const wrongInPart = wrongAttempts.filter((w: any) =>
-                w.section?.toLowerCase().includes(`part ${mod.partNum}`) ||
-                w.section?.toLowerCase().includes(`part${mod.partNum}`) ||
-                mod.idMatch.some(pattern => w.section?.toLowerCase().includes(pattern))
-              ).length;
+              const wrongInPart = wrongAttempts.filter((w: any) => {
+                const sLower = (w.section || '').toLowerCase();
+                return sLower.includes(`part ${partNum}`) ||
+                       sLower.includes(`part${partNum}`) ||
+                       sLower.includes(`part-${partNum}`) ||
+                       sLower.includes(`${partNum}.`);
+              }).length;
 
               let partStatus: 'passed' | 'failed' | 'in_progress' | 'not_started' = 'not_started';
-              if (solvedInPart >= 6) {
+              if (solvedInPart >= partTotal && partTotal > 0) {
                 partStatus = 'passed';
               } else if (solvedInPart > 0) {
                 partStatus = wrongInPart > 0 ? 'failed' : 'in_progress';
@@ -776,13 +782,13 @@ export const AdminPanel: React.FC = () => {
               }
 
               sectionProgress.push({
-                partNum: mod.partNum,
-                title: mod.title,
-                totalTasks: 6,
-                solvedTasks: Math.min(6, solvedInPart),
+                partNum,
+                title: `Part ${partNum}`,
+                totalTasks: partTotal,
+                solvedTasks: Math.min(partTotal, solvedInPart),
                 status: partStatus
               });
-            });
+            }
 
             return {
               id: p.id,
@@ -5502,117 +5508,196 @@ export const AdminPanel: React.FC = () => {
                   </div>
                 ) : (
                   (() => {
-                    // Group mistakes by Part and Section cleanly: e.g. "Part 1 → Section 1.1"
-                    const groups: Record<string, typeof actualMistakes> = {};
+                    // Group mistakes by Part, then by Section without unnecessary arrows or nested headings
+                    interface MistakeSectionGroup {
+                      sectionKey: string;
+                      sectionLabel: string;
+                      mistakes: typeof actualMistakes;
+                    }
+                    interface MistakePartGroup {
+                      partNum: number;
+                      partLabel: string;
+                      sections: MistakeSectionGroup[];
+                    }
+
+                    const partGroups: MistakePartGroup[] = [];
+
                     actualMistakes.forEach((m) => {
-                      const heading = `Part ${m.partNum} → ${m.section}`;
-                      if (!groups[heading]) groups[heading] = [];
-                      groups[heading].push(m);
+                      const partNum = m.partNum || 1;
+                      const partLabel = `Part ${partNum}`;
+
+                      // Extract clean Section label (e.g. "1.1", "1.2")
+                      let sectionLabel = `${partNum}.1`;
+                      if (m.subQuestionLabel) {
+                        const secMatch = m.subQuestionLabel.match(/Sec\s+([0-9.]+)/i);
+                        if (secMatch) {
+                          sectionLabel = secMatch[1];
+                        } else {
+                          const dotMatch = m.subQuestionLabel.match(/^(\d+\.\d+)/);
+                          if (dotMatch) {
+                            sectionLabel = dotMatch[1];
+                          }
+                        }
+                      } else if (m.section) {
+                        const sMatch = m.section.match(/Section\s*([0-9.]+)/i);
+                        if (sMatch) {
+                          sectionLabel = sMatch[1];
+                        } else {
+                          const numMatch = m.section.match(/(\d+\.\d+)/);
+                          if (numMatch) {
+                            sectionLabel = numMatch[1];
+                          }
+                        }
+                      }
+
+                      let pGroup = partGroups.find((p) => p.partNum === partNum);
+                      if (!pGroup) {
+                        pGroup = {
+                          partNum,
+                          partLabel,
+                          sections: []
+                        };
+                        partGroups.push(pGroup);
+                      }
+
+                      let sGroup = pGroup.sections.find((s) => s.sectionLabel === sectionLabel);
+                      if (!sGroup) {
+                        sGroup = {
+                          sectionKey: `${partNum}-${sectionLabel}`,
+                          sectionLabel,
+                          mistakes: []
+                        };
+                        pGroup.sections.push(sGroup);
+                      }
+
+                      sGroup.mistakes.push(m);
                     });
 
+                    // Sort parts numerically
+                    partGroups.sort((a, b) => a.partNum - b.partNum);
+
                     return (
-                      <div className="space-y-6">
-                        {Object.entries(groups).map(([groupTitle, mistakesInGroup]) => (
-                          <div key={groupTitle} className="space-y-3">
-                            <div className="flex items-center gap-2 px-1">
-                              <span className="w-2 h-2 rounded-full bg-rose-400"></span>
-                              <h5 className="font-jakarta font-black text-xs text-paper uppercase tracking-wider">
-                                {groupTitle}
+                      <div className="space-y-8">
+                        {partGroups.map((pGroup) => (
+                          <div key={pGroup.partNum} className="space-y-5">
+                            {/* Part Heading: e.g. "Part 1" */}
+                            <div className="flex items-center gap-2.5 pb-2.5 border-b border-white/10">
+                              <span className="w-2.5 h-2.5 rounded-full bg-rose-400"></span>
+                              <h5 className="font-jakarta font-black text-base text-paper uppercase tracking-wider">
+                                {pGroup.partLabel}
                               </h5>
-                              <span className="text-[10px] font-mono text-slate/60">
-                                ({mistakesInGroup.length} {mistakesInGroup.length === 1 ? 'mistake' : 'mistakes'})
+                              <span className="text-xs font-mono text-slate/70">
+                                ({pGroup.sections.reduce((acc, s) => acc + s.mistakes.length, 0)} mistakes)
                               </span>
                             </div>
 
-                            <div className="space-y-3">
-                              {mistakesInGroup.map((mistake, idx) => (
-                                <div
-                                  key={mistake.id || idx}
-                                  className="p-5 rounded-2xl bg-rose-500/[0.05] border border-rose-500/20 space-y-3 hover:border-rose-500/35 transition-colors"
-                                >
-                                  {/* Top header row: Part, Section & Question Number + Timing + Attempt tag */}
-                                  <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="px-2.5 py-0.5 rounded-lg bg-rose-500/15 border border-rose-500/30 font-mono font-bold text-xs text-rose-300">
-                                        Question {mistake.questionNumber}
-                                      </span>
-                                      <span className="font-jakarta font-bold text-sm text-paper">
-                                        {mistake.questionTitle}
-                                      </span>
-                                      {mistake.isRetest && (
-                                        <span className="px-2 py-0.5 rounded-md bg-amber-400/15 border border-amber-400/30 text-amber-300 font-mono text-[10px] font-bold">
-                                          Retest (Attempt {mistake.attemptsCount || 2})
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    <div className="flex items-center gap-3 text-xs font-mono text-slate">
-                                      <span className="flex items-center gap-1 text-slate/90">
-                                        <Clock className="w-3.5 h-3.5 text-primary" />
-                                        <span>Time: <strong className="text-paper">{mistake.timeTakenSeconds > 0 ? `${mistake.timeTakenSeconds}s` : '—'}</strong></span>
-                                      </span>
-                                      <span className="text-slate/40">•</span>
-                                      <span className="text-slate/70 text-[11px]">{mistake.attemptedAt}</span>
-                                    </div>
+                            {/* Section Sub-headings and Questions */}
+                            <div className="space-y-6 pl-1 sm:pl-3">
+                              {pGroup.sections.map((sGroup) => (
+                                <div key={sGroup.sectionKey} className="space-y-3.5">
+                                  {/* Section heading: e.g. "1.1" */}
+                                  <div className="flex items-center gap-2">
+                                    <h6 className="font-jakarta font-bold text-xs sm:text-sm text-cyan-400 uppercase tracking-wide">
+                                      Section {sGroup.sectionLabel}
+                                    </h6>
+                                    <span className="text-[10px] font-mono text-slate/60">
+                                      ({sGroup.mistakes.length} {sGroup.mistakes.length === 1 ? 'mistake' : 'mistakes'})
+                                    </span>
                                   </div>
 
-                                  {/* Full Question Text */}
-                                  {mistake.questionPrompt && (
-                                    <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 space-y-2">
-                                      <span className="text-[10px] font-mono uppercase tracking-wider text-slate/70 block">Question</span>
-                                      <p className="font-sans text-xs sm:text-sm text-paper/95 leading-relaxed whitespace-pre-line">
-                                        {mistake.questionPrompt}
-                                      </p>
-                                      {mistake.codeSnippet && (
-                                        <pre className="p-3 rounded-lg bg-[#0a0b0d] border border-white/5 font-mono text-xs text-emerald-300 overflow-x-auto">
-                                          <code>{mistake.codeSnippet}</code>
-                                        </pre>
-                                      )}
-                                    </div>
-                                  )}
+                                  {/* Question Mistake Cards */}
+                                  <div className="space-y-3">
+                                    {sGroup.mistakes.map((mistake, idx) => (
+                                      <div
+                                        key={mistake.id || idx}
+                                        className="p-5 rounded-2xl bg-rose-500/[0.05] border border-rose-500/20 space-y-3 hover:border-rose-500/35 transition-colors"
+                                      >
+                                        {/* Top header row: Question Number + Timing + Attempt tag */}
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="px-2.5 py-0.5 rounded-lg bg-rose-500/15 border border-rose-500/30 font-mono font-bold text-xs text-rose-300">
+                                              Question {mistake.questionNumber}
+                                            </span>
+                                            <span className="font-jakarta font-bold text-sm text-paper">
+                                              {mistake.questionTitle}
+                                            </span>
+                                            {mistake.isRetest && (
+                                              <span className="px-2 py-0.5 rounded-md bg-amber-400/15 border border-amber-400/30 text-amber-300 font-mono text-[10px] font-bold">
+                                                Retest (Attempt {mistake.attemptsCount || 2})
+                                              </span>
+                                            )}
+                                          </div>
 
-                                  {/* Answer Comparison: Student Selected Wrong Answer vs Correct Answer */}
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {/* Student's Wrong Answer */}
-                                    <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-1.5">
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-[10px] font-mono uppercase tracking-wider text-rose-300 font-bold flex items-center gap-1">
-                                          <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-                                          <span>Student's Selected Answer</span>
-                                        </span>
-                                        <span className="px-2 py-0.5 rounded-md bg-rose-500 text-white font-mono font-bold text-[11px]">
-                                          Option {mistake.studentOptionId || '?'}
-                                        </span>
-                                      </div>
-                                      <p className="font-sans text-xs text-rose-100 font-medium leading-relaxed">
-                                        {mistake.studentAnswer || 'Incorrect Answer'}
-                                      </p>
-                                    </div>
+                                          <div className="flex items-center gap-3 text-xs font-mono text-slate">
+                                            <span className="flex items-center gap-1 text-slate/90">
+                                              <Clock className="w-3.5 h-3.5 text-primary" />
+                                              <span>Time: <strong className="text-paper">{mistake.timeTakenSeconds > 0 ? `${mistake.timeTakenSeconds}s` : '—'}</strong></span>
+                                            </span>
+                                            <span className="text-slate/40">•</span>
+                                            <span className="text-slate/70 text-[11px]">{mistake.attemptedAt}</span>
+                                          </div>
+                                        </div>
 
-                                    {/* Correct Answer */}
-                                    <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-1.5">
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-300 font-bold flex items-center gap-1">
-                                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                                          <span>Correct Answer</span>
-                                        </span>
-                                        <span className="px-2 py-0.5 rounded-md bg-emerald-500 text-black font-mono font-bold text-[11px]">
-                                          Option {mistake.correctOptionId || 'A'}
-                                        </span>
+                                        {/* Full Question Text */}
+                                        {mistake.questionPrompt && (
+                                          <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 space-y-2">
+                                            <span className="text-[10px] font-mono uppercase tracking-wider text-slate/70 block">Question</span>
+                                            <p className="font-sans text-xs sm:text-sm text-paper/95 leading-relaxed whitespace-pre-line">
+                                              {mistake.questionPrompt}
+                                            </p>
+                                            {mistake.codeSnippet && (
+                                              <pre className="p-3 rounded-lg bg-[#0a0b0d] border border-white/5 font-mono text-xs text-emerald-300 overflow-x-auto">
+                                                <code>{mistake.codeSnippet}</code>
+                                              </pre>
+                                            )}
+                                          </div>
+                                        )}
+
+                                        {/* Answer Comparison: Student Selected Wrong Answer vs Correct Answer */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                          {/* Student's Wrong Answer */}
+                                          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-[10px] font-mono uppercase tracking-wider text-rose-300 font-bold flex items-center gap-1">
+                                                <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                                                <span>Student's Selected Answer</span>
+                                              </span>
+                                              <span className="px-2 py-0.5 rounded-md bg-rose-500 text-white font-mono font-bold text-[11px]">
+                                                Option {mistake.studentOptionId || '?'}
+                                              </span>
+                                            </div>
+                                            <p className="font-sans text-xs text-rose-100 font-medium leading-relaxed">
+                                              {mistake.studentAnswer || 'Incorrect Answer'}
+                                            </p>
+                                          </div>
+
+                                          {/* Correct Answer */}
+                                          <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-300 font-bold flex items-center gap-1">
+                                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                                <span>Correct Answer</span>
+                                              </span>
+                                              <span className="px-2 py-0.5 rounded-md bg-emerald-500 text-black font-mono font-bold text-[11px]">
+                                                Option {mistake.correctOptionId || 'A'}
+                                              </span>
+                                            </div>
+                                            <p className="font-sans text-xs text-emerald-100 font-medium leading-relaxed">
+                                              {mistake.correctAnswer || 'Correct option'}
+                                            </p>
+                                          </div>
+                                        </div>
+
+                                        {/* Explanation / Notes if available */}
+                                        {mistake.explanation && (
+                                          <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 text-xs text-slate/90 leading-relaxed font-sans">
+                                            <strong className="text-paper block mb-0.5 font-mono text-[10px] uppercase tracking-wider">Explanation / Concept:</strong>
+                                            {mistake.explanation}
+                                          </div>
+                                        )}
                                       </div>
-                                      <p className="font-sans text-xs text-emerald-100 font-medium leading-relaxed">
-                                        {mistake.correctAnswer || 'Correct option'}
-                                      </p>
-                                    </div>
+                                    ))}
                                   </div>
-
-                                  {/* Explanation / Notes if available */}
-                                  {mistake.explanation && (
-                                    <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 text-xs text-slate/90 leading-relaxed font-sans">
-                                      <strong className="text-paper block mb-0.5 font-mono text-[10px] uppercase tracking-wider">Explanation / Concept:</strong>
-                                      {mistake.explanation}
-                                    </div>
-                                  )}
                                 </div>
                               ))}
                             </div>

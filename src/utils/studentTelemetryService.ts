@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { normalizeStudentEmail } from './courseProgressSyncService';
+import { normalizeStudentEmail, memoryCourseState } from './courseProgressSyncService';
 
 export interface QuestionTelemetryRecord {
   id: string;                    // e.g. "py-1.1-q1-att1-1719283749"
@@ -517,6 +517,30 @@ export const buildStudentActivitySequence = (
   let answers: Record<string, string> = {};
   const norm = courseId.toLowerCase();
 
+  // 1. Read answers from in-memory / cloud course state if available for this student
+  const cleanEmail = normalizeStudentEmail(email);
+  if (cleanEmail && memoryCourseState[cleanEmail]?.courses) {
+    const studentCourses = memoryCourseState[cleanEmail].courses;
+    // Find matching course or search all courses
+    Object.entries(studentCourses).forEach(([cKey, cVal]) => {
+      const cNorm = cKey.toLowerCase();
+      const isMatch = norm === 'all' ||
+        (norm.includes('java') && cNorm.includes('java')) ||
+        (norm.includes('fullstack') && cNorm.includes('fullstack')) ||
+        (norm.includes('cyber') && cNorm.includes('cyber')) ||
+        (!norm.includes('java') && !norm.includes('fullstack') && !norm.includes('cyber') && !cNorm.includes('java') && !cNorm.includes('fullstack') && !cNorm.includes('cyber'));
+
+      if (isMatch && cVal.parts) {
+        Object.values(cVal.parts).forEach((partState) => {
+          if (partState.selectedAnswers) {
+            answers = { ...answers, ...partState.selectedAnswers };
+          }
+        });
+      }
+    });
+  }
+
+  // 2. Also check localStorage for locally saved answers
   try {
     for (let p = 0; p <= 14; p++) {
       let key = '';
