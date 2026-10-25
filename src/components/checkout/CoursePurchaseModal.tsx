@@ -8,7 +8,7 @@ import {
 import loadingAnimationData from '../../assets/loading.json';
 import successAnimationData from '../../assets/Success.json';
 import trophyAnimationData from '../../assets/Trophy.json';
-import { useUserAuth } from '../../context/UserAuthContext';
+import { useUserAuth, USER_SESSION_KEY, hasAuthCookie } from '../../context/UserAuthContext';
 import {
   getCoursePricing,
   validateCoupon,
@@ -456,6 +456,15 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
   };
 
   const handleApplyCoupon = (codeToApply?: string) => {
+    // Immediate authentication validation
+    const raw = localStorage.getItem(USER_SESSION_KEY);
+    const hasCookie = hasAuthCookie();
+    if (!isLoggedIn || !hasCookie || !raw || !user?.email) {
+      onClose();
+      navigate(`/login?redirect=/course/${courseId}`);
+      return;
+    }
+
     const code = (codeToApply || couponInput).trim();
     if (!code) {
       setCouponError('Please enter a coupon code.');
@@ -513,6 +522,15 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
 
   // Zero-Amount Coupon Course Claim
   const handleClaimCourse = async () => {
+    // Immediate authentication validation
+    const raw = localStorage.getItem(USER_SESSION_KEY);
+    const hasCookie = hasAuthCookie();
+    if (!isLoggedIn || !hasCookie || !raw || !user?.email) {
+      onClose();
+      navigate(`/login?redirect=/course/${courseId}`);
+      return;
+    }
+
     setIsProcessing(true);
     setCouponError(null);
     try {
@@ -638,6 +656,15 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
 
   // Submit manual QR payment with 12-digit UTR for Admin Verification
   const handleSubmitManualQRPayment = () => {
+    // Immediate authentication validation
+    const raw = localStorage.getItem(USER_SESSION_KEY);
+    const hasCookie = hasAuthCookie();
+    if (!isLoggedIn || !hasCookie || !raw || !user?.email) {
+      onClose();
+      navigate(`/login?redirect=/course/${courseId}`);
+      return;
+    }
+
     const utr = utrInput.trim();
     if (!utr || utr.length < 8) {
       setUtrError('Please enter a valid 12-digit UPI Reference / UTR Number.');

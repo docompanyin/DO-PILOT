@@ -31,6 +31,11 @@ export const NavigationManager: React.FC = () => {
       // Determine intended Course Details destination
       const courseOverviewPath = getIntendedFallbackRoute(currentPath);
 
+      // Push history sentinel to trap hardware back button
+      try {
+        window.history.pushState({ doPilotTrap: true, page: 'coursePart' }, '', window.location.href);
+      } catch {}
+
       const handlePopState = () => {
         // When user taps phone/browser back button from any course page (Question Answering, Passed, Failed, Consecutive Failure, Locked, etc.),
         // guarantee they land directly on the Course Details page, without visiting previous levels/questions or intermediate pages.
@@ -44,6 +49,11 @@ export const NavigationManager: React.FC = () => {
     }
 
     if (isCourseDetailsPage) {
+      // Push history sentinel to trap hardware back button
+      try {
+        window.history.pushState({ doPilotTrap: true, page: 'courseDetails' }, '', window.location.href);
+      } catch {}
+
       const handlePopState = () => {
         // When user taps phone/browser back button from Course Details,
         // navigate directly to Home Page and restore the previous scroll position.

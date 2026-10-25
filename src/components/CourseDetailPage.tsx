@@ -358,6 +358,21 @@ export const CourseDetailPage: React.FC = () => {
   const [certModalOpen, setCertModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
+  // Validate active authentication session for course actions
+  const validateAuthForAction = (): boolean => {
+    const raw = localStorage.getItem(USER_SESSION_KEY);
+    const hasCookie = hasAuthCookie();
+    if (!isLoggedIn || !hasCookie || !raw || !user?.email) {
+      navigate(`/login?redirect=/course/${course?.id || safeCourseId}`);
+      return false;
+    }
+    return true;
+  };
+
+  const handleOpenPurchaseModal = () => {
+    if (!validateAuthForAction()) return;
+    setPurchaseModalOpen(true);
+  };
   // Find course by id or slug
   const course = courseId ? getCourseById(courseId) : COURSES_DATA[0];
   const safeCourseId = course?.id || courseId || 'python-core';
@@ -451,7 +466,9 @@ export const CourseDetailPage: React.FC = () => {
 
   const handleTryPart1 = () => {
     // If not logged in, take the student to login with a clean return redirect
-    if (!isLoggedIn) {
+    const raw = localStorage.getItem(USER_SESSION_KEY);
+    const hasCookie = hasAuthCookie();
+    if (!isLoggedIn || !hasCookie || !raw || !user?.email) {
       navigate(`/login?redirect=/course/${course?.id || safeCourseId}/part-1`);
       return;
     }
@@ -482,7 +499,9 @@ export const CourseDetailPage: React.FC = () => {
     const studentId = user?.id || user?.email;
 
     // If not logged in, cleanly direct to login
-    if (!isLoggedIn) {
+    const raw = localStorage.getItem(USER_SESSION_KEY);
+    const hasCookie = hasAuthCookie();
+    if (!isLoggedIn || !hasCookie || !raw || !user?.email) {
       navigate(`/login?redirect=/course/${course?.id || safeCourseId}`);
       return;
     }
@@ -723,7 +742,7 @@ export const CourseDetailPage: React.FC = () => {
                       </span>
                       <button
                         type="button"
-                        onClick={() => setPurchaseModalOpen(true)}
+                        onClick={handleOpenPurchaseModal}
                         className="w-full sm:w-auto px-4 py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-primary/20"
                       >
                         <ShoppingBag className="w-3 h-3" />
@@ -759,7 +778,7 @@ export const CourseDetailPage: React.FC = () => {
                       </span>
                       <button
                         type="button"
-                        onClick={() => navigate(partUrl)}
+                        onClick={handleTryPart1}
                         className="w-full sm:w-auto px-4 py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-primary/20"
                       >
                         <Play className="w-3 h-3 fill-current" />
@@ -942,7 +961,7 @@ export const CourseDetailPage: React.FC = () => {
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                   <button
                     type="button"
-                    onClick={() => setPurchaseModalOpen(true)}
+                    onClick={handleOpenPurchaseModal}
                     className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs sm:text-sm hover:bg-white hover:shadow-xl hover:shadow-primary/30 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-primary/20 group"
                   >
                     <ShoppingBag className="w-4 h-4 shrink-0" />
@@ -1393,7 +1412,7 @@ export const CourseDetailPage: React.FC = () => {
                 <>
                   <button
                     type="button"
-                    onClick={() => setPurchaseModalOpen(true)}
+                    onClick={handleOpenPurchaseModal}
                     className="inline-flex justify-center px-4 py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer items-center gap-1.5 shadow-md shadow-primary/20"
                   >
                     <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
