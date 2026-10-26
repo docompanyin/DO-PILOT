@@ -23,7 +23,7 @@ declare global {
   }
 }
 
-const SuccessLottie: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
+const SuccessLottie: React.FC<{ onComplete: () => void; isRelogin?: boolean }> = ({ onComplete, isRelogin = false }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const animRef = useRef<any>(null);
 
@@ -92,7 +92,11 @@ const SuccessLottie: React.FC<{ onComplete: () => void }> = ({ onComplete }) => 
   return (
     <div 
       ref={containerRef} 
-      className="w-72 h-72 sm:w-96 sm:h-96 md:w-[420px] md:h-[420px] flex items-center justify-center pointer-events-none" 
+      className={
+        isRelogin 
+          ? "w-44 h-44 sm:w-56 sm:h-56 md:w-64 md:h-64 flex items-center justify-center pointer-events-none"
+          : "w-72 h-72 sm:w-96 sm:h-96 md:w-[420px] md:h-[420px] flex items-center justify-center pointer-events-none"
+      }
     />
   );
 };
@@ -115,6 +119,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>(mode);
   const [loading, setLoading] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
+  const [isRelogin, setIsRelogin] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const searchParams = new URLSearchParams(location.search);
@@ -174,7 +179,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
     }
 
     if (profile.hasCompletedDetails) {
-      // Existing registered student: Show success animation, redirect happens on completion
+      // Existing registered student logging in again (re-login): Show compact success animation
+      setIsRelogin(true);
       setLoginSuccess(true);
     } else {
       // New or incomplete student: Show registration form
@@ -460,7 +466,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-xl overflow-hidden pointer-events-none select-none"
           >
             <div className="relative flex items-center justify-center">
-              <SuccessLottie onComplete={handleAnimationComplete} />
+              <SuccessLottie onComplete={handleAnimationComplete} isRelogin={isRelogin} />
             </div>
           </motion.div>
         )}

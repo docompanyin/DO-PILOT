@@ -27,11 +27,14 @@ import {
 interface ClaimFlowOverlayProps {
   courseName: string;
   stage: 'loading' | 'success';
+  onSuccessAnimationComplete?: () => void;
 }
 
-const ClaimFlowOverlay: React.FC<ClaimFlowOverlayProps> = ({ courseName, stage }) => {
+const ClaimFlowOverlay: React.FC<ClaimFlowOverlayProps> = ({ courseName, stage, onSuccessAnimationComplete }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const animRef = useRef<any>(null);
+  const onCompleteRef = useRef(onSuccessAnimationComplete);
+  onCompleteRef.current = onSuccessAnimationComplete;
 
   useEffect(() => {
     let isCancelled = false;
@@ -51,8 +54,23 @@ const ClaimFlowOverlay: React.FC<ClaimFlowOverlayProps> = ({ courseName, stage }
         });
         animRef.current = anim;
         anim.setSpeed(1.0);
+
+        if (stage === 'success') {
+          anim.addEventListener('complete', () => {
+            if (!isCancelled && onCompleteRef.current) {
+              onCompleteRef.current();
+            }
+          });
+        }
       } catch (err) {
         console.error('Lottie play error:', err);
+        if (stage === 'success') {
+          setTimeout(() => {
+            if (!isCancelled && onCompleteRef.current) {
+              onCompleteRef.current();
+            }
+          }, 2400);
+        }
       }
     };
 
@@ -137,8 +155,15 @@ const TrophyCelebration: React.FC<TrophyCelebrationProps> = ({ courseName, onAni
         animRef.current = anim;
         setHasLottieRendered(true);
         anim.setSpeed(1.0);
+
+        anim.addEventListener('complete', () => {
+          if (!isCancelled) onAnimationEndRef.current();
+        });
       } catch (err) {
         console.error('Lottie play error:', err);
+        setTimeout(() => {
+          if (!isCancelled) onAnimationEndRef.current();
+        }, 2400);
       }
     };
 
@@ -157,14 +182,14 @@ const TrophyCelebration: React.FC<TrophyCelebrationProps> = ({ courseName, onAni
       }, 50);
     }
 
-    // Redirect after exactly 4 seconds
-    const redirectTimer = setTimeout(() => {
+    // Safety fallback timer in case complete event does not fire
+    const safetyTimer = setTimeout(() => {
       if (!isCancelled) onAnimationEndRef.current();
-    }, 4000);
+    }, 2800);
 
     return () => {
       isCancelled = true;
-      clearTimeout(redirectTimer);
+      clearTimeout(safetyTimer);
       if (animRef.current) {
         try { animRef.current.destroy(); } catch {}
       }
@@ -455,6 +480,20 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
     setTimeout(() => setCopiedUpi(false), 2000);
   };
 
+  // Immediate redirect when purchase success animation completes
+  const handleClaimSuccessRedirect = () => {
+    if (redirectTimeoutRef.current) {
+      clearTimeout(redirectTimeoutRef.current);
+    }
+    setClaimFlowStage('idle');
+    if (onSuccess) {
+      onSuccess();
+    }
+    const targetRoute = getCanonicalCourseRoute(courseId);
+    navigate(targetRoute);
+    onClose();
+  };
+
   const handleApplyCoupon = (codeToApply?: string) => {
     // Immediate authentication validation
     const raw = localStorage.getItem(USER_SESSION_KEY);
@@ -635,16 +674,10 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
           console.error('Error confirming purchase at success stage:', confirmErr);
         }
 
-        // Stage 3: Keep success animation and message visible briefly (2.6 seconds), then redirect to Course Details page
+        // Safety fallback timer in case complete event does not trigger
         redirectTimeoutRef.current = setTimeout(() => {
-          setClaimFlowStage('idle');
-          if (onSuccess) {
-            onSuccess();
-          }
-          const targetRoute = getCanonicalCourseRoute(courseId);
-          navigate(targetRoute);
-          onClose();
-        }, 2600);
+          handleClaimSuccessRedirect();
+        }, 3200);
 
       }, 5000);
 
@@ -718,6 +751,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
         <ClaimFlowOverlay
           courseName={resolvedCourseName}
           stage={claimFlowStage}
+          onSuccessAnimationComplete={handleClaimSuccessRedirect}
         />
       ) : (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 md:p-6 overflow-y-auto">
