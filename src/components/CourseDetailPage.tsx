@@ -562,7 +562,7 @@ export const CourseDetailPage: React.FC = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
     if (course) {
-      document.title = `${course.title} — DO PILOT`;
+      document.title = `Do Pilot - ${course.title}`;
     }
   }, [course]);
 

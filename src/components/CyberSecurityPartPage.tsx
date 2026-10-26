@@ -249,7 +249,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    document.title = `Part ${currentPartNum} Level ${activeSection.number}: ${activeSection.title} — DO PILOT Cyber Security`;
+    document.title = `Do Pilot - ${activeSection.title}`;
     try {
       localStorage.setItem('dopilot_cyber_core_last_part', String(currentPartNum));
     } catch {}

@@ -208,7 +208,7 @@ export const FullstackPart13Page: React.FC = () => {
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    document.title = `Level ${activeSection.number}: ${activeSection.title} — Full Stack Open`;
+    document.title = `Do Pilot - ${activeSection.title}`;
     try {
       localStorage.setItem('dopilot_fullstack_core_last_part', '13');
     } catch {}

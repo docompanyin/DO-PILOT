@@ -16,9 +16,34 @@ export const NavigationManager: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Track each route entry
+  // Track each route entry and keep Document Title consistent
   useEffect(() => {
     recordNavRoute(location.pathname, location.search);
+
+    const path = location.pathname;
+    if (path === '/') {
+      document.title = 'Do Pilot';
+    } else if (path === '/login') {
+      document.title = 'Do Pilot - Login';
+    } else if (path === '/signup') {
+      document.title = 'Do Pilot - Sign Up';
+    } else if (path === '/settings' || path === '/profile') {
+      document.title = 'Do Pilot - Student Profile';
+    } else if (path === '/admin') {
+      document.title = 'Do Pilot - Admin Login';
+    } else if (path.startsWith('/admin/dashboard')) {
+      document.title = 'Do Pilot - Admin Dashboard';
+    } else if (path.startsWith('/admin/emergency-recovery')) {
+      document.title = 'Do Pilot - Emergency Recovery';
+    } else if (path === '/privacy') {
+      document.title = 'Do Pilot - Privacy Policy';
+    } else if (path === '/terms') {
+      document.title = 'Do Pilot - Terms of Service';
+    } else if (path === '/refund') {
+      document.title = 'Do Pilot - Refund & Cancellation Policy';
+    } else if (path.startsWith('/legal')) {
+      document.title = 'Do Pilot - Legal';
+    }
   }, [location.pathname, location.search]);
 
   // Intercept phone / browser hardware Back button for Course pages and Course Details

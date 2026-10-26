@@ -43,11 +43,11 @@ export const LegalPage: React.FC<LegalPageProps> = ({ defaultSection }) => {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     const titles: Record<LegalSectionKey, string> = {
-      privacy: 'Privacy Policy — DO PILOT',
-      terms: 'Terms of Service — DO PILOT',
-      refund: 'Refund & Cancellation Policy — DO PILOT',
+      privacy: 'Do Pilot - Privacy Policy',
+      terms: 'Do Pilot - Terms of Service',
+      refund: 'Do Pilot - Refund & Cancellation Policy',
     };
-    document.title = titles[activeSection] || 'Legal — DO PILOT';
+    document.title = titles[activeSection] || 'Do Pilot - Legal';
   }, [activeSection]);
 
   const handleTabChange = (key: LegalSectionKey) => {

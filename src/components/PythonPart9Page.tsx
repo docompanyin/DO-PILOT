@@ -206,7 +206,7 @@ export const PythonPart9Page: React.FC = () => {
     try {
       localStorage.setItem('dopilot_python_core_last_part', '9');
     } catch {}
-    document.title = `Level ${activeSection.number} — ${activeSection.title} | DO PILOT`;
+    document.title = `Do Pilot - ${activeSection.title}`;
   }, [activeSectionId, activeQuestionIdx]);
 
   // Keep stateRef fresh for non-stale intervals

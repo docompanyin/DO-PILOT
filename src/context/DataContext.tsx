@@ -489,7 +489,7 @@ const DEFAULT_COURSES_ITEMS: CourseCardItem[] = [
     id: 'python-core',
     category: 'python',
     badge: 'Bestseller',
-    badgeColor: 'bg-primary/20 text-primary border-primary/30',
+    badgeColor: 'bg-emerald-400/20 text-emerald-300 border-emerald-400/30',
     image: 'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=800&auto=format&fit=crop&q=80',
     title: 'Complete Python Course',
     description: 'Master Python from core logic and data structures to advanced OOP, recursion, and 2D games with Pygame.',

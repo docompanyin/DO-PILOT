@@ -373,7 +373,7 @@ export const PythonPart1Page: React.FC = () => {
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    document.title = `Level ${activeSection.number}: ${activeSection.title} — DO PILOT`;
+    document.title = `Do Pilot - ${activeSection.title}`;
     try {
       localStorage.setItem('dopilot_python_core_last_part', '1');
     } catch {}

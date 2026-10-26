@@ -187,7 +187,7 @@ export const JavaPart6Page: React.FC = () => {
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    document.title = `Part 6 • Level ${activeSection.number}: ${activeSection.title} — DO PILOT Java`;
+    document.title = `Do Pilot - ${activeSection.title}`;
     try {
       localStorage.setItem('dopilot_java_core_last_part', '6');
     } catch {}

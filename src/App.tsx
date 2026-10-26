@@ -94,7 +94,7 @@ const MainHome: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    document.title = "DO PILOT — Master Real-World Tech Skills";
+    document.title = "Do Pilot";
     
     let metaDesc = document.querySelector('meta[name="description"]');
     if (!metaDesc) {
