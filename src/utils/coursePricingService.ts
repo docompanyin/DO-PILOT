@@ -276,7 +276,7 @@ let memoryCouponsCache: CourseCoupon[] | null = null;
 let hasInitiatedCloudCouponsSync = false;
 
 export const getCourseCoupons = (): CourseCoupon[] => {
-  if (memoryCouponsCache && Array.isArray(memoryCouponsCache) && memoryCouponsCache.length > 0) {
+  if (memoryCouponsCache && Array.isArray(memoryCouponsCache)) {
     return memoryCouponsCache;
   }
 
@@ -284,7 +284,7 @@ export const getCourseCoupons = (): CourseCoupon[] => {
     const raw = localStorage.getItem(COUPONS_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         memoryCouponsCache = parsed;
         if (!hasInitiatedCloudCouponsSync) {
           hasInitiatedCloudCouponsSync = true;
@@ -333,18 +333,6 @@ export const syncCouponsFromCloud = async (): Promise<CourseCoupon[]> => {
         window.dispatchEvent(new CustomEvent('dopilot_coupons_updated', { detail: cloudCoupons }));
       } catch {}
       return cloudCoupons;
-    } else if (!data) {
-      // Cloud document doesn't exist yet, seed with initial default coupons
-      await supabase.from('site_content').upsert({
-        id: 'course_coupons_v1',
-        content: {
-          coupons: INITIAL_DEFAULT_COUPONS,
-          updatedAt: new Date().toISOString()
-        },
-        updated_at: new Date().toISOString()
-      });
-      memoryCouponsCache = INITIAL_DEFAULT_COUPONS;
-      return INITIAL_DEFAULT_COUPONS;
     }
   } catch (err) {
     console.warn('Failed to sync coupons from Supabase cloud:', err);
@@ -354,12 +342,38 @@ export const syncCouponsFromCloud = async (): Promise<CourseCoupon[]> => {
 };
 
 /**
- * Persist coupon mutations to cloud via authenticated admin API endpoint
+ * Persist coupon mutations directly to Supabase and backend
  */
 export const persistCouponsToCloud = async (coupons: CourseCoupon[]): Promise<boolean> => {
+  memoryCouponsCache = coupons;
+  try {
+    localStorage.setItem(COUPONS_STORAGE_KEY, JSON.stringify(coupons));
+    window.dispatchEvent(new CustomEvent('dopilot_coupons_updated', { detail: coupons }));
+  } catch {}
+
+  // 1. Direct Supabase write (instant multi-device sync via RLS)
+  if (isSupabaseConfigured()) {
+    try {
+      const { error } = await supabase
+        .from('site_content')
+        .upsert({
+          id: 'course_coupons_v1',
+          content: {
+            coupons,
+            updatedAt: new Date().toISOString()
+          },
+          updated_at: new Date().toISOString()
+        });
+      if (!error) return true;
+    } catch (err) {
+      console.warn('Direct Supabase coupon sync error:', err);
+    }
+  }
+
+  // 2. Server API fallback
   try {
     const adminToken = sessionStorage.getItem('docompany_secret_access_token') || 'adm_session_active';
-    const res = await fetch('/api/admin-coupons', {
+    await fetch('/api/admin-coupons', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -370,29 +384,10 @@ export const persistCouponsToCloud = async (coupons: CourseCoupon[]): Promise<bo
         coupons
       })
     });
-    if (res.ok) return true;
-  } catch (err) {
-    // If backend endpoint is unreachable during offline dev, fallback to supabase
-  }
+    return true;
+  } catch {}
 
-  if (!isSupabaseConfigured()) return true;
-
-  try {
-    const { error } = await supabase
-      .from('site_content')
-      .upsert({
-        id: 'course_coupons_v1',
-        content: {
-          coupons,
-          updatedAt: new Date().toISOString()
-        },
-        updated_at: new Date().toISOString()
-      });
-    return !error;
-  } catch (err) {
-    console.error('Error persisting coupons to cloud:', err);
-    return false;
-  }
+  return false;
 };
 
 /**

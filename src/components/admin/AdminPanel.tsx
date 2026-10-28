@@ -265,6 +265,13 @@ export const AdminPanel: React.FC = () => {
       setCourseCoupons(cloudCoupons);
     }).catch(() => {});
 
+    // Polling backup every 2.5s when Admin Panel is open to guarantee instant multi-device visibility
+    const syncInterval = setInterval(() => {
+      syncCouponsFromCloud().then((cloudCoupons) => {
+        setCourseCoupons(cloudCoupons);
+      }).catch(() => {});
+    }, 2500);
+
     // Subscribe to Supabase Realtime changes for coupons across all devices
     let realtimeChannel: any = null;
     if (isSupabaseConfigured()) {
@@ -276,11 +283,10 @@ export const AdminPanel: React.FC = () => {
             {
               event: '*',
               schema: 'public',
-              table: 'site_content',
-              filter: 'id=eq.course_coupons_v1'
+              table: 'site_content'
             },
             (payload: any) => {
-              if (payload?.new?.content?.coupons && Array.isArray(payload.new.content.coupons)) {
+              if (payload?.new?.id === 'course_coupons_v1' && payload?.new?.content?.coupons && Array.isArray(payload.new.content.coupons)) {
                 setCourseCoupons(payload.new.content.coupons);
               } else {
                 syncCouponsFromCloud().then(setCourseCoupons).catch(() => {});
@@ -315,6 +321,7 @@ export const AdminPanel: React.FC = () => {
     window.addEventListener('dopilot_access_granted', handlePricingCouponsUpdate);
     window.addEventListener('storage', handlePricingCouponsUpdate);
     return () => {
+      clearInterval(syncInterval);
       if (realtimeChannel) {
         try { supabase.removeChannel(realtimeChannel); } catch {}
       }
