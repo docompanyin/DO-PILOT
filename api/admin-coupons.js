@@ -94,12 +94,24 @@ async function verifyAdminAuthorization(req) {
       return { authorized: true, user: 'admin_api' };
     }
 
-    // Check admin_security_v1 credentials from site_content
-    const { data: secData } = await supabase
+    // Check authoritative security credentials from site_content
+    let secData = null;
+    const { data: primarySec } = await supabase
       .from('site_content')
       .select('content')
-      .eq('id', 'admin_security_v1')
+      .eq('id', 'telemetry_docompany_admin_security_v1')
       .maybeSingle();
+
+    if (primarySec?.content) {
+      secData = primarySec;
+    } else {
+      const { data: legacySec } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('id', 'admin_security_v1')
+        .maybeSingle();
+      secData = legacySec;
+    }
 
     const secConfig = secData?.content || {};
     const storedUser = (secConfig.username || 'realadmin2026@gmail.com').toLowerCase();

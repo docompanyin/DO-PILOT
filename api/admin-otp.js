@@ -24,10 +24,15 @@ function getEnvVar(name) {
   return '';
 }
 
-const SUPABASE_URL = getEnvVar('SUPABASE_URL') || 'https://hddvqkyisztzbwszbcoy.supabase.co';
-const SUPABASE_ANON_KEY = getEnvVar('SUPABASE_ANON_KEY') || 'sb_publishable_WLBBeLiTRNOPndzwB5658Q_2DjElVq4';
+const SUPABASE_URL = getEnvVar('SUPABASE_URL') || getEnvVar('VITE_SUPABASE_URL') || 'https://hddvqkyisztzbwszbcoy.supabase.co';
+const SUPABASE_SERVICE_ROLE_KEY = getEnvVar('SUPABASE_SERVICE_ROLE_KEY') || getEnvVar('SERVICE_ROLE_KEY');
+const SUPABASE_ANON_KEY = getEnvVar('SUPABASE_ANON_KEY') || getEnvVar('VITE_SUPABASE_ANON_KEY') || 'sb_publishable_WLBBeLiTRNOPndzwB5658Q_2DjElVq4';
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const keyToUse = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+const supabase = createClient(SUPABASE_URL, keyToUse);
+
+export const DOC_ADMIN_SECURITY = 'telemetry_docompany_admin_security_v1';
+export const DOC_ADMIN_AUDIT_LOGS = 'telemetry_docompany_admin_audit_logs_v1';
 
 function hashOtp(otp, salt, email) {
   return crypto
@@ -235,11 +240,24 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, message: 'Username and password are required.' });
       }
 
-      const { data: secData } = await supabase
+      // Check authoritative doc first, with backward-compatibility fallback
+      let secData = null;
+      const { data: primarySec } = await supabase
         .from('site_content')
         .select('content')
-        .eq('id', 'admin_security_v1')
+        .eq('id', DOC_ADMIN_SECURITY)
         .maybeSingle();
+
+      if (primarySec?.content) {
+        secData = primarySec;
+      } else {
+        const { data: legacySec } = await supabase
+          .from('site_content')
+          .select('content')
+          .eq('id', 'admin_security_v1')
+          .maybeSingle();
+        secData = legacySec;
+      }
 
       const secConfig = secData?.content || {};
       const storedUser = (secConfig.username || 'realadmin2026@gmail.com').toLowerCase();
@@ -292,7 +310,7 @@ export default async function handler(req, res) {
       }
 
       const slotTarget = target === 'secondary' ? 'secondary' : 'primary';
-      const sessionDocId = `admin_otp_session_${slotTarget}`;
+      const sessionDocId = `telemetry_docompany_admin_otp_session_${slotTarget}`;
 
       // Check Rate Limit / Cooldown (60s) from Supabase session
       const { data: existingSessionRow } = await supabase
@@ -344,11 +362,23 @@ export default async function handler(req, res) {
 
       // Record Safe Diagnostic Audit Log (NO plaintext OTP logged)
       try {
-        const { data: logsData } = await supabase
+        let logsData = null;
+        const { data: primaryLogs } = await supabase
           .from('site_content')
           .select('content')
-          .eq('id', 'admin_audit_logs_v1')
+          .eq('id', DOC_ADMIN_AUDIT_LOGS)
           .maybeSingle();
+
+        if (primaryLogs?.content) {
+          logsData = primaryLogs;
+        } else {
+          const { data: legacyLogs } = await supabase
+            .from('site_content')
+            .select('content')
+            .eq('id', 'admin_audit_logs_v1')
+            .maybeSingle();
+          logsData = legacyLogs;
+        }
 
         const currentLogs = Array.isArray(logsData?.content) ? logsData.content : [];
         const newLog = {
@@ -362,7 +392,7 @@ export default async function handler(req, res) {
         };
 
         await supabase.from('site_content').upsert({
-          id: 'admin_audit_logs_v1',
+          id: DOC_ADMIN_AUDIT_LOGS,
           content: [newLog, ...currentLogs].slice(0, 100),
           updated_at: new Date().toISOString()
         });
@@ -393,7 +423,7 @@ export default async function handler(req, res) {
 
       const cleanEmail = email.trim().toLowerCase();
       const slotTarget = target === 'secondary' ? 'secondary' : 'primary';
-      const sessionDocId = `admin_otp_session_${slotTarget}`;
+      const sessionDocId = `telemetry_docompany_admin_otp_session_${slotTarget}`;
 
       const { data: sessionRow, error: fetchErr } = await supabase
         .from('site_content')
@@ -453,11 +483,23 @@ export default async function handler(req, res) {
 
       // Safe Audit Log
       try {
-        const { data: logsData } = await supabase
+        let logsData = null;
+        const { data: primaryLogs } = await supabase
           .from('site_content')
           .select('content')
-          .eq('id', 'admin_audit_logs_v1')
+          .eq('id', DOC_ADMIN_AUDIT_LOGS)
           .maybeSingle();
+
+        if (primaryLogs?.content) {
+          logsData = primaryLogs;
+        } else {
+          const { data: legacyLogs } = await supabase
+            .from('site_content')
+            .select('content')
+            .eq('id', 'admin_audit_logs_v1')
+            .maybeSingle();
+          logsData = legacyLogs;
+        }
 
         const currentLogs = Array.isArray(logsData?.content) ? logsData.content : [];
         const newLog = {
@@ -471,7 +513,7 @@ export default async function handler(req, res) {
         };
 
         await supabase.from('site_content').upsert({
-          id: 'admin_audit_logs_v1',
+          id: DOC_ADMIN_AUDIT_LOGS,
           content: [newLog, ...currentLogs].slice(0, 100),
           updated_at: new Date().toISOString()
         });
@@ -492,11 +534,23 @@ export default async function handler(req, res) {
     if (action === 'change_security_config') {
       const { newConfig, adminToken, currentUsername, currentPassword } = req.body || {};
       
-      const { data: secData } = await supabase
+      let secData = null;
+      const { data: primarySec } = await supabase
         .from('site_content')
         .select('content')
-        .eq('id', 'admin_security_v1')
+        .eq('id', DOC_ADMIN_SECURITY)
         .maybeSingle();
+
+      if (primarySec?.content) {
+        secData = primarySec;
+      } else {
+        const { data: legacySec } = await supabase
+          .from('site_content')
+          .select('content')
+          .eq('id', 'admin_security_v1')
+          .maybeSingle();
+        secData = legacySec;
+      }
 
       const secConfig = secData?.content || {};
       const storedUser = (secConfig.username || 'realadmin2026@gmail.com').toLowerCase();
@@ -526,11 +580,16 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, message: 'Valid security config required.' });
       }
 
-      await supabase.from('site_content').upsert({
-        id: 'admin_security_v1',
+      const { error: upsertErr } = await supabase.from('site_content').upsert({
+        id: DOC_ADMIN_SECURITY,
         content: newConfig,
         updated_at: new Date().toISOString()
       });
+
+      if (upsertErr) {
+        console.error('Failed to upsert DOC_ADMIN_SECURITY:', upsertErr);
+        return res.status(500).json({ success: false, message: 'Database write error while saving credentials.' });
+      }
 
       return res.status(200).json({ success: true, message: 'Admin security settings updated successfully.' });
     }
@@ -545,15 +604,27 @@ export default async function handler(req, res) {
       }
 
       try {
-        const { data: logsData } = await supabase
+        let logsData = null;
+        const { data: primaryLogs } = await supabase
           .from('site_content')
           .select('content')
-          .eq('id', 'admin_audit_logs_v1')
+          .eq('id', DOC_ADMIN_AUDIT_LOGS)
           .maybeSingle();
+
+        if (primaryLogs?.content) {
+          logsData = primaryLogs;
+        } else {
+          const { data: legacyLogs } = await supabase
+            .from('site_content')
+            .select('content')
+            .eq('id', 'admin_audit_logs_v1')
+            .maybeSingle();
+          logsData = legacyLogs;
+        }
 
         const currentLogs = Array.isArray(logsData?.content) ? logsData.content : [];
         await supabase.from('site_content').upsert({
-          id: 'admin_audit_logs_v1',
+          id: DOC_ADMIN_AUDIT_LOGS,
           content: [logEntry, ...currentLogs].slice(0, 100),
           updated_at: new Date().toISOString()
         });

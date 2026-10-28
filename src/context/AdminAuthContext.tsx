@@ -163,6 +163,12 @@ const EXPIRY_KEY = 'docompany_secret_access_expiry';
 const LOCKOUT_KEY = 'docompany_admin_lockout_until';
 const FAILED_ATTEMPTS_KEY = 'docompany_admin_failed_attempts';
 
+// Authoritative Supabase Cloud document IDs for admin security & audit logs
+export const CLOUD_ADMIN_SECURITY_ID = 'telemetry_docompany_admin_security_v1';
+export const CLOUD_ADMIN_AUDIT_LOGS_ID = 'telemetry_docompany_admin_audit_logs_v1';
+export const LEGACY_ADMIN_SECURITY_ID = 'admin_security_v1';
+export const LEGACY_ADMIN_AUDIT_LOGS_ID = 'admin_audit_logs_v1';
+
 // Official Admin Credentials requested by User
 const DEFAULT_USER = 'realadmin2026@gmail.com';
 const DEFAULT_EMAIL_1 = '';
@@ -315,12 +321,31 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           return;
         }
 
-        // 1. Fetch admin credentials row from Supabase
-        const { data: secData, error: secError } = await supabase
+        // 1. Fetch authoritative admin credentials row from Supabase
+        let secData: any = null;
+        let secError: any = null;
+
+        const { data: primarySec, error: pError } = await supabase
           .from('site_content')
           .select('content, updated_at')
-          .eq('id', 'admin_security_v1')
+          .eq('id', CLOUD_ADMIN_SECURITY_ID)
           .maybeSingle();
+
+        if (primarySec?.content) {
+          secData = primarySec;
+        } else {
+          // Check legacy row if primary row not yet created
+          const { data: legacySec, error: lError } = await supabase
+            .from('site_content')
+            .select('content, updated_at')
+            .eq('id', LEGACY_ADMIN_SECURITY_ID)
+            .maybeSingle();
+          if (legacySec?.content) {
+            secData = legacySec;
+          } else {
+            secError = pError || lError;
+          }
+        }
 
         if (secData && secData.content) {
           const parsed = secData.content as AdminSecurityConfig;
@@ -339,18 +364,30 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             updatedAt: new Date().toISOString()
           };
           await supabase.from('site_content').upsert({
-            id: 'admin_security_v1',
+            id: CLOUD_ADMIN_SECURITY_ID,
             content: currentConfig,
             updated_at: new Date().toISOString()
           });
         }
 
-        // 2. Fetch admin audit logs row
-        const { data: logsData } = await supabase
+        // 2. Fetch authoritative admin audit logs row
+        let logsData: any = null;
+        const { data: primaryLogs } = await supabase
           .from('site_content')
           .select('content')
-          .eq('id', 'admin_audit_logs_v1')
+          .eq('id', CLOUD_ADMIN_AUDIT_LOGS_ID)
           .maybeSingle();
+
+        if (primaryLogs?.content && Array.isArray(primaryLogs.content)) {
+          logsData = primaryLogs;
+        } else {
+          const { data: legacyLogs } = await supabase
+            .from('site_content')
+            .select('content')
+            .eq('id', LEGACY_ADMIN_AUDIT_LOGS_ID)
+            .maybeSingle();
+          logsData = legacyLogs;
+        }
 
         if (logsData && logsData.content && Array.isArray(logsData.content) && isMounted) {
           const remoteLogs = logsData.content as AuditLog[];
@@ -460,7 +497,7 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               supabase
                 .from('site_content')
                 .upsert({
-                  id: 'admin_audit_logs_v1',
+                  id: CLOUD_ADMIN_AUDIT_LOGS_ID,
                   content: updated,
                   updated_at: new Date().toISOString()
                 })
@@ -476,14 +513,26 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const refreshAuditLogs = async () => {
     if (!isSupabaseConfigured()) return;
     try {
-      const { data } = await supabase
+      let logsData: any = null;
+      const { data: primaryLogs } = await supabase
         .from('site_content')
         .select('content')
-        .eq('id', 'admin_audit_logs_v1')
+        .eq('id', CLOUD_ADMIN_AUDIT_LOGS_ID)
         .maybeSingle();
 
-      if (data && Array.isArray(data.content)) {
-        setAuditLogs(data.content as AuditLog[]);
+      if (primaryLogs?.content && Array.isArray(primaryLogs.content)) {
+        logsData = primaryLogs;
+      } else {
+        const { data: legacyLogs } = await supabase
+          .from('site_content')
+          .select('content')
+          .eq('id', LEGACY_ADMIN_AUDIT_LOGS_ID)
+          .maybeSingle();
+        logsData = legacyLogs;
+      }
+
+      if (logsData && Array.isArray(logsData.content)) {
+        setAuditLogs(logsData.content as AuditLog[]);
       }
     } catch (e) {
       console.error('Error refreshing audit logs:', e);
@@ -543,6 +592,7 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setSecurityConfig(newConfig);
 
       // Primary: Server-side authenticated API write
+      let apiSuccess = false;
       try {
         const adminToken = sessionStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(EMERGENCY_TOKEN_KEY) || 'adm_session_active';
         const res = await fetch('/api/admin-otp', {
@@ -554,22 +604,30 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             adminToken
           })
         });
-        if (res.ok) return true;
+        if (res.ok) {
+          const resData = await res.json();
+          if (resData.success) {
+            apiSuccess = true;
+          }
+        }
       } catch (apiErr) {
         // Fallback for offline dev
       }
 
       if (isSupabaseConfigured()) {
         const { error } = await supabase.from('site_content').upsert({
-          id: 'admin_security_v1',
+          id: CLOUD_ADMIN_SECURITY_ID,
           content: newConfig,
           updated_at: newConfig.updatedAt
         });
         if (error) {
           console.error('Supabase credentials upsert failed:', error.message);
+          if (!apiSuccess) return false;
+        } else {
+          return true;
         }
       }
-      return true;
+      return apiSuccess;
     } catch (e) {
       console.error('Failed to persist security configuration:', e);
       return false;
@@ -687,11 +745,39 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return { success: false, message: 'Please provide both current username and current password.' };
     }
 
-    const isUserMatch =
-      cleanUser === securityConfig.username.toLowerCase() ||
-      (securityConfig.primaryEmail && cleanUser === securityConfig.primaryEmail.toLowerCase());
+    if (cleanNewPass.length < 6) {
+      return {
+        success: false,
+        message: 'New password must be at least 6 characters long.'
+      };
+    }
 
-    const isPassMatch = await verifyPasswordHash(cleanPass, securityConfig.passwordHash, securityConfig.passwordSalt);
+    // 1. Authoritative verification: Fetch latest security config from cloud first
+    let activeConfig = securityConfig;
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: cloudSec } = await supabase
+          .from('site_content')
+          .select('content')
+          .eq('id', CLOUD_ADMIN_SECURITY_ID)
+          .maybeSingle();
+
+        if (cloudSec?.content && cloudSec.content.passwordHash) {
+          activeConfig = cloudSec.content as AdminSecurityConfig;
+          setSecurityConfig(activeConfig);
+          localStorage.setItem(AUTH_KEY, JSON.stringify(activeConfig));
+        }
+      } catch (err) {
+        console.warn('Could not refresh security config from cloud before password change:', err);
+      }
+    }
+
+    const isUserMatch =
+      cleanUser === activeConfig.username.toLowerCase() ||
+      (activeConfig.primaryEmail && cleanUser === activeConfig.primaryEmail.toLowerCase()) ||
+      (activeConfig.secondaryEmail && cleanUser === activeConfig.secondaryEmail.toLowerCase());
+
+    const isPassMatch = await verifyPasswordHash(cleanPass, activeConfig.passwordHash, activeConfig.passwordSalt);
 
     if (!isUserMatch || !isPassMatch) {
       addAuditLog('PASSWORD_CHANGE_FAILED', 'Method A: Incorrect current admin username or password.', 'FAILED', 'Admin Account');
@@ -701,19 +787,12 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     }
 
-    if (cleanNewPass.length < 6) {
-      return {
-        success: false,
-        message: 'New password must be at least 6 characters long.'
-      };
-    }
-
     // Generate fresh salt and compute SHA-256 hash
     const newSalt = generateSalt(16);
     const newHash = await hashPassword(cleanNewPass, newSalt);
 
     const updatedConfig: AdminSecurityConfig = {
-      ...securityConfig,
+      ...activeConfig,
       passwordHash: newHash,
       passwordSalt: newSalt,
       updatedAt: new Date().toISOString()
@@ -727,7 +806,7 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         'SUCCESS',
         'Admin Account',
         undefined,
-        securityConfig.username
+        activeConfig.username
       );
       return {
         success: true,
