@@ -102,11 +102,13 @@ export const logQuestionAttempt = (
             // 2. Direct fallback
             if (isSupabaseConfigured()) {
               const docId = `telemetry_${cleanEmail.replace(/[^a-z0-9_]/g, '_')}`;
-              supabase.from('site_content').upsert({
-                id: docId,
-                content: list,
-                updated_at: new Date().toISOString()
-              }).catch(() => {});
+              Promise.resolve(
+                supabase.from('site_content').upsert({
+                  id: docId,
+                  content: list,
+                  updated_at: new Date().toISOString()
+                })
+              ).catch(() => {});
             }
           });
         }

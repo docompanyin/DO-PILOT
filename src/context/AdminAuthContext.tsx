@@ -456,13 +456,15 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           })
         }).catch(() => {
           if (isSupabaseConfigured()) {
-            supabase
-              .from('site_content')
-              .upsert({
-                id: 'admin_audit_logs_v1',
-                content: updated,
-                updated_at: new Date().toISOString()
-              }).catch(() => {});
+            Promise.resolve(
+              supabase
+                .from('site_content')
+                .upsert({
+                  id: 'admin_audit_logs_v1',
+                  content: updated,
+                  updated_at: new Date().toISOString()
+                })
+            ).catch(() => {});
           }
         });
         return updated;
