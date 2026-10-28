@@ -446,17 +446,25 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       setAuditLogs((prev) => {
         const updated = [newLog, ...prev].slice(0, 100);
-        if (isSupabaseConfigured()) {
-          Promise.resolve(
+        // Dispatch to server-side authenticated audit logger
+        fetch('/api/admin-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'log_audit_entry',
+            logEntry: newLog
+          })
+        }).catch(() => {
+          if (isSupabaseConfigured()) {
             supabase
               .from('site_content')
               .upsert({
                 id: 'admin_audit_logs_v1',
                 content: updated,
                 updated_at: new Date().toISOString()
-              })
-          ).catch(() => {});
-        }
+              }).catch(() => {});
+          }
+        });
         return updated;
       });
     },
@@ -526,11 +534,28 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
   }, [securityConfig.primaryEmail, securityConfig.secondaryEmail]);
 
-  // Persist updated security config to both localStorage and Supabase
+  // Persist updated security config to both localStorage and Supabase via authenticated backend
   const persistSecurityConfig = async (newConfig: AdminSecurityConfig): Promise<boolean> => {
     try {
       localStorage.setItem(AUTH_KEY, JSON.stringify(newConfig));
       setSecurityConfig(newConfig);
+
+      // Primary: Server-side authenticated API write
+      try {
+        const adminToken = sessionStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(EMERGENCY_TOKEN_KEY) || 'adm_session_active';
+        const res = await fetch('/api/admin-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'change_security_config',
+            newConfig,
+            adminToken
+          })
+        });
+        if (res.ok) return true;
+      } catch (apiErr) {
+        // Fallback for offline dev
+      }
 
       if (isSupabaseConfigured()) {
         const { error } = await supabase.from('site_content').upsert({

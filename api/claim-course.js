@@ -30,13 +30,6 @@ const SUPABASE_ANON_KEY = getEnvVar('SUPABASE_ANON_KEY') || getEnvVar('VITE_SUPA
 const keyToUse = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
 const supabase = createClient(SUPABASE_URL, keyToUse);
 
-// Standard Zero-Amount Approved Coupons
-const KNOWN_ZERO_COUPONS = [
-  { code: 'DOPILOT100', courseId: 'all', discountType: 'percentage', discountValue: 100, isActive: true },
-  { code: 'FREE100', courseId: 'all', discountType: 'percentage', discountValue: 100, isActive: true },
-  { code: 'PYTHONFREE', courseId: 'python-core', discountType: 'percentage', discountValue: 100, isActive: true }
-];
-
 const CANONICAL_COURSES = {
   'python-core': {
     id: 'python-core',
@@ -64,6 +57,57 @@ const CANONICAL_COURSES = {
   }
 };
 
+const DEFAULT_COUPONS = [
+  {
+    id: 'CPN-101',
+    code: 'DOPILOT100',
+    courseId: 'all',
+    discountType: 'percentage',
+    discountValue: 100,
+    maxUses: -1,
+    usedCount: 0,
+    isActive: true,
+    description: '100% Free Full Course Access Scholarship',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'CPN-102',
+    code: 'FREE100',
+    courseId: 'all',
+    discountType: 'percentage',
+    discountValue: 100,
+    maxUses: -1,
+    usedCount: 0,
+    isActive: true,
+    description: 'Full 100% Off Course Access Unlock',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'CPN-103',
+    code: 'EARLYBIRD50',
+    courseId: 'all',
+    discountType: 'percentage',
+    discountValue: 50,
+    maxUses: 500,
+    usedCount: 0,
+    isActive: true,
+    description: '50% Early Bird Community Discount',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'CPN-104',
+    code: 'PYTHONFREE',
+    courseId: 'python-core',
+    discountType: 'percentage',
+    discountValue: 100,
+    maxUses: 200,
+    usedCount: 0,
+    isActive: true,
+    description: '100% Off Complete Python Course',
+    createdAt: new Date().toISOString()
+  }
+];
+
 function normalizeCourseId(rawId) {
   if (!rawId) return 'python-core';
   const norm = String(rawId).toLowerCase().trim();
@@ -72,6 +116,48 @@ function normalizeCourseId(rawId) {
   if (norm.includes('fullstack')) return 'fullstack-open';
   if (norm.includes('cyber')) return 'cyber-security';
   return norm;
+}
+
+// Atomic helper to load shared coupons from site_content
+async function loadSharedCoupons() {
+  try {
+    const { data, error } = await supabase
+      .from('site_content')
+      .select('content')
+      .eq('id', 'course_coupons_v1')
+      .maybeSingle();
+
+    if (!error && data && data.content && Array.isArray(data.content.coupons)) {
+      return data.content.coupons;
+    }
+  } catch (err) {
+    console.error('Failed to load shared coupons from Supabase:', err);
+  }
+  return DEFAULT_COUPONS;
+}
+
+// Atomic helper to save shared coupons to site_content
+async function saveSharedCoupons(coupons) {
+  try {
+    const { error } = await supabase
+      .from('site_content')
+      .upsert({
+        id: 'course_coupons_v1',
+        content: {
+          coupons,
+          updatedAt: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString()
+      });
+    if (error) {
+      console.error('Failed to upsert course_coupons_v1 to site_content:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Exception updating course_coupons_v1 in site_content:', err);
+    return false;
+  }
 }
 
 export default async function handler(req, res) {
@@ -107,7 +193,8 @@ export default async function handler(req, res) {
       studentId,
       studentEmail,
       studentName,
-      studentPhone
+      studentPhone,
+      validateOnly
     } = req.body || {};
 
     const cleanCourseId = normalizeCourseId(courseId);
@@ -122,29 +209,139 @@ export default async function handler(req, res) {
 
     const cleanCoupon = (couponCode || '').trim().toUpperCase();
 
-    // Validate coupon eligibility
-    let isValidZeroCoupon = false;
-    const foundCoupon = KNOWN_ZERO_COUPONS.find(c => c.code === cleanCoupon);
+    // 1. Load active shared coupons from persistent backend
+    const allCoupons = await loadSharedCoupons();
+    const coupon = allCoupons.find(c => (c.code || '').trim().toUpperCase() === cleanCoupon);
 
-    if (foundCoupon && foundCoupon.isActive) {
-      if (foundCoupon.courseId === 'all' || normalizeCourseId(foundCoupon.courseId) === cleanCourseId) {
-        if (foundCoupon.discountType === 'percentage' && foundCoupon.discountValue >= 100) {
-          isValidZeroCoupon = true;
-        }
+    if (!coupon) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid coupon code. Check spelling and try again.'
+      });
+    }
+
+    if (!coupon.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'This coupon is currently inactive or disabled.'
+      });
+    }
+
+    // Check course applicability
+    const normalizedCouponCourse = coupon.courseId === 'all' ? 'all' : normalizeCourseId(coupon.courseId);
+    if (normalizedCouponCourse !== 'all' && normalizedCouponCourse !== cleanCourseId) {
+      return res.status(400).json({
+        success: false,
+        message: `Coupon "${cleanCoupon}" is not applicable to ${courseMeta.title}.`
+      });
+    }
+
+    // Check expiry timestamp
+    if (coupon.validUntil) {
+      const expiry = new Date(coupon.validUntil).getTime();
+      if (Date.now() > expiry) {
+        return res.status(400).json({
+          success: false,
+          message: 'This coupon code has expired.'
+        });
       }
     }
 
-    if (!isValidZeroCoupon) {
+    // Check usage limits
+    const maxUses = Number(coupon.maxUses);
+    const currentUsedCount = Number(coupon.usedCount || 0);
+    if (maxUses > 0 && currentUsedCount >= maxUses) {
+      return res.status(400).json({
+        success: false,
+        message: 'This coupon has reached its maximum usage limit.'
+      });
+    }
+
+    // Calculate discount amount & final price
+    let discountAmount = 0;
+    const currentPrice = courseMeta.salePrice;
+    if (coupon.discountType === 'percentage') {
+      if (coupon.discountValue >= 100) {
+        discountAmount = currentPrice;
+      } else {
+        discountAmount = Math.round((currentPrice * coupon.discountValue) / 100);
+      }
+    } else {
+      discountAmount = Math.min(currentPrice, Number(coupon.discountValue) || 0);
+    }
+    const finalPrice = Math.max(0, currentPrice - discountAmount);
+
+    // If request is validateOnly, return discount calculations without consuming a redemption slot
+    if (validateOnly) {
+      return res.status(200).json({
+        success: true,
+        valid: true,
+        coupon: {
+          id: coupon.id,
+          code: coupon.code,
+          courseId: coupon.courseId,
+          discountType: coupon.discountType,
+          discountValue: coupon.discountValue,
+          maxUses: coupon.maxUses,
+          usedCount: currentUsedCount,
+          isActive: coupon.isActive,
+          validUntil: coupon.validUntil,
+          description: coupon.description
+        },
+        discountAmount,
+        finalPrice,
+        courseId: cleanCourseId,
+        message: finalPrice === 0
+          ? `Coupon applied: 100% discount! Course is now ₹0.`
+          : `Coupon applied: ₹${discountAmount.toLocaleString()} discount!`
+      });
+    }
+
+    // Must be a 100% discount for zero-claim endpoint
+    if (finalPrice > 0) {
       return res.status(400).json({
         success: false,
         message: 'Invalid or ineligible coupon code. Coupon must provide a 100% discount to claim this course.'
       });
     }
 
+    // Execute atomic redemption:
+    // Re-fetch latest state right before incrementing to prevent race conditions
+    let updatedCoupons = await loadSharedCoupons();
+    let targetIdx = updatedCoupons.findIndex(c => (c.code || '').trim().toUpperCase() === cleanCoupon);
+    if (targetIdx === -1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Coupon code not found in shared storage.'
+      });
+    }
+
+    let targetCoupon = updatedCoupons[targetIdx];
+    const liveMax = Number(targetCoupon.maxUses);
+    const liveUsed = Number(targetCoupon.usedCount || 0);
+
+    if (liveMax > 0 && liveUsed >= liveMax) {
+      return res.status(400).json({
+        success: false,
+        message: 'This coupon has reached its maximum usage limit.'
+      });
+    }
+
+    // Increment usage count atomically
+    updatedCoupons[targetIdx] = {
+      ...targetCoupon,
+      usedCount: liveUsed + 1
+    };
+
+    const saved = await saveSharedCoupons(updatedCoupons);
+    if (!saved) {
+      console.warn('Could not persist incremented coupon count to cloud site_content');
+    }
+
     const cleanEmail = (studentEmail || '').trim().toLowerCase();
     const cleanId = (studentId || '').trim();
 
-    // Persist full-course entitlement in Supabase
+    // Persist full-course entitlement in Supabase student_profiles
     let enrolledCourses = [courseMeta.title];
 
     if (cleanEmail) {
@@ -202,6 +399,7 @@ export default async function handler(req, res) {
       courseId: cleanCourseId,
       courseName: courseMeta.title,
       enrolledCourses,
+      newUsedCount: liveUsed + 1,
       message: `${courseMeta.title} claimed successfully with 100% scholarship!`
     });
   } catch (err) {

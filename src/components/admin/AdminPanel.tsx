@@ -59,6 +59,7 @@ import {
   updateCourseCoupon,
   deleteCourseCoupon,
   toggleCourseCouponActive,
+  syncCouponsFromCloud,
   hasCourseAccess,
   normalizeCourseId
 } from '../../utils/coursePricingService';
@@ -259,6 +260,39 @@ export const AdminPanel: React.FC = () => {
   const pendingManualPayments = coursePurchases.filter(p => p.paymentMethod === 'manual_upi_qr' && p.status === 'pending_verification');
 
   useEffect(() => {
+    // Initial fetch from persistent cloud storage
+    syncCouponsFromCloud().then((cloudCoupons) => {
+      setCourseCoupons(cloudCoupons);
+    }).catch(() => {});
+
+    // Subscribe to Supabase Realtime changes for coupons across all devices
+    let realtimeChannel: any = null;
+    if (isSupabaseConfigured()) {
+      try {
+        realtimeChannel = supabase
+          .channel('public:site_content:coupons')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'site_content',
+              filter: 'id=eq.course_coupons_v1'
+            },
+            (payload: any) => {
+              if (payload?.new?.content?.coupons && Array.isArray(payload.new.content.coupons)) {
+                setCourseCoupons(payload.new.content.coupons);
+              } else {
+                syncCouponsFromCloud().then(setCourseCoupons).catch(() => {});
+              }
+            }
+          )
+          .subscribe();
+      } catch (err) {
+        console.warn('Could not establish realtime channel for coupons:', err);
+      }
+    }
+
     const handlePricingCouponsUpdate = () => {
       setCoursePricingList(getCoursePricingList());
       setCourseCoupons(getCourseCoupons());
@@ -281,6 +315,9 @@ export const AdminPanel: React.FC = () => {
     window.addEventListener('dopilot_access_granted', handlePricingCouponsUpdate);
     window.addEventListener('storage', handlePricingCouponsUpdate);
     return () => {
+      if (realtimeChannel) {
+        try { supabase.removeChannel(realtimeChannel); } catch {}
+      }
       window.removeEventListener('dopilot_pricing_updated', handlePricingCouponsUpdate);
       window.removeEventListener('dopilot_coupons_updated', handlePricingCouponsUpdate);
       window.removeEventListener('dopilot_course_purchased', handlePricingCouponsUpdate);

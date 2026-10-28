@@ -494,7 +494,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
     onClose();
   };
 
-  const handleApplyCoupon = (codeToApply?: string) => {
+  const handleApplyCoupon = async (codeToApply?: string) => {
     // Immediate authentication validation
     const raw = localStorage.getItem(USER_SESSION_KEY);
     const hasCookie = hasAuthCookie();
@@ -504,7 +504,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
       return;
     }
 
-    const code = (codeToApply || couponInput).trim();
+    const code = (codeToApply || couponInput).trim().toUpperCase();
     if (!code) {
       setCouponError('Please enter a coupon code.');
       return;
@@ -513,6 +513,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
     setCouponError(null);
     setCouponSuccessMsg(null);
 
+    // 1. Initial client-side validation
     const validation = validateCoupon(code, courseId, pricing.salePrice);
     if (!validation.valid || !validation.coupon) {
       setCouponError(validation.error || 'Invalid or expired coupon code.');
@@ -522,6 +523,49 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
       return;
     }
 
+    // 2. Authoritative backend validation across devices/cloud
+    try {
+      const res = await fetch('/api/claim-course', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          courseId: normalizeCourseId(courseId),
+          couponCode: code,
+          studentId: user?.id || user?.email,
+          studentEmail: user?.email,
+          studentName: user?.name,
+          studentPhone: user?.phone,
+          validateOnly: true
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.valid) {
+        setCouponError(data?.message || 'Coupon validation failed on server.');
+        setAppliedCoupon(null);
+        setDiscountAmount(0);
+        setFinalAmount(pricing.salePrice);
+        return;
+      }
+
+      const serverCoupon: CourseCoupon = data.coupon || validation.coupon;
+      setAppliedCoupon(serverCoupon);
+      setDiscountAmount(data.discountAmount !== undefined ? data.discountAmount : validation.discountAmount);
+      setFinalAmount(data.finalPrice !== undefined ? data.finalPrice : validation.finalPrice);
+
+      if (data.finalPrice === 0 || validation.finalPrice === 0) {
+        setCouponSuccessMsg(`Coupon applied: 100% discount! Course is now ₹0.`);
+      } else {
+        setCouponSuccessMsg(
+          `Coupon applied: ₹${(data.discountAmount || validation.discountAmount).toLocaleString()} discount!`
+        );
+      }
+      return;
+    } catch (netErr) {
+      console.warn('Backend validation network error, falling back to local validation:', netErr);
+    }
+
+    // Fallback to local validation if offline
     const coupon = validation.coupon;
     setAppliedCoupon(coupon);
     setDiscountAmount(validation.discountAmount);
@@ -598,6 +642,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
       }
 
       // 2. Server-side coupon & eligibility pre-validation check
+      let serverValidationOk = false;
       try {
         const res = await fetch('/api/claim-course', {
           method: 'POST',
@@ -619,6 +664,7 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
           setIsProcessing(false);
           return;
         }
+        serverValidationOk = true;
       } catch (err: any) {
         console.warn('Backend claim endpoint request issue, falling back to local persistence:', err);
       }
@@ -635,7 +681,30 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
 
         // Confirm purchase & grant access ONLY AFTER success stage is reached
         try {
-          // Grant access locally
+          // Confirm with backend first to atomically increment usage count in persistent DB
+          let backendClaimSuccess = false;
+          try {
+            const claimRes = await fetch('/api/claim-course', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                courseId: normalizedCourse,
+                couponCode,
+                studentId,
+                studentEmail,
+                studentName,
+                studentPhone
+              })
+            });
+            const claimData = await claimRes.json();
+            if (claimRes.ok && claimData.success) {
+              backendClaimSuccess = true;
+            }
+          } catch (netErr) {
+            console.warn('Backend claim execution network issue:', netErr);
+          }
+
+          // Grant access locally and sync state
           const result = recordCoursePurchase({
             studentId,
             studentName,
@@ -650,22 +719,6 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
             paymentMethod: 'coupon_free_unlock',
             status: 'completed'
           });
-
-          // Confirm with backend if available
-          try {
-            await fetch('/api/claim-course', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                courseId: normalizedCourse,
-                couponCode,
-                studentId,
-                studentEmail,
-                studentName,
-                studentPhone
-              })
-            });
-          } catch {}
 
           if (result.success && isLoggedIn) {
             enrollInCourse(resolvedCourseName);

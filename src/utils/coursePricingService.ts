@@ -270,23 +270,128 @@ export const updateCoursePricing = (updated: CoursePricing): boolean => {
 };
 
 /**
- * Get all course coupons
+ * Get all course coupons (loads from memory/localStorage, with background cloud sync)
  */
+let memoryCouponsCache: CourseCoupon[] | null = null;
+let hasInitiatedCloudCouponsSync = false;
+
 export const getCourseCoupons = (): CourseCoupon[] => {
+  if (memoryCouponsCache && Array.isArray(memoryCouponsCache) && memoryCouponsCache.length > 0) {
+    return memoryCouponsCache;
+  }
+
   try {
     const raw = localStorage.getItem(COUPONS_STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(COUPONS_STORAGE_KEY, JSON.stringify(INITIAL_DEFAULT_COUPONS));
-      return INITIAL_DEFAULT_COUPONS;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        memoryCouponsCache = parsed;
+        if (!hasInitiatedCloudCouponsSync) {
+          hasInitiatedCloudCouponsSync = true;
+          syncCouponsFromCloud().catch(() => {});
+        }
+        return parsed;
+      }
     }
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
-    }
-    return INITIAL_DEFAULT_COUPONS;
   } catch (e) {
     console.error('Failed to read coupons from storage:', e);
-    return INITIAL_DEFAULT_COUPONS;
+  }
+
+  memoryCouponsCache = INITIAL_DEFAULT_COUPONS;
+  try {
+    localStorage.setItem(COUPONS_STORAGE_KEY, JSON.stringify(INITIAL_DEFAULT_COUPONS));
+  } catch {}
+
+  if (!hasInitiatedCloudCouponsSync) {
+    hasInitiatedCloudCouponsSync = true;
+    syncCouponsFromCloud().catch(() => {});
+  }
+
+  return INITIAL_DEFAULT_COUPONS;
+};
+
+/**
+ * Fetch and synchronize shared coupons from Supabase site_content table
+ */
+export const syncCouponsFromCloud = async (): Promise<CourseCoupon[]> => {
+  if (!isSupabaseConfigured()) {
+    return getCourseCoupons();
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('site_content')
+      .select('content')
+      .eq('id', 'course_coupons_v1')
+      .maybeSingle();
+
+    if (!error && data && data.content && Array.isArray(data.content.coupons)) {
+      const cloudCoupons: CourseCoupon[] = data.content.coupons;
+      memoryCouponsCache = cloudCoupons;
+      try {
+        localStorage.setItem(COUPONS_STORAGE_KEY, JSON.stringify(cloudCoupons));
+        window.dispatchEvent(new CustomEvent('dopilot_coupons_updated', { detail: cloudCoupons }));
+      } catch {}
+      return cloudCoupons;
+    } else if (!data) {
+      // Cloud document doesn't exist yet, seed with initial default coupons
+      await supabase.from('site_content').upsert({
+        id: 'course_coupons_v1',
+        content: {
+          coupons: INITIAL_DEFAULT_COUPONS,
+          updatedAt: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString()
+      });
+      memoryCouponsCache = INITIAL_DEFAULT_COUPONS;
+      return INITIAL_DEFAULT_COUPONS;
+    }
+  } catch (err) {
+    console.warn('Failed to sync coupons from Supabase cloud:', err);
+  }
+
+  return getCourseCoupons();
+};
+
+/**
+ * Persist coupon mutations to cloud via authenticated admin API endpoint
+ */
+export const persistCouponsToCloud = async (coupons: CourseCoupon[]): Promise<boolean> => {
+  try {
+    const adminToken = sessionStorage.getItem('docompany_secret_access_token') || 'adm_session_active';
+    const res = await fetch('/api/admin-coupons', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': adminToken
+      },
+      body: JSON.stringify({
+        action: 'update_all',
+        coupons
+      })
+    });
+    if (res.ok) return true;
+  } catch (err) {
+    // If backend endpoint is unreachable during offline dev, fallback to supabase
+  }
+
+  if (!isSupabaseConfigured()) return true;
+
+  try {
+    const { error } = await supabase
+      .from('site_content')
+      .upsert({
+        id: 'course_coupons_v1',
+        content: {
+          coupons,
+          updatedAt: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString()
+      });
+    return !error;
+  } catch (err) {
+    console.error('Error persisting coupons to cloud:', err);
+    return false;
   }
 };
 
@@ -296,7 +401,7 @@ export const getCourseCoupons = (): CourseCoupon[] => {
 export const createCourseCoupon = (
   couponData: Omit<CourseCoupon, 'id' | 'createdAt' | 'usedCount'>
 ): CourseCoupon => {
-  const current = getCourseCoupons();
+  const current = [...getCourseCoupons()];
   const normalizedCode = couponData.code.trim().toUpperCase();
 
   const newCoupon: CourseCoupon = {
@@ -308,6 +413,8 @@ export const createCourseCoupon = (
   };
 
   const updated = [newCoupon, ...current];
+  memoryCouponsCache = updated;
+
   try {
     localStorage.setItem(COUPONS_STORAGE_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent('dopilot_coupons_updated', { detail: newCoupon }));
@@ -315,24 +422,8 @@ export const createCourseCoupon = (
     console.error('Failed to save new coupon to storage:', e);
   }
 
-  // Supabase background sync
-  if (isSupabaseConfigured()) {
-    Promise.resolve(
-      supabase.from('course_coupons').insert({
-        id: newCoupon.id,
-        code: newCoupon.code,
-        course_id: newCoupon.courseId,
-        discount_type: newCoupon.discountType,
-        discount_value: newCoupon.discountValue,
-        max_uses: newCoupon.maxUses,
-        used_count: 0,
-        is_active: newCoupon.isActive,
-        description: newCoupon.description || null,
-        valid_until: newCoupon.validUntil || null,
-        created_at: newCoupon.createdAt
-      })
-    ).catch(() => {});
-  }
+  // Persist to shared cloud document
+  persistCouponsToCloud(updated).catch(() => {});
 
   return newCoupon;
 };
@@ -341,14 +432,16 @@ export const createCourseCoupon = (
  * Update existing coupon (Admin)
  */
 export const updateCourseCoupon = (coupon: CourseCoupon): boolean => {
-  const current = getCourseCoupons();
-  const idx = current.findIndex(c => c.id === coupon.id);
+  const current = [...getCourseCoupons()];
+  const idx = current.findIndex(c => c.id === coupon.id || c.code.toUpperCase() === coupon.code.toUpperCase());
   if (idx === -1) return false;
 
   current[idx] = {
     ...coupon,
     code: coupon.code.trim().toUpperCase()
   };
+
+  memoryCouponsCache = current;
 
   try {
     localStorage.setItem(COUPONS_STORAGE_KEY, JSON.stringify(current));
@@ -358,22 +451,8 @@ export const updateCourseCoupon = (coupon: CourseCoupon): boolean => {
     return false;
   }
 
-  if (isSupabaseConfigured()) {
-    Promise.resolve(
-      supabase.from('course_coupons').upsert({
-        id: coupon.id,
-        code: coupon.code,
-        course_id: coupon.courseId,
-        discount_type: coupon.discountType,
-        discount_value: coupon.discountValue,
-        max_uses: coupon.maxUses,
-        used_count: coupon.usedCount,
-        is_active: coupon.isActive,
-        description: coupon.description || null,
-        valid_until: coupon.validUntil || null
-      })
-    ).catch(() => {});
-  }
+  // Persist to shared cloud document
+  persistCouponsToCloud(current).catch(() => {});
 
   return true;
 };
@@ -382,10 +461,12 @@ export const updateCourseCoupon = (coupon: CourseCoupon): boolean => {
  * Delete a coupon (Admin)
  */
 export const deleteCourseCoupon = (couponIdOrCode: string): boolean => {
-  const current = getCourseCoupons();
+  const current = [...getCourseCoupons()];
   const target = current.find(c => c.id === couponIdOrCode || c.code.toUpperCase() === couponIdOrCode.toUpperCase());
   if (!target) return false;
   const updated = current.filter(c => c.id !== target.id);
+
+  memoryCouponsCache = updated;
 
   try {
     localStorage.setItem(COUPONS_STORAGE_KEY, JSON.stringify(updated));
@@ -395,11 +476,8 @@ export const deleteCourseCoupon = (couponIdOrCode: string): boolean => {
     return false;
   }
 
-  if (isSupabaseConfigured()) {
-    Promise.resolve(
-      supabase.from('course_coupons').delete().eq('id', target.id)
-    ).catch(() => {});
-  }
+  // Persist to shared cloud document
+  persistCouponsToCloud(updated).catch(() => {});
 
   return true;
 };
@@ -408,7 +486,7 @@ export const deleteCourseCoupon = (couponIdOrCode: string): boolean => {
  * Toggle coupon active/inactive status
  */
 export const toggleCourseCouponActive = (couponIdOrCode: string): boolean => {
-  const current = getCourseCoupons();
+  const current = [...getCourseCoupons()];
   const coupon = current.find(c => c.id === couponIdOrCode || c.code.toUpperCase() === couponIdOrCode.toUpperCase());
   if (!coupon) return false;
 
@@ -736,13 +814,20 @@ export const recordCoursePurchase = (
 
   // 4. Increment coupon usage count if coupon was applied
   if (data.couponCodeApplied) {
-    const coupons = getCourseCoupons();
+    const coupons = [...getCourseCoupons()];
     const couponIdx = coupons.findIndex(c => c.code === data.couponCodeApplied?.trim().toUpperCase());
     if (couponIdx !== -1) {
-      coupons[couponIdx].usedCount += 1;
+      coupons[couponIdx] = {
+        ...coupons[couponIdx],
+        usedCount: (coupons[couponIdx].usedCount || 0) + 1
+      };
+      memoryCouponsCache = coupons;
       try {
         localStorage.setItem(COUPONS_STORAGE_KEY, JSON.stringify(coupons));
+        window.dispatchEvent(new CustomEvent('dopilot_coupons_updated', { detail: coupons[couponIdx] }));
       } catch {}
+      // Sync incremented coupon usage to shared cloud document
+      persistCouponsToCloud(coupons).catch(() => {});
     }
   }
 

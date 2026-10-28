@@ -137,6 +137,23 @@ export const queueCloudSync = (email: string) => {
     if (!state) return;
 
     try {
+      // 1. Primary: Save via authenticated server-side sync endpoint
+      try {
+        const resp = await fetch('/api/student-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: cleanEmail,
+            type: 'progress',
+            content: state
+          })
+        });
+        if (resp.ok) return;
+      } catch (netErr) {
+        // Fallback for offline dev
+      }
+
+      // 2. Direct fallback
       const docId = getStudentDocId(cleanEmail);
       await supabase.from('site_content').upsert({
         id: docId,

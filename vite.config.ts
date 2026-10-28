@@ -6,6 +6,8 @@ import path from "path";
 import adminOtpHandler from "./api/admin-otp.js";
 import adminDeleteStudentHandler from "./api/admin-delete-student.js";
 import claimCourseHandler from "./api/claim-course.js";
+import adminCouponsHandler from "./api/admin-coupons.js";
+import studentSyncHandler from "./api/student-sync.js";
 
 // Load .env into process.env for local Node dev middleware
 try {
@@ -143,6 +145,92 @@ export default defineConfig({
                 try {
                   req.body = body ? JSON.parse(body) : {};
                   await claimCourseHandler(req, res);
+                } catch (err) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ success: false, message: err.message }));
+                }
+              });
+              return;
+            }
+          }
+          if (req.url?.startsWith("/api/admin-coupons")) {
+            if (!res.status) {
+              res.status = function(code) { res.statusCode = code; return res; };
+            }
+            if (!res.json) {
+              res.json = function(data) {
+                res.setHeader("Content-Type", "application/json");
+                res.end(JSON.stringify(data));
+                return res;
+              };
+            }
+            if (req.method === "OPTIONS") {
+              res.setHeader("Access-Control-Allow-Origin", "*");
+              res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+              res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Token, X-Admin-Secret");
+              res.statusCode = 200;
+              res.end();
+              return;
+            }
+            if (req.method === "GET") {
+              adminCouponsHandler(req, res).catch((err) => {
+                res.statusCode = 500;
+                res.end(JSON.stringify({ success: false, message: err.message }));
+              });
+              return;
+            }
+            if (req.method === "POST") {
+              let body = "";
+              req.on("data", (chunk) => { body += chunk; });
+              req.on("end", async () => {
+                try {
+                  req.body = body ? JSON.parse(body) : {};
+                  await adminCouponsHandler(req, res);
+                } catch (err) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ success: false, message: err.message }));
+                }
+              });
+              return;
+            }
+          }
+          if (req.url?.startsWith("/api/student-sync")) {
+            if (!res.status) {
+              res.status = function(code) { res.statusCode = code; return res; };
+            }
+            if (!res.json) {
+              res.json = function(data) {
+                res.setHeader("Content-Type", "application/json");
+                res.end(JSON.stringify(data));
+                return res;
+              };
+            }
+            if (req.method === "OPTIONS") {
+              res.setHeader("Access-Control-Allow-Origin", "*");
+              res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+              res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Student-Email, X-Student-Id");
+              res.statusCode = 200;
+              res.end();
+              return;
+            }
+            if (req.method === "GET") {
+              try {
+                const urlObj = new URL(req.url, "http://localhost");
+                req.query = Object.fromEntries(urlObj.searchParams.entries());
+              } catch {}
+              studentSyncHandler(req, res).catch((err) => {
+                res.statusCode = 500;
+                res.end(JSON.stringify({ success: false, message: err.message }));
+              });
+              return;
+            }
+            if (req.method === "POST") {
+              let body = "";
+              req.on("data", (chunk) => { body += chunk; });
+              req.on("end", async () => {
+                try {
+                  req.body = body ? JSON.parse(body) : {};
+                  await studentSyncHandler(req, res);
                 } catch (err) {
                   res.statusCode = 500;
                   res.end(JSON.stringify({ success: false, message: err.message }));

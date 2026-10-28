@@ -87,16 +87,28 @@ export const logQuestionAttempt = (
         }
 
         // Sync to cloud site_content under student telemetry document
-        if (studentEmailOrId.includes('@') && isSupabaseConfigured()) {
+        if (studentEmailOrId.includes('@')) {
           const cleanEmail = normalizeStudentEmail(studentEmailOrId);
-          const docId = `telemetry_${cleanEmail.replace(/[^a-z0-9_]/g, '_')}`;
-          Promise.resolve(
-            supabase.from('site_content').upsert({
-              id: docId,
-              content: list,
-              updated_at: new Date().toISOString()
+          // 1. Primary: Save via authenticated server-side sync endpoint
+          fetch('/api/student-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: cleanEmail,
+              type: 'telemetry',
+              content: list
             })
-          ).catch(() => {});
+          }).catch(() => {
+            // 2. Direct fallback
+            if (isSupabaseConfigured()) {
+              const docId = `telemetry_${cleanEmail.replace(/[^a-z0-9_]/g, '_')}`;
+              supabase.from('site_content').upsert({
+                id: docId,
+                content: list,
+                updated_at: new Date().toISOString()
+              }).catch(() => {});
+            }
+          });
         }
       }
     } catch (e) {
