@@ -3942,14 +3942,13 @@ export const AdminPanel: React.FC = () => {
 
       const colDefs = [
         { label: '#', x: 28, width: 22, align: 'center' as const },
-        { label: 'STUDENT NAME', x: 50, width: 108, align: 'left' as const },
-        { label: 'VERIFIED EMAIL', x: 158, width: 135, align: 'left' as const },
-        { label: 'PHONE NUMBER', x: 293, width: 74, align: 'left' as const },
-        { label: 'COLLEGE / INSTITUTION', x: 367, width: 130, align: 'left' as const },
-        { label: 'ENROLLED COURSES', x: 497, width: 155, align: 'left' as const },
-        { label: 'FOUND US', x: 652, width: 58, align: 'left' as const },
-        { label: 'SCORE', x: 710, width: 36, align: 'right' as const },
-        { label: 'STATUS', x: 746, width: 68, align: 'center' as const }
+        { label: 'STUDENT NAME', x: 50, width: 118, align: 'left' as const },
+        { label: 'VERIFIED EMAIL', x: 168, width: 145, align: 'left' as const },
+        { label: 'PHONE NUMBER', x: 313, width: 80, align: 'left' as const },
+        { label: 'COLLEGE / INSTITUTION', x: 393, width: 145, align: 'left' as const },
+        { label: 'ENROLLED COURSES', x: 538, width: 180, align: 'left' as const },
+        { label: 'FOUND US', x: 718, width: 54, align: 'left' as const },
+        { label: 'SCORE', x: 772, width: 42, align: 'right' as const }
       ];
 
       const drawHeader = () => {
@@ -4126,34 +4125,6 @@ export const AdminPanel: React.FC = () => {
         doc.setFontSize(7.5);
         doc.setTextColor(5, 150, 105);
         doc.text(`${s.points || 0} pts`, colDefs[7].x + colDefs[7].width - 4, textStartY, { align: 'right' });
-
-        // Status Badge Pill
-        const statusKey = (s.courseProgressStatus || 'registered').toLowerCase();
-        let badgeBg = [241, 245, 249];
-        let badgeText = [71, 85, 105];
-        let statusLabel = 'REGISTERED';
-
-        if (statusKey === 'completed') {
-          badgeBg = [220, 252, 231];
-          badgeText = [21, 128, 61];
-          statusLabel = 'COMPLETED';
-        } else if (statusKey === 'in_progress') {
-          badgeBg = [224, 242, 254];
-          badgeText = [3, 105, 161];
-          statusLabel = 'IN PROGRESS';
-        }
-
-        const pillW = 58;
-        const pillH = 13;
-        const pillX = colDefs[8].x + (colDefs[8].width - pillW) / 2;
-        const pillY = currentY + (rowHeight - pillH) / 2;
-        doc.setFillColor(badgeBg[0], badgeBg[1], badgeBg[2]);
-        doc.roundedRect(pillX, pillY, pillW, pillH, 3, 3, 'F');
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(6.2);
-        doc.setTextColor(badgeText[0], badgeText[1], badgeText[2]);
-        doc.text(statusLabel, colDefs[8].x + colDefs[8].width / 2, pillY + 9, { align: 'center' });
 
         currentY += rowHeight;
       });
