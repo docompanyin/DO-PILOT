@@ -12,6 +12,7 @@ import { useUserAuth, USER_SESSION_KEY, hasAuthCookie } from '../../context/User
 import {
   getCoursePricing,
   validateCoupon,
+  validateCouponAsync,
   recordCoursePurchase,
   getPaymentQRConfig,
   createQRPaymentSession,
@@ -513,8 +514,8 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
     setCouponError(null);
     setCouponSuccessMsg(null);
 
-    // 1. Initial client-side validation
-    const validation = validateCoupon(code, courseId, pricing.salePrice);
+    // 1. Initial client-side and cloud validation (checks cloud directly)
+    let validation = await validateCouponAsync(code, courseId, pricing.salePrice);
     if (!validation.valid || !validation.coupon) {
       setCouponError(validation.error || 'Invalid or expired coupon code.');
       setAppliedCoupon(null);

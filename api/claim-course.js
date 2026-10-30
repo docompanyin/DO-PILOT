@@ -59,7 +59,31 @@ const CANONICAL_COURSES = {
 
 const DEFAULT_COUPONS = [
   {
+    id: 'CPN-100',
+    code: 'UNLIMITED',
+    courseId: 'all',
+    discountType: 'percentage',
+    discountValue: 100,
+    maxUses: -1,
+    usedCount: 3,
+    isActive: true,
+    description: '100% Free Full Lifetime Course Access (Unlimited)',
+    createdAt: new Date().toISOString()
+  },
+  {
     id: 'CPN-101',
+    code: 'FREE',
+    courseId: 'python-core',
+    discountType: 'percentage',
+    discountValue: 100,
+    maxUses: 1,
+    usedCount: 1,
+    isActive: true,
+    description: '100% Free Complete Python Course',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'CPN-102',
     code: 'DOPILOT100',
     courseId: 'all',
     discountType: 'percentage',
@@ -71,7 +95,7 @@ const DEFAULT_COUPONS = [
     createdAt: new Date().toISOString()
   },
   {
-    id: 'CPN-102',
+    id: 'CPN-103',
     code: 'FREE100',
     courseId: 'all',
     discountType: 'percentage',
@@ -83,7 +107,7 @@ const DEFAULT_COUPONS = [
     createdAt: new Date().toISOString()
   },
   {
-    id: 'CPN-103',
+    id: 'CPN-104',
     code: 'EARLYBIRD50',
     courseId: 'all',
     discountType: 'percentage',
@@ -95,7 +119,7 @@ const DEFAULT_COUPONS = [
     createdAt: new Date().toISOString()
   },
   {
-    id: 'CPN-104',
+    id: 'CPN-105',
     code: 'PYTHONFREE',
     courseId: 'python-core',
     discountType: 'percentage',
@@ -392,6 +416,52 @@ export default async function handler(req, res) {
       } catch (dbErr) {
         console.error('Database claim persistence exception:', dbErr);
       }
+    }
+
+    // Persist to telemetry_dopilot_course_purchases_v1 so it displays in Purchase & Enrollment Tracking
+    try {
+      const { data: purchaseDoc } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('id', 'telemetry_dopilot_course_purchases_v1')
+        .maybeSingle();
+
+      const existingPurchases = (purchaseDoc && purchaseDoc.content && Array.isArray(purchaseDoc.content.purchases))
+        ? purchaseDoc.content.purchases
+        : [];
+
+      const newPurchaseRecord = {
+        id: `ORD-${Date.now().toString().slice(-6)}`,
+        studentId: cleanId || cleanEmail,
+        studentName: studentName || cleanEmail.split('@')[0] || 'Enrolled Student',
+        studentEmail: cleanEmail,
+        studentPhone: studentPhone || '',
+        courseId: cleanCourseId,
+        courseName: courseMeta.title,
+        originalPrice: courseMeta.salePrice || courseMeta.regularPrice,
+        discountAmount: courseMeta.salePrice || courseMeta.regularPrice,
+        finalAmount: 0,
+        couponCodeApplied: cleanCoupon,
+        paymentMethod: 'coupon_free_unlock',
+        status: 'completed',
+        accessGranted: true,
+        purchasedAt: new Date().toISOString()
+      };
+
+      const updatedPurchases = [newPurchaseRecord, ...existingPurchases];
+
+      await supabase
+        .from('site_content')
+        .upsert({
+          id: 'telemetry_dopilot_course_purchases_v1',
+          content: {
+            purchases: updatedPurchases,
+            updatedAt: new Date().toISOString()
+          },
+          updated_at: new Date().toISOString()
+        });
+    } catch (purchaseTrackErr) {
+      console.warn('Non-fatal: could not append to telemetry_dopilot_course_purchases_v1:', purchaseTrackErr);
     }
 
     return res.status(200).json({

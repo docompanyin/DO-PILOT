@@ -124,7 +124,31 @@ export const INITIAL_DEFAULT_PRICING: CoursePricing[] = [
 
 export const INITIAL_DEFAULT_COUPONS: CourseCoupon[] = [
   {
+    id: 'CPN-100',
+    code: 'UNLIMITED',
+    courseId: 'all',
+    discountType: 'percentage',
+    discountValue: 100,
+    maxUses: -1,
+    usedCount: 3,
+    isActive: true,
+    description: '100% Free Full Lifetime Course Access (Unlimited)',
+    createdAt: new Date(Date.now() - 30 * 86400000).toISOString()
+  },
+  {
     id: 'CPN-101',
+    code: 'FREE',
+    courseId: 'python-core',
+    discountType: 'percentage',
+    discountValue: 100,
+    maxUses: 1,
+    usedCount: 1,
+    isActive: true,
+    description: '100% Free Complete Python Course',
+    createdAt: new Date(Date.now() - 25 * 86400000).toISOString()
+  },
+  {
+    id: 'CPN-102',
     code: 'DOPILOT100',
     courseId: 'all',
     discountType: 'percentage',
@@ -136,7 +160,7 @@ export const INITIAL_DEFAULT_COUPONS: CourseCoupon[] = [
     createdAt: new Date(Date.now() - 30 * 86400000).toISOString()
   },
   {
-    id: 'CPN-102',
+    id: 'CPN-103',
     code: 'FREE100',
     courseId: 'all',
     discountType: 'percentage',
@@ -148,7 +172,7 @@ export const INITIAL_DEFAULT_COUPONS: CourseCoupon[] = [
     createdAt: new Date(Date.now() - 20 * 86400000).toISOString()
   },
   {
-    id: 'CPN-103',
+    id: 'CPN-104',
     code: 'EARLYBIRD50',
     courseId: 'all',
     discountType: 'percentage',
@@ -160,7 +184,7 @@ export const INITIAL_DEFAULT_COUPONS: CourseCoupon[] = [
     createdAt: new Date(Date.now() - 15 * 86400000).toISOString()
   },
   {
-    id: 'CPN-104',
+    id: 'CPN-105',
     code: 'PYTHONFREE',
     courseId: 'python-core',
     discountType: 'percentage',
@@ -557,7 +581,7 @@ export const validateCoupon = (
   }
 
   const coupons = getCourseCoupons();
-  const coupon = coupons.find(c => c.code === code);
+  const coupon = coupons.find(c => c.code.toUpperCase() === code);
 
   if (!coupon) {
     return { valid: false, error: 'Invalid coupon code. Check spelling and try again.', discountAmount: 0, finalPrice: currentPrice };
@@ -588,8 +612,10 @@ export const validateCoupon = (
     }
   }
 
-  // Check max usages
-  if (coupon.maxUses !== -1 && coupon.usedCount >= coupon.maxUses) {
+  // Check max usages - unlimited coupons (maxUses === -1, undefined, null, or <= 0) never hit usage limits
+  const maxUses = Number(coupon.maxUses);
+  const usedCount = Number(coupon.usedCount || 0);
+  if (coupon.maxUses !== -1 && maxUses > 0 && usedCount >= maxUses) {
     return { valid: false, error: 'This coupon has reached its maximum usage limit.', discountAmount: 0, finalPrice: currentPrice };
   }
 
@@ -602,7 +628,7 @@ export const validateCoupon = (
       discountAmount = Math.round((currentPrice * coupon.discountValue) / 100);
     }
   } else {
-    discountAmount = Math.min(currentPrice, coupon.discountValue);
+    discountAmount = Math.min(currentPrice, Number(coupon.discountValue) || 0);
   }
 
   const finalPrice = Math.max(0, currentPrice - discountAmount);
@@ -613,6 +639,37 @@ export const validateCoupon = (
     discountAmount,
     finalPrice
   };
+};
+
+/**
+ * Authoritative async coupon validation:
+ * Always fetches from Supabase cloud before validation so newly created coupons
+ * and unlimited coupons are valid across all devices, browsers, and cleared caches.
+ */
+export const validateCouponAsync = async (
+  rawCode: string,
+  courseId: string,
+  currentPrice: number
+): Promise<{
+  valid: boolean;
+  error?: string;
+  coupon?: CourseCoupon;
+  discountAmount: number;
+  finalPrice: number;
+}> => {
+  const code = rawCode.trim().toUpperCase();
+  if (!code) {
+    return { valid: false, error: 'Please enter a coupon code.', discountAmount: 0, finalPrice: currentPrice };
+  }
+
+  // Always synchronize authoritative cloud coupons from Supabase
+  try {
+    await syncCouponsFromCloud();
+  } catch (err) {
+    console.warn('Coupon cloud sync non-fatal warning during validation:', err);
+  }
+
+  return validateCoupon(code, courseId, currentPrice);
 };
 
 /**
