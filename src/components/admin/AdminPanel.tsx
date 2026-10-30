@@ -3387,13 +3387,13 @@ export const AdminPanel: React.FC = () => {
                       !currentEmails.primaryEmail
                         ? 'opacity-40 cursor-not-allowed bg-black/20 border-white/5'
                         : methodBDeliveryMode === 'primary'
-                        ? 'bg-primary/10 border-primary text-paper shadow-sm cursor-pointer'
+                        ? 'bg-white/10 border-white/20 text-paper cursor-pointer'
                         : 'bg-black/40 border-white/10 text-slate hover:border-white/20 cursor-pointer'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-mono text-[10px] uppercase font-bold text-slate">Primary Email</span>
-                      {methodBDeliveryMode === 'primary' && currentEmails.primaryEmail && <Check className="w-3.5 h-3.5 text-primary" />}
+                      {methodBDeliveryMode === 'primary' && currentEmails.primaryEmail && <Check className="w-3.5 h-3.5 text-paper" />}
                     </div>
                     <div className="font-jakarta font-bold text-xs truncate text-paper">
                       {currentEmails.primaryEmail || 'Not Configured'}
@@ -3413,13 +3413,13 @@ export const AdminPanel: React.FC = () => {
                       !currentEmails.secondaryEmail
                         ? 'opacity-40 cursor-not-allowed bg-black/20 border-white/5'
                         : methodBDeliveryMode === 'secondary'
-                        ? 'bg-primary/10 border-primary text-paper shadow-sm cursor-pointer'
+                        ? 'bg-white/10 border-white/20 text-paper cursor-pointer'
                         : 'bg-black/40 border-white/10 text-slate hover:border-white/20 cursor-pointer'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-mono text-[10px] uppercase font-bold text-slate">Secondary Email</span>
-                      {methodBDeliveryMode === 'secondary' && currentEmails.secondaryEmail && <Check className="w-3.5 h-3.5 text-primary" />}
+                      {methodBDeliveryMode === 'secondary' && currentEmails.secondaryEmail && <Check className="w-3.5 h-3.5 text-paper" />}
                     </div>
                     <div className="font-jakarta font-bold text-xs truncate text-paper">
                       {currentEmails.secondaryEmail || 'Not Configured'}
@@ -3439,13 +3439,13 @@ export const AdminPanel: React.FC = () => {
                       !currentEmails.primaryEmail || !currentEmails.secondaryEmail
                         ? 'opacity-40 cursor-not-allowed bg-black/20 border-white/5'
                         : methodBDeliveryMode === 'both'
-                        ? 'bg-primary/10 border-primary text-paper shadow-sm cursor-pointer'
+                        ? 'bg-white/10 border-white/20 text-paper cursor-pointer'
                         : 'bg-black/40 border-white/10 text-slate hover:border-white/20 cursor-pointer'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-mono text-[10px] uppercase font-bold text-slate">Both Addresses</span>
-                      {methodBDeliveryMode === 'both' && currentEmails.primaryEmail && currentEmails.secondaryEmail && <Check className="w-3.5 h-3.5 text-primary" />}
+                      {methodBDeliveryMode === 'both' && currentEmails.primaryEmail && currentEmails.secondaryEmail && <Check className="w-3.5 h-3.5 text-paper" />}
                     </div>
                     <div className="font-jakarta font-bold text-xs text-paper truncate">
                       Dual Verification
