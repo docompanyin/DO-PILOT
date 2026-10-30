@@ -353,7 +353,10 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
 
   // QR Code Configuration & 2-Minute Session Timer State
   const [qrConfig, setQrConfig] = useState<PaymentQRConfig>(() => getPaymentQRConfig());
-  const [timeLeft, setTimeLeft] = useState<number>(PAYMENT_COUNTDOWN_SECONDS);
+  const [timeLeft, setTimeLeft] = useState<number>(() => {
+    const cfg = getPaymentQRConfig();
+    return Math.max(60, (cfg?.timeoutMinutes || 10) * 60);
+  });
   const [sessionExpired, setSessionExpired] = useState(false);
   const [qrImageLoadFailed, setQrImageLoadFailed] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
@@ -398,7 +401,8 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
 
       const cfg = getPaymentQRConfig();
       setQrConfig(cfg);
-      setTimeLeft(PAYMENT_COUNTDOWN_SECONDS);
+      const configuredSeconds = Math.max(60, (cfg?.timeoutMinutes || 10) * 60);
+      setTimeLeft(configuredSeconds);
       setSessionExpired(false);
       setPaymentStep('checkout');
       setQrImageLoadFailed(false);
