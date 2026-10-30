@@ -248,9 +248,12 @@ export const AdminPanel: React.FC = () => {
   const [isSavingQrConfig, setIsSavingQrConfig] = useState(false);
   const [verifyingPurchaseId, setVerifyingPurchaseId] = useState<string | null>(null);
 
-  // Purchase & Enrollment Tracking State
+  // Purchase & Enrollment Tracking State (Coupon-based & Verified enrollments)
   const [purchaseSearch, setPurchaseSearch] = useState('');
-  const [purchaseStatusFilter, setPurchaseStatusFilter] = useState<'all' | 'pending' | 'completed' | 'expired' | 'rejected'>('all');
+  const [purchaseCourseFilter, setPurchaseCourseFilter] = useState('all');
+  const [purchaseDateFilter, setPurchaseDateFilter] = useState<'all' | 'today' | '7days' | '30days' | 'custom'>('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   const [confirmVerifyPurchaseTarget, setConfirmVerifyPurchaseTarget] = useState<CoursePurchaseRecord | null>(null);
   const [adminVerifyNotes, setAdminVerifyNotes] = useState('');
 
@@ -9540,33 +9543,60 @@ export const AdminPanel: React.FC = () => {
   );
 
   const renderCoursePricingAndCouponsSection = () => {
-    const totalPurchases = coursePurchases.length;
+    // Focus strictly on successful coupon-based purchases as requested
+    const couponPurchasesList = coursePurchases.filter(
+      p => Boolean(p.couponCodeApplied) && (p.status === 'completed' || p.accessGranted)
+    );
+    const totalCouponPurchases = couponPurchasesList.length;
     const activeCouponsCount = courseCoupons.filter(c => c.isActive).length;
-    const freeCouponsCount = courseCoupons.filter(c => c.isActive && c.discountType === 'percentage' && c.discountValue === 100).length;
 
-    // Filter counts for Purchase & Enrollment Tracking
-    const pendingPurchasesCount = coursePurchases.filter(p => p.status === 'pending' || p.status === 'pending_verification').length;
-    const enrolledPurchasesCount = coursePurchases.filter(p => p.status === 'completed').length;
-    const expiredPurchasesCount = coursePurchases.filter(p => p.status === 'expired').length;
-    const rejectedPurchasesCount = coursePurchases.filter(p => p.status === 'rejected').length;
+    const filteredPurchases = couponPurchasesList.filter(p => {
+      // 1. Course Filter
+      if (purchaseCourseFilter !== 'all') {
+        const normalizedTarget = normalizeCourseId(purchaseCourseFilter);
+        const normalizedItem = normalizeCourseId(p.courseId || p.courseName || '');
+        if (normalizedTarget !== normalizedItem) return false;
+      }
 
-    const filteredPurchases = coursePurchases.filter(p => {
-      if (purchaseStatusFilter === 'pending' && p.status !== 'pending' && p.status !== 'pending_verification') return false;
-      if (purchaseStatusFilter === 'completed' && p.status !== 'completed') return false;
-      if (purchaseStatusFilter === 'expired' && p.status !== 'expired') return false;
-      if (purchaseStatusFilter === 'rejected' && p.status !== 'rejected') return false;
+      // 2. Date Filter
+      if (purchaseDateFilter !== 'all') {
+        const pDate = new Date(p.purchasedAt);
+        const now = new Date();
+        if (purchaseDateFilter === 'today') {
+          const isSameDay = pDate.getFullYear() === now.getFullYear() &&
+                            pDate.getMonth() === now.getMonth() &&
+                            pDate.getDate() === now.getDate();
+          if (!isSameDay) return false;
+        } else if (purchaseDateFilter === '7days') {
+          const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          if (pDate < sevenDaysAgo) return false;
+        } else if (purchaseDateFilter === '30days') {
+          const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          if (pDate < thirtyDaysAgo) return false;
+        } else if (purchaseDateFilter === 'custom') {
+          if (customStartDate) {
+            const start = new Date(customStartDate);
+            start.setHours(0, 0, 0, 0);
+            if (pDate < start) return false;
+          }
+          if (customEndDate) {
+            const end = new Date(customEndDate);
+            end.setHours(23, 59, 59, 999);
+            if (pDate > end) return false;
+          }
+        }
+      }
 
+      // 3. Search query: student name, email, course name, coupon code
       if (purchaseSearch.trim()) {
         const q = purchaseSearch.toLowerCase().trim();
         const matchName = p.studentName?.toLowerCase().includes(q);
         const matchEmail = p.studentEmail?.toLowerCase().includes(q);
-        const matchPhone = p.studentPhone?.toLowerCase().includes(q);
-        const matchId = p.studentId?.toLowerCase().includes(q);
         const matchCourse = p.courseName?.toLowerCase().includes(q);
-        const matchUtr = p.utrNumber?.toLowerCase().includes(q);
-        const matchOrderId = p.id?.toLowerCase().includes(q);
-        return matchName || matchEmail || matchPhone || matchId || matchCourse || matchUtr || matchOrderId;
+        const matchCoupon = p.couponCodeApplied?.toLowerCase().includes(q);
+        return Boolean(matchName || matchEmail || matchCourse || matchCoupon);
       }
+
       return true;
     });
 
@@ -9597,15 +9627,9 @@ export const AdminPanel: React.FC = () => {
               <span className="text-[10px] font-mono text-slate uppercase">Active Coupons:</span>
               <span className="text-xs font-jakarta font-bold text-primary">{activeCouponsCount} Codes</span>
             </div>
-            {pendingPurchasesCount > 0 && (
-              <div className="px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 animate-pulse">
-                <span className="text-[10px] font-mono text-amber-400 uppercase">Pending UTRs:</span>
-                <span className="text-xs font-jakarta font-bold text-amber-300">{pendingPurchasesCount} To Verify</span>
-              </div>
-            )}
             <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 flex items-center gap-2">
-              <span className="text-[10px] font-mono text-slate uppercase">Enrolled:</span>
-              <span className="text-xs font-jakarta font-bold text-emerald-400">{enrolledPurchasesCount} Students</span>
+              <span className="text-[10px] font-mono text-slate uppercase">Coupon Enrollments:</span>
+              <span className="text-xs font-jakarta font-bold text-emerald-400">{totalCouponPurchases} Students</span>
             </div>
           </div>
         </div>
@@ -9895,233 +9919,203 @@ export const AdminPanel: React.FC = () => {
                 <span>Purchase &amp; Enrollment Tracking</span>
               </h3>
               <p className="text-xs text-slate mt-0.5">
-                Monitor Google Pay QR payment sessions, match student UPI references (UTR), verify payments, and approve course enrollments.
+                Displaying verified coupon-based purchases with live student enrollment records.
               </p>
             </div>
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 font-mono text-[11px] text-paper">
-                Total: <strong>{totalPurchases}</strong>
+                Successful Coupon Purchases: <strong>{totalCouponPurchases}</strong>
               </span>
             </div>
           </div>
 
-
-          {/* Search Bar & Status Filter Tabs */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-            {/* Filter Tabs */}
-            <div className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-black/60 border border-white/10 text-xs font-mono">
-              <button
-                type="button"
-                onClick={() => setPurchaseStatusFilter('all')}
-                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                  purchaseStatusFilter === 'all'
-                    ? 'bg-primary text-ink font-bold shadow'
-                    : 'text-slate hover:text-paper'
-                }`}
-              >
-                All ({totalPurchases})
-              </button>
-              <button
-                type="button"
-                onClick={() => setPurchaseStatusFilter('pending')}
-                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  purchaseStatusFilter === 'pending'
-                    ? 'bg-amber-400 text-ink font-bold shadow'
-                    : 'text-slate hover:text-paper'
-                }`}
-              >
-                <span>Pending Verification</span>
-                {pendingPurchasesCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">
-                    {pendingPurchasesCount}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setPurchaseStatusFilter('completed')}
-                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                  purchaseStatusFilter === 'completed'
-                    ? 'bg-emerald-400 text-ink font-bold shadow'
-                    : 'text-slate hover:text-paper'
-                }`}
-              >
-                Verified / Enrolled ({enrolledPurchasesCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setPurchaseStatusFilter('expired')}
-                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                  purchaseStatusFilter === 'expired'
-                    ? 'bg-rose-400 text-ink font-bold shadow'
-                    : 'text-slate hover:text-paper'
-                }`}
-              >
-                Expired ({expiredPurchasesCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setPurchaseStatusFilter('rejected')}
-                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                  purchaseStatusFilter === 'rejected'
-                    ? 'bg-rose-500 text-ink font-bold shadow'
-                    : 'text-slate hover:text-paper'
-                }`}
-              >
-                Rejected ({rejectedPurchasesCount})
-              </button>
-            </div>
-
+          {/* Clean Controls: Search, Date Filter, and Course Filter */}
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
             {/* Search Input */}
-            <div className="relative min-w-[220px]">
+            <div className="relative flex-1 min-w-[240px]">
               <Search className="w-3.5 h-3.5 text-slate absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search student, course, UTR..."
+                placeholder="Search by student, email, course, or coupon code..."
                 value={purchaseSearch}
                 onChange={(e) => setPurchaseSearch(e.target.value)}
-                className="w-full bg-black/80 border border-white/15 rounded-xl pl-8 pr-3 py-1.5 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+                className="w-full bg-black/80 border border-white/15 rounded-xl pl-8 pr-3 py-2 text-xs text-paper font-mono focus:border-primary focus:outline-none"
               />
+            </div>
+
+            {/* Filter Bar: Course and Date Filter */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Course Selector Filter */}
+              <select
+                value={purchaseCourseFilter}
+                onChange={(e) => setPurchaseCourseFilter(e.target.value)}
+                className="bg-black/80 border border-white/15 rounded-xl px-3 py-2 text-xs text-paper font-mono focus:border-primary focus:outline-none cursor-pointer"
+              >
+                <option value="all">All Courses</option>
+                {coursePricingList.map(c => (
+                  <option key={c.courseId} value={c.courseId}>{c.courseName}</option>
+                ))}
+              </select>
+
+              {/* Date Filter Buttons */}
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-black/60 border border-white/10 text-xs font-mono">
+                <button
+                  type="button"
+                  onClick={() => setPurchaseDateFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                    purchaseDateFilter === 'all'
+                      ? 'bg-primary text-ink font-bold shadow'
+                      : 'text-slate hover:text-paper'
+                  }`}
+                >
+                  All Dates
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPurchaseDateFilter('today')}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                    purchaseDateFilter === 'today'
+                      ? 'bg-primary text-ink font-bold shadow'
+                      : 'text-slate hover:text-paper'
+                  }`}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPurchaseDateFilter('7days')}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                    purchaseDateFilter === '7days'
+                      ? 'bg-primary text-ink font-bold shadow'
+                      : 'text-slate hover:text-paper'
+                  }`}
+                >
+                  Last 7 Days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPurchaseDateFilter('30days')}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                    purchaseDateFilter === '30days'
+                      ? 'bg-primary text-ink font-bold shadow'
+                      : 'text-slate hover:text-paper'
+                  }`}
+                >
+                  Last 30 Days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPurchaseDateFilter('custom')}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                    purchaseDateFilter === 'custom'
+                      ? 'bg-primary text-ink font-bold shadow'
+                      : 'text-slate hover:text-paper'
+                  }`}
+                >
+                  Custom Range
+                </button>
+              </div>
             </div>
           </div>
 
+          {/* Custom Date Range Pickers (shown only when Custom Range selected) */}
+          {purchaseDateFilter === 'custom' && (
+            <div className="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/10 text-xs font-mono">
+              <span className="text-slate">From:</span>
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="bg-black border border-white/15 rounded-lg px-2.5 py-1 text-paper text-xs focus:border-primary focus:outline-none"
+              />
+              <span className="text-slate">To:</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="bg-black border border-white/15 rounded-lg px-2.5 py-1 text-paper text-xs focus:border-primary focus:outline-none"
+              />
+              {(customStartDate || customEndDate) && (
+                <button
+                  type="button"
+                  onClick={() => { setCustomStartDate(''); setCustomEndDate(''); }}
+                  className="text-rose-400 hover:underline text-[11px] cursor-pointer"
+                >
+                  Clear Range
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Transactions List */}
           <div className="overflow-x-auto rounded-2xl border border-white/10">
-            <table className="w-full min-w-[680px] text-left text-xs text-paper">
+            <table className="w-full min-w-[720px] text-left text-xs text-paper">
               <thead className="bg-white/5 text-slate font-mono uppercase text-[10px] tracking-wider border-b border-white/10">
                 <tr>
-                  <th className="py-2.5 px-3">Student</th>
-                  <th className="py-2.5 px-3">Course</th>
-                  <th className="py-2.5 px-3">Amount</th>
-                  <th className="py-2.5 px-3">UPI Ref / UTR</th>
-                  <th className="py-2.5 px-3">Payment Status</th>
-                  <th className="py-2.5 px-3">Session Date</th>
-                  <th className="py-2.5 px-3 text-right">Actions</th>
+                  <th className="py-2.5 px-3">Student Name &amp; Email</th>
+                  <th className="py-2.5 px-3">Course Name</th>
+                  <th className="py-2.5 px-3">Final Amount Paid</th>
+                  <th className="py-2.5 px-3">Coupon Code Used</th>
+                  <th className="py-2.5 px-3">Purchase Status</th>
+                  <th className="py-2.5 px-3">Actual Purchase Date &amp; Time</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 font-sans">
                 {filteredPurchases.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-slate font-mono text-xs">
-                      No transaction records match the current filter.
+                    <td colSpan={6} className="py-8 text-center text-slate font-mono text-xs">
+                      No coupon-based purchase records found matching your filters.
                     </td>
                   </tr>
                 ) : (
                   filteredPurchases.map(rec => {
-                    const isPending = rec.status === 'pending' || rec.status === 'pending_verification';
-                    const isCompleted = rec.status === 'completed';
-                    const isExpired = rec.status === 'expired';
-                    const isRejected = rec.status === 'rejected';
+                    const purchaseDate = new Date(rec.purchasedAt);
+                    const formattedDate = !isNaN(purchaseDate.getTime())
+                      ? purchaseDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                      : rec.purchasedAt;
+                    const formattedTime = !isNaN(purchaseDate.getTime())
+                      ? purchaseDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                      : '';
 
                     return (
                       <tr key={rec.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="py-2.5 px-3">
-                          <div className="font-bold text-paper font-jakarta text-xs">{rec.studentName}</div>
-                          <div className="font-mono text-[10px] text-slate truncate max-w-[170px]">{rec.studentEmail}</div>
-                          {rec.studentPhone && (
-                            <div className="font-mono text-[10px] text-slate/70">{rec.studentPhone}</div>
-                          )}
-                          <div className="font-mono text-[9px] text-slate/50">ID: {rec.studentId}</div>
+                        <td className="py-3 px-3">
+                          <div className="font-bold text-paper font-jakarta text-xs">{rec.studentName || 'Student'}</div>
+                          <div className="font-mono text-[11px] text-slate truncate max-w-[220px]">{rec.studentEmail}</div>
                         </td>
 
-                        <td className="py-2.5 px-3">
+                        <td className="py-3 px-3">
                           <div className="font-medium text-paper font-jakarta text-xs">{rec.courseName}</div>
-                          {rec.couponCodeApplied && (
-                            <span className="font-mono text-[9px] text-primary font-bold">
-                              Coupon: {rec.couponCodeApplied}
-                            </span>
-                          )}
+                          <span className="font-mono text-[9px] text-slate/60">ID: {rec.courseId}</span>
                         </td>
 
-                        <td className="py-2.5 px-3 font-mono">
-                          <span className="text-emerald-400 font-bold text-xs">₹{rec.finalAmount.toLocaleString()}</span>
-                          {rec.originalPrice !== rec.finalAmount && (
-                            <span className="text-slate line-through ml-1 text-[10px]">
+                        <td className="py-3 px-3 font-mono">
+                          <div className="text-emerald-400 font-bold text-xs">
+                            {rec.finalAmount === 0 ? '₹0 (100% Free)' : `₹${rec.finalAmount.toLocaleString()}`}
+                          </div>
+                          {rec.originalPrice > rec.finalAmount && (
+                            <div className="text-slate line-through text-[10px]">
                               ₹{rec.originalPrice.toLocaleString()}
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="py-2.5 px-3 font-mono text-[11px]">
-                          {rec.utrNumber ? (
-                            <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 font-bold border border-amber-500/20 inline-block tracking-wider">
-                              {rec.utrNumber}
-                            </span>
-                          ) : isExpired ? (
-                            <span className="text-rose-400/80 text-[10px] italic">Timed out (No UTR)</span>
-                          ) : (
-                            <span className="text-slate/60 text-[10px] italic">Awaiting student UTR</span>
-                          )}
-                        </td>
-
-                        <td className="py-2.5 px-3">
-                          {rec.status === 'pending_verification' ? (
-                            <span className="px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1 w-fit animate-pulse">
-                              <Clock className="w-3 h-3" />
-                              <span>Pending Verification</span>
-                            </span>
-                          ) : rec.status === 'pending' ? (
-                            <span className="px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1 w-fit">
-                              <Clock className="w-3 h-3" />
-                              <span>Session Active (2m)</span>
-                            </span>
-                          ) : isCompleted ? (
-                            <span className="px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 w-fit">
-                              <CheckCircle2 className="w-3 h-3" />
-                              <span>Verified &amp; Enrolled</span>
-                            </span>
-                          ) : isExpired ? (
-                            <span className="px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-white/10 text-slate border border-white/10 flex items-center gap-1 w-fit">
-                              <Clock className="w-3 h-3" />
-                              <span>Session Expired</span>
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1 w-fit">
-                              <XCircle className="w-3 h-3" />
-                              <span>Rejected</span>
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="py-2.5 px-3 text-slate font-mono text-[10px]">
-                          <div>{new Date(rec.purchasedAt).toLocaleDateString()}</div>
-                          <div className="text-slate/60">{new Date(rec.purchasedAt).toLocaleTimeString()}</div>
-                        </td>
-
-                        <td className="py-2.5 px-3 text-right">
-                          {isPending ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setConfirmVerifyPurchaseTarget(rec);
-                                setAdminVerifyNotes('');
-                              }}
-                              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:opacity-95 text-black font-jakarta font-bold text-xs uppercase tracking-wider cursor-pointer shadow-md inline-flex items-center gap-1.5 transition-all"
-                            >
-                              <CheckCheck className="w-3.5 h-3.5" />
-                              <span>Verify &amp; Unlock Course</span>
-                            </button>
-                          ) : isCompleted ? (
-                            <div className="inline-flex items-center gap-1 text-emerald-400 font-mono text-xs font-bold">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Enrolled (Access Unlocked)</span>
                             </div>
-                          ) : isExpired ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setConfirmVerifyPurchaseTarget(rec);
-                                setAdminVerifyNotes('Manual verification after session expiration');
-                              }}
-                              className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate hover:text-paper font-mono text-[10px] cursor-pointer inline-flex items-center gap-1"
-                              title="Manually verify if student paid offline"
-                            >
-                              <CheckCheck className="w-3 h-3" />
-                              <span>Manual Verify</span>
-                            </button>
-                          ) : (
-                            <span className="text-rose-400/80 font-mono text-[10px]">Rejected</span>
                           )}
+                        </td>
+
+                        <td className="py-3 px-3">
+                          <span className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20 font-mono font-bold text-xs inline-block tracking-wider">
+                            {rec.couponCodeApplied || 'N/A'}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-3">
+                          <span className="px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 inline-flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>{rec.status === 'completed' || rec.accessGranted ? 'Enrolled & Verified' : rec.status}</span>
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-3 text-slate font-mono text-[11px]">
+                          <div className="text-paper/90 font-medium">{formattedDate}</div>
+                          <div className="text-slate/60 text-[10px]">{formattedTime}</div>
                         </td>
                       </tr>
                     );
