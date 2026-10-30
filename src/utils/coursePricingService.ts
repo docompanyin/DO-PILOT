@@ -191,16 +191,65 @@ export const normalizeCourseId = (rawId: string): string => {
 /**
  * Get all course pricing
  */
+export const syncCoursePricingFromCloud = async (): Promise<CoursePricing[]> => {
+  if (!isSupabaseConfigured()) {
+    return getCoursePricingList();
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('site_content')
+      .select('content')
+      .eq('id', CLOUD_COURSE_PRICING_ID)
+      .maybeSingle();
+
+    if (!error && data && data.content && Array.isArray(data.content.pricing)) {
+      const cloudPricing: CoursePricing[] = data.content.pricing;
+      memoryPricingCache = cloudPricing;
+      try {
+        localStorage.setItem(PRICING_STORAGE_KEY, JSON.stringify(cloudPricing));
+        window.dispatchEvent(new CustomEvent('dopilot_pricing_updated', { detail: cloudPricing }));
+      } catch {}
+      return cloudPricing;
+    }
+  } catch (err) {
+    console.warn('Failed to sync pricing from Supabase cloud:', err);
+  }
+
+  return getCoursePricingList();
+};
+
 export const getCoursePricingList = (): CoursePricing[] => {
+  if (memoryPricingCache && Array.isArray(memoryPricingCache) && memoryPricingCache.length > 0) {
+    if (!hasInitiatedCloudPricingSync) {
+      hasInitiatedCloudPricingSync = true;
+      syncCoursePricingFromCloud().catch(() => {});
+    }
+    return memoryPricingCache;
+  }
+
   try {
     const raw = localStorage.getItem(PRICING_STORAGE_KEY);
     if (!raw) {
       localStorage.setItem(PRICING_STORAGE_KEY, JSON.stringify(INITIAL_DEFAULT_PRICING));
+      if (!hasInitiatedCloudPricingSync) {
+        hasInitiatedCloudPricingSync = true;
+        syncCoursePricingFromCloud().catch(() => {});
+      }
       return INITIAL_DEFAULT_PRICING;
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
+      memoryPricingCache = parsed;
+      if (!hasInitiatedCloudPricingSync) {
+        hasInitiatedCloudPricingSync = true;
+        syncCoursePricingFromCloud().catch(() => {});
+      }
       return parsed;
+    }
+    if (!hasInitiatedCloudPricingSync) {
+      hasInitiatedCloudPricingSync = true;
+      syncCoursePricingFromCloud().catch(() => {});
     }
     return INITIAL_DEFAULT_PRICING;
   } catch (e) {
@@ -241,6 +290,8 @@ export const updateCoursePricing = (updated: CoursePricing): boolean => {
     list.push(newEntry);
   }
 
+  memoryPricingCache = list;
+
   try {
     localStorage.setItem(PRICING_STORAGE_KEY, JSON.stringify(list));
     window.dispatchEvent(new CustomEvent('dopilot_pricing_updated', { detail: newEntry }));
@@ -249,18 +300,15 @@ export const updateCoursePricing = (updated: CoursePricing): boolean => {
     return false;
   }
 
-  // Supabase background sync
+  // Supabase direct sync via site_content
   if (isSupabaseConfigured()) {
     Promise.resolve(
-      supabase.from('course_pricing').upsert({
-        course_id: newEntry.courseId,
-        course_name: newEntry.courseName,
-        regular_price: newEntry.regularPrice,
-        sale_price: newEntry.salePrice,
-        is_free_course: Boolean(newEntry.isFreeCourse),
-        currency: newEntry.currency,
-        is_active: newEntry.isActive,
-        features: newEntry.features,
+      supabase.from('site_content').upsert({
+        id: CLOUD_COURSE_PRICING_ID,
+        content: {
+          pricing: list,
+          updatedAt: newEntry.updatedAt
+        },
         updated_at: newEntry.updatedAt
       })
     ).catch(() => {});
@@ -570,11 +618,76 @@ export const validateCoupon = (
 /**
  * Get all course purchases
  */
+export const syncCoursePurchasesFromCloud = async (): Promise<CoursePurchaseRecord[]> => {
+  if (!isSupabaseConfigured()) {
+    return getCoursePurchases();
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('site_content')
+      .select('content')
+      .eq('id', CLOUD_COURSE_PURCHASES_ID)
+      .maybeSingle();
+
+    if (!error && data && data.content && Array.isArray(data.content.purchases)) {
+      const cloudPurchases: CoursePurchaseRecord[] = data.content.purchases;
+      const realOnly = cloudPurchases.filter(
+        (p) => !p.studentId?.startsWith('demo-std') && !p.studentEmail?.includes('techsprint.io')
+      );
+      memoryPurchasesCache = realOnly;
+      try {
+        localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(realOnly));
+        window.dispatchEvent(new CustomEvent('dopilot_course_purchased', { detail: realOnly }));
+      } catch {}
+      return realOnly;
+    }
+  } catch (err) {
+    console.warn('Failed to sync course purchases from Supabase cloud:', err);
+  }
+
+  return getCoursePurchases();
+};
+
+export const persistCoursePurchasesToCloud = async (purchases: CoursePurchaseRecord[]): Promise<void> => {
+  memoryPurchasesCache = purchases;
+  try {
+    localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(purchases));
+  } catch {}
+
+  if (isSupabaseConfigured()) {
+    try {
+      await supabase.from('site_content').upsert({
+        id: CLOUD_COURSE_PURCHASES_ID,
+        content: {
+          purchases,
+          updatedAt: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn('Failed to persist purchases to site_content cloud:', e);
+    }
+  }
+};
+
 export const getCoursePurchases = (): CoursePurchaseRecord[] => {
+  if (memoryPurchasesCache && Array.isArray(memoryPurchasesCache)) {
+    if (!hasInitiatedCloudPurchasesSync) {
+      hasInitiatedCloudPurchasesSync = true;
+      syncCoursePurchasesFromCloud().catch(() => {});
+    }
+    return memoryPurchasesCache;
+  }
+
   try {
     const raw = localStorage.getItem(PURCHASES_STORAGE_KEY);
     if (!raw) {
       localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify([]));
+      if (!hasInitiatedCloudPurchasesSync) {
+        hasInitiatedCloudPurchasesSync = true;
+        syncCoursePurchasesFromCloud().catch(() => {});
+      }
       return [];
     }
     const parsed = JSON.parse(raw);
@@ -585,7 +698,16 @@ export const getCoursePurchases = (): CoursePurchaseRecord[] => {
       if (realOnly.length !== parsed.length) {
         localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(realOnly));
       }
+      memoryPurchasesCache = realOnly;
+      if (!hasInitiatedCloudPurchasesSync) {
+        hasInitiatedCloudPurchasesSync = true;
+        syncCoursePurchasesFromCloud().catch(() => {});
+      }
       return realOnly;
+    }
+    if (!hasInitiatedCloudPurchasesSync) {
+      hasInitiatedCloudPurchasesSync = true;
+      syncCoursePurchasesFromCloud().catch(() => {});
     }
     return [];
   } catch (e) {
@@ -769,11 +891,13 @@ export const recordCoursePurchase = (
   // 1. Update purchases registry
   const purchases = getCoursePurchases();
   const updatedPurchases = [newRecord, ...purchases];
+  memoryPurchasesCache = updatedPurchases;
   try {
     localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(updatedPurchases));
   } catch (e) {
     console.error('Failed to save purchase record to storage:', e);
   }
+  persistCoursePurchasesToCloud(updatedPurchases).catch(() => {});
 
   // 2. Store in student-specific purchased courses array
   try {
@@ -1044,6 +1168,19 @@ export const DEFAULT_PAYMENT_QR_CONFIG: PaymentQRConfig = {
   updatedAt: new Date().toISOString()
 };
 
+export const CLOUD_PAYMENT_QR_CONFIG_ID = 'telemetry_dopilot_payment_qr_config_v1';
+export const CLOUD_COURSE_PURCHASES_ID = 'telemetry_dopilot_course_purchases_v1';
+export const CLOUD_COURSE_PRICING_ID = 'telemetry_dopilot_course_pricing_v1';
+
+let memoryPaymentQRConfigCache: PaymentQRConfig | null = null;
+let hasInitiatedCloudPaymentQRSync = false;
+
+let memoryPurchasesCache: CoursePurchaseRecord[] | null = null;
+let hasInitiatedCloudPurchasesSync = false;
+
+let memoryPricingCache: CoursePricing[] | null = null;
+let hasInitiatedCloudPricingSync = false;
+
 /**
  * Verify whether an image URL is valid and loads successfully via an HTML Image object
  */
@@ -1101,12 +1238,58 @@ export const verifyImageUrl = (url: string): Promise<{ valid: boolean; error?: s
   });
 };
 
+export const syncPaymentQRConfigFromCloud = async (): Promise<PaymentQRConfig> => {
+  if (!isSupabaseConfigured()) {
+    return getPaymentQRConfig();
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('site_content')
+      .select('content')
+      .eq('id', CLOUD_PAYMENT_QR_CONFIG_ID)
+      .maybeSingle();
+
+    if (!error && data && data.content) {
+      const cloudConfig = {
+        ...DEFAULT_PAYMENT_QR_CONFIG,
+        ...data.content,
+        recipientName: data.content.recipientName || DEFAULT_PAYMENT_QR_CONFIG.recipientName,
+        bankingName: data.content.bankingName || data.content.merchantName || DEFAULT_PAYMENT_QR_CONFIG.bankingName,
+        merchantName: data.content.bankingName || data.content.merchantName || DEFAULT_PAYMENT_QR_CONFIG.merchantName,
+        phoneNumber: data.content.phoneNumber || DEFAULT_PAYMENT_QR_CONFIG.phoneNumber,
+        upiId: data.content.upiId && data.content.upiId !== 'dopilot@upi' ? data.content.upiId : DEFAULT_PAYMENT_QR_CONFIG.upiId,
+        paymentMethod: 'google_pay_upi'
+      };
+      memoryPaymentQRConfigCache = cloudConfig;
+      try {
+        localStorage.setItem(PAYMENT_QR_CONFIG_KEY, JSON.stringify(cloudConfig));
+        window.dispatchEvent(new CustomEvent('dopilot_payment_qr_config_updated', { detail: cloudConfig }));
+        window.dispatchEvent(new CustomEvent('dopilot_payment_qr_updated', { detail: cloudConfig }));
+      } catch {}
+      return cloudConfig;
+    }
+  } catch (err) {
+    console.warn('Failed to sync payment QR config from Supabase cloud:', err);
+  }
+
+  return getPaymentQRConfig();
+};
+
 export const getPaymentQRConfig = (): PaymentQRConfig => {
+  if (memoryPaymentQRConfigCache) {
+    if (!hasInitiatedCloudPaymentQRSync) {
+      hasInitiatedCloudPaymentQRSync = true;
+      syncPaymentQRConfigFromCloud().catch(() => {});
+    }
+    return memoryPaymentQRConfigCache;
+  }
+
   try {
     const raw = localStorage.getItem(PAYMENT_QR_CONFIG_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return {
+      const res: PaymentQRConfig = {
         ...DEFAULT_PAYMENT_QR_CONFIG,
         ...parsed,
         recipientName: parsed.recipientName || DEFAULT_PAYMENT_QR_CONFIG.recipientName,
@@ -1116,10 +1299,22 @@ export const getPaymentQRConfig = (): PaymentQRConfig => {
         upiId: parsed.upiId && parsed.upiId !== 'dopilot@upi' ? parsed.upiId : DEFAULT_PAYMENT_QR_CONFIG.upiId,
         paymentMethod: 'google_pay_upi'
       };
+      memoryPaymentQRConfigCache = res;
+      if (!hasInitiatedCloudPaymentQRSync) {
+        hasInitiatedCloudPaymentQRSync = true;
+        syncPaymentQRConfigFromCloud().catch(() => {});
+      }
+      return res;
     }
   } catch (e) {
     console.error('Failed to read payment QR config:', e);
   }
+
+  if (!hasInitiatedCloudPaymentQRSync) {
+    hasInitiatedCloudPaymentQRSync = true;
+    syncPaymentQRConfigFromCloud().catch(() => {});
+  }
+
   return DEFAULT_PAYMENT_QR_CONFIG;
 };
 
@@ -1133,6 +1328,7 @@ export const updatePaymentQRConfig = (config: Partial<PaymentQRConfig>): Payment
     merchantName: bankingName,
     updatedAt: new Date().toISOString()
   };
+  memoryPaymentQRConfigCache = updated;
   try {
     localStorage.setItem(PAYMENT_QR_CONFIG_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent('dopilot_payment_qr_updated', { detail: updated }));
@@ -1143,9 +1339,9 @@ export const updatePaymentQRConfig = (config: Partial<PaymentQRConfig>): Payment
 
   if (isSupabaseConfigured()) {
     Promise.resolve(
-      supabase.from('app_settings').upsert({
-        key: 'payment_qr_config',
-        value: updated,
+      supabase.from('site_content').upsert({
+        id: CLOUD_PAYMENT_QR_CONFIG_ID,
+        content: updated,
         updated_at: updated.updatedAt
       })
     ).catch(() => {});
@@ -1223,12 +1419,14 @@ export const createQRPaymentSession = (data: {
   };
 
   const updatedPurchases = [newRecord, ...purchases];
+  memoryPurchasesCache = updatedPurchases;
   try {
     localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(updatedPurchases));
     window.dispatchEvent(new CustomEvent('dopilot_course_purchased', { detail: newRecord }));
   } catch (e) {
     console.error('Failed to save QR session record:', e);
   }
+  persistCoursePurchasesToCloud(updatedPurchases).catch(() => {});
 
   if (isSupabaseConfigured()) {
     Promise.resolve(
@@ -1279,11 +1477,13 @@ export const expireQRPaymentSession = (sessionIdOrStudentId: string, courseId?: 
 
   target.status = 'expired';
   target.accessGranted = false;
+  memoryPurchasesCache = purchases;
 
   try {
     localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(purchases));
     window.dispatchEvent(new CustomEvent('dopilot_course_purchased', { detail: target }));
   } catch (e) {}
+  persistCoursePurchasesToCloud(purchases).catch(() => {});
 
   if (isSupabaseConfigured()) {
     Promise.resolve(
@@ -1357,10 +1557,12 @@ export const submitManualQRPurchase = (data: {
     existing.couponCodeApplied = data.couponCodeApplied;
     if (data.studentPhone) existing.studentPhone = data.studentPhone;
 
+    memoryPurchasesCache = purchases;
     try {
       localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(purchases));
       window.dispatchEvent(new CustomEvent('dopilot_course_purchased', { detail: existing }));
     } catch (e) {}
+    persistCoursePurchasesToCloud(purchases).catch(() => {});
 
     // Increment coupon usage count if coupon was applied
     if (data.couponCodeApplied) {
@@ -1408,12 +1610,14 @@ export const submitManualQRPurchase = (data: {
   };
 
   const updatedPurchases = [newRecord, ...purchases];
+  memoryPurchasesCache = updatedPurchases;
   try {
     localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(updatedPurchases));
     window.dispatchEvent(new CustomEvent('dopilot_course_purchased', { detail: newRecord }));
   } catch (e) {
     console.error('Failed to save manual purchase:', e);
   }
+  persistCoursePurchasesToCloud(updatedPurchases).catch(() => {});
 
   // Increment coupon usage count if coupon was applied
   if (data.couponCodeApplied) {
@@ -1486,10 +1690,12 @@ export const verifyManualQRPurchase = (
       record.status = 'completed';
       record.accessGranted = true;
       record.adminNotes = (adminNotes ? adminNotes + ' | ' : '') + 'Student already had course access; verified payment record.';
+      memoryPurchasesCache = purchases;
       try {
         localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(purchases));
         window.dispatchEvent(new CustomEvent('dopilot_course_purchased', { detail: record }));
       } catch {}
+      persistCoursePurchasesToCloud(purchases).catch(() => {});
       return {
         success: true,
         message: 'Student was already enrolled. Payment verified and record completed.',
@@ -1546,10 +1752,12 @@ export const verifyManualQRPurchase = (
     record.adminNotes = adminNotes || 'Payment verification rejected by admin';
   }
 
+  memoryPurchasesCache = purchases;
   try {
     localStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(purchases));
     window.dispatchEvent(new CustomEvent('dopilot_course_purchased', { detail: record }));
   } catch {}
+  persistCoursePurchasesToCloud(purchases).catch(() => {});
 
   if (isSupabaseConfigured()) {
     Promise.resolve(

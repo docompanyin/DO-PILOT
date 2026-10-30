@@ -60,6 +60,9 @@ import {
   deleteCourseCoupon,
   toggleCourseCouponActive,
   syncCouponsFromCloud,
+  syncPaymentQRConfigFromCloud,
+  syncCoursePurchasesFromCloud,
+  syncCoursePricingFromCloud,
   hasCourseAccess,
   normalizeCourseId
 } from '../../utils/coursePricingService';
@@ -264,19 +267,47 @@ export const AdminPanel: React.FC = () => {
       setCourseCoupons(cloudCoupons);
     }).catch(() => {});
 
+    syncPaymentQRConfigFromCloud().then((cloudQr) => {
+      setPaymentQRConfig(cloudQr);
+      setRecipientNameInput(cloudQr.recipientName || 'Jayadev Nair');
+      setBankingNameInput(cloudQr.bankingName || cloudQr.merchantName || 'JAYADEV NAIR');
+      setPhoneNumberInput(cloudQr.phoneNumber || '+91 97459 49326');
+      setQrUpiIdInput(cloudQr.upiId || 'jayadevnair200518@oksbi');
+      setQrImageUrlInput(cloudQr.qrImageUrl || '');
+      setQrTimeoutMinutesInput(cloudQr.timeoutMinutes || 10);
+      setQrManualEnabledInput(cloudQr.isEnabled !== false);
+    }).catch(() => {});
+
+    syncCoursePurchasesFromCloud().then((cloudPurchases) => {
+      setCoursePurchases(cloudPurchases);
+    }).catch(() => {});
+
+    syncCoursePricingFromCloud().then((cloudPricing) => {
+      setCoursePricingList(cloudPricing);
+    }).catch(() => {});
+
     // Polling backup every 2.5s when Admin Panel is open to guarantee instant multi-device visibility
     const syncInterval = setInterval(() => {
       syncCouponsFromCloud().then((cloudCoupons) => {
         setCourseCoupons(cloudCoupons);
       }).catch(() => {});
+      syncPaymentQRConfigFromCloud().then((cloudQr) => {
+        setPaymentQRConfig(cloudQr);
+      }).catch(() => {});
+      syncCoursePurchasesFromCloud().then((cloudPurchases) => {
+        setCoursePurchases(cloudPurchases);
+      }).catch(() => {});
+      syncCoursePricingFromCloud().then((cloudPricing) => {
+        setCoursePricingList(cloudPricing);
+      }).catch(() => {});
     }, 2500);
 
-    // Subscribe to Supabase Realtime changes for coupons across all devices
+    // Subscribe to Supabase Realtime changes across all devices
     let realtimeChannel: any = null;
     if (isSupabaseConfigured()) {
       try {
         realtimeChannel = supabase
-          .channel('public:site_content:coupons')
+          .channel('public:site_content:admin_payments')
           .on(
             'postgres_changes',
             {
@@ -287,14 +318,26 @@ export const AdminPanel: React.FC = () => {
             (payload: any) => {
               if (payload?.new?.id === 'course_coupons_v1' && payload?.new?.content?.coupons && Array.isArray(payload.new.content.coupons)) {
                 setCourseCoupons(payload.new.content.coupons);
-              } else {
-                syncCouponsFromCloud().then(setCourseCoupons).catch(() => {});
+              } else if (payload?.new?.id === 'telemetry_dopilot_payment_qr_config_v1' && payload?.new?.content) {
+                const cloudQr = payload.new.content;
+                setPaymentQRConfig(cloudQr);
+                setRecipientNameInput(cloudQr.recipientName || 'Jayadev Nair');
+                setBankingNameInput(cloudQr.bankingName || cloudQr.merchantName || 'JAYADEV NAIR');
+                setPhoneNumberInput(cloudQr.phoneNumber || '+91 97459 49326');
+                setQrUpiIdInput(cloudQr.upiId || 'jayadevnair200518@oksbi');
+                setQrImageUrlInput(cloudQr.qrImageUrl || '');
+                setQrTimeoutMinutesInput(cloudQr.timeoutMinutes || 10);
+                setQrManualEnabledInput(cloudQr.isEnabled !== false);
+              } else if (payload?.new?.id === 'telemetry_dopilot_course_purchases_v1' && payload?.new?.content?.purchases) {
+                setCoursePurchases(payload.new.content.purchases);
+              } else if (payload?.new?.id === 'telemetry_dopilot_course_pricing_v1' && payload?.new?.content?.pricing) {
+                setCoursePricingList(payload.new.content.pricing);
               }
             }
           )
           .subscribe();
       } catch (err) {
-        console.warn('Could not establish realtime channel for coupons:', err);
+        console.warn('Could not establish realtime channel for admin payment data:', err);
       }
     }
 
