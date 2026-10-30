@@ -99,7 +99,6 @@ export const AdminPanel: React.FC = () => {
     verifyChangeEmailStep1,
     requestChangeEmailStep2,
     confirmNewRecoveryEmail,
-    clearRecoveryEmailsForTesting,
     updateCredentialsWithOldPassword,
     updateRecoveryEmails,
     addAuditLog
@@ -1810,20 +1809,6 @@ export const AdminPanel: React.FC = () => {
       setEmailChangeStatus({ type: 'error', message: err?.message || 'Verification failed.' });
     } finally {
       setEmailChangeLoading(false);
-    }
-  };
-
-  const handleResetRecoveryEmailsToEmpty = async () => {
-    if (!window.confirm('Reset both recovery email slots to empty? This allows testing initial configuration from scratch.')) return;
-    try {
-      const ok = await clearRecoveryEmailsForTesting();
-      if (ok) {
-        showToast('Both recovery emails reset to empty slots.');
-      } else {
-        showToast('Failed to clear recovery emails.', false);
-      }
-    } catch (err: any) {
-      showToast('Error resetting recovery emails.', false);
     }
   };
 
@@ -3595,23 +3580,11 @@ export const AdminPanel: React.FC = () => {
             CARD 2: EMERGENCY DUAL RECOVERY EMAILS
         ========================================================================= */}
         <div className="rounded-2xl bg-[#0c0d0e] border border-white/10 p-5 sm:p-6 space-y-5 shadow-2xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
-            <div>
-              <h2 className="font-jakarta text-base sm:text-lg font-black text-paper">Emergency Recovery Emails</h2>
-              <p className="text-xs text-slate mt-0.5">
-                Two verified administrator addresses used for OTP password recovery and security verification.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleResetRecoveryEmailsToEmpty}
-              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate hover:text-paper font-jakarta text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-              title="Clear recovery emails for testing"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset Slots (Testing)</span>
-            </button>
+          <div className="pb-3 border-b border-white/10">
+            <h2 className="font-jakarta text-base sm:text-lg font-black text-paper">Emergency Recovery Emails</h2>
+            <p className="text-xs text-slate mt-0.5">
+              Two verified administrator addresses used for OTP password recovery and security verification.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
