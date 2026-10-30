@@ -901,64 +901,97 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     otpSecondaryInput: string,
     newPassword: string
   ): Promise<{ success: boolean; message: string }> => {
-    const session = methodBOTPSession.current;
-    if (!session) {
-      return { success: false, message: 'No active OTP request found. Please request a new OTP code.' };
-    }
-
-    if (Date.now() > session.expiresAt) {
-      methodBOTPSession.current = null;
-      addAuditLog('METHOD_B_OTP_EXPIRED', 'Method B recovery OTP expired.', 'FAILED', 'Admin Account');
-      return { success: false, message: 'OTP code has expired! Please request a new code.' };
-    }
-
-    if (session.attemptsLeft <= 0) {
-      methodBOTPSession.current = null;
-      addAuditLog('METHOD_B_MAX_ATTEMPTS', 'Method B maximum OTP verification attempts exceeded.', 'FAILED', 'Admin Account');
-      return { success: false, message: 'Maximum verification attempts exceeded. Please request a new OTP.' };
-    }
-
-    session.attemptsLeft -= 1;
-
-    let isPrimaryValid = true;
-    let isSecondaryValid = true;
-
-    if (deliveryMode === 'primary' || deliveryMode === 'both') {
-      if (!session.primaryOtp || !safeEqual(otpPrimaryInput.trim(), session.primaryOtp.trim())) {
-        isPrimaryValid = false;
-      }
-    }
-
-    if (deliveryMode === 'secondary' || deliveryMode === 'both') {
-      if (!session.secondaryOtp || !safeEqual(otpSecondaryInput.trim(), session.secondaryOtp.trim())) {
-        isSecondaryValid = false;
-      }
-    }
-
-    if (!isPrimaryValid || !isSecondaryValid) {
-      const err = deliveryMode === 'both' && (!isPrimaryValid && !isSecondaryValid)
-        ? 'Both OTP codes are incorrect!'
-        : !isPrimaryValid
-        ? 'Incorrect OTP code for Primary Email!'
-        : 'Incorrect OTP code for Secondary Email!';
-
-      addAuditLog('METHOD_B_OTP_FAILED', `Failed OTP verification. ${session.attemptsLeft} attempts remaining.`, 'FAILED', 'Admin Account');
-      return {
-        success: false,
-        message: `${err} (${session.attemptsLeft} attempt${session.attemptsLeft === 1 ? '' : 's'} remaining).`
-      };
-    }
+    const { primaryEmail, secondaryEmail } = getAdminEmails();
 
     const cleanNewPass = newPassword.trim();
     if (cleanNewPass.length < 6) {
       return { success: false, message: 'New password must be at least 6 characters long.' };
     }
 
+    // 1. Authoritative Server-side Verification via /api/admin-otp
+    if (deliveryMode === 'primary' || deliveryMode === 'both') {
+      if (!primaryEmail) {
+        return { success: false, message: 'Primary recovery email is not configured.' };
+      }
+      try {
+        const res = await fetch('/api/admin-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'verify_otp',
+            target: 'primary',
+            email: primaryEmail.toLowerCase().trim(),
+            otp: otpPrimaryInput.trim(),
+            adminUsername: securityConfig.username
+          })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          addAuditLog('METHOD_B_OTP_FAILED', `Failed OTP verification for Primary Email. ${data.message || ''}`, 'FAILED', 'Admin Account');
+          return {
+            success: false,
+            message: data.message || 'Incorrect OTP code for Primary Email!'
+          };
+        }
+      } catch (err: any) {
+        return { success: false, message: err?.message || 'Server error verifying Primary Email OTP.' };
+      }
+    }
+
+    if (deliveryMode === 'secondary' || deliveryMode === 'both') {
+      if (!secondaryEmail) {
+        return { success: false, message: 'Secondary recovery email is not configured.' };
+      }
+      try {
+        const res = await fetch('/api/admin-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'verify_otp',
+            target: 'secondary',
+            email: secondaryEmail.toLowerCase().trim(),
+            otp: otpSecondaryInput.trim(),
+            adminUsername: securityConfig.username
+          })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          addAuditLog('METHOD_B_OTP_FAILED', `Failed OTP verification for Secondary Email. ${data.message || ''}`, 'FAILED', 'Admin Account');
+          return {
+            success: false,
+            message: data.message || 'Incorrect OTP code for Secondary Email!'
+          };
+        }
+      } catch (err: any) {
+        return { success: false, message: err?.message || 'Server error verifying Secondary Email OTP.' };
+      }
+    }
+
+    // 2. Fetch fresh security config before applying new password
+    let activeConfig = securityConfig;
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: cloudSec } = await supabase
+          .from('site_content')
+          .select('content')
+          .eq('id', CLOUD_ADMIN_SECURITY_ID)
+          .maybeSingle();
+
+        if (cloudSec?.content && cloudSec.content.passwordHash) {
+          activeConfig = cloudSec.content as AdminSecurityConfig;
+          setSecurityConfig(activeConfig);
+          localStorage.setItem(AUTH_KEY, JSON.stringify(activeConfig));
+        }
+      } catch (err) {
+        console.warn('Could not refresh security config from cloud before password reset:', err);
+      }
+    }
+
     const newSalt = generateSalt(16);
     const newHash = await hashPassword(cleanNewPass, newSalt);
 
     const updatedConfig: AdminSecurityConfig = {
-      ...securityConfig,
+      ...activeConfig,
       passwordHash: newHash,
       passwordSalt: newSalt,
       updatedAt: new Date().toISOString()
