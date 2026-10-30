@@ -444,7 +444,7 @@ export const AdminPanel: React.FC = () => {
   const [methodAStatus, setMethodAStatus] = useState<{ type: 'idle' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
 
   // Method B State
-  const [methodBDeliveryMode, setMethodBDeliveryMode] = useState<'primary' | 'secondary' | 'both'>('primary');
+  const [methodBDeliveryMode, setMethodBDeliveryMode] = useState<'primary' | 'secondary'>('primary');
   const [methodBOtpSent, setMethodBOtpSent] = useState(false);
   const [methodBOtpPrimary, setMethodBOtpPrimary] = useState('');
   const [methodBOtpSecondary, setMethodBOtpSecondary] = useState('');
@@ -3373,7 +3373,7 @@ export const AdminPanel: React.FC = () => {
               {/* Step 1: Select Delivery Target */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate">Select Recovery Destination</label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
                     disabled={!currentEmails.primaryEmail}
@@ -3425,32 +3425,6 @@ export const AdminPanel: React.FC = () => {
                       {currentEmails.secondaryEmail || 'Not Configured'}
                     </div>
                   </button>
-
-                  <button
-                    type="button"
-                    disabled={!currentEmails.primaryEmail || !currentEmails.secondaryEmail}
-                    onClick={() => {
-                      if (!currentEmails.primaryEmail || !currentEmails.secondaryEmail) return;
-                      setMethodBDeliveryMode('both');
-                      setMethodBOtpSent(false);
-                      setMethodBStatus({ type: 'idle', message: '' });
-                    }}
-                    className={`p-3.5 rounded-xl border text-left transition-all ${
-                      !currentEmails.primaryEmail || !currentEmails.secondaryEmail
-                        ? 'opacity-40 cursor-not-allowed bg-black/20 border-white/5'
-                        : methodBDeliveryMode === 'both'
-                        ? 'bg-white/10 border-white/20 text-paper cursor-pointer'
-                        : 'bg-black/40 border-white/10 text-slate hover:border-white/20 cursor-pointer'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-mono text-[10px] uppercase font-bold text-slate">Both Addresses</span>
-                      {methodBDeliveryMode === 'both' && currentEmails.primaryEmail && currentEmails.secondaryEmail && <Check className="w-3.5 h-3.5 text-paper" />}
-                    </div>
-                    <div className="font-jakarta font-bold text-xs text-paper truncate">
-                      Dual Verification
-                    </div>
-                  </button>
                 </div>
               </div>
 
@@ -3464,8 +3438,7 @@ export const AdminPanel: React.FC = () => {
                       methodBLoading ||
                       methodBCooldown > 0 ||
                       (methodBDeliveryMode === 'primary' && !currentEmails.primaryEmail) ||
-                      (methodBDeliveryMode === 'secondary' && !currentEmails.secondaryEmail) ||
-                      (methodBDeliveryMode === 'both' && (!currentEmails.primaryEmail || !currentEmails.secondaryEmail))
+                      (methodBDeliveryMode === 'secondary' && !currentEmails.secondaryEmail)
                     }
                     className="px-5 py-2 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 hover:brightness-110 shadow-md shadow-primary/20 transition-all cursor-pointer disabled:opacity-50"
                   >
@@ -3483,7 +3456,7 @@ export const AdminPanel: React.FC = () => {
                 /* Step 2: Verification and Set New Password */
                 <form onSubmit={handleMethodBSubmit} className="space-y-4 pt-3 border-t border-white/10">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {(methodBDeliveryMode === 'primary' || methodBDeliveryMode === 'both') && (
+                    {methodBDeliveryMode === 'primary' && (
                       <div>
                         <label className="block text-xs font-bold text-slate mb-1">
                           OTP sent to Primary ({currentEmails.primaryEmail}) *
@@ -3500,7 +3473,7 @@ export const AdminPanel: React.FC = () => {
                       </div>
                     )}
 
-                    {(methodBDeliveryMode === 'secondary' || methodBDeliveryMode === 'both') && (
+                    {methodBDeliveryMode === 'secondary' && (
                       <div>
                         <label className="block text-xs font-bold text-slate mb-1">
                           OTP sent to Secondary ({currentEmails.secondaryEmail}) *
