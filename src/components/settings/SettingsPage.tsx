@@ -1661,7 +1661,7 @@ export const SettingsPage: React.FC = () => {
                   Reward Claim Submitted
                 </h3>
                 <p className="text-xs font-mono text-primary font-bold">
-                  ₹{claimSuccessModalTier.cashAmount.toLocaleString('en-IN')} Reward • {claimSuccessModalTier.pointsRequired.toLocaleString('en-IN')} Points Milestone
+                  ₹{claimSuccessModalTier.cashAmount.toLocaleString('en-IN')} Reward
                 </p>
               </div>
 
