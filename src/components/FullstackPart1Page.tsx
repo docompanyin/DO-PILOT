@@ -1787,71 +1787,85 @@ export const FullstackPart1Page: React.FC = () => {
         )}
       </main>
 
-      {/* Second Failure Disclaimer Modal */}
-      <AnimatePresence>
-        {disclaimerModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#0b0e14] border border-amber-500/40 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl text-left space-y-4"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-jakarta font-black text-lg text-paper">
-                    Progression Policy Disclaimer
-                  </h3>
-                  <span className="font-mono text-xs text-amber-400">
-                    Consecutive Failure Risk Warning
-                  </span>
-                </div>
-              </div>
+      {/* Second Failure Disclaimer Modal (Exact Python & Java Reference) */}
+      {disclaimerModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-panel border border-amber-400/40 rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-5 shadow-2xl relative">
+            <div className="flex items-center gap-2.5 text-amber-400 font-mono text-xs font-bold uppercase tracking-wider">
+              <AlertTriangle className="w-5 h-5 text-amber-400" />
+              <span>
+                {levelResult?.streak === 1
+                  ? 'Progression Notice — Disclaimer 1 of 2'
+                  : 'Final Warning Notice — Disclaimer 2 of 2'}
+              </span>
+            </div>
 
-              <p className="text-slate text-xs sm:text-sm leading-relaxed">
-                You have not met the &gt; 80% benchmark on Attempt 2 for Level {activeSection.number}. If you accumulate <strong className="text-rose-400">3 consecutive failed levels</strong>, your course progression will be paused until you consult with an advisor.
+            <div className="space-y-2 text-left">
+              <h3 className="font-jakarta text-xl sm:text-2xl font-black text-paper">
+                {levelResult?.streak === 1
+                  ? `Warning: Level ${activeSection.number} Failed Twice`
+                  : `Critical Warning: Level ${activeSection.number} Failed Twice`}
+              </h3>
+              <p className="text-amber-300 font-medium text-xs sm:text-sm leading-relaxed">
+                {levelResult?.streak === 1
+                  ? `Warning: You failed Level ${activeSection.number} twice. You have 2 more warnings remaining before course progression is locked.`
+                  : `Warning: You failed Level ${activeSection.number} twice. Only 1 more warning remaining! If you fail the next level twice, your course progression will be completely locked.`}
               </p>
+              <p className="text-slate text-xs leading-relaxed pt-1">
+                {levelResult?.streak === 1
+                  ? 'You are allowed to continue to the next level. However, if you continue to fail consecutive levels, you will receive only 1 more warning before your course progression is locked until support intervention.'
+                  : 'This is your final warning before course lockdown. You are permitted to advance, but failing the next level twice will require mandatory contact with our support team to unlock progression.'}
+              </p>
+            </div>
 
-              <label className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/[0.03] border border-white/10 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={disclaimerConfirmed}
-                  onChange={(e) => setDisclaimerConfirmed(e.target.checked)}
-                  className="mt-0.5 rounded border-white/20 text-primary focus:ring-primary cursor-pointer"
-                />
-                <span className="font-sans text-xs text-paper/90 select-none">
-                  I understand that proceeding without retesting increases my consecutive failure streak, and 3 consecutive failures will lock my progress.
-                </span>
+            <div className="p-3 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-start gap-2.5 text-left">
+              <input
+                type="checkbox"
+                id="disclaimer-check"
+                checked={disclaimerConfirmed}
+                onChange={(e) => setDisclaimerConfirmed(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-white/20 text-primary accent-primary cursor-pointer"
+              />
+              <label htmlFor="disclaimer-check" className="text-xs text-amber-200 cursor-pointer select-none">
+                {levelResult?.streak === 1
+                  ? 'I understand that after 2 more level failures my course will be locked, and I confirm to continue.'
+                  : 'I understand that after 1 more level failure my course will be locked, and I confirm to continue.'}
               </label>
+            </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setDisclaimerModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/10 text-paper font-jakarta text-xs font-bold transition-all cursor-pointer"
-                >
-                  Cancel
-                </button>
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={!disclaimerConfirmed}
+                onClick={() => {
+                  setDisclaimerModalOpen(false);
+                  setDisclaimerConfirmed(false);
+                  handleProceedToNextLevel();
+                }}
+                className={`flex-1 py-2.5 px-4 rounded-xl font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 ${
+                  disclaimerConfirmed
+                    ? 'bg-primary hover:bg-white text-ink cursor-pointer shadow-md shadow-primary/20'
+                    : 'bg-white/10 text-slate/40 cursor-not-allowed'
+                }`}
+              >
+                <span>Confirm &amp; Continue</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
 
-                <button
-                  type="button"
-                  disabled={!disclaimerConfirmed}
-                  onClick={() => {
-                    setDisclaimerModalOpen(false);
-                    handleProceedToNextLevel();
-                  }}
-                  className="px-5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-jakarta font-extrabold text-xs transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Acknowledge &amp; Proceed
-                </button>
-              </div>
-            </motion.div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDisclaimerModalOpen(false);
+                  setDisclaimerConfirmed(false);
+                }}
+                className="py-2.5 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
 
       {/* Part 2 Teaser Modal */}
       <AnimatePresence>
