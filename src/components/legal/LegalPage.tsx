@@ -144,6 +144,28 @@ export const LegalPage: React.FC<LegalPageProps> = ({ defaultSection }) => {
                       })}
                     </div>
                   )}
+                  {section.bullets && section.bullets.length > 0 && (
+                    <div className="space-y-1.5 text-sm text-slate text-justify">
+                      {section.bullets.map((bullet, bIdx) => {
+                        const colonIdx = bullet.indexOf(':');
+                        if (colonIdx > 0 && colonIdx < 45) {
+                          const boldPrefix = bullet.slice(0, colonIdx + 1);
+                          const restText = bullet.slice(colonIdx + 1);
+                          return (
+                            <p key={bIdx} className="text-sm text-justify">
+                              <strong className="text-paper font-semibold">{boldPrefix}</strong>
+                              {restText}
+                            </p>
+                          );
+                        }
+                        return (
+                          <p key={bIdx} className="text-sm text-justify">
+                            {bullet}
+                          </p>
+                        );
+                      })}
+                    </div>
+                  )}
                 </section>
               ))}
             </div>

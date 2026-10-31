@@ -3465,10 +3465,19 @@ export const AdminPanel: React.FC = () => {
       const secTitle = (formData.get(`section_${idx}_title`) as string)?.trim() ?? sec.title;
       const secContent = (formData.get(`section_${idx}_content`) as string)?.trim() ?? sec.content;
 
+      let secBullets = sec.bullets;
+      if (sec.bullets && sec.bullets.length > 0) {
+        secBullets = sec.bullets.map((b, bIdx) => {
+          const val = (formData.get(`section_${idx}_bullet_${bIdx}`) as string)?.trim();
+          return val !== undefined ? val : b;
+        });
+      }
+
       return {
         ...sec,
         title: secTitle,
         content: secContent,
+        ...(secBullets ? { bullets: secBullets } : {})
       };
     });
 
@@ -3591,12 +3600,28 @@ export const AdminPanel: React.FC = () => {
                 <div>
                   <label className="block text-[10px] font-mono text-slate/70 mb-1">Clause Body Text</label>
                   <textarea
-                    rows={6}
+                    rows={4}
                     name={`section_${sIdx}_content`}
                     defaultValue={section.content}
                     className="w-full bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-slate focus:text-paper focus:border-primary focus:outline-none resize-y leading-relaxed font-sans text-justify"
                   />
                 </div>
+
+                {section.bullets && section.bullets.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-white/5">
+                    <label className="block text-[10px] font-mono text-slate/70">Points</label>
+                    {section.bullets.map((bullet, bIdx) => (
+                      <div key={bIdx} className="flex items-start gap-2">
+                        <textarea
+                          rows={2}
+                          name={`section_${sIdx}_bullet_${bIdx}`}
+                          defaultValue={bullet}
+                          className="flex-1 bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-slate focus:text-paper focus:border-primary focus:outline-none resize-y font-sans text-justify"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>

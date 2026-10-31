@@ -1,6 +1,7 @@
 export interface LegalPolicySection {
   title: string;
-  content: string; // Plain paragraph text
+  content: string; // Markdown or paragraph text
+  bullets?: string[];
 }
 
 export interface LegalPolicyData {
@@ -28,11 +29,22 @@ export const DEFAULT_LEGAL_POLICIES: LegalPoliciesData = {
       },
       {
         title: '2. Information We Collect',
-        content: 'We collect information directly from you when you register, attend sessions, or use our platform tools:\n\nAccount Identifiers: Name, email address, WhatsApp/phone number, and account login identifiers (via Google OAuth or email sign-in).\n\nLearning & Execution Telemetry: Code execution runs inside the Code Lab compiler, exercise submissions, attendance records during live workshops, and project completions for certificate validation.\n\nPayment Data: Transaction reference IDs, invoice records, and billing details. Payments are processed through RBI-authorized, PCI-DSS compliant gateways (such as Razorpay or Stripe). DO PILOT never captures or stores credit/debit card numbers or bank account credentials.'
+        content: 'We collect information directly from you when you register, attend sessions, or use our platform tools:',
+        bullets: [
+          'Account Identifiers: Name, email address, WhatsApp/phone number, and account login identifiers (via Google OAuth or email sign-in).',
+          'Learning & Execution Telemetry: Code execution runs inside the Code Lab compiler, exercise submissions, attendance records during live workshops, and project completions for certificate validation.',
+          'Payment Data: Transaction reference IDs, invoice records, and billing details. Payments are processed through RBI-authorized, PCI-DSS compliant gateways (such as Razorpay or Stripe). DO PILOT never captures or stores credit/debit card numbers or bank account credentials.'
+        ]
       },
       {
         title: '3. Use of Information',
-        content: 'All collected data is utilized exclusively for legitimate educational and platform operations:\n\nGranting curriculum access, delivering live session links, and conducting instructor evaluations.\n\nGenerating tamper-proof, verified digital credentials and certificates of completion.\n\nSending critical operational messages, class reminders, batch schedule adjustments, and support responses.\n\nMonitoring platform security, preventing unauthorized multi-user account sharing, and diagnosing compiler runtime exceptions.'
+        content: 'All collected data is utilized exclusively for legitimate educational and platform operations:',
+        bullets: [
+          'Granting curriculum access, delivering live session links, and conducting instructor evaluations.',
+          'Generating tamper-proof, verified digital credentials and certificates of completion.',
+          'Sending critical operational messages, class reminders, batch schedule adjustments, and support responses.',
+          'Monitoring platform security, preventing unauthorized multi-user account sharing, and diagnosing compiler runtime exceptions.'
+        ]
       },
       {
         title: '4. Third-Party Infrastructure & Security',
@@ -86,11 +98,19 @@ export const DEFAULT_LEGAL_POLICIES: LegalPoliciesData = {
       },
       {
         title: '2. Live Masterclasses & Single Workshops',
-        content: 'Eligible Cancellation: You are entitled to a 100% refund if your cancellation request is received in writing at least 24 hours prior to the scheduled live session start time.\n\nIneligible Period: Requests submitted within 24 hours of the session, during the live class, or after recording links and starter files have been shared, are strictly non-refundable.'
+        content: 'Policies regarding single masterclasses and workshops:',
+        bullets: [
+          'Eligible Cancellation: You are entitled to a 100% refund if your cancellation request is received in writing at least 24 hours prior to the scheduled live session start time.',
+          'Ineligible Period: Requests submitted within 24 hours of the session, during the live class, or after recording links and starter files have been shared, are strictly non-refundable.'
+        ]
       },
       {
         title: '3. Multi-Week Cohorts & Comprehensive Programs',
-        content: 'Refund requests may be submitted within 3 calendar days (72 hours) of the official batch kickoff date, provided the student has attended no more than one live class session and completed under 15% of course lessons.\n\nA payment gateway handling charge (typically 2% to 3% charged by payment processors) may be deducted from the final refunded sum.'
+        content: 'Policies regarding multi-week cohorts:',
+        bullets: [
+          'Refund requests may be submitted within 3 calendar days (72 hours) of the official batch kickoff date, provided the student has attended no more than one live class session and completed under 15% of course lessons.',
+          'A payment gateway handling charge (typically 2% to 3% charged by payment processors) may be deducted from the final refunded sum.'
+        ]
       },
       {
         title: '4. Cancellations Initiated by DO PILOT',
