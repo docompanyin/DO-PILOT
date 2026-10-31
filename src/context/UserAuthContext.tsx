@@ -329,7 +329,11 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             createdAt: data.created_at || new Date().toISOString()
           };
           saveUserSession(fullProfile);
-          await syncUserPurchasesFromCloud(fullProfile.email, fullProfile.id);
+          await Promise.all([
+            restoreAllStudentCourseProgressFromCloud(fullProfile.email),
+            restoreStudentTelemetryFromCloud(fullProfile.email),
+            syncUserPurchasesFromCloud(fullProfile.email, fullProfile.id)
+          ]);
           return fullProfile;
         }
 
