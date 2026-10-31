@@ -142,6 +142,31 @@ export const setStudentTelemetryInMemory = (studentEmailOrId: string, records: Q
 };
 
 /**
+ * Completely clears in-memory and local telemetry cache for a student.
+ */
+export const clearStudentTelemetryInMemory = (studentEmailOrId?: string) => {
+  if (!studentEmailOrId) {
+    Object.keys(memoryTelemetryCache).forEach((k) => delete memoryTelemetryCache[k]);
+    return;
+  }
+  const cleanEmail = normalizeStudentEmail(studentEmailOrId);
+  const memKey = cleanEmail || (studentEmailOrId || '').toLowerCase().trim();
+  const emailSafe = cleanEmail ? cleanEmail.replace(/[^a-z0-9_]/g, '_') : '';
+
+  if (memKey && memoryTelemetryCache[memKey]) delete memoryTelemetryCache[memKey];
+  if (emailSafe && memoryTelemetryCache[emailSafe]) delete memoryTelemetryCache[emailSafe];
+  if (cleanEmail && memoryTelemetryCache[cleanEmail]) delete memoryTelemetryCache[cleanEmail];
+
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      if (memKey) localStorage.removeItem(getStudentTelemetryStorageKey(memKey));
+      if (cleanEmail) localStorage.removeItem(getStudentTelemetryStorageKey(cleanEmail));
+      if (emailSafe) localStorage.removeItem(`dopilot_telemetry_${emailSafe}`);
+    } catch {}
+  }
+};
+
+/**
  * Retrieve all logged question attempts for a student.
  * Checks memory cache first, then localStorage.
  */

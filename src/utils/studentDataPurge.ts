@@ -8,6 +8,7 @@
  */
 
 import { clearMemoryCourseState } from './courseProgressSyncService';
+import { clearStudentTelemetryInMemory } from './studentTelemetryService';
 
 export const purgeStudentLocalData = (studentEmail?: string, studentId?: string): void => {
   if (typeof window === 'undefined' || !window.localStorage) return;
@@ -175,6 +176,8 @@ export const purgeStudentLocalData = (studentEmail?: string, studentId?: string)
     localStorage.removeItem('dopilot_active_section_id');
     localStorage.removeItem('dopilot_active_q_idx');
     localStorage.removeItem('dopilot_mcq_answers');
+    localStorage.removeItem('dopilot_mcq_answers_v2');
+    localStorage.removeItem('dopilot_wrong_attempts');
     localStorage.removeItem('dopilot_time_up');
     localStorage.removeItem('dopilot_q_target_end_time');
     localStorage.removeItem('dopilot_study_phase');
@@ -235,9 +238,10 @@ export const purgeStudentLocalData = (studentEmail?: string, studentId?: string)
     console.warn('Error clearing course flags:', e);
   }
 
-  // 9. Clear cloud in-memory cache
+  // 9. Clear cloud in-memory cache and telemetry
   try {
     clearMemoryCourseState(cleanEmail);
+    clearStudentTelemetryInMemory(cleanEmail || cleanId);
   } catch (e) {}
 
   // 10. Dispatch notification events

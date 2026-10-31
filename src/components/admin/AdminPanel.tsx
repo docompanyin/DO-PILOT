@@ -1266,8 +1266,16 @@ export const AdminPanel: React.FC = () => {
             try {
               const emailSafe = targetEmail.replace(/[^a-z0-9_]/g, '_');
               await supabase.from('site_content').delete().eq('id', `student_course_state_${emailSafe}`);
+              await supabase.from('site_content').delete().eq('id', `telemetry_${emailSafe}`);
               if (targetEmail !== emailSafe) {
                 await supabase.from('site_content').delete().eq('id', `student_course_state_${targetEmail}`);
+                await supabase.from('site_content').delete().eq('id', `telemetry_${targetEmail}`);
+              }
+              if (targetId) {
+                const targetIdSafe = targetId.replace(/[^a-z0-9_]/g, '_');
+                await supabase.from('site_content').delete().eq('id', `student_course_state_${targetId}`);
+                await supabase.from('site_content').delete().eq('id', `telemetry_${targetId}`);
+                await supabase.from('site_content').delete().eq('id', `telemetry_${targetIdSafe}`);
               }
               const { data: matchedRows } = await supabase.from('site_content').select('id').ilike('id', `%${targetEmail}%`);
               if (Array.isArray(matchedRows) && matchedRows.length > 0) {
@@ -5989,7 +5997,7 @@ export const AdminPanel: React.FC = () => {
                                                         }
 
                                                         const opt = att.studentOptionId || '—';
-                                                        const timeStr = att.timeTakenSeconds > 0 ? `${Math.round(att.timeTakenSeconds)} sec` : '—';
+                                                        const timeStr = att.timeTakenSeconds > 0 ? `${Number(att.timeTakenSeconds.toFixed(1))}s` : '—';
                                                         const isCorrect = Boolean(att.isCorrect);
                                                         const isRetest = Boolean(att.isRetest || (att.attemptNumber && att.attemptNumber > 1));
 
@@ -6477,7 +6485,7 @@ export const AdminPanel: React.FC = () => {
                                                             <div className="flex items-center gap-3 text-xs font-mono text-slate">
                                                               <span className="flex items-center gap-1 text-slate/90">
                                                                 <Clock className="w-3.5 h-3.5 text-primary" />
-                                                                <span>Time: <strong className="text-paper">{mistake.timeTakenSeconds > 0 ? `${mistake.timeTakenSeconds}s` : '—'}</strong></span>
+                                                                <span>Time: <strong className="text-paper">{mistake.timeTakenSeconds > 0 ? `${Number(mistake.timeTakenSeconds.toFixed(1))}s` : '—'}</strong></span>
                                                               </span>
                                                               <span className="text-slate/40">•</span>
                                                               <span className="text-slate/70 text-[11px]">{mistake.attemptedAt}</span>

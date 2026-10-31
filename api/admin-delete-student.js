@@ -155,12 +155,14 @@ export default async function handler(req, res) {
       } catch (e) {}
     }
 
-    // 2. Delete from site_content (student_course_state_*)
+    // 2. Delete from site_content (student_course_state_* and telemetry_*)
     try {
       for (const em of targetEmails) {
         const emSafe = em.replace(/[^a-z0-9_]/g, '_');
         await supabase.from('site_content').delete().eq('id', `student_course_state_${emSafe}`);
         await supabase.from('site_content').delete().eq('id', `student_course_state_${em}`);
+        await supabase.from('site_content').delete().eq('id', `telemetry_${emSafe}`);
+        await supabase.from('site_content').delete().eq('id', `telemetry_${em}`);
         const { data: matchedRows } = await supabase
           .from('site_content')
           .select('id')
@@ -172,7 +174,10 @@ export default async function handler(req, res) {
         }
       }
       for (const tid of targetIds) {
+        const tidSafe = tid.replace(/[^a-z0-9_]/g, '_');
         await supabase.from('site_content').delete().eq('id', `student_course_state_${tid}`);
+        await supabase.from('site_content').delete().eq('id', `telemetry_${tid}`);
+        await supabase.from('site_content').delete().eq('id', `telemetry_${tidSafe}`);
       }
 
       // Purge student records from global telemetry_dopilot_course_purchases_v1

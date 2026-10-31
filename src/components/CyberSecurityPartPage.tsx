@@ -486,7 +486,13 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     }
 
     // Calculate exact time spent answering
-    const timeSpent = Math.max(0.1, Number((TIMER_DURATION - timeLeft).toFixed(1)));
+    const timeSpent = (() => {
+      if (targetEndTime) {
+        const elapsed = (TIMER_DURATION * 1000 - Math.max(0, targetEndTime - Date.now())) / 1000;
+        return Math.max(0.1, Math.min(30, Number(elapsed.toFixed(1))));
+      }
+      return Math.max(0.1, Math.min(30, Number((TIMER_DURATION - timeLeft).toFixed(1))));
+    })();
     const isRetestAttempt = (() => {
       try {
         const raw = localStorage.getItem(`dopilot_cyber_attempt_${activeSection.id}_${studentId}`);
