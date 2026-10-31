@@ -4568,11 +4568,11 @@ export const AdminPanel: React.FC = () => {
   const exportIndividualStudentPDF = async (s: StudentAdminRecord) => {
     try {
       // Ensure student telemetry is hydrated from cloud if not yet loaded locally
-      let attempts = getStudentQuestionTelemetry(s);
-      if (attempts.length === 0 && s.email) {
+      let allAttempts = getStudentQuestionTelemetry(s, 'all');
+      if (allAttempts.length === 0 && s.email) {
         const cloudAttempts = await restoreStudentTelemetryFromCloud(s.email);
         if (cloudAttempts && cloudAttempts.length > 0) {
-          attempts = getStudentQuestionTelemetry(s);
+          allAttempts = getStudentQuestionTelemetry(s, 'all');
         }
       }
 
@@ -4580,555 +4580,782 @@ export const AdminPanel: React.FC = () => {
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
 
-      const metrics = computeTelemetryMetrics(attempts);
+      const sEmail = (s.email || '').toLowerCase().trim();
+      const sId = (s.id || '').trim();
 
-      // Extract real mistakes directly from student telemetry
-      const actualMistakes = attempts.filter((att) => !att.isCorrect);
+      // Purchases for this student
+      const studentPurchases = coursePurchases
+        .filter((p) => {
+          const pe = (p.studentEmail || '').toLowerCase().trim();
+          const pi = (p.studentId || '').trim();
+          const match = (sEmail && pe === sEmail) || (sId && pi === sId);
+          return match && (p.status === 'completed' || p.accessGranted);
+        })
+        .sort((a, b) => new Date(a.purchasedAt).getTime() - new Date(b.purchasedAt).getTime());
 
-      // Target course curriculum
-      const targetCourse = selectedCourseFilter !== 'all'
-        ? selectedCourseFilter
-        : (s.enrolledCourses && s.enrolledCourses.length > 0 ? s.enrolledCourses[0] : 'python-core');
-      const fullCurriculum = getCourseCurriculumQuestions(targetCourse);
+      // Authentic claimed certificates for this student
+      const studentCertificates: {
+        courseId: string;
+        courseTitle: string;
+        certificateId: string;
+        issueDate: string;
+      }[] = [];
 
-      // Compute dynamic Section Mastery matching Inspect modal
-      const partQuestionMap = new Map<number, {
-        partNum: number;
-        partTitle: string;
-        totalQuestions: number;
-        answeredCount: number;
-        passedCount: number;
-        failedCount: number;
-        sections: Map<string, {
-          sectionId: string;
-          sectionTitle: string;
+      if (sEmail && memoryCourseState[sEmail]?.certificates) {
+        Object.entries(memoryCourseState[sEmail].certificates).forEach(([storageKey, record]: [string, any]) => {
+          if (record && record.certificateId && (record.isConfirmed || record.isLocked)) {
+            const matchCfg = Object.values(COURSE_CERT_CONFIGS).find((cfg) => cfg.storageKey === storageKey);
+            const title = matchCfg?.title || record.courseTitle || 'Complete Python Course';
+            const courseId = matchCfg?.courseId || 'python-core';
+            studentCertificates.push({
+              courseId,
+              courseTitle: title,
+              certificateId: record.certificateId,
+              issueDate: record.issueDate || 'Completed'
+            });
+          }
+        });
+      }
+
+      if (typeof window !== 'undefined' && window.localStorage) {
+        Object.values(COURSE_CERT_CONFIGS).forEach((cfg) => {
+          try {
+            const raw = localStorage.getItem(cfg.storageKey);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed && parsed.certificateId && (parsed.isConfirmed || parsed.isLocked)) {
+                if (!studentCertificates.some((sc) => sc.certificateId === parsed.certificateId)) {
+                  studentCertificates.push({
+                    courseId: cfg.courseId,
+                    courseTitle: cfg.title,
+                    certificateId: parsed.certificateId,
+                    issueDate: parsed.issueDate || 'Completed'
+                  });
+                }
+              }
+            }
+          } catch {}
+        });
+      }
+
+      if (studentCertificates.length === 0 && s.hasCertificate && s.certificateId) {
+        const courseName = s.enrolledCourses && s.enrolledCourses[0]
+          ? s.enrolledCourses[0]
+          : 'Complete Python Course';
+        studentCertificates.push({
+          courseId: 'python-core',
+          courseTitle: courseName,
+          certificateId: s.certificateId,
+          issueDate: s.certificateIssuedDate || 'Completed'
+        });
+      }
+
+      // Group student activity by course (Strictly one entry per course without duplicate sections)
+      interface PDFCourseGroup {
+        courseId: string;
+        courseName: string;
+        attempts: StudentQuestionAttempt[];
+      }
+
+      const courseGroups: PDFCourseGroup[] = [];
+      allAttempts.forEach((att) => {
+        const cId = att.courseId || 'python-core';
+        const cName = att.courseName || ALL_INSPECT_COURSES.find((c) => c.id === cId)?.name || 'Complete Python Course';
+        let grp = courseGroups.find((g) => g.courseId === cId);
+        if (!grp) {
+          grp = { courseId: cId, courseName: cName, attempts: [] };
+          courseGroups.push(grp);
+        }
+        grp.attempts.push(att);
+      });
+
+      // If student has no attempts in any course, fallback to primary enrolled course
+      if (courseGroups.length === 0) {
+        const primaryCourse = (s.enrolledCourses && s.enrolledCourses.length > 0)
+          ? s.enrolledCourses[0]
+          : 'python-core';
+        const crsMeta = ALL_INSPECT_COURSES.find(
+          (c) => c.id === primaryCourse || c.name.toLowerCase().includes(primaryCourse.toLowerCase())
+        );
+        courseGroups.push({
+          courseId: crsMeta?.id || 'python-core',
+          courseName: crsMeta?.name || 'Complete Python Course',
+          attempts: []
+        });
+      }
+
+      // Helper function: Render standard page header
+      const drawReportHeader = (titleSuffix: string = '') => {
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, 0, pageWidth, 68, 'F');
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.setTextColor(0, 255, 157);
+        doc.text("DO PILOT", 40, 32);
+
+        doc.setFontSize(9.5);
+        doc.setTextColor(240, 240, 240);
+        doc.text(`Student Performance & Learning Report Card${titleSuffix ? ` — ${titleSuffix}` : ''}`, 40, 50);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - 180, 50);
+      };
+
+      // Header on first page
+      drawReportHeader();
+
+      // Top Student Profile Card
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(40, 80, pageWidth - 80, 68, 'FD');
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.text(s.name, 55, 100);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Email: ${s.email}`, 55, 116);
+      doc.text(`Phone: ${s.phone || 'N/A'}`, 55, 130);
+      doc.text(`Registered: ${new Date(s.createdAt).toLocaleDateString()}`, 55, 142);
+
+      doc.text(`College / Org: ${s.collegeOrCompany || 'N/A'}`, 240, 116);
+      doc.text(`Source: ${s.whereDidYouFindUs || 'Direct / Search'}`, 240, 130);
+      const enrolledNames = courseGroups.map((g) => g.courseName).join(', ');
+      doc.text(`Active Courses: ${enrolledNames}`, 240, 142);
+
+      let y = 160;
+
+      // Render Each Course in its own dedicated, separated report block
+      courseGroups.forEach((cGrp, courseIndex) => {
+        // If not the very first course, start on a fresh page for clean professional separation
+        if (courseIndex > 0) {
+          doc.addPage();
+          drawReportHeader(cGrp.courseName);
+          y = 80;
+        }
+
+        const crsAttempts = cGrp.attempts;
+        const crsMetrics = computeTelemetryMetrics(crsAttempts);
+        const crsMistakes = crsAttempts.filter((a) => !a.isCorrect);
+
+        // Course Purchase / Unlock details
+        const crsPurchase = studentPurchases.find((p) => {
+          const pNorm = (p.courseId || p.courseName || '').toLowerCase().replace(/[\s_-]+/g, '');
+          const cNorm = cGrp.courseId.toLowerCase().replace(/[\s_-]+/g, '');
+          return pNorm.includes(cNorm) || cNorm.includes(pNorm);
+        });
+        const purchaseTime = crsPurchase ? new Date(crsPurchase.purchasedAt).getTime() : Infinity;
+
+        // Course Certificate
+        const crsCert = studentCertificates.find((cert) => {
+          const certNorm = (cert.courseId || cert.courseTitle || '').toLowerCase().replace(/[\s_-]+/g, '');
+          const cNorm = cGrp.courseId.toLowerCase().replace(/[\s_-]+/g, '');
+          return certNorm.includes(cNorm) || cNorm.includes(certNorm);
+        });
+
+        // 1. Course Heading Banner (Clean, Professional Indigo Header)
+        if (y > pageHeight - 120) {
+          doc.addPage();
+          drawReportHeader(cGrp.courseName);
+          y = 80;
+        }
+
+        doc.setFillColor(30, 41, 59);
+        doc.rect(40, y, pageWidth - 80, 26, 'F');
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10.5);
+        doc.setTextColor(0, 255, 157);
+        doc.text(cGrp.courseName.toUpperCase(), 50, y + 17);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(226, 232, 240);
+        const enrolledTag = crsPurchase ? `Purchased & Unlocked` : `Free Trial`;
+        doc.text(`Status: ${enrolledTag}  •  ${crsAttempts.length} Recorded Attempts`, pageWidth - 50, y + 17, { align: 'right' });
+        y += 34;
+
+        // 2. Course-wise Statistics (6 Metric Tiles)
+        const tileWidth = (pageWidth - 80 - 25) / 6;
+        const drawCrsTile = (xPos: number, val: string, label: string, bg: [number, number, number], txtColor: [number, number, number]) => {
+          doc.setFillColor(bg[0], bg[1], bg[2]);
+          doc.rect(xPos, y, tileWidth, 42, 'F');
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10.5);
+          doc.setTextColor(txtColor[0], txtColor[1], txtColor[2]);
+          doc.text(val, xPos + 6, y + 19);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(6.2);
+          doc.setTextColor(100, 116, 139);
+          doc.text(label, xPos + 6, y + 33);
+        };
+
+        const crsPassCount = crsAttempts.filter((a) => a.isCorrect).length;
+        const crsPoints = crsAttempts.length > 0 ? crsPassCount : s.points;
+
+        drawCrsTile(40, `${crsPoints} pts`, "COURSE POINTS", [240, 253, 244], [22, 101, 52]);
+        drawCrsTile(40 + (tileWidth + 5), `${crsAttempts.length}`, "TESTS ATTEMPTED", [241, 245, 249], [30, 41, 59]);
+        drawCrsTile(40 + (tileWidth + 5) * 2, `${crsPassCount}`, "TASKS PASSED", [236, 253, 245], [5, 150, 105]);
+        drawCrsTile(40 + (tileWidth + 5) * 3, `${crsMistakes.length}`, "MISTAKES", [254, 242, 242], [225, 29, 72]);
+        drawCrsTile(40 + (tileWidth + 5) * 4, `${crsMetrics.avgTime > 0 ? Number(crsMetrics.avgTime.toFixed(1)) : 0}s`, "AVG RESPONSE", [238, 242, 255], [79, 70, 229]);
+        drawCrsTile(40 + (tileWidth + 5) * 5, `${crsMetrics.fastCount} / ${crsMetrics.slowCount}`, "FAST / SLOW", [248, 250, 252], [15, 23, 42]);
+        y += 48;
+
+        // 3. Certificate Status Box (Clean Professional Design, No Yellow Highlight)
+        if (crsCert) {
+          doc.setFillColor(240, 253, 244);
+          doc.setDrawColor(187, 247, 208);
+          doc.rect(40, y, pageWidth - 80, 22, 'FD');
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(8);
+          doc.setTextColor(22, 101, 52);
+          doc.text(`[VERIFIED CERTIFIED] ${crsCert.courseTitle} Certificate (ID: ${crsCert.certificateId}) claimed on ${crsCert.issueDate}`, 50, y + 14);
+        } else {
+          doc.setFillColor(248, 250, 252);
+          doc.setDrawColor(226, 232, 240);
+          doc.rect(40, y, pageWidth - 80, 22, 'FD');
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7.5);
+          doc.setTextColor(100, 116, 139);
+          doc.text(`Certificate Status: In Progress (${crsPassCount} challenges completed)`, 50, y + 14);
+        }
+        y += 28;
+
+        // 4. Learning History: Question, Time & Answers (Free Trial & Purchased Stages)
+        const trialAttempts = crsAttempts.filter((a) => new Date(a.attemptedAt).getTime() < purchaseTime);
+        const purchasedAttempts = crsAttempts.filter((a) => new Date(a.attemptedAt).getTime() >= purchaseTime);
+
+        interface PDFStageSegment {
+          stage: 'free_trial' | 'purchased_course';
+          label: string;
+          purchaseInfo?: typeof crsPurchase;
+          attempts: StudentQuestionAttempt[];
+        }
+
+        const stages: PDFStageSegment[] = [];
+        if (trialAttempts.length > 0) {
+          stages.push({
+            stage: 'free_trial',
+            label: 'Free Trial Activity',
+            attempts: trialAttempts
+          });
+        }
+        if (crsPurchase && purchasedAttempts.length > 0) {
+          stages.push({
+            stage: 'purchased_course',
+            label: `Purchased Course: ${crsPurchase.courseName || cGrp.courseName}`,
+            purchaseInfo: crsPurchase,
+            attempts: purchasedAttempts
+          });
+        }
+        if (stages.length === 0) {
+          stages.push({
+            stage: 'free_trial',
+            label: 'Course Learning Activity',
+            attempts: crsAttempts
+          });
+        }
+
+        // Section Title: Question, Time & Answers
+        if (y > pageHeight - 80) {
+          doc.addPage();
+          drawReportHeader(cGrp.courseName);
+          y = 80;
+        }
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text("Question, Time & Answers (Chronological Journey)", 40, y);
+        y += 12;
+
+        const drawAttemptTableHeader = (yPos: number) => {
+          doc.setFillColor(241, 245, 249);
+          doc.rect(40, yPos, pageWidth - 80, 18, 'F');
+          doc.setDrawColor(203, 213, 225);
+          doc.line(40, yPos + 18, pageWidth - 40, yPos + 18);
+
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(7);
+          doc.setTextColor(30, 41, 59);
+
+          doc.text("QUESTION / PART HIERARCHY", 46, yPos + 12);
+          doc.text("CONCEPT TITLE", 185, yPos + 12);
+          doc.text("ATTEMPT", 325, yPos + 12);
+          doc.text("TIME TAKEN", 375, yPos + 12);
+          doc.text("ANSWER", 445, yPos + 12);
+          doc.text("RESULT", 500, yPos + 12);
+          return yPos + 18;
+        };
+
+        if (crsAttempts.length === 0) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          doc.text("No question attempts recorded yet for this course.", 48, y + 14);
+          y += 24;
+        } else {
+          stages.forEach((stg) => {
+            // Stage heading (Free trial vs Course Purchase banner)
+            if (y > pageHeight - 60) {
+              doc.addPage();
+              drawReportHeader(cGrp.courseName);
+              y = 80;
+            }
+
+            if (stg.stage === 'purchased_course') {
+              doc.setFillColor(236, 253, 245);
+              doc.setDrawColor(167, 243, 208);
+              doc.rect(40, y, pageWidth - 80, 18, 'FD');
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(7.5);
+              doc.setTextColor(6, 95, 70);
+              const pDate = stg.purchaseInfo ? new Date(stg.purchaseInfo.purchasedAt).toLocaleDateString() : '';
+              doc.text(`COURSE PURCHASED & UNLOCKED — ${stg.label} ${pDate ? `(Enrolled: ${pDate})` : ''}`, 48, y + 12);
+            } else {
+              doc.setFillColor(248, 250, 252);
+              doc.setDrawColor(226, 232, 240);
+              doc.rect(40, y, pageWidth - 80, 18, 'FD');
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(7.5);
+              doc.setTextColor(30, 41, 59);
+              doc.text(`FREE TRIAL ACTIVITY — (${stg.attempts.length} attempts)`, 48, y + 12);
+            }
+            y += 22;
+
+            y = drawAttemptTableHeader(y);
+
+            stg.attempts.forEach((att, aIdx) => {
+              if (y > pageHeight - 45) {
+                doc.addPage();
+                drawReportHeader(cGrp.courseName);
+                y = 80;
+                y = drawAttemptTableHeader(y);
+              }
+
+              if (aIdx % 2 === 1) {
+                doc.setFillColor(248, 250, 252);
+                doc.rect(40, y, pageWidth - 80, 20, 'F');
+              }
+              doc.setDrawColor(226, 232, 240);
+              doc.line(40, y + 20, pageWidth - 40, y + 20);
+
+              // Hierarchy
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(6.5);
+              doc.setTextColor(14, 116, 144);
+              const labelText = att.subQuestionLabel || `Part ${att.partNum} -> Q${att.questionNumber}`;
+              doc.text(String(labelText).slice(0, 32), 46, y + 13);
+
+              // Title
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(7);
+              doc.setTextColor(15, 23, 42);
+              doc.text(att.questionTitle.slice(0, 28), 185, y + 13);
+
+              // Attempt (Clearly marks Retests)
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(6.5);
+              const isRetest = Boolean(att.isRetest || (att.attemptNumber && att.attemptNumber > 1));
+              if (isRetest) {
+                doc.setTextColor(180, 83, 9);
+                doc.text(`Retest (${att.attemptNumber || 2})`, 325, y + 13);
+              } else {
+                doc.setTextColor(100, 116, 139);
+                doc.text("Attempt 1", 325, y + 13);
+              }
+
+              // Exact Sub-Second Time Taken
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(7);
+              if (att.timeTakenSeconds <= 0) {
+                doc.setTextColor(148, 163, 184);
+                doc.text("—", 375, y + 13);
+              } else {
+                const timeStr = `${Number(att.timeTakenSeconds.toFixed(1))}s`;
+                if (att.timeTakenSeconds < 12) {
+                  doc.setTextColor(5, 150, 105);
+                  doc.text(`${timeStr} (Fast)`, 375, y + 13);
+                } else if (att.timeTakenSeconds <= 20) {
+                  doc.setTextColor(30, 41, 59);
+                  doc.text(`${timeStr} (Normal)`, 375, y + 13);
+                } else {
+                  doc.setTextColor(190, 18, 60);
+                  doc.text(`${timeStr} (Slow)`, 375, y + 13);
+                }
+              }
+
+              // Student Answer
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(7);
+              doc.setTextColor(att.isCorrect ? 5 : 190, att.isCorrect ? 150 : 18, att.isCorrect ? 105 : 60);
+              doc.text(`Opt ${att.studentOptionId || 'A'}`, 445, y + 13);
+
+              // Result
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(7);
+              if (att.isCorrect) {
+                doc.setTextColor(5, 150, 105);
+                doc.text("PASSED", 500, y + 13);
+              } else if (att.status === 'timeout') {
+                doc.setTextColor(180, 83, 9);
+                doc.text("TIMEOUT", 500, y + 13);
+              } else {
+                doc.setTextColor(190, 18, 60);
+                doc.text("FAILED", 500, y + 13);
+              }
+
+              y += 20;
+            });
+            y += 8;
+          });
+        }
+
+        // 5. Course Mistake Log (Directly follows course questions)
+        y += 10;
+        if (y > pageHeight - 70) {
+          doc.addPage();
+          drawReportHeader(cGrp.courseName);
+          y = 80;
+        }
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`${cGrp.courseName} — Mistake Log (${crsMistakes.length} Recorded)`, 40, y);
+        y += 14;
+
+        if (crsMistakes.length === 0) {
+          doc.setFillColor(240, 253, 244);
+          doc.setDrawColor(187, 247, 208);
+          doc.rect(40, y, pageWidth - 80, 22, 'FD');
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(22, 101, 52);
+          doc.text("Clean record! No wrong answers or mistakes recorded in this course.", 48, y + 14);
+          y += 30;
+        } else {
+          // Group mistakes by Part and Section
+          interface CourseMistakeSection {
+            sectionLabel: string;
+            mistakes: StudentQuestionAttempt[];
+          }
+          interface CourseMistakePart {
+            partNum: number;
+            sections: CourseMistakeSection[];
+          }
+
+          const mistakePartGroups: CourseMistakePart[] = [];
+          crsMistakes.forEach((m) => {
+            const pNum = m.partNum || 1;
+            const secLbl = (m.section || 'General').replace(/^Part\s*\d+\s*[–—\-:]*\s*/i, '').trim() || 'General';
+
+            let pGrp = mistakePartGroups.find((p) => p.partNum === pNum);
+            if (!pGrp) {
+              pGrp = { partNum: pNum, sections: [] };
+              mistakePartGroups.push(pGrp);
+            }
+
+            let sGrp = pGrp.sections.find((s) => s.sectionLabel === secLbl);
+            if (!sGrp) {
+              sGrp = { sectionLabel: secLbl, mistakes: [] };
+              pGrp.sections.push(sGrp);
+            }
+            sGrp.mistakes.push(m);
+          });
+
+          mistakePartGroups.sort((a, b) => a.partNum - b.partNum);
+
+          mistakePartGroups.forEach((pGrp) => {
+            if (y > pageHeight - 55) {
+              doc.addPage();
+              drawReportHeader(cGrp.courseName);
+              y = 80;
+            }
+
+            doc.setFillColor(241, 245, 249);
+            doc.rect(40, y, pageWidth - 80, 16, 'F');
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(8);
+            doc.setTextColor(15, 23, 42);
+            doc.text(`PART ${pGrp.partNum} MISTAKES`, 48, y + 11);
+            y += 20;
+
+            pGrp.sections.forEach((sGrp) => {
+              if (y > pageHeight - 45) {
+                doc.addPage();
+                drawReportHeader(cGrp.courseName);
+                y = 80;
+              }
+
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(7.5);
+              doc.setTextColor(14, 116, 144);
+              doc.text(`Section ${sGrp.sectionLabel} (${sGrp.mistakes.length} mistakes)`, 44, y);
+              y += 10;
+
+              sGrp.mistakes.forEach((w) => {
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(7.5);
+
+                const promptText = w.questionPrompt || w.questionTitle || `Question ${w.questionNumber}`;
+                const promptLines = doc.splitTextToSize(promptText, pageWidth - 105);
+
+                const wrongLines = doc.splitTextToSize(
+                  `Student's Answer: Option ${w.studentOptionId || '?'}: ${w.studentAnswer || 'Incorrect Answer'}`,
+                  pageWidth - 105
+                );
+                const correctLine = `Correct Option: Option ${w.correctOptionId || 'A'}`;
+
+                const promptBlockHeight = promptLines.length * 9;
+                const wrongBlockHeight = wrongLines.length * 9;
+                const cardHeight = 20 + promptBlockHeight + 5 + wrongBlockHeight + 13 + 6;
+
+                if (y + cardHeight > pageHeight - 40) {
+                  doc.addPage();
+                  drawReportHeader(cGrp.courseName);
+                  y = 80;
+                }
+
+                // Card Background (Clean soft rose/slate)
+                doc.setFillColor(255, 241, 242);
+                doc.setDrawColor(254, 205, 211);
+                doc.rect(40, y, pageWidth - 80, cardHeight, 'FD');
+
+                // Header line: Question number + timing + retest
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(7.5);
+                doc.setTextColor(190, 18, 60);
+                const retestTag = w.isRetest ? ` [Retest Attempt ${w.attemptsCount || 2}]` : '';
+                const timeTag = w.timeTakenSeconds > 0 ? ` • Answering Time: ${Number(w.timeTakenSeconds.toFixed(1))}s` : '';
+                doc.text(`Question ${w.questionNumber}: ${w.questionTitle}${retestTag}${timeTag}`, 48, y + 11);
+
+                let curY = y + 20;
+
+                // Prompt Text
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(7);
+                doc.setTextColor(30, 41, 59);
+                doc.text(promptLines, 48, curY);
+                curY += promptBlockHeight + 5;
+
+                // Wrong Answer Text
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(7);
+                doc.setTextColor(225, 29, 72);
+                doc.text(wrongLines, 48, curY);
+                curY += wrongBlockHeight + 5;
+
+                // Correct Option
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(7);
+                doc.setTextColor(5, 150, 105);
+                doc.text(correctLine, 48, curY);
+
+                y += cardHeight + 6;
+              });
+              y += 4;
+            });
+          });
+        }
+
+        // 6. Section Mastery for this Course
+        const fullCurriculum = getCourseCurriculumQuestions(cGrp.courseId);
+        const partQuestionMap = new Map<number, {
+          partNum: number;
+          partTitle: string;
           totalQuestions: number;
           answeredCount: number;
           passedCount: number;
-        }>;
-      }>();
+          failedCount: number;
+          sections: Map<string, {
+            sectionId: string;
+            sectionTitle: string;
+            totalQuestions: number;
+            answeredCount: number;
+            passedCount: number;
+          }>;
+        }>();
 
-      fullCurriculum.forEach((q) => {
-        if (!partQuestionMap.has(q.partNum)) {
-          partQuestionMap.set(q.partNum, {
-            partNum: q.partNum,
-            partTitle: `Part ${q.partNum}`,
-            totalQuestions: 0,
-            answeredCount: 0,
-            passedCount: 0,
-            failedCount: 0,
-            sections: new Map()
-          });
-        }
-        const partObj = partQuestionMap.get(q.partNum)!;
-        partObj.totalQuestions += 1;
+        fullCurriculum.forEach((q) => {
+          if (!partQuestionMap.has(q.partNum)) {
+            partQuestionMap.set(q.partNum, {
+              partNum: q.partNum,
+              partTitle: `Part ${q.partNum}`,
+              totalQuestions: 0,
+              answeredCount: 0,
+              passedCount: 0,
+              failedCount: 0,
+              sections: new Map()
+            });
+          }
+          const partObj = partQuestionMap.get(q.partNum)!;
+          partObj.totalQuestions += 1;
 
-        if (!partObj.sections.has(q.sectionId)) {
-          partObj.sections.set(q.sectionId, {
-            sectionId: q.sectionId,
-            sectionTitle: q.sectionTitle || `Section ${q.partNum}.${partObj.sections.size + 1}`,
-            totalQuestions: 0,
-            answeredCount: 0,
-            passedCount: 0
-          });
-        }
-        const secObj = partObj.sections.get(q.sectionId)!;
-        secObj.totalQuestions += 1;
-      });
+          if (!partObj.sections.has(q.sectionId)) {
+            partObj.sections.set(q.sectionId, {
+              sectionId: q.sectionId,
+              sectionTitle: q.sectionTitle || `Section ${q.partNum}.${partObj.sections.size + 1}`,
+              totalQuestions: 0,
+              answeredCount: 0,
+              passedCount: 0
+            });
+          }
+          const secObj = partObj.sections.get(q.sectionId)!;
+          secObj.totalQuestions += 1;
+        });
 
-      const answeredQuestionKeys = new Set<string>();
-      attempts.forEach((att) => {
-        const qKey = `${att.partNum}-${att.questionNumber}`;
-        if (!answeredQuestionKeys.has(qKey)) {
-          answeredQuestionKeys.add(qKey);
-          const partObj = partQuestionMap.get(att.partNum);
-          if (partObj) {
-            partObj.answeredCount += 1;
-            if (att.isCorrect) partObj.passedCount += 1;
-            else partObj.failedCount += 1;
+        const answeredQuestionKeys = new Set<string>();
+        crsAttempts.forEach((att) => {
+          const qKey = `${att.partNum}-${att.questionNumber}`;
+          if (!answeredQuestionKeys.has(qKey)) {
+            answeredQuestionKeys.add(qKey);
+            const partObj = partQuestionMap.get(att.partNum);
+            if (partObj) {
+              partObj.answeredCount += 1;
+              if (att.isCorrect) partObj.passedCount += 1;
+              else partObj.failedCount += 1;
 
-            for (const secObj of partObj.sections.values()) {
-              if (
-                att.section.toLowerCase().includes(secObj.sectionTitle.toLowerCase()) ||
-                att.section.toLowerCase().includes(secObj.sectionId.toLowerCase()) ||
-                (att.subQuestionLabel && att.subQuestionLabel.toLowerCase().includes(secObj.sectionTitle.toLowerCase()))
-              ) {
-                secObj.answeredCount += 1;
-                if (att.isCorrect) secObj.passedCount += 1;
-                break;
+              for (const secObj of partObj.sections.values()) {
+                if (
+                  att.section.toLowerCase().includes(secObj.sectionTitle.toLowerCase()) ||
+                  att.section.toLowerCase().includes(secObj.sectionId.toLowerCase()) ||
+                  (att.subQuestionLabel && att.subQuestionLabel.toLowerCase().includes(secObj.sectionTitle.toLowerCase()))
+                ) {
+                  secObj.answeredCount += 1;
+                  if (att.isCorrect) secObj.passedCount += 1;
+                  break;
+                }
               }
             }
           }
-        }
-      });
-
-      const dynamicPartProgress = Array.from(partQuestionMap.values())
-        .filter((p) => p.totalQuestions > 0)
-        .sort((a, b) => a.partNum - b.partNum)
-        .filter((p, idx, arr) => {
-          if (p.answeredCount > 0 || p.partNum === 1) return true;
-          const prevPart = arr[idx - 1];
-          return prevPart && prevPart.answeredCount > 0;
-        })
-        .map((p) => {
-          let status: 'passed' | 'failed' | 'in_progress' | 'not_started' = 'not_started';
-          if (p.answeredCount >= p.totalQuestions && p.failedCount === 0) {
-            status = 'passed';
-          } else if (p.answeredCount > 0) {
-            status = p.failedCount > 0 ? 'failed' : 'in_progress';
-          }
-          return {
-            ...p,
-            status,
-            sectionList: Array.from(p.sections.values())
-          };
         });
 
-      // Dark header banner
-      doc.setFillColor(15, 23, 42);
-      doc.rect(0, 0, pageWidth, 75, 'F');
+        const dynamicPartProgress = Array.from(partQuestionMap.values())
+          .filter((p) => p.totalQuestions > 0)
+          .sort((a, b) => a.partNum - b.partNum)
+          .filter((p, idx, arr) => {
+            if (p.answeredCount > 0 || p.partNum === 1) return true;
+            const prevPart = arr[idx - 1];
+            return prevPart && prevPart.answeredCount > 0;
+          })
+          .map((p) => {
+            let status: 'passed' | 'failed' | 'in_progress' | 'not_started' = 'not_started';
+            if (p.answeredCount >= p.totalQuestions && p.failedCount === 0) {
+              status = 'passed';
+            } else if (p.answeredCount > 0) {
+              status = p.failedCount > 0 ? 'failed' : 'in_progress';
+            }
+            return {
+              ...p,
+              status,
+              sectionList: Array.from(p.sections.values())
+            };
+          });
 
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(18);
-      doc.setTextColor(0, 255, 157);
-      doc.text("DO PILOT", 40, 36);
+        y += 12;
+        if (y > pageHeight - 75) {
+          doc.addPage();
+          drawReportHeader(cGrp.courseName);
+          y = 80;
+        }
 
-      doc.setFontSize(11);
-      doc.setTextColor(240, 240, 240);
-      doc.text("Student Performance & Assessment Report Card", 40, 56);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - 190, 56);
-
-      // Student Profile Box
-      doc.setFillColor(248, 250, 252);
-      doc.setDrawColor(226, 232, 240);
-      doc.rect(40, 90, pageWidth - 80, 80, 'FD');
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(13);
-      doc.setTextColor(15, 23, 42);
-      doc.text(s.name, 55, 112);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
-      doc.setTextColor(71, 85, 105);
-      doc.text(`Email: ${s.email}`, 55, 128);
-      doc.text(`Phone: ${s.phone || 'N/A'}`, 55, 142);
-      doc.text(`Joined: ${new Date(s.createdAt).toLocaleDateString()}`, 55, 156);
-
-      doc.text(`College / Org: ${s.collegeOrCompany || 'N/A'}`, 240, 128);
-      doc.text(`Source: ${s.whereDidYouFindUs || 'Direct / Search'}`, 240, 142);
-      const enrolledStr = (s.enrolledCourses && s.enrolledCourses.length > 0) ? s.enrolledCourses.join(', ') : 'Python Core';
-      doc.text(`Enrolled: ${enrolledStr}`, 240, 156);
-
-      // 6 KPI Metric Tiles - Using exact actual counts
-      let y = 185;
-      const tileWidth = (pageWidth - 80 - 25) / 6;
-
-      const drawKpiTile = (xPos: number, val: string, label: string, bg: [number, number, number], txtColor: [number, number, number]) => {
-        doc.setFillColor(bg[0], bg[1], bg[2]);
-        doc.rect(xPos, y, tileWidth, 48, 'F');
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.setTextColor(txtColor[0], txtColor[1], txtColor[2]);
-        doc.text(val, xPos + 6, y + 22);
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(6.5);
-        doc.setTextColor(100, 116, 139);
-        doc.text(label, xPos + 6, y + 36);
-      };
+        doc.setFontSize(9.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`${cGrp.courseName} — Section Mastery Breakdown`, 40, y);
+        y += 12;
 
-      const displayTestsAttempted = attempts.length > 0 ? attempts.length : s.testsAttemptedCount;
-      const displayTasksPassed = attempts.length > 0 ? metrics.passed : s.testsPassedCount;
-      const displayMistakes = attempts.length > 0 ? actualMistakes.length : s.testsFailedCount;
-
-      drawKpiTile(40, `${s.points} pts`, "TOTAL POINTS", [240, 253, 244], [22, 101, 52]);
-      drawKpiTile(40 + (tileWidth + 5), `${displayTestsAttempted}`, "TESTS ATTEMPTED", [241, 245, 249], [30, 41, 59]);
-      drawKpiTile(40 + (tileWidth + 5) * 2, `${displayTasksPassed}`, "TASKS PASSED", [236, 253, 245], [5, 150, 105]);
-      drawKpiTile(40 + (tileWidth + 5) * 3, `${displayMistakes}`, "MISTAKES", [254, 242, 242], [225, 29, 72]);
-      drawKpiTile(40 + (tileWidth + 5) * 4, `${metrics.avgTime}s`, "AVG RESPONSE", [238, 242, 255], [79, 70, 229]);
-      drawKpiTile(40 + (tileWidth + 5) * 5, `${metrics.fastestTime}s / ${metrics.slowestTime}s`, "FAST / SLOW", [255, 251, 235], [180, 83, 9]);
-
-      // Certificate Banner
-      y = 246;
-      if (s.hasCertificate) {
-        doc.setFillColor(254, 249, 195);
-        doc.rect(40, y, pageWidth - 80, 24, 'F');
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(8.5);
-        doc.setTextColor(133, 77, 14);
-        doc.text(`[VERIFIED CERTIFIED] Certificate ID: ${s.certificateId || 'CERT-DO-PILOT'} issued on ${s.certificateIssuedDate || 'Completed'}`, 50, y + 15);
-      } else {
         doc.setFillColor(241, 245, 249);
-        doc.rect(40, y, pageWidth - 80, 24, 'F');
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(8);
-        doc.setTextColor(100, 116, 139);
-        doc.text(`Certificate Status: In Progress (${s.points} / 20 points achieved)`, 50, y + 15);
-      }
-
-      // Section 1: Detailed Question-by-Question Answering Log & Time Telemetry
-      y = 282;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(15, 23, 42);
-      doc.text("Course Question-by-Question Answering Telemetry & Exact Response Times", 40, y);
-
-      y += 14;
-      // Question Telemetry Table Header
-      const drawQTableHeader = (yPos: number) => {
-        doc.setFillColor(241, 245, 249);
-        doc.rect(40, yPos, pageWidth - 80, 20, 'F');
-        doc.setDrawColor(203, 213, 225);
-        doc.line(40, yPos + 20, pageWidth - 40, yPos + 20);
-
+        doc.rect(40, y, pageWidth - 80, 16, 'F');
         doc.setFont("helvetica", "bold");
         doc.setFontSize(7);
         doc.setTextColor(30, 41, 59);
+        doc.text("CURRICULUM PART & SECTION", 48, y + 11);
+        doc.text("QUESTIONS ANSWERED", 340, y + 11);
+        doc.text("COMPLETION STATUS", 460, y + 11);
+        y += 18;
 
-        doc.text("QUESTION HIERARCHY", 46, yPos + 13);
-        doc.text("QUESTION / CONCEPT TITLE", 185, yPos + 13);
-        doc.text("ATTEMPT", 325, yPos + 13);
-        doc.text("TIME TAKEN", 375, yPos + 13);
-        doc.text("ANSWER", 445, yPos + 13);
-        doc.text("RESULT", 500, yPos + 13);
-        return yPos + 20;
-      };
-
-      y = drawQTableHeader(y);
-
-      if (attempts.length === 0) {
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8.5);
-        doc.setTextColor(100, 116, 139);
-        doc.text("Student has not attempted challenges in this course yet.", 50, y + 18);
-        y += 30;
-      } else {
-        attempts.forEach((att, idx) => {
-          if (y > 750) {
-            doc.addPage();
-            y = 45;
-            y = drawQTableHeader(y);
-          }
-
-          if (idx % 2 === 1) {
-            doc.setFillColor(248, 250, 252);
-            doc.rect(40, y, pageWidth - 80, 22, 'F');
-          }
-
-          doc.setDrawColor(226, 232, 240);
-          doc.line(40, y + 22, pageWidth - 40, y + 22);
-
-          // Question Hierarchy (e.g. Part 1 -> Sec 1.1 -> Q1)
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(6.5);
-          doc.setTextColor(14, 116, 144);
-          doc.text(String(att.subQuestionLabel || `Part ${att.partNum} -> Q${att.questionNumber}`).slice(0, 32), 46, y + 14);
-
-          // Question Title
+        if (dynamicPartProgress.length === 0) {
           doc.setFont("helvetica", "normal");
-          doc.setFontSize(7.5);
-          doc.setTextColor(15, 23, 42);
-          doc.text(att.questionTitle.slice(0, 28), 185, y + 14);
-
-          // Attempt type
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(6.5);
-          const isRetest = Boolean(att.isRetest || (att.attemptNumber && att.attemptNumber > 1));
-          if (isRetest) {
-            doc.setTextColor(180, 83, 9);
-            doc.text(`Retest (${att.attemptNumber || 2})`, 325, y + 14);
-          } else {
-            doc.setTextColor(100, 116, 139);
-            doc.text("Attempt 1", 325, y + 14);
-          }
-
-          // Time Taken
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(7);
-          if (att.timeTakenSeconds <= 0) {
-            doc.setTextColor(148, 163, 184);
-            doc.text("—", 375, y + 14);
-          } else if (att.timeTakenSeconds < 12) {
-            doc.setTextColor(5, 150, 105);
-            doc.text(`${att.timeTakenSeconds.toFixed(1)}s (Fast)`, 375, y + 14);
-          } else if (att.timeTakenSeconds <= 20) {
-            doc.setTextColor(30, 41, 59);
-            doc.text(`${att.timeTakenSeconds.toFixed(1)}s (Normal)`, 375, y + 14);
-          } else {
-            doc.setTextColor(190, 18, 60);
-            doc.text(`${att.timeTakenSeconds.toFixed(1)}s (Slow)`, 375, y + 14);
-          }
-
-          // Student Choice
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(7);
-          doc.setTextColor(att.isCorrect ? 71 : 190, att.isCorrect ? 85 : 18, att.isCorrect ? 105 : 60);
-          doc.text(`Opt ${att.studentOptionId || 'A'}`, 445, y + 14);
-
-          // Status Badge
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(7.5);
-          if (att.isCorrect) {
-            doc.setTextColor(5, 150, 105);
-            doc.text("PASSED", 500, y + 14);
-          } else if (att.status === 'timeout') {
-            doc.setTextColor(180, 83, 9);
-            doc.text("TIMEOUT", 500, y + 14);
-          } else {
-            doc.setTextColor(190, 18, 60);
-            doc.text("FAILED", 500, y + 14);
-          }
-
-          y += 22;
-        });
-      }
-
-      // Section 2: Mistakes & Test Failure Log (Using actual incorrect records)
-      y += 20;
-      if (y > 700) {
-        doc.addPage();
-        y = 45;
-      }
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(15, 23, 42);
-      doc.text(`Assessment Mistakes & Test Failure Log (${actualMistakes.length} Recorded)`, 40, y);
-
-      y += 14;
-      if (actualMistakes.length === 0) {
-        doc.setFillColor(240, 253, 244);
-        doc.rect(40, y, pageWidth - 80, 26, 'F');
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8.5);
-        doc.setTextColor(22, 101, 52);
-        doc.text("Clean record! No wrong answers or failed questions on record for this student.", 50, y + 17);
-        y += 36;
-      } else {
-        // Group mistakes by Part and Section for clean, non-confusing PDF hierarchy
-        interface PDFSectionGroup {
-          sectionLabel: string;
-          mistakes: typeof actualMistakes;
-        }
-        interface PDFPartGroup {
-          partNum: number;
-          partLabel: string;
-          sections: PDFSectionGroup[];
-        }
-
-        const pdfPartGroups: PDFPartGroup[] = [];
-        actualMistakes.forEach((m) => {
-          const partNum = m.partNum || 1;
-          const partLabel = `Part ${partNum}`;
-          const rawSection = m.section || 'General';
-          const sectionLabel = rawSection.replace(/^Part\s*\d+\s*[–—\-:]*\s*/i, '').trim() || 'General';
-
-          let pGroup = pdfPartGroups.find(p => p.partNum === partNum);
-          if (!pGroup) {
-            pGroup = { partNum, partLabel, sections: [] };
-            pdfPartGroups.push(pGroup);
-          }
-
-          let sGroup = pGroup.sections.find(s => s.sectionLabel === sectionLabel);
-          if (!sGroup) {
-            sGroup = { sectionLabel, mistakes: [] };
-            pGroup.sections.push(sGroup);
-          }
-          sGroup.mistakes.push(m);
-        });
-
-        pdfPartGroups.sort((a, b) => a.partNum - b.partNum);
-
-        pdfPartGroups.forEach((pGroup) => {
-          // Part heading
-          if (y > pageHeight - 60) {
-            doc.addPage();
-            y = 45;
-          }
-          doc.setFillColor(241, 245, 249);
-          doc.rect(40, y, pageWidth - 80, 18, 'F');
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(9.5);
-          doc.setTextColor(15, 23, 42);
-          doc.text(`${pGroup.partLabel.toUpperCase()} ASSESSMENT MISTAKES`, 48, y + 12);
-          y += 24;
-
-          pGroup.sections.forEach((sGroup) => {
-            // Section heading
-            if (y > pageHeight - 50) {
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          doc.text("No curriculum mastery data recorded yet for this course.", 48, y + 12);
+          y += 20;
+        } else {
+          dynamicPartProgress.forEach((part, pIdx) => {
+            if (y > pageHeight - 45) {
               doc.addPage();
-              y = 45;
+              drawReportHeader(cGrp.courseName);
+              y = 80;
+            }
+            if (pIdx % 2 === 1) {
+              doc.setFillColor(248, 250, 252);
+              doc.rect(40, y - 8, pageWidth - 80, 16, 'F');
             }
             doc.setFont("helvetica", "bold");
-            doc.setFontSize(8.5);
-            doc.setTextColor(14, 116, 144);
-            doc.text(`Section ${sGroup.sectionLabel} (${sGroup.mistakes.length} mistakes)`, 44, y);
-            y += 10;
+            doc.setFontSize(7.5);
+            doc.setTextColor(15, 23, 42);
+            const partPct = part.totalQuestions > 0 ? Math.round((part.answeredCount / part.totalQuestions) * 100) : 0;
+            doc.text(`Part ${part.partNum}`, 48, y + 3);
 
-            sGroup.mistakes.forEach((w) => {
-              // Pre-calculate text wrapping to prevent overlapping and clipping
-              doc.setFont("helvetica", "normal");
-              doc.setFontSize(7.5);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(51, 65, 85);
+            doc.text(`${part.answeredCount} / ${part.totalQuestions} questions (${partPct}%)`, 340, y + 3);
 
-              const promptText = w.questionPrompt || w.questionTitle || `Question ${w.questionNumber}`;
-              const promptLines = doc.splitTextToSize(promptText, pageWidth - 105);
-
-              const wrongLines = doc.splitTextToSize(`Student's Wrong Answer: Option ${w.studentOptionId || '?'}: ${w.studentAnswer || 'Incorrect Answer'}`, pageWidth - 105);
-              const correctLine = `Correct Option: Option ${w.correctOptionId || 'A'}`;
-
-              const promptBlockHeight = promptLines.length * 9.5;
-              const wrongBlockHeight = wrongLines.length * 9.5;
-              const cardHeight = 22 + promptBlockHeight + 6 + wrongBlockHeight + 14 + 8;
-
-              if (y + cardHeight > pageHeight - 45) {
-                doc.addPage();
-                y = 45;
-              }
-
-              // Card Background
-              doc.setFillColor(255, 241, 242);
-              doc.setDrawColor(254, 205, 211);
-              doc.rect(40, y, pageWidth - 80, cardHeight, 'FD');
-
-              // Header line: Question number + timing + retest
-              doc.setFont("helvetica", "bold");
-              doc.setFontSize(7.5);
-              doc.setTextColor(190, 18, 60);
-              const retestTag = w.isRetest ? ` [Retest Attempt ${w.attemptsCount || 2}]` : '';
-              const timeTag = w.timeTakenSeconds > 0 ? ` • Answering Time: ${w.timeTakenSeconds}s` : '';
-              doc.text(`Question ${w.questionNumber}: ${w.questionTitle}${retestTag}${timeTag}`, 48, y + 12);
-
-              let curY = y + 22;
-
-              // Question Prompt Text (only actual question, no notes/explanations)
-              doc.setFont("helvetica", "normal");
-              doc.setFontSize(7);
-              doc.setTextColor(30, 41, 59);
-              doc.text(promptLines, 48, curY);
-              curY += promptBlockHeight + 6;
-
-              // Student's Wrong Answer (full text)
-              doc.setFont("helvetica", "bold");
-              doc.setFontSize(7.5);
-              doc.setTextColor(225, 29, 72);
-              doc.text(wrongLines, 48, curY);
-              curY += wrongBlockHeight + 6;
-
-              // Correct Option Only (e.g. Option A, without full answer text)
-              doc.setFont("helvetica", "bold");
-              doc.setFontSize(7.5);
+            doc.setFont("helvetica", "bold");
+            if (part.status === 'passed') {
               doc.setTextColor(5, 150, 105);
-              doc.text(correctLine, 48, curY);
+              doc.text("COMPLETED", 460, y + 3);
+            } else if (part.status === 'in_progress') {
+              doc.setTextColor(14, 116, 144);
+              doc.text("IN PROGRESS", 460, y + 3);
+            } else {
+              doc.setTextColor(225, 29, 72);
+              doc.text("FAILED", 460, y + 3);
+            }
+            y += 16;
 
-              y += cardHeight + 6;
-            });
-            y += 4;
+            if (part.sectionList && part.sectionList.length > 0) {
+              part.sectionList.forEach((sec) => {
+                if (y > pageHeight - 40) {
+                  doc.addPage();
+                  drawReportHeader(cGrp.courseName);
+                  y = 80;
+                }
+                const secPct = sec.totalQuestions > 0 ? Math.round((sec.answeredCount / sec.totalQuestions) * 100) : 0;
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(7);
+                doc.setTextColor(100, 116, 139);
+                doc.text(`  • ${sec.sectionTitle}`, 56, y + 2);
+                doc.text(`${sec.answeredCount} / ${sec.totalQuestions} (${secPct}%)`, 340, y + 2);
+                const secDone = sec.answeredCount >= sec.totalQuestions && sec.totalQuestions > 0;
+                doc.text(secDone ? "Completed" : sec.answeredCount > 0 ? "In Progress" : "Pending", 460, y + 2);
+                y += 13;
+              });
+              y += 4;
+            }
           });
-        });
-      }
-
-      // Section 3: Section Mastery (Dynamically calculated from curriculum)
-      y += 15;
-      if (y > 700) {
-        doc.addPage();
-        y = 45;
-      }
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(15, 23, 42);
-      doc.text("Course Curriculum Breakdown & Section Mastery", 40, y);
-
-      y += 14;
-      doc.setFillColor(241, 245, 249);
-      doc.rect(40, y, pageWidth - 80, 18, 'F');
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(7.5);
-      doc.setTextColor(30, 41, 59);
-      doc.text("Curriculum Part & Section", 50, y + 12);
-      doc.text("Questions Answered", 340, y + 12);
-      doc.text("Completion Status", 460, y + 12);
-
-      y += 20;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(51, 65, 85);
-
-      if (dynamicPartProgress.length === 0) {
-        doc.text("No curriculum progress records available yet for this student.", 50, y + 12);
-        y += 24;
-      } else {
-        dynamicPartProgress.forEach((part, idx) => {
-          if (y > 740) {
-            doc.addPage();
-            y = 45;
-          }
-          if (idx % 2 === 1) {
-            doc.setFillColor(248, 250, 252);
-            doc.rect(40, y - 9, pageWidth - 80, 18, 'F');
-          }
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(15, 23, 42);
-          const partPct = part.totalQuestions > 0 ? Math.round((part.answeredCount / part.totalQuestions) * 100) : 0;
-          doc.text(`Part ${part.partNum}`, 50, y + 3);
-
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(51, 65, 85);
-          doc.text(`${part.answeredCount} / ${part.totalQuestions} questions (${partPct}%)`, 340, y + 3);
-
-          if (part.status === 'passed') {
-            doc.setTextColor(5, 150, 105);
-            doc.setFont("helvetica", "bold");
-            doc.text("COMPLETED", 460, y + 3);
-          } else if (part.status === 'in_progress') {
-            doc.setTextColor(14, 116, 144);
-            doc.setFont("helvetica", "bold");
-            doc.text("IN PROGRESS", 460, y + 3);
-          } else {
-            doc.setTextColor(225, 29, 72);
-            doc.setFont("helvetica", "bold");
-            doc.text("FAILED", 460, y + 3);
-          }
-
-          y += 18;
-
-          // List section breakdown under part
-          if (part.sectionList && part.sectionList.length > 0) {
-            part.sectionList.forEach((sec) => {
-              if (y > 750) {
-                doc.addPage();
-                y = 45;
-              }
-              const secPct = sec.totalQuestions > 0 ? Math.round((sec.answeredCount / sec.totalQuestions) * 100) : 0;
-              doc.setFont("helvetica", "normal");
-              doc.setFontSize(7.5);
-              doc.setTextColor(100, 116, 139);
-              doc.text(`  • ${sec.sectionTitle}`, 58, y + 2);
-              doc.text(`${sec.answeredCount} / ${sec.totalQuestions} (${secPct}%)`, 340, y + 2);
-              const secDone = sec.answeredCount >= sec.totalQuestions && sec.totalQuestions > 0;
-              doc.text(secDone ? "Completed" : sec.answeredCount > 0 ? "In Progress" : "Pending", 460, y + 2);
-              y += 14;
-            });
-            y += 4;
-          }
-        });
-      }
+        }
+        y += 16;
+      });
 
       // Page numbering footer across all pages
       const totalPages = doc.getNumberOfPages();
       for (let p = 1; p <= totalPages; p++) {
         doc.setPage(p);
         doc.setDrawColor(226, 232, 240);
-        doc.line(40, pageHeight - 35, pageWidth - 40, pageHeight - 35);
+        doc.line(40, pageHeight - 32, pageWidth - 40, pageHeight - 32);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(7.5);
         doc.setTextColor(148, 163, 184);
-        doc.text("DO PILOT — Student Performance & Question Telemetry Report  •  Confidential", 40, pageHeight - 22);
-        doc.text(`Page ${p} of ${totalPages}`, pageWidth - 40, pageHeight - 22, { align: 'right' });
+        doc.text("DO PILOT — Student Performance & Question Telemetry Report  •  Confidential", 40, pageHeight - 19);
+        doc.text(`Page ${p} of ${totalPages}`, pageWidth - 40, pageHeight - 19, { align: 'right' });
       }
 
       doc.save(`DO_PILOT_${s.name.replace(/\s+/g, '_')}_Progress_Report.pdf`);
