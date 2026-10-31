@@ -771,8 +771,10 @@ export const AdminPanel: React.FC = () => {
   const [studentSort, setStudentSort] = useState<'points_desc' | 'points_asc' | 'date_desc' | 'name_asc'>('points_desc');
   const [selectedStudentForReport, setSelectedStudentForReport] = useState<StudentAdminRecord | null>(null);
   const [inspectTab, setInspectTab] = useState<'telemetry' | 'mistakes' | 'mastery' | 'profile'>('telemetry');
-  const [telemetryFilter, setTelemetryFilter] = useState<'all' | 'correct' | 'wrong' | 'fast' | 'normal' | 'slow'>('all');
+  const [telemetryFilter, setTelemetryFilter] = useState<'all' | 'purchased' | 'correct' | 'wrong' | 'fast' | 'normal' | 'slow'>('all');
+  const [mistakeFilter, setMistakeFilter] = useState<'all' | 'purchased' | 'wrong' | 'fast' | 'normal' | 'slow'>('all');
   const [telemetrySearch, setTelemetrySearch] = useState('');
+  const [mistakeSearch, setMistakeSearch] = useState('');
   const [inspectTelemetryVersion, setInspectTelemetryVersion] = useState<number>(0);
 
   // Automatically hydrate student telemetry from cloud when inspect modal opens
@@ -5245,7 +5247,26 @@ export const AdminPanel: React.FC = () => {
         };
       });
 
+    // Match student purchases for chronological workflow segmentation and purchase filtering
+    const sEmail = (student.email || '').toLowerCase().trim();
+    const sId = (student.id || '').trim();
+    const studentPurchases = coursePurchases
+      .filter((p) => {
+        const pe = (p.studentEmail || '').toLowerCase().trim();
+        const pi = (p.studentId || '').trim();
+        const match = (sEmail && pe === sEmail) || (sId && pi === sId);
+        return match && (p.status === 'completed' || p.accessGranted);
+      })
+      .sort((a, b) => new Date(a.purchasedAt).getTime() - new Date(b.purchasedAt).getTime());
+
+    const firstPurchase = studentPurchases.length > 0 ? studentPurchases[0] : null;
+    const purchaseTime = firstPurchase ? new Date(firstPurchase.purchasedAt).getTime() : Infinity;
+
+    // Filter attempts for Question, Time & Answers
     const filteredAttempts = attempts.filter((att) => {
+      if (telemetryFilter === 'purchased') {
+        if (new Date(att.attemptedAt).getTime() < purchaseTime) return false;
+      }
       if (telemetryFilter === 'correct' && !att.isCorrect) return false;
       if (telemetryFilter === 'wrong' && att.isCorrect) return false;
       if (telemetryFilter === 'fast' && (att.speedCategory !== 'fast' || att.timeTakenSeconds <= 0)) return false;
@@ -5259,6 +5280,27 @@ export const AdminPanel: React.FC = () => {
           att.section.toLowerCase().includes(q) ||
           att.studentAnswer.toLowerCase().includes(q) ||
           (att.subQuestionLabel && att.subQuestionLabel.toLowerCase().includes(q))
+        );
+      }
+      return true;
+    });
+
+    // Filter actual mistakes for Mistake Log
+    const filteredMistakes = actualMistakes.filter((m) => {
+      if (mistakeFilter === 'purchased') {
+        if (new Date(m.attemptedAt).getTime() < purchaseTime) return false;
+      }
+      if (mistakeFilter === 'fast' && (m.speedCategory !== 'fast' || m.timeTakenSeconds <= 0)) return false;
+      if (mistakeFilter === 'normal' && (m.speedCategory !== 'normal' || m.timeTakenSeconds <= 0)) return false;
+      if (mistakeFilter === 'slow' && ((m.speedCategory !== 'slow' && m.speedCategory !== 'timeout') || m.timeTakenSeconds <= 0)) return false;
+      if (mistakeSearch.trim()) {
+        const q = mistakeSearch.toLowerCase();
+        return (
+          m.questionTitle.toLowerCase().includes(q) ||
+          m.questionPrompt.toLowerCase().includes(q) ||
+          m.section.toLowerCase().includes(q) ||
+          m.studentAnswer.toLowerCase().includes(q) ||
+          (m.subQuestionLabel && m.subQuestionLabel.toLowerCase().includes(q))
         );
       }
       return true;
@@ -5571,6 +5613,21 @@ export const AdminPanel: React.FC = () => {
                     </button>
                     <button
                       type="button"
+                      onClick={() => setTelemetryFilter('purchased')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        telemetryFilter === 'purchased'
+                          ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20'
+                          : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20'
+                      }`}
+                    >
+                      <ShoppingBag className="w-3.5 h-3.5" />
+                      <span>Purchased Course Only</span>
+                      <span className="px-1.5 py-0.2 rounded text-[10px] bg-black/20 font-bold">
+                        {attempts.filter((a) => new Date(a.attemptedAt).getTime() >= purchaseTime).length}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setTelemetryFilter('correct')}
                       className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
                         telemetryFilter === 'correct'
@@ -5673,7 +5730,7 @@ export const AdminPanel: React.FC = () => {
                     );
 
                     const segments: WorkflowSegment[] = [];
-                    if (trialAttempts.length > 0) {
+                    if (telemetryFilter !== 'purchased' && trialAttempts.length > 0) {
                       segments.push({
                         stage: 'free_trial',
                         stageLabel: 'Free Trial Activity',
@@ -5932,40 +5989,120 @@ export const AdminPanel: React.FC = () => {
                   </span>
                 </div>
 
-                {actualMistakes.length === 0 ? (
-                  <div className="p-8 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 flex items-center gap-3">
-                    <CheckCircle2 className="w-8 h-8 shrink-0 text-emerald-400" />
-                    <div className="space-y-0.5">
-                      <span className="font-jakarta font-bold text-sm text-emerald-300 block">
-                        Clean Record — 100% Accuracy!
+                {/* Search & Filter Toolbar for Mistake Log */}
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#0c0d10] border border-white/10">
+                  <div className="flex items-center gap-2 flex-1 min-w-[220px]">
+                    <Search className="w-4 h-4 text-slate/60 shrink-0" />
+                    <input
+                      type="text"
+                      value={mistakeSearch}
+                      onChange={(e) => setMistakeSearch(e.target.value)}
+                      placeholder="Search mistake question, topic, or wrong answer..."
+                      className="bg-transparent text-paper placeholder-slate/50 text-xs focus:outline-none w-full font-jakarta"
+                    />
+                    {mistakeSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setMistakeSearch('')}
+                        className="text-slate hover:text-paper text-xs"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setMistakeFilter('all')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                        mistakeFilter === 'all'
+                          ? 'bg-primary text-ink'
+                          : 'bg-white/5 text-slate hover:text-paper'
+                      }`}
+                    >
+                      All ({actualMistakes.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMistakeFilter('purchased')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        mistakeFilter === 'purchased'
+                          ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20'
+                          : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20'
+                      }`}
+                    >
+                      <ShoppingBag className="w-3.5 h-3.5" />
+                      <span>Purchased Course Only</span>
+                      <span className="px-1.5 py-0.2 rounded text-[10px] bg-black/20 font-bold">
+                        {actualMistakes.filter((m) => new Date(m.attemptedAt).getTime() >= purchaseTime).length}
                       </span>
-                      <p className="text-xs text-emerald-400/80">
-                        This student has completed all attempted questions without an incorrect answer on record.
-                      </p>
-                    </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMistakeFilter('wrong')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                        mistakeFilter === 'wrong'
+                          ? 'bg-rose-500 text-white'
+                          : 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20'
+                      }`}
+                    >
+                      ✗ Wrong ({actualMistakes.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMistakeFilter('fast')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                        mistakeFilter === 'fast'
+                          ? 'bg-emerald-400 text-black'
+                          : 'bg-white/5 text-slate hover:text-paper'
+                      }`}
+                    >
+                      ⚡ &lt;12s ({actualMistakes.filter((m) => m.speedCategory === 'fast' && m.timeTakenSeconds > 0).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMistakeFilter('normal')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                        mistakeFilter === 'normal'
+                          ? 'bg-sky-400 text-black'
+                          : 'bg-white/5 text-slate hover:text-paper'
+                      }`}
+                    >
+                      ⏱️ 12-20s ({actualMistakes.filter((m) => m.speedCategory === 'normal' && m.timeTakenSeconds > 0).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMistakeFilter('slow')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                        mistakeFilter === 'slow'
+                          ? 'bg-amber-400 text-black'
+                          : 'bg-white/5 text-slate hover:text-paper'
+                      }`}
+                    >
+                      ⏳ &gt;20s ({actualMistakes.filter((m) => (m.speedCategory === 'slow' || m.speedCategory === 'timeout') && m.timeTakenSeconds > 0).length})
+                    </button>
+                  </div>
+                </div>
+
+                {filteredMistakes.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-black/40 border border-white/5 text-center text-xs text-slate font-mono space-y-1">
+                    <span className="font-bold text-paper block">No Mistakes Found</span>
+                    <p className="text-slate/60 text-[11px]">
+                      {actualMistakes.length === 0
+                        ? "This student has completed all attempted questions without an incorrect answer on record."
+                        : mistakeFilter === 'purchased'
+                        ? "No mistakes recorded after course purchase. Clean post-purchase record!"
+                        : "No mistakes matched your search or selected filter."}
+                    </p>
                   </div>
                 ) : (
                   (() => {
-                    // Match student purchases for chronological workflow segmentation
-                    const sEmail = (student.email || '').toLowerCase().trim();
-                    const sId = (student.id || '').trim();
-                    const studentPurchases = coursePurchases
-                      .filter((p) => {
-                        const pe = (p.studentEmail || '').toLowerCase().trim();
-                        const pi = (p.studentId || '').trim();
-                        const match = (sEmail && pe === sEmail) || (sId && pi === sId);
-                        return match && (p.status === 'completed' || p.accessGranted);
-                      })
-                      .sort((a, b) => new Date(a.purchasedAt).getTime() - new Date(b.purchasedAt).getTime());
-
-                    const firstPurchase = studentPurchases.length > 0 ? studentPurchases[0] : null;
-                    const purchaseTime = firstPurchase ? new Date(firstPurchase.purchasedAt).getTime() : Infinity;
-
                     // Workflow segmentation: Free Trial vs Purchased Course
-                    const trialMistakes = actualMistakes.filter(
+                    const trialMistakes = filteredMistakes.filter(
                       (m) => new Date(m.attemptedAt).getTime() < purchaseTime
                     );
-                    const purchasedCourseMistakes = actualMistakes.filter(
+                    const purchasedCourseMistakes = filteredMistakes.filter(
                       (m) => new Date(m.attemptedAt).getTime() >= purchaseTime
                     );
 
@@ -5978,7 +6115,7 @@ export const AdminPanel: React.FC = () => {
                     }
 
                     const segments: MistakeWorkflowSegment[] = [];
-                    if (trialMistakes.length > 0) {
+                    if (mistakeFilter !== 'purchased' && trialMistakes.length > 0) {
                       segments.push({
                         stage: 'free_trial',
                         stageLabel: 'Free Trial Activity',
@@ -6001,7 +6138,7 @@ export const AdminPanel: React.FC = () => {
                         stage: 'free_trial',
                         stageLabel: 'Course Learning Activity',
                         badgeColor: 'bg-primary/15 text-primary border-primary/30',
-                        mistakes: actualMistakes
+                        mistakes: filteredMistakes
                       });
                     }
 
