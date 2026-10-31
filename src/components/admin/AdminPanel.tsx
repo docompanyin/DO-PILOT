@@ -4741,7 +4741,9 @@ export const AdminPanel: React.FC = () => {
       const lastDone = correctAttempts.length > 0
         ? [...correctAttempts].sort((a, b) => new Date(a.attemptedAt).getTime() - new Date(b.attemptedAt).getTime())[correctAttempts.length - 1]
         : null;
-      const displayLast = lastDone || s.lastCompletedQuestion;
+      const displayLastSub = lastDone?.subQuestionLabel || s.lastCompletedQuestion?.subQuestionLabel || '';
+      const displayLastTitle = lastDone?.questionTitle || s.lastCompletedQuestion?.questionTitle || '';
+      const displayLastSec = lastDone?.section || s.lastCompletedQuestion?.sectionTitle || '';
 
       doc.setFillColor(240, 253, 244);
       doc.setDrawColor(187, 247, 208);
@@ -4749,8 +4751,8 @@ export const AdminPanel: React.FC = () => {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(7.5);
       doc.setTextColor(22, 101, 52);
-      const lastLabel = displayLast
-        ? `LATEST COMPLETED QUESTION: ${displayLast.subQuestionLabel} - ${displayLast.questionTitle} (${displayLast.sectionTitle})`
+      const lastLabel = displayLastTitle
+        ? `LATEST COMPLETED QUESTION: ${displayLastSub} - ${displayLastTitle} (${displayLastSec})`
         : 'LATEST COMPLETED QUESTION: None';
       doc.text(lastLabel.slice(0, 110), 48, y + 14);
 
@@ -5489,7 +5491,10 @@ export const AdminPanel: React.FC = () => {
               const lastDone = correctAttempts.length > 0
                 ? [...correctAttempts].sort((a, b) => new Date(a.attemptedAt).getTime() - new Date(b.attemptedAt).getTime())[correctAttempts.length - 1]
                 : null;
-              const displayLast = lastDone || student.lastCompletedQuestion;
+              const displaySub = lastDone?.subQuestionLabel || student.lastCompletedQuestion?.subQuestionLabel;
+              const displayTitle = lastDone?.questionTitle || student.lastCompletedQuestion?.questionTitle;
+              const displaySec = lastDone?.section || student.lastCompletedQuestion?.sectionTitle;
+              const displayTime = lastDone?.attemptedAt || student.lastCompletedQuestion?.completedAt;
 
               return (
                 <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-primary/5 to-transparent border border-emerald-500/25 flex flex-wrap items-center justify-between gap-3 shadow-sm">
@@ -5502,24 +5507,24 @@ export const AdminPanel: React.FC = () => {
                         <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-md">
                           Latest Learning Position
                         </span>
-                        {displayLast?.subQuestionLabel && (
+                        {displaySub && (
                           <span className="text-xs font-mono font-bold text-paper">
-                            {displayLast.subQuestionLabel}
+                            {displaySub}
                           </span>
                         )}
                       </div>
                       <span className="font-jakarta font-bold text-xs sm:text-sm text-paper block truncate mt-0.5">
-                        {displayLast
-                          ? `${displayLast.questionTitle} (${displayLast.sectionTitle})`
+                        {displayTitle
+                          ? `${displayTitle} (${displaySec})`
                           : 'Student has not completed a question yet'}
                       </span>
                     </div>
                   </div>
-                  {displayLast?.completedAt && (
+                  {displayTime && (
                     <div className="text-right shrink-0">
                       <span className="text-[10px] font-mono text-slate/60 block uppercase">Completed Timestamp</span>
                       <span className="text-xs font-mono text-emerald-300 font-semibold">
-                        {new Date(displayLast.completedAt).toLocaleString()}
+                        {new Date(displayTime).toLocaleString()}
                       </span>
                     </div>
                   )}
