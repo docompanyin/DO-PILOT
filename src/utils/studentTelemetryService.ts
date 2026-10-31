@@ -355,9 +355,7 @@ export const getCourseCurriculumQuestions = (courseId: string): CourseCurriculum
             `java-${sec.id}-${qId}`,
             `java-${sec.id}-${qIdx}`,
             `java-part${part}-${sec.id}-${qId}`,
-            `java-part${part}-${sec.id}-${qIdx}`,
-            `${sec.id}-${qId}`,
-            `${sec.id}-${qIdx}`
+            `java-part${part}-${sec.id}-${qIdx}`
           ];
           const correctOpt = mcq.options?.find(o => o.id === mcq.correctAnswer);
 
@@ -412,9 +410,7 @@ export const getCourseCurriculumQuestions = (courseId: string): CourseCurriculum
             `fullstack-${sec.id}-${qId}`,
             `fullstack-${sec.id}-${qIdx}`,
             `fs-p${part}-${sec.id}-${qId}`,
-            `fs-p${part}-${sec.id}-${qIdx}`,
-            `${sec.id}-${qId}`,
-            `${sec.id}-${qIdx}`
+            `fs-p${part}-${sec.id}-${qIdx}`
           ];
           const correctOpt = mcq.options?.find(o => o.id === mcq.correctAnswer);
 
@@ -453,9 +449,7 @@ export const getCourseCurriculumQuestions = (courseId: string): CourseCurriculum
             `cyber-${sec.id}-${qId}`,
             `cyber-${sec.id}-${qIdx}`,
             `cyber-p${part}-${sec.id}-${qId}`,
-            `cyber-p${part}-${sec.id}-${qIdx}`,
-            `${sec.id}-${qId}`,
-            `${sec.id}-${qIdx}`
+            `cyber-p${part}-${sec.id}-${qIdx}`
           ];
           const correctOpt = mcq.options?.find(o => o.id === mcq.correctAnswer);
 
@@ -553,7 +547,8 @@ export const buildStudentActivitySequence = (
   const id = (student.id || '').trim();
   const loggedAttempts = getStudentLoggedTelemetry(email || id);
 
-  // If we have explicit logged telemetry for this course, return it sorted by attemptedAt
+  // If we have explicit logged telemetry for any course, return only matching attempts for the requested course.
+  // Crucial: If the student has logged attempts (e.g. Python), but 0 for Java, do NOT fall back to curriculum fabrication or ambient localStorage for Java!
   if (loggedAttempts.length > 0) {
     const targetNorm = (courseId || '').toLowerCase().trim().replace(/[\s_-]+/g, '');
     const isTargetAll = !courseId || courseId === 'all';
@@ -566,11 +561,9 @@ export const buildStudentActivitySequence = (
       if (targetNorm.includes('cyber') && aNorm.includes('cyber')) return true;
       return a.courseId === courseId || aNorm === targetNorm;
     });
-    if (matching.length > 0) {
-      return matching.sort(
-        (a, b) => new Date(a.attemptedAt).getTime() - new Date(b.attemptedAt).getTime()
-      );
-    }
+    return matching.sort(
+      (a, b) => new Date(a.attemptedAt).getTime() - new Date(b.attemptedAt).getTime()
+    );
   }
 
   // Otherwise, reconstruct from saved answers & progress dictionaries
@@ -604,25 +597,38 @@ export const buildStudentActivitySequence = (
     });
   }
 
-  // 2. Also check localStorage for locally saved answers
+  // 2. Also check localStorage ONLY if the inspected student is the current active local student session
   try {
-    for (let p = 0; p <= 14; p++) {
-      let key = '';
-      if (norm.includes('java')) {
-        key = p <= 1 ? 'dopilot_java_mcq_answers' : `dopilot_java_part${p}_mcq_answers`;
-      } else if (norm.includes('fullstack')) {
-        key = `dopilot_fullstack_part${p}_mcq_answers`;
-      } else if (norm.includes('cyber')) {
-        key = `dopilot_cyber_part${p}_mcq_answers`;
-      } else {
-        key = p <= 1 ? 'dopilot_mcq_answers_v2' : `dopilot_part${p}_mcq_answers_v2`;
+    const sessionRaw = localStorage.getItem('dopilot_student_session_v1');
+    let isCurrentStudentSession = false;
+    if (sessionRaw) {
+      const sess = JSON.parse(sessionRaw);
+      const sessEmail = (sess.email || '').toLowerCase().trim();
+      const sessId = (sess.id || '').trim();
+      if ((cleanEmail && sessEmail === cleanEmail) || (id && sessId === id)) {
+        isCurrentStudentSession = true;
       }
-      const raw = localStorage.getItem(key);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          answers = { ...answers, ...parsed };
-        } catch {}
+    }
+
+    if (isCurrentStudentSession) {
+      for (let p = 0; p <= 14; p++) {
+        let key = '';
+        if (norm.includes('java')) {
+          key = p <= 1 ? 'dopilot_java_mcq_answers' : `dopilot_java_part${p}_mcq_answers`;
+        } else if (norm.includes('fullstack')) {
+          key = `dopilot_fullstack_part${p}_mcq_answers`;
+        } else if (norm.includes('cyber')) {
+          key = `dopilot_cyber_part${p}_mcq_answers`;
+        } else {
+          key = p <= 1 ? 'dopilot_mcq_answers_v2' : `dopilot_part${p}_mcq_answers_v2`;
+        }
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            answers = { ...answers, ...parsed };
+          } catch {}
+        }
       }
     }
   } catch {}

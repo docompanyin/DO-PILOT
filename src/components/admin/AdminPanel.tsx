@@ -5508,14 +5508,10 @@ export const AdminPanel: React.FC = () => {
           };
         });
 
-      // Include this course if it has student activity or is the primary enrolled course
+      // Include this course ONLY if it has genuine student activity (answered questions or attempts)
       const hasCourseActivity = courseAttempts.length > 0;
-      const isEnrolled = student.enrolledCourses?.some((ec) =>
-        ec.toLowerCase().includes(crs.id.toLowerCase().replace(/[\s_-]+/g, '')) ||
-        crs.id.toLowerCase().includes(ec.toLowerCase().replace(/[\s_-]+/g, ''))
-      );
 
-      if (hasCourseActivity || isEnrolled || inspectCourseFilter === crs.id || crs.id === 'python-core') {
+      if (hasCourseActivity || (inspectCourseFilter === crs.id && inspectCourseFilter !== 'all')) {
         courseMasteryList.push({
           courseId: crs.id,
           courseName: crs.name,

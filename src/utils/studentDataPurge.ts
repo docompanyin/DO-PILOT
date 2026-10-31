@@ -182,6 +182,20 @@ export const purgeStudentLocalData = (studentEmail?: string, studentId?: string)
     localStorage.removeItem('dopilot_q_target_end_time');
     localStorage.removeItem('dopilot_study_phase');
 
+    // Java specific root keys
+    localStorage.removeItem('dopilot_java_mcq_answers');
+    localStorage.removeItem('dopilot_java_level_result');
+    localStorage.removeItem('dopilot_java_active_section_id');
+    localStorage.removeItem('dopilot_java_active_q_idx');
+    localStorage.removeItem('dopilot_java_time_up');
+    localStorage.removeItem('dopilot_java_q_target_end_time');
+    localStorage.removeItem('dopilot_java_study_phase');
+
+    // Fullstack & Cyber specific root keys
+    localStorage.removeItem('dopilot_fullstack_part0_mcq_answers');
+    localStorage.removeItem('dopilot_fullstack_part1_mcq_answers');
+    localStorage.removeItem('dopilot_cyber_part1_mcq_answers');
+
     // Purge part completion flags across all 4 courses
     for (let i = 0; i <= 20; i++) {
       localStorage.removeItem(`dopilot_part${i}_completed`);
