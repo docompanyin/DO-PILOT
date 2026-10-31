@@ -4686,7 +4686,7 @@ export const AdminPanel: React.FC = () => {
         });
       }
 
-      // Helper function: Render standard page header
+      // Helper function: Render standard page header (only when starting a new course or page 1)
       const drawReportHeader = (titleSuffix: string = '') => {
         doc.setFillColor(15, 23, 42);
         doc.rect(0, 0, pageWidth, 68, 'F');
@@ -4698,7 +4698,7 @@ export const AdminPanel: React.FC = () => {
 
         doc.setFontSize(9.5);
         doc.setTextColor(240, 240, 240);
-        doc.text(`Student Performance & Learning Report Card${titleSuffix ? ` — ${titleSuffix}` : ''}`, 40, 50);
+        doc.text(`Student Performance & Learning Report Card${titleSuffix ? ` - ${titleSuffix}` : ''}`, 40, 50);
 
         doc.setFont("helvetica", "normal");
         doc.setFontSize(7.5);
@@ -4808,7 +4808,7 @@ export const AdminPanel: React.FC = () => {
         drawCrsTile(40 + (tileWidth + 5) * 5, `${crsMetrics.fastCount} / ${crsMetrics.slowCount}`, "FAST / SLOW", [248, 250, 252], [15, 23, 42]);
         y += 48;
 
-        // 3. Certificate Status Box (Clean Professional Design, No Yellow Highlight)
+        // 3. Certificate Status Box (Only display if student has genuinely claimed the certificate)
         if (crsCert) {
           doc.setFillColor(240, 253, 244);
           doc.setDrawColor(187, 247, 208);
@@ -4817,16 +4817,8 @@ export const AdminPanel: React.FC = () => {
           doc.setFontSize(8);
           doc.setTextColor(22, 101, 52);
           doc.text(`[VERIFIED CERTIFIED] ${crsCert.courseTitle} Certificate (ID: ${crsCert.certificateId}) claimed on ${crsCert.issueDate}`, 50, y + 14);
-        } else {
-          doc.setFillColor(248, 250, 252);
-          doc.setDrawColor(226, 232, 240);
-          doc.rect(40, y, pageWidth - 80, 22, 'FD');
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(7.5);
-          doc.setTextColor(100, 116, 139);
-          doc.text(`Certificate Status: In Progress (${crsPassCount} challenges completed)`, 50, y + 14);
+          y += 28;
         }
-        y += 28;
 
         // 4. Learning History: Question, Time & Answers (Free Trial & Purchased Stages)
         const trialAttempts = crsAttempts.filter((a) => new Date(a.attemptedAt).getTime() < purchaseTime);
@@ -4866,15 +4858,14 @@ export const AdminPanel: React.FC = () => {
         // Section Title: Question, Time & Answers
         if (y > pageHeight - 80) {
           doc.addPage();
-          drawReportHeader(cGrp.courseName);
-          y = 80;
+          y = 40;
         }
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9.5);
         doc.setTextColor(15, 23, 42);
         doc.text("Question, Time & Answers (Chronological Journey)", 40, y);
-        y += 12;
+        y += 14;
 
         const drawAttemptTableHeader = (yPos: number) => {
           doc.setFillColor(241, 245, 249);
@@ -4906,8 +4897,7 @@ export const AdminPanel: React.FC = () => {
             // Stage heading (Free trial vs Course Purchase banner)
             if (y > pageHeight - 60) {
               doc.addPage();
-              drawReportHeader(cGrp.courseName);
-              y = 80;
+              y = 40;
             }
 
             if (stg.stage === 'purchased_course') {
@@ -4918,7 +4908,7 @@ export const AdminPanel: React.FC = () => {
               doc.setFontSize(7.5);
               doc.setTextColor(6, 95, 70);
               const pDate = stg.purchaseInfo ? new Date(stg.purchaseInfo.purchasedAt).toLocaleDateString() : '';
-              doc.text(`COURSE PURCHASED & UNLOCKED — ${stg.label} ${pDate ? `(Enrolled: ${pDate})` : ''}`, 48, y + 12);
+              doc.text(`COURSE PURCHASED & UNLOCKED - ${stg.label} ${pDate ? `(Enrolled: ${pDate})` : ''}`, 48, y + 12);
             } else {
               doc.setFillColor(248, 250, 252);
               doc.setDrawColor(226, 232, 240);
@@ -4926,7 +4916,7 @@ export const AdminPanel: React.FC = () => {
               doc.setFont("helvetica", "bold");
               doc.setFontSize(7.5);
               doc.setTextColor(30, 41, 59);
-              doc.text(`FREE TRIAL ACTIVITY — (${stg.attempts.length} attempts)`, 48, y + 12);
+              doc.text(`FREE TRIAL ACTIVITY (${stg.attempts.length} attempts)`, 48, y + 12);
             }
             y += 22;
 
@@ -4935,8 +4925,7 @@ export const AdminPanel: React.FC = () => {
             stg.attempts.forEach((att, aIdx) => {
               if (y > pageHeight - 45) {
                 doc.addPage();
-                drawReportHeader(cGrp.courseName);
-                y = 80;
+                y = 40;
                 y = drawAttemptTableHeader(y);
               }
 
@@ -4951,7 +4940,8 @@ export const AdminPanel: React.FC = () => {
               doc.setFont("helvetica", "bold");
               doc.setFontSize(6.5);
               doc.setTextColor(14, 116, 144);
-              const labelText = att.subQuestionLabel || `Part ${att.partNum} -> Q${att.questionNumber}`;
+              const rawLabel = att.subQuestionLabel || `Part ${att.partNum} -> Q${att.questionNumber}`;
+              const labelText = rawLabel.replace(/\s*(?:->|–|—|>)\s*/g, ' - ');
               doc.text(String(labelText).slice(0, 32), 46, y + 13);
 
               // Title
@@ -5019,18 +5009,17 @@ export const AdminPanel: React.FC = () => {
         }
 
         // 5. Course Mistake Log (Directly follows course questions)
-        y += 10;
+        y += 14;
         if (y > pageHeight - 70) {
           doc.addPage();
-          drawReportHeader(cGrp.courseName);
-          y = 80;
+          y = 40;
         }
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9.5);
         doc.setTextColor(15, 23, 42);
-        doc.text(`${cGrp.courseName} — Mistake Log (${crsMistakes.length} Recorded)`, 40, y);
-        y += 14;
+        doc.text(`${cGrp.courseName} - Mistake Log (${crsMistakes.length} Recorded)`, 40, y);
+        y += 16;
 
         if (crsMistakes.length === 0) {
           doc.setFillColor(240, 253, 244);
@@ -5074,32 +5063,30 @@ export const AdminPanel: React.FC = () => {
           mistakePartGroups.sort((a, b) => a.partNum - b.partNum);
 
           mistakePartGroups.forEach((pGrp) => {
-            if (y > pageHeight - 55) {
+            if (y > pageHeight - 65) {
               doc.addPage();
-              drawReportHeader(cGrp.courseName);
-              y = 80;
+              y = 40;
             }
 
             doc.setFillColor(241, 245, 249);
-            doc.rect(40, y, pageWidth - 80, 16, 'F');
+            doc.rect(40, y, pageWidth - 80, 18, 'F');
             doc.setFont("helvetica", "bold");
             doc.setFontSize(8);
             doc.setTextColor(15, 23, 42);
-            doc.text(`PART ${pGrp.partNum} MISTAKES`, 48, y + 11);
-            y += 20;
+            doc.text(`PART ${pGrp.partNum} MISTAKES`, 48, y + 12);
+            y += 24;
 
             pGrp.sections.forEach((sGrp) => {
-              if (y > pageHeight - 45) {
+              if (y > pageHeight - 55) {
                 doc.addPage();
-                drawReportHeader(cGrp.courseName);
-                y = 80;
+                y = 40;
               }
 
               doc.setFont("helvetica", "bold");
               doc.setFontSize(7.5);
               doc.setTextColor(14, 116, 144);
-              doc.text(`Section ${sGrp.sectionLabel} (${sGrp.mistakes.length} mistakes)`, 44, y);
-              y += 10;
+              doc.text(`Section: ${sGrp.sectionLabel} (${sGrp.mistakes.length} ${sGrp.mistakes.length === 1 ? 'mistake' : 'mistakes'})`, 44, y);
+              y += 12;
 
               sGrp.mistakes.forEach((w) => {
                 doc.setFont("helvetica", "normal");
@@ -5116,12 +5103,11 @@ export const AdminPanel: React.FC = () => {
 
                 const promptBlockHeight = promptLines.length * 9;
                 const wrongBlockHeight = wrongLines.length * 9;
-                const cardHeight = 20 + promptBlockHeight + 5 + wrongBlockHeight + 13 + 6;
+                const cardHeight = 22 + promptBlockHeight + 6 + wrongBlockHeight + 14 + 6;
 
                 if (y + cardHeight > pageHeight - 40) {
                   doc.addPage();
-                  drawReportHeader(cGrp.courseName);
-                  y = 80;
+                  y = 40;
                 }
 
                 // Card Background (Clean soft rose/slate)
@@ -5135,23 +5121,23 @@ export const AdminPanel: React.FC = () => {
                 doc.setTextColor(190, 18, 60);
                 const retestTag = w.isRetest ? ` [Retest Attempt ${w.attemptsCount || 2}]` : '';
                 const timeTag = w.timeTakenSeconds > 0 ? ` • Answering Time: ${Number(w.timeTakenSeconds.toFixed(1))}s` : '';
-                doc.text(`Question ${w.questionNumber}: ${w.questionTitle}${retestTag}${timeTag}`, 48, y + 11);
+                doc.text(`Question ${w.questionNumber}: ${w.questionTitle}${retestTag}${timeTag}`, 48, y + 12);
 
-                let curY = y + 20;
+                let curY = y + 22;
 
                 // Prompt Text
                 doc.setFont("helvetica", "normal");
                 doc.setFontSize(7);
                 doc.setTextColor(30, 41, 59);
                 doc.text(promptLines, 48, curY);
-                curY += promptBlockHeight + 5;
+                curY += promptBlockHeight + 6;
 
                 // Wrong Answer Text
                 doc.setFont("helvetica", "bold");
                 doc.setFontSize(7);
                 doc.setTextColor(225, 29, 72);
                 doc.text(wrongLines, 48, curY);
-                curY += wrongBlockHeight + 5;
+                curY += wrongBlockHeight + 6;
 
                 // Correct Option
                 doc.setFont("helvetica", "bold");
@@ -5159,9 +5145,9 @@ export const AdminPanel: React.FC = () => {
                 doc.setTextColor(5, 150, 105);
                 doc.text(correctLine, 48, curY);
 
-                y += cardHeight + 6;
+                y += cardHeight + 8;
               });
-              y += 4;
+              y += 6;
             });
           });
         }
@@ -5260,18 +5246,17 @@ export const AdminPanel: React.FC = () => {
             };
           });
 
-        y += 12;
+        y += 14;
         if (y > pageHeight - 75) {
           doc.addPage();
-          drawReportHeader(cGrp.courseName);
-          y = 80;
+          y = 40;
         }
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9.5);
         doc.setTextColor(15, 23, 42);
-        doc.text(`${cGrp.courseName} — Section Mastery Breakdown`, 40, y);
-        y += 12;
+        doc.text(`${cGrp.courseName} - Section Mastery Breakdown`, 40, y);
+        y += 14;
 
         doc.setFillColor(241, 245, 249);
         doc.rect(40, y, pageWidth - 80, 16, 'F');
@@ -5293,8 +5278,7 @@ export const AdminPanel: React.FC = () => {
           dynamicPartProgress.forEach((part, pIdx) => {
             if (y > pageHeight - 45) {
               doc.addPage();
-              drawReportHeader(cGrp.courseName);
-              y = 80;
+              y = 40;
             }
             if (pIdx % 2 === 1) {
               doc.setFillColor(248, 250, 252);
@@ -5327,8 +5311,7 @@ export const AdminPanel: React.FC = () => {
               part.sectionList.forEach((sec) => {
                 if (y > pageHeight - 40) {
                   doc.addPage();
-                  drawReportHeader(cGrp.courseName);
-                  y = 80;
+                  y = 40;
                 }
                 const secPct = sec.totalQuestions > 0 ? Math.round((sec.answeredCount / sec.totalQuestions) * 100) : 0;
                 doc.setFont("helvetica", "normal");
@@ -5356,7 +5339,7 @@ export const AdminPanel: React.FC = () => {
         doc.setFont("helvetica", "normal");
         doc.setFontSize(7.5);
         doc.setTextColor(148, 163, 184);
-        doc.text("DO PILOT — Student Performance & Question Telemetry Report  •  Confidential", 40, pageHeight - 19);
+        doc.text("DO PILOT - Student Performance & Question Telemetry Report - Confidential", 40, pageHeight - 19);
         doc.text(`Page ${p} of ${totalPages}`, pageWidth - 40, pageHeight - 19, { align: 'right' });
       }
 
