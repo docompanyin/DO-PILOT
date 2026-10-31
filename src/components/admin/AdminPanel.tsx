@@ -75,6 +75,8 @@ import {
   setStudentTelemetryInMemory,
   getCourseCurriculumQuestions
 } from '../../utils/studentTelemetryService';
+import { COURSE_CERT_CONFIGS } from '../../utils/certificateGenerator';
+import { memoryCourseState } from '../../utils/courseProgressSyncService';
 
 export const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
@@ -537,6 +539,8 @@ export const AdminPanel: React.FC = () => {
 
   interface StudentQuestionAttempt {
     id: string;
+    courseId?: string;
+    courseName?: string;
     questionNumber: number;
     subQuestionLabel?: string;
     partNum: number;
@@ -650,57 +654,77 @@ export const AdminPanel: React.FC = () => {
     return list;
   })();
 
-  const getStudentQuestionTelemetry = (student: StudentAdminRecord): StudentQuestionAttempt[] => {
-    // Determine target course for telemetry
-    const targetCourse = selectedCourseFilter !== 'all'
-      ? selectedCourseFilter
-      : (student.enrolledCourses && student.enrolledCourses.length > 0
-          ? student.enrolledCourses[0]
-          : 'python-core');
+  const ALL_INSPECT_COURSES = [
+    { id: 'python-core', name: 'Complete Python Course' },
+    { id: 'java-core', name: 'Complete Java Course' },
+    { id: 'fullstack-open', name: 'Full Stack Open Course' },
+    { id: 'cyber-security', name: 'Cyber Security Course' }
+  ];
 
-    const sequence = buildStudentActivitySequence(student, targetCourse);
-    const curriculum = getCourseCurriculumQuestions(targetCourse);
+  const getStudentQuestionTelemetry = (student: StudentAdminRecord, courseScope: string = 'all'): StudentQuestionAttempt[] => {
+    // If a specific course is selected, only process that course. Otherwise process all supported courses.
+    const targetCourses = courseScope !== 'all'
+      ? ALL_INSPECT_COURSES.filter((c) => c.id === courseScope)
+      : ALL_INSPECT_COURSES;
 
-    if (sequence && sequence.length > 0) {
-      return sequence.map((item, idx) => {
-        const curMatch = curriculum.find(
-          (c) =>
-            c.partNum === item.partNum &&
-            (c.questionIndex === item.questionIndex ||
-             c.questionTitle.toLowerCase().trim() === (item.questionTitle || '').toLowerCase().trim())
-        );
+    const allAttempts: StudentQuestionAttempt[] = [];
 
-        return {
-          id: item.id || `att-${student.id}-${idx + 1}`,
-          questionNumber: item.questionIndex || (idx + 1),
-          subQuestionLabel: item.subQuestionLabel || `Part ${item.partNum} → Sec ${item.sectionId} → Q${item.questionIndex}`,
-          partNum: item.partNum,
-          section: item.sectionTitle || curMatch?.sectionTitle || `Part ${item.partNum}`,
-          levelTitle: item.subQuestionLabel ? `Level ${item.subQuestionLabel}` : `Question ${idx + 1}`,
-          questionTitle: item.questionTitle || curMatch?.questionTitle || `Question ${item.questionIndex || idx + 1}`,
-          questionPrompt: item.questionPrompt || curMatch?.questionPrompt || '',
-          codeSnippet: item.codeSnippet || curMatch?.codeSnippet,
-          studentOptionId: item.studentOptionId,
-          studentAnswer: item.studentAnswer,
-          correctOptionId: item.correctOptionId || curMatch?.correctOptionId || 'A',
-          correctAnswer: item.correctAnswer || curMatch?.correctAnswer || '',
-          isCorrect: item.isCorrect,
-          timeTakenSeconds: item.timeTakenSeconds,
-          timeLimitSeconds: item.timeLimitSeconds || 30,
-          attemptsCount: item.attemptNumber || (item.isRetest ? 2 : 1),
-          attemptNumber: item.attemptNumber || 1,
-          isRetest: Boolean(item.isRetest || (item.attemptNumber && item.attemptNumber > 1)),
-          attemptedAt: item.attemptedAt ? new Date(item.attemptedAt).toLocaleString() : new Date().toLocaleString(),
-          speedCategory: item.speedCategory,
-          status: item.status,
-          explanation: item.explanation || curMatch?.explanation,
-          options: curMatch?.options || []
-        };
-      });
+    targetCourses.forEach((course) => {
+      const sequence = buildStudentActivitySequence(student, course.id);
+      const curriculum = getCourseCurriculumQuestions(course.id);
+
+      if (sequence && sequence.length > 0) {
+        const mapped = sequence.map((item, idx) => {
+          const curMatch = curriculum.find(
+            (c) =>
+              c.partNum === item.partNum &&
+              (c.questionIndex === item.questionIndex ||
+               c.questionTitle.toLowerCase().trim() === (item.questionTitle || '').toLowerCase().trim())
+          );
+
+          return {
+            id: item.id || `att-${student.id}-${course.id}-${idx + 1}`,
+            courseId: course.id,
+            courseName: course.name,
+            questionNumber: item.questionIndex || (idx + 1),
+            subQuestionLabel: item.subQuestionLabel || `Part ${item.partNum} → Sec ${item.sectionId} → Q${item.questionIndex}`,
+            partNum: item.partNum,
+            section: item.sectionTitle || curMatch?.sectionTitle || `Part ${item.partNum}`,
+            levelTitle: item.subQuestionLabel ? `Level ${item.subQuestionLabel}` : `Question ${idx + 1}`,
+            questionTitle: item.questionTitle || curMatch?.questionTitle || `Question ${item.questionIndex || idx + 1}`,
+            questionPrompt: item.questionPrompt || curMatch?.questionPrompt || '',
+            codeSnippet: item.codeSnippet || curMatch?.codeSnippet,
+            studentOptionId: item.studentOptionId,
+            studentAnswer: item.studentAnswer,
+            correctOptionId: item.correctOptionId || curMatch?.correctOptionId || 'A',
+            correctAnswer: item.correctAnswer || curMatch?.correctAnswer || '',
+            isCorrect: item.isCorrect,
+            timeTakenSeconds: item.timeTakenSeconds,
+            timeLimitSeconds: item.timeLimitSeconds || 30,
+            attemptsCount: item.attemptNumber || (item.isRetest ? 2 : 1),
+            attemptNumber: item.attemptNumber || 1,
+            isRetest: Boolean(item.isRetest || (item.attemptNumber && item.attemptNumber > 1)),
+            attemptedAt: item.attemptedAt ? new Date(item.attemptedAt).toLocaleString() : new Date().toLocaleString(),
+            speedCategory: item.speedCategory,
+            status: item.status,
+            explanation: item.explanation || curMatch?.explanation,
+            options: curMatch?.options || []
+          };
+        });
+        allAttempts.push(...mapped);
+      }
+    });
+
+    if (allAttempts.length > 0) {
+      return allAttempts;
     }
 
     if (student.questionAttempts && student.questionAttempts.length > 0) {
-      return student.questionAttempts;
+      return student.questionAttempts.map((att) => ({
+        ...att,
+        courseId: att.courseId || 'python-core',
+        courseName: att.courseName || 'Complete Python Course'
+      }));
     }
 
     return [];
@@ -771,6 +795,7 @@ export const AdminPanel: React.FC = () => {
   const [studentSort, setStudentSort] = useState<'points_desc' | 'points_asc' | 'date_desc' | 'name_asc'>('points_desc');
   const [selectedStudentForReport, setSelectedStudentForReport] = useState<StudentAdminRecord | null>(null);
   const [inspectTab, setInspectTab] = useState<'telemetry' | 'mistakes' | 'mastery' | 'profile'>('telemetry');
+  const [inspectCourseFilter, setInspectCourseFilter] = useState<string>('all');
   const [telemetryFilter, setTelemetryFilter] = useState<'all' | 'purchased' | 'correct' | 'wrong' | 'fast' | 'normal' | 'slow'>('all');
   const [mistakeFilter, setMistakeFilter] = useState<'all' | 'purchased' | 'wrong' | 'fast' | 'normal' | 'slow'>('all');
   const [telemetrySearch, setTelemetrySearch] = useState('');
@@ -4719,7 +4744,7 @@ export const AdminPanel: React.FC = () => {
       drawKpiTile(40 + (tileWidth + 5) * 4, `${metrics.avgTime}s`, "AVG RESPONSE", [238, 242, 255], [79, 70, 229]);
       drawKpiTile(40 + (tileWidth + 5) * 5, `${metrics.fastestTime}s / ${metrics.slowestTime}s`, "FAST / SLOW", [255, 251, 235], [180, 83, 9]);
 
-      // Certificate Banner & Last Completed Position
+      // Certificate Banner
       y = 246;
       if (s.hasCertificate) {
         doc.setFillColor(254, 249, 195);
@@ -4737,29 +4762,8 @@ export const AdminPanel: React.FC = () => {
         doc.text(`Certificate Status: In Progress (${s.points} / 20 points achieved)`, 50, y + 15);
       }
 
-      // Latest Learning Position Banner
-      y = 274;
-      const correctAttempts = attempts.filter((a) => a.isCorrect);
-      const lastDone = correctAttempts.length > 0
-        ? [...correctAttempts].sort((a, b) => new Date(a.attemptedAt).getTime() - new Date(b.attemptedAt).getTime())[correctAttempts.length - 1]
-        : null;
-      const displayLastSub = lastDone?.subQuestionLabel || s.lastCompletedQuestion?.subQuestionLabel || '';
-      const displayLastTitle = lastDone?.questionTitle || s.lastCompletedQuestion?.questionTitle || '';
-      const displayLastSec = lastDone?.section || s.lastCompletedQuestion?.sectionTitle || '';
-
-      doc.setFillColor(240, 253, 244);
-      doc.setDrawColor(187, 247, 208);
-      doc.rect(40, y, pageWidth - 80, 22, 'FD');
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(7.5);
-      doc.setTextColor(22, 101, 52);
-      const lastLabel = displayLastTitle
-        ? `LATEST COMPLETED QUESTION: ${displayLastSub} - ${displayLastTitle} (${displayLastSec})`
-        : 'LATEST COMPLETED QUESTION: None';
-      doc.text(lastLabel.slice(0, 110), 48, y + 14);
-
       // Section 1: Detailed Question-by-Question Answering Log & Time Telemetry
-      y = 312;
+      y = 282;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(15, 23, 42);
@@ -5132,120 +5136,161 @@ export const AdminPanel: React.FC = () => {
     if (!selectedStudentForReport) return null;
 
     const student = selectedStudentForReport;
-    const attempts = getStudentQuestionTelemetry(student);
+    const allAttempts = getStudentQuestionTelemetry(student, 'all');
+    const attempts = inspectCourseFilter === 'all'
+      ? allAttempts
+      : allAttempts.filter((a) => a.courseId === inspectCourseFilter);
     const metrics = computeTelemetryMetrics(attempts);
 
     // Compute actual mistake records from student attempts
     const actualMistakes = attempts.filter((att) => !att.isCorrect);
 
     // Compute dynamic Section Mastery across curriculum parts & sections
-    const targetCourse = selectedCourseFilter !== 'all'
-      ? selectedCourseFilter
-      : (student.enrolledCourses && student.enrolledCourses.length > 0
-          ? student.enrolledCourses[0]
-          : 'python-core');
-    const fullCurriculum = getCourseCurriculumQuestions(targetCourse);
+    // Group mastery by course for multi-course support
+    const targetCoursesForMastery = inspectCourseFilter !== 'all'
+      ? ALL_INSPECT_COURSES.filter((c) => c.id === inspectCourseFilter)
+      : ALL_INSPECT_COURSES;
 
-    // Group curriculum questions by partNum
-    const partQuestionMap = new Map<number, {
-      partNum: number;
-      partTitle: string;
-      totalQuestions: number;
-      answeredCount: number;
-      passedCount: number;
-      failedCount: number;
-      sections: Map<string, {
-        sectionId: string;
-        sectionTitle: string;
+    interface CoursePartMastery {
+      courseId: string;
+      courseName: string;
+      parts: {
+        partNum: number;
+        partTitle: string;
         totalQuestions: number;
         answeredCount: number;
         passedCount: number;
-      }>;
-    }>();
+        failedCount: number;
+        status: 'passed' | 'failed' | 'in_progress' | 'not_started';
+        sectionList: {
+          sectionId: string;
+          sectionTitle: string;
+          totalQuestions: number;
+          answeredCount: number;
+          passedCount: number;
+        }[];
+      }[];
+    }
 
-    fullCurriculum.forEach((q) => {
-      if (!partQuestionMap.has(q.partNum)) {
-        partQuestionMap.set(q.partNum, {
-          partNum: q.partNum,
-          partTitle: `Part ${q.partNum}`,
-          totalQuestions: 0,
-          answeredCount: 0,
-          passedCount: 0,
-          failedCount: 0,
-          sections: new Map()
-        });
-      }
-      const partObj = partQuestionMap.get(q.partNum)!;
-      partObj.totalQuestions += 1;
+    const courseMasteryList: CoursePartMastery[] = [];
 
-      if (!partObj.sections.has(q.sectionId)) {
-        partObj.sections.set(q.sectionId, {
-          sectionId: q.sectionId,
-          sectionTitle: q.sectionTitle || `Section ${q.partNum}.${partObj.sections.size + 1}`,
-          totalQuestions: 0,
-          answeredCount: 0,
-          passedCount: 0
-        });
-      }
-      const secObj = partObj.sections.get(q.sectionId)!;
-      secObj.totalQuestions += 1;
-    });
+    targetCoursesForMastery.forEach((crs) => {
+      const fullCurriculum = getCourseCurriculumQuestions(crs.id);
+      const courseAttempts = allAttempts.filter((a) => a.courseId === crs.id);
 
-    // Populate answered & passed counts from student's attempts
-    // Keep set of unique answered question keys per part and section
-    const answeredQuestionKeys = new Set<string>();
-    attempts.forEach((att) => {
-      const qKey = `${att.partNum}-${att.questionNumber}`;
-      if (!answeredQuestionKeys.has(qKey)) {
-        answeredQuestionKeys.add(qKey);
-        const partObj = partQuestionMap.get(att.partNum);
-        if (partObj) {
-          partObj.answeredCount += 1;
-          if (att.isCorrect) {
-            partObj.passedCount += 1;
-          } else {
-            partObj.failedCount += 1;
-          }
+      const partQuestionMap = new Map<number, {
+        partNum: number;
+        partTitle: string;
+        totalQuestions: number;
+        answeredCount: number;
+        passedCount: number;
+        failedCount: number;
+        sections: Map<string, {
+          sectionId: string;
+          sectionTitle: string;
+          totalQuestions: number;
+          answeredCount: number;
+          passedCount: number;
+        }>;
+      }>();
 
-          // Match section
-          for (const secObj of partObj.sections.values()) {
-            if (
-              att.section.toLowerCase().includes(secObj.sectionTitle.toLowerCase()) ||
-              att.section.toLowerCase().includes(secObj.sectionId.toLowerCase()) ||
-              (att.subQuestionLabel && att.subQuestionLabel.toLowerCase().includes(secObj.sectionTitle.toLowerCase()))
-            ) {
-              secObj.answeredCount += 1;
-              if (att.isCorrect) secObj.passedCount += 1;
-              break;
+      fullCurriculum.forEach((q) => {
+        if (!partQuestionMap.has(q.partNum)) {
+          partQuestionMap.set(q.partNum, {
+            partNum: q.partNum,
+            partTitle: `Part ${q.partNum}`,
+            totalQuestions: 0,
+            answeredCount: 0,
+            passedCount: 0,
+            failedCount: 0,
+            sections: new Map()
+          });
+        }
+        const partObj = partQuestionMap.get(q.partNum)!;
+        partObj.totalQuestions += 1;
+
+        if (!partObj.sections.has(q.sectionId)) {
+          partObj.sections.set(q.sectionId, {
+            sectionId: q.sectionId,
+            sectionTitle: q.sectionTitle || `Section ${q.partNum}.${partObj.sections.size + 1}`,
+            totalQuestions: 0,
+            answeredCount: 0,
+            passedCount: 0
+          });
+        }
+        const secObj = partObj.sections.get(q.sectionId)!;
+        secObj.totalQuestions += 1;
+      });
+
+      const answeredQuestionKeys = new Set<string>();
+      courseAttempts.forEach((att) => {
+        const qKey = `${att.partNum}-${att.questionNumber}`;
+        if (!answeredQuestionKeys.has(qKey)) {
+          answeredQuestionKeys.add(qKey);
+          const partObj = partQuestionMap.get(att.partNum);
+          if (partObj) {
+            partObj.answeredCount += 1;
+            if (att.isCorrect) {
+              partObj.passedCount += 1;
+            } else {
+              partObj.failedCount += 1;
+            }
+
+            for (const secObj of partObj.sections.values()) {
+              if (
+                att.section.toLowerCase().includes(secObj.sectionTitle.toLowerCase()) ||
+                att.section.toLowerCase().includes(secObj.sectionId.toLowerCase()) ||
+                (att.subQuestionLabel && att.subQuestionLabel.toLowerCase().includes(secObj.sectionTitle.toLowerCase()))
+              ) {
+                secObj.answeredCount += 1;
+                if (att.isCorrect) secObj.passedCount += 1;
+                break;
+              }
             }
           }
         }
+      });
+
+      const parts = Array.from(partQuestionMap.values())
+        .filter((p) => p.totalQuestions > 0)
+        .sort((a, b) => a.partNum - b.partNum)
+        .filter((p, idx, arr) => {
+          if (p.answeredCount > 0 || p.partNum === 1) return true;
+          const prevPart = arr[idx - 1];
+          return prevPart && prevPart.answeredCount > 0;
+        })
+        .map((p) => {
+          let status: 'passed' | 'failed' | 'in_progress' | 'not_started' = 'not_started';
+          if (p.answeredCount >= p.totalQuestions && p.failedCount === 0) {
+            status = 'passed';
+          } else if (p.answeredCount > 0) {
+            status = p.failedCount > 0 ? 'failed' : 'in_progress';
+          }
+          return {
+            ...p,
+            status,
+            sectionList: Array.from(p.sections.values())
+          };
+        });
+
+      // Include this course if it has student activity or is the primary enrolled course
+      const hasCourseActivity = courseAttempts.length > 0;
+      const isEnrolled = student.enrolledCourses?.some((ec) =>
+        ec.toLowerCase().includes(crs.id.toLowerCase().replace(/[\s_-]+/g, '')) ||
+        crs.id.toLowerCase().includes(ec.toLowerCase().replace(/[\s_-]+/g, ''))
+      );
+
+      if (hasCourseActivity || isEnrolled || inspectCourseFilter === crs.id || crs.id === 'python-core') {
+        courseMasteryList.push({
+          courseId: crs.id,
+          courseName: crs.name,
+          parts
+        });
       }
     });
 
-    // Convert map to sorted dynamic part progress array
-    const dynamicPartProgress = Array.from(partQuestionMap.values())
-      .filter((p) => p.totalQuestions > 0)
-      .sort((a, b) => a.partNum - b.partNum)
-      // Only show parts that either have activity or are part 1 or adjacent next part
-      .filter((p, idx, arr) => {
-        if (p.answeredCount > 0 || p.partNum === 1) return true;
-        const prevPart = arr[idx - 1];
-        return prevPart && prevPart.answeredCount > 0;
-      })
-      .map((p) => {
-        let status: 'passed' | 'failed' | 'in_progress' | 'not_started' = 'not_started';
-        if (p.answeredCount >= p.totalQuestions && p.failedCount === 0) {
-          status = 'passed';
-        } else if (p.answeredCount > 0) {
-          status = p.failedCount > 0 ? 'failed' : 'in_progress';
-        }
-        return {
-          ...p,
-          status,
-          sectionList: Array.from(p.sections.values())
-        };
-      });
+    // Fallback combined dynamicPartProgress for top summary KPI pill
+    const dynamicPartProgress = courseMasteryList.flatMap((cm) => cm.parts);
 
     // Match student purchases for chronological workflow segmentation and purchase filtering
     const sEmail = (student.email || '').toLowerCase().trim();
@@ -5469,7 +5514,7 @@ export const AdminPanel: React.FC = () => {
           </div>
 
           {/* Scrollable Modal Content Body */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+          <div data-lenis-prevent className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 overscroll-contain">
             
             {/* Top 5 KPI Metric Cards Strip */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -5527,53 +5572,6 @@ export const AdminPanel: React.FC = () => {
               </div>
             </div>
 
-            {/* Exact Last Completed Question & Current Learning Position Card */}
-            {(() => {
-              const correctAttempts = attempts.filter((a) => a.isCorrect);
-              const lastDone = correctAttempts.length > 0
-                ? [...correctAttempts].sort((a, b) => new Date(a.attemptedAt).getTime() - new Date(b.attemptedAt).getTime())[correctAttempts.length - 1]
-                : null;
-              const displaySub = lastDone?.subQuestionLabel || student.lastCompletedQuestion?.subQuestionLabel;
-              const displayTitle = lastDone?.questionTitle || student.lastCompletedQuestion?.questionTitle;
-              const displaySec = lastDone?.section || student.lastCompletedQuestion?.sectionTitle;
-              const displayTime = lastDone?.attemptedAt || student.lastCompletedQuestion?.completedAt;
-
-              return (
-                <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-primary/5 to-transparent border border-emerald-500/25 flex flex-wrap items-center justify-between gap-3 shadow-sm">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shrink-0">
-                      <CheckCircle2 className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-md">
-                          Latest Learning Position
-                        </span>
-                        {displaySub && (
-                          <span className="text-xs font-mono font-bold text-paper">
-                            {displaySub}
-                          </span>
-                        )}
-                      </div>
-                      <span className="font-jakarta font-bold text-xs sm:text-sm text-paper block truncate mt-0.5">
-                        {displayTitle
-                          ? `${displayTitle} (${displaySec})`
-                          : 'Student has not completed a question yet'}
-                      </span>
-                    </div>
-                  </div>
-                  {displayTime && (
-                    <div className="text-right shrink-0">
-                      <span className="text-[10px] font-mono text-slate/60 block uppercase">Completed Timestamp</span>
-                      <span className="text-xs font-mono text-emerald-300 font-semibold">
-                        {new Date(displayTime).toLocaleString()}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
             {/* TAB 1: QUESTION-BY-QUESTION TELEMETRY & EXACT ANSWER TIMES */}
             {inspectTab === 'telemetry' && (
               <div className="space-y-4">
@@ -5600,10 +5598,33 @@ export const AdminPanel: React.FC = () => {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-1.5">
+                    {/* Course Filter Dropdown */}
+                    <div className="flex items-center gap-1.5 bg-[#0a0b0d] border border-white/15 px-2.5 py-1 rounded-lg">
+                      <BookOpen className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span className="text-[10px] font-mono text-slate/80 font-bold uppercase">Course:</span>
+                      <select
+                        value={inspectCourseFilter}
+                        onChange={(e) => setInspectCourseFilter(e.target.value)}
+                        className="bg-transparent text-paper font-jakarta text-xs font-bold focus:outline-none cursor-pointer pr-1"
+                      >
+                        <option value="all" className="bg-[#111215] text-paper">
+                          All Courses ({allAttempts.length})
+                        </option>
+                        {ALL_INSPECT_COURSES.map((crs) => {
+                          const count = allAttempts.filter((a) => a.courseId === crs.id).length;
+                          return (
+                            <option key={crs.id} value={crs.id} className="bg-[#111215] text-paper">
+                              {crs.name} ({count})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => setTelemetryFilter('all')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer ${
                         telemetryFilter === 'all'
                           ? 'bg-primary text-ink'
                           : 'bg-white/5 text-slate hover:text-paper'
@@ -5614,7 +5635,7 @@ export const AdminPanel: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setTelemetryFilter('purchased')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
                         telemetryFilter === 'purchased'
                           ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20'
                           : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20'
@@ -5629,7 +5650,7 @@ export const AdminPanel: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setTelemetryFilter('correct')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer ${
                         telemetryFilter === 'correct'
                           ? 'bg-emerald-500 text-black'
                           : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
@@ -5640,7 +5661,7 @@ export const AdminPanel: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setTelemetryFilter('wrong')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer ${
                         telemetryFilter === 'wrong'
                           ? 'bg-rose-500 text-white'
                           : 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20'
@@ -5651,7 +5672,7 @@ export const AdminPanel: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setTelemetryFilter('fast')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer ${
                         telemetryFilter === 'fast'
                           ? 'bg-emerald-400 text-black'
                           : 'bg-white/5 text-slate hover:text-paper'
@@ -5662,7 +5683,7 @@ export const AdminPanel: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setTelemetryFilter('normal')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer ${
                         telemetryFilter === 'normal'
                           ? 'bg-sky-400 text-black'
                           : 'bg-white/5 text-slate hover:text-paper'
@@ -5673,7 +5694,7 @@ export const AdminPanel: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setTelemetryFilter('slow')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer ${
                         telemetryFilter === 'slow'
                           ? 'bg-amber-400 text-black'
                           : 'bg-white/5 text-slate hover:text-paper'
@@ -5692,7 +5713,7 @@ export const AdminPanel: React.FC = () => {
                     </span>
                     <p className="text-xs text-slate/70 max-w-md mx-auto">
                       {attempts.length === 0
-                        ? "This student has not started answering challenges in their course yet. Questions and exact response times will appear here as soon as they start."
+                        ? "This student has not started answering challenges in this course yet. Questions and exact response times will appear here as soon as they start."
                         : "Try clearing your search query or pacing filter above."}
                     </p>
                   </div>
@@ -5710,253 +5731,304 @@ export const AdminPanel: React.FC = () => {
                       })
                       .sort((a, b) => new Date(a.purchasedAt).getTime() - new Date(b.purchasedAt).getTime());
 
-                    const firstPurchase = studentPurchases.length > 0 ? studentPurchases[0] : null;
-                    const purchaseTime = firstPurchase ? new Date(firstPurchase.purchasedAt).getTime() : Infinity;
+                    // Group attempts by Course first (Course Headings)
+                    const courseGroups: {
+                      courseId: string;
+                      courseName: string;
+                      courseAttempts: StudentQuestionAttempt[];
+                    }[] = [];
 
-                    // Workflow segments: Free Trial vs Purchased Course
-                    interface WorkflowSegment {
-                      stage: 'free_trial' | 'purchased_course';
-                      stageLabel: string;
-                      badgeColor: string;
-                      purchaseDetails?: typeof firstPurchase;
-                      attempts: StudentQuestionAttempt[];
-                    }
-
-                    const trialAttempts = filteredAttempts.filter(
-                      (a) => new Date(a.attemptedAt).getTime() < purchaseTime
-                    );
-                    const purchasedCourseAttempts = filteredAttempts.filter(
-                      (a) => new Date(a.attemptedAt).getTime() >= purchaseTime
-                    );
-
-                    const segments: WorkflowSegment[] = [];
-                    if (telemetryFilter !== 'purchased' && trialAttempts.length > 0) {
-                      segments.push({
-                        stage: 'free_trial',
-                        stageLabel: 'Free Trial Activity',
-                        badgeColor: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-                        attempts: trialAttempts
-                      });
-                    }
-                    if (firstPurchase) {
-                      segments.push({
-                        stage: 'purchased_course',
-                        stageLabel: `Purchased Course: ${firstPurchase.courseName}`,
-                        badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-                        purchaseDetails: firstPurchase,
-                        attempts: purchasedCourseAttempts
-                      });
-                    }
-
-                    // Fallback if no specific purchase found or all fall in one segment
-                    if (segments.length === 0) {
-                      segments.push({
-                        stage: 'free_trial',
-                        stageLabel: 'Course Learning Activity',
-                        badgeColor: 'bg-primary/15 text-primary border-primary/30',
-                        attempts: filteredAttempts
-                      });
-                    }
+                    filteredAttempts.forEach((att) => {
+                      const cId = att.courseId || 'python-core';
+                      const cName = att.courseName || ALL_INSPECT_COURSES.find((c) => c.id === cId)?.name || 'Complete Python Course';
+                      let cGrp = courseGroups.find((g) => g.courseId === cId);
+                      if (!cGrp) {
+                        cGrp = { courseId: cId, courseName: cName, courseAttempts: [] };
+                        courseGroups.push(cGrp);
+                      }
+                      cGrp.courseAttempts.push(att);
+                    });
 
                     return (
-                      <div className="space-y-8">
-                        {segments.map((seg, sIdx) => {
-                          // Group segment attempts by Part, then by Section in actual activity sequence
-                          interface SectionGroup {
-                            sectionKey: string;
-                            sectionLabel: string;
+                      <div className="space-y-10">
+                        {courseGroups.map((cGrp) => {
+                          // Find course purchase if any
+                          const coursePurchase = studentPurchases.find((p) => {
+                            const pNorm = (p.courseId || p.courseName || '').toLowerCase().replace(/[\s_-]+/g, '');
+                            const cNorm = cGrp.courseId.toLowerCase().replace(/[\s_-]+/g, '');
+                            return pNorm.includes(cNorm) || cNorm.includes(pNorm);
+                          }) || studentPurchases[0];
+
+                          const purchaseTime = coursePurchase ? new Date(coursePurchase.purchasedAt).getTime() : Infinity;
+
+                          // Workflow segments: Free Trial vs Purchased Course
+                          interface WorkflowSegment {
+                            stage: 'free_trial' | 'purchased_course';
+                            stageLabel: string;
+                            badgeColor: string;
+                            purchaseDetails?: typeof coursePurchase;
                             attempts: StudentQuestionAttempt[];
                           }
-                          interface PartGroup {
-                            partNum: number;
-                            partLabel: string;
-                            sections: SectionGroup[];
+
+                          const trialAttempts = cGrp.courseAttempts.filter(
+                            (a) => new Date(a.attemptedAt).getTime() < purchaseTime
+                          );
+                          const purchasedCourseAttempts = cGrp.courseAttempts.filter(
+                            (a) => new Date(a.attemptedAt).getTime() >= purchaseTime
+                          );
+
+                          const segments: WorkflowSegment[] = [];
+                          if (telemetryFilter !== 'purchased' && trialAttempts.length > 0) {
+                            segments.push({
+                              stage: 'free_trial',
+                              stageLabel: 'Free Trial Activity',
+                              badgeColor: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+                              attempts: trialAttempts
+                            });
+                          }
+                          if (coursePurchase && purchasedCourseAttempts.length > 0) {
+                            segments.push({
+                              stage: 'purchased_course',
+                              stageLabel: `Purchased Course: ${coursePurchase.courseName || cGrp.courseName}`,
+                              badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+                              purchaseDetails: coursePurchase,
+                              attempts: purchasedCourseAttempts
+                            });
                           }
 
-                          const partGroups: PartGroup[] = [];
-
-                          seg.attempts.forEach((att) => {
-                            const partNum = att.partNum || 1;
-                            const partLabel = `Part ${partNum}`;
-
-                            let sectionLabel = `Section ${partNum}.1`;
-                            if (att.subQuestionLabel) {
-                              const secMatch = att.subQuestionLabel.match(/Sec\s+([0-9.]+)/i);
-                              if (secMatch) {
-                                sectionLabel = `Section ${secMatch[1]}`;
-                              } else {
-                                const dotMatch = att.subQuestionLabel.match(/^(\d+\.\d+)/);
-                                if (dotMatch) {
-                                  sectionLabel = `Section ${dotMatch[1]}`;
-                                }
-                              }
-                            } else if (att.section) {
-                              const sMatch = att.section.match(/Section\s*([0-9.]+)/i);
-                              if (sMatch) {
-                                sectionLabel = `Section ${sMatch[1]}`;
-                              }
-                            }
-
-                            let pGroup = partGroups.find((p) => p.partNum === partNum);
-                            if (!pGroup) {
-                              pGroup = {
-                                partNum,
-                                partLabel,
-                                sections: []
-                              };
-                              partGroups.push(pGroup);
-                            }
-
-                            let sGroup = pGroup.sections.find((s) => s.sectionLabel === sectionLabel);
-                            if (!sGroup) {
-                              sGroup = {
-                                sectionKey: `${partNum}-${sectionLabel}`,
-                                sectionLabel,
-                                attempts: []
-                              };
-                              pGroup.sections.push(sGroup);
-                            }
-
-                            sGroup.attempts.push(att);
-                          });
+                          if (segments.length === 0) {
+                            segments.push({
+                              stage: 'free_trial',
+                              stageLabel: 'Course Learning Activity',
+                              badgeColor: 'bg-primary/15 text-primary border-primary/30',
+                              attempts: cGrp.courseAttempts
+                            });
+                          }
 
                           return (
-                            <div key={seg.stage + sIdx} className="space-y-5">
-                              {/* Workflow Separator & Heading Banner */}
-                              <div className={`p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-3 ${
-                                seg.stage === 'purchased_course'
-                                  ? 'bg-gradient-to-r from-emerald-500/15 via-[#0e1713] to-transparent border-emerald-500/40 shadow-lg shadow-emerald-500/5'
-                                  : 'bg-gradient-to-r from-amber-500/10 via-[#15120c] to-transparent border-amber-500/30'
-                              }`}>
-                                <div className="flex items-center gap-3 min-w-0">
-                                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
-                                    seg.stage === 'purchased_course'
-                                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
-                                      : 'bg-amber-500/20 border-amber-500/40 text-amber-300'
-                                  }`}>
-                                    {seg.stage === 'purchased_course' ? (
-                                      <CheckCircle2 className="w-5 h-5" />
-                                    ) : (
-                                      <Clock className="w-5 h-5" />
-                                    )}
+                            <div key={cGrp.courseId} className="space-y-6 p-5 sm:p-6 rounded-3xl bg-[#0d0e11] border border-white/10 shadow-lg">
+                              {/* Distinct Course Heading Banner */}
+                              <div className="flex items-center justify-between gap-3 pb-3 border-b border-white/10 flex-wrap">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center font-black text-sm">
+                                    <BookOpen className="w-4 h-4" />
                                   </div>
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${seg.badgeColor}`}>
-                                        {seg.stage === 'purchased_course' ? 'COURSE PURCHASED & UNLOCKED' : 'FREE TRIAL LEARNING'}
-                                      </span>
-                                      <span className="font-jakarta font-bold text-sm text-paper">
-                                        {seg.stageLabel}
-                                      </span>
-                                    </div>
-                                    <span className="text-xs font-mono text-slate/70 block mt-0.5">
-                                      {seg.attempts.length} {seg.attempts.length === 1 ? 'question attempt' : 'question attempts'} recorded in this stage
+                                  <div>
+                                    <h3 className="font-jakarta font-black text-base sm:text-lg text-paper tracking-wide">
+                                      {cGrp.courseName}
+                                    </h3>
+                                    <span className="text-[11px] font-mono text-slate/70">
+                                      {cGrp.courseAttempts.length} {cGrp.courseAttempts.length === 1 ? 'total question record' : 'total question records'} in this course
                                     </span>
                                   </div>
                                 </div>
-
-                                {seg.purchaseDetails && (
-                                  <div className="flex items-center gap-2 text-right shrink-0">
-                                    <div className="px-3 py-1 rounded-xl bg-black/50 border border-white/10 text-right">
-                                      <span className="text-[10px] font-mono text-slate/60 block uppercase">Purchased On</span>
-                                      <span className="text-xs font-mono text-emerald-300 font-bold">
-                                        {new Date(seg.purchaseDetails.purchasedAt).toLocaleDateString()} at {new Date(seg.purchaseDetails.purchasedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                      </span>
-                                    </div>
-                                  </div>
-                                )}
+                                <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-mono font-bold text-paper">
+                                  {cGrp.courseAttempts.filter((a) => a.isCorrect).length} Correct • {cGrp.courseAttempts.filter((a) => !a.isCorrect).length} Wrong
+                                </span>
                               </div>
 
-                              {/* Part and Section Hierarchy */}
-                              {partGroups.length === 0 ? (
-                                <div className="p-6 text-center text-xs font-mono text-slate/50 bg-[#121316] rounded-2xl border border-white/5">
-                                  No question attempts recorded in this stage yet.
-                                </div>
-                              ) : (
-                                <div className="space-y-6">
-                                  {partGroups.map((pGroup) => (
-                                    <div key={pGroup.partNum} className="space-y-4">
-                                      {/* Main Part Heading */}
-                                      <div className="flex items-center gap-2.5 pb-2 border-b border-white/10">
-                                        <span className="font-jakarta text-base sm:text-lg font-black text-paper tracking-wide">
-                                          {pGroup.partLabel}
-                                        </span>
-                                      </div>
+                              <div className="space-y-8">
+                                {segments.map((seg, sIdx) => {
+                                  // Group segment attempts by Part, then by Section in actual activity sequence
+                                  interface SectionGroup {
+                                    sectionKey: string;
+                                    sectionLabel: string;
+                                    attempts: StudentQuestionAttempt[];
+                                  }
+                                  interface PartGroup {
+                                    partNum: number;
+                                    partLabel: string;
+                                    sections: SectionGroup[];
+                                  }
 
-                                      {/* Section Headings & Balanced Full-Width Grid of Question Records */}
-                                      <div className="space-y-4 pl-1 sm:pl-2">
-                                        {pGroup.sections.map((sGroup) => (
-                                          <div key={sGroup.sectionKey} className="space-y-2.5">
-                                            {/* Section Heading */}
-                                            <div className="flex items-center gap-2">
-                                              <h4 className="font-jakarta text-xs sm:text-sm font-bold text-slate">
-                                                {sGroup.sectionLabel}
-                                              </h4>
-                                              <span className="text-[10px] font-mono text-slate/50">
-                                                ({sGroup.attempts.length} {sGroup.attempts.length === 1 ? 'record' : 'records'})
+                                  const partGroups: PartGroup[] = [];
+
+                                  seg.attempts.forEach((att) => {
+                                    const partNum = att.partNum || 1;
+                                    const partLabel = `Part ${partNum}`;
+
+                                    let sectionLabel = `Section ${partNum}.1`;
+                                    if (att.subQuestionLabel) {
+                                      const secMatch = att.subQuestionLabel.match(/Sec\s+([0-9.]+)/i);
+                                      if (secMatch) {
+                                        sectionLabel = `Section ${secMatch[1]}`;
+                                      } else {
+                                        const dotMatch = att.subQuestionLabel.match(/^(\d+\.\d+)/);
+                                        if (dotMatch) {
+                                          sectionLabel = `Section ${dotMatch[1]}`;
+                                        }
+                                      }
+                                    } else if (att.section) {
+                                      const sMatch = att.section.match(/Section\s*([0-9.]+)/i);
+                                      if (sMatch) {
+                                        sectionLabel = `Section ${sMatch[1]}`;
+                                      }
+                                    }
+
+                                    let pGroup = partGroups.find((p) => p.partNum === partNum);
+                                    if (!pGroup) {
+                                      pGroup = {
+                                        partNum,
+                                        partLabel,
+                                        sections: []
+                                      };
+                                      partGroups.push(pGroup);
+                                    }
+
+                                    let sGroup = pGroup.sections.find((s) => s.sectionLabel === sectionLabel);
+                                    if (!sGroup) {
+                                      sGroup = {
+                                        sectionKey: `${partNum}-${sectionLabel}`,
+                                        sectionLabel,
+                                        attempts: []
+                                      };
+                                      pGroup.sections.push(sGroup);
+                                    }
+
+                                    sGroup.attempts.push(att);
+                                  });
+
+                                  return (
+                                    <div key={seg.stage + sIdx} className="space-y-5">
+                                      {/* Workflow Separator & Heading Banner */}
+                                      <div className={`p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-3 ${
+                                        seg.stage === 'purchased_course'
+                                          ? 'bg-gradient-to-r from-emerald-500/15 via-[#0e1713] to-transparent border-emerald-500/40 shadow-lg shadow-emerald-500/5'
+                                          : 'bg-gradient-to-r from-amber-500/10 via-[#15120c] to-transparent border-amber-500/30'
+                                      }`}>
+                                        <div className="flex items-center gap-3 min-w-0">
+                                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                                            seg.stage === 'purchased_course'
+                                              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                                              : 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                                          }`}>
+                                            {seg.stage === 'purchased_course' ? (
+                                              <CheckCircle2 className="w-5 h-5" />
+                                            ) : (
+                                              <Clock className="w-5 h-5" />
+                                            )}
+                                          </div>
+                                          <div className="min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${seg.badgeColor}`}>
+                                                {seg.stage === 'purchased_course' ? 'COURSE PURCHASED & UNLOCKED' : 'FREE TRIAL LEARNING'}
+                                              </span>
+                                              <span className="font-jakarta font-bold text-sm text-paper">
+                                                {seg.stageLabel}
                                               </span>
                                             </div>
+                                            <span className="text-xs font-mono text-slate/70 block mt-0.5">
+                                              {seg.attempts.length} {seg.attempts.length === 1 ? 'question attempt' : 'question attempts'} recorded in this stage
+                                            </span>
+                                          </div>
+                                        </div>
 
-                                            {/* Balanced Professional Multi-Column Grid across full available width */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                                              {sGroup.attempts.map((att) => {
-                                                let qNum = att.questionNumber || 1;
-                                                if (att.subQuestionLabel) {
-                                                  const qMatch = att.subQuestionLabel.match(/Q(\d+)/i);
-                                                  if (qMatch) {
-                                                    qNum = parseInt(qMatch[1], 10);
-                                                  } else {
-                                                    const dotMatch = att.subQuestionLabel.match(/\d+\.\d+\.(\d+)/);
-                                                    if (dotMatch) {
-                                                      qNum = parseInt(dotMatch[1], 10);
-                                                    }
-                                                  }
-                                                }
+                                        {seg.purchaseDetails && (
+                                          <div className="flex items-center gap-2 text-right shrink-0">
+                                            <div className="px-3 py-1 rounded-xl bg-black/50 border border-white/10 text-right">
+                                              <span className="text-[10px] font-mono text-slate/60 block uppercase">Purchased On</span>
+                                              <span className="text-xs font-mono text-emerald-300 font-bold">
+                                                {new Date(seg.purchaseDetails.purchasedAt).toLocaleDateString()} at {new Date(seg.purchaseDetails.purchasedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
 
-                                                const opt = att.studentOptionId || '—';
-                                                const timeStr = att.timeTakenSeconds > 0 ? `${Math.round(att.timeTakenSeconds)} sec` : '—';
-                                                const isCorrect = Boolean(att.isCorrect);
-                                                const isRetest = Boolean(att.isRetest || (att.attemptNumber && att.attemptNumber > 1));
+                                      {/* Part and Section Hierarchy */}
+                                      {partGroups.length === 0 ? (
+                                        <div className="p-6 text-center text-xs font-mono text-slate/50 bg-[#121316] rounded-2xl border border-white/5">
+                                          No question attempts recorded in this stage yet.
+                                        </div>
+                                      ) : (
+                                        <div className="space-y-6">
+                                          {partGroups.map((pGroup) => (
+                                            <div key={pGroup.partNum} className="space-y-4">
+                                              {/* Main Part Heading */}
+                                              <div className="flex items-center gap-2.5 pb-2 border-b border-white/10">
+                                                <span className="font-jakarta text-base sm:text-lg font-black text-paper tracking-wide">
+                                                  {pGroup.partLabel}
+                                                </span>
+                                              </div>
 
-                                                return (
-                                                  <div
-                                                    key={att.id}
-                                                    className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#121316] border border-white/10 hover:border-white/20 transition-all font-mono text-xs text-slate shadow-sm"
-                                                  >
-                                                    <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap min-w-0">
-                                                      <span className="font-bold text-paper text-xs sm:text-sm min-w-[20px]">
-                                                        {qNum}
-                                                      </span>
-                                                      <span className="text-white/20">|</span>
-                                                      <span>
-                                                        Answer: <strong className={isCorrect ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>{opt}</strong>
-                                                      </span>
-                                                      <span className="text-white/20">|</span>
-                                                      <span>
-                                                        Time: <span className="text-paper">{timeStr}</span>
-                                                      </span>
-                                                      <span className="text-white/20">|</span>
-                                                      <span className={isCorrect ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
-                                                        {isCorrect ? 'Correct' : 'Wrong'}
+                                              {/* Section Headings & Balanced Full-Width Grid of Question Records */}
+                                              <div className="space-y-4 pl-1 sm:pl-2">
+                                                {pGroup.sections.map((sGroup) => (
+                                                  <div key={sGroup.sectionKey} className="space-y-2.5">
+                                                    {/* Section Heading */}
+                                                    <div className="flex items-center gap-2">
+                                                      <h4 className="font-jakarta text-xs sm:text-sm font-bold text-slate">
+                                                        {sGroup.sectionLabel}
+                                                      </h4>
+                                                      <span className="text-[10px] font-mono text-slate/50">
+                                                        ({sGroup.attempts.length} {sGroup.attempts.length === 1 ? 'record' : 'records'})
                                                       </span>
                                                     </div>
 
-                                                    {isRetest && (
-                                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0 ml-1.5">
-                                                        Retest {att.attemptNumber ? `(Att ${att.attemptNumber})` : ''}
-                                                      </span>
-                                                    )}
+                                                    {/* Balanced Professional Multi-Column Grid across full available width */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                                                      {sGroup.attempts.map((att) => {
+                                                        let qNum = att.questionNumber || 1;
+                                                        if (att.subQuestionLabel) {
+                                                          const qMatch = att.subQuestionLabel.match(/Q(\d+)/i);
+                                                          if (qMatch) {
+                                                            qNum = parseInt(qMatch[1], 10);
+                                                          } else {
+                                                            const dotMatch = att.subQuestionLabel.match(/\d+\.\d+\.(\d+)/);
+                                                            if (dotMatch) {
+                                                              qNum = parseInt(dotMatch[1], 10);
+                                                            }
+                                                          }
+                                                        }
+
+                                                        const opt = att.studentOptionId || '—';
+                                                        const timeStr = att.timeTakenSeconds > 0 ? `${Math.round(att.timeTakenSeconds)} sec` : '—';
+                                                        const isCorrect = Boolean(att.isCorrect);
+                                                        const isRetest = Boolean(att.isRetest || (att.attemptNumber && att.attemptNumber > 1));
+
+                                                        return (
+                                                          <div
+                                                            key={att.id}
+                                                            className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#121316] border border-white/10 hover:border-white/20 transition-colors font-mono text-xs text-slate shadow-sm"
+                                                          >
+                                                            <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap min-w-0">
+                                                              <span className="font-bold text-paper text-xs sm:text-sm min-w-[20px]">
+                                                                {qNum}
+                                                              </span>
+                                                              <span className="text-white/20">|</span>
+                                                              <span>
+                                                                Answer: <strong className={isCorrect ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>{opt}</strong>
+                                                              </span>
+                                                              <span className="text-white/20">|</span>
+                                                              <span>
+                                                                Time: <span className="text-paper">{timeStr}</span>
+                                                              </span>
+                                                              <span className="text-white/20">|</span>
+                                                              <span className={isCorrect ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
+                                                                {isCorrect ? 'Correct' : 'Wrong'}
+                                                              </span>
+                                                            </div>
+
+                                                            {isRetest && (
+                                                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0 ml-1.5">
+                                                                Retest {att.attemptNumber ? `(Att ${att.attemptNumber})` : ''}
+                                                              </span>
+                                                            )}
+                                                          </div>
+                                                        );
+                                                      })}
+                                                    </div>
                                                   </div>
-                                                );
-                                              })}
+                                                ))}
+                                              </div>
                                             </div>
-                                          </div>
-                                        ))}
-                                      </div>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
-                                  ))}
-                                </div>
-                              )}
+                                  );
+                                })}
+                              </div>
                             </div>
                           );
                         })}
@@ -6012,10 +6084,33 @@ export const AdminPanel: React.FC = () => {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-1.5">
+                    {/* Course Filter Dropdown in Mistake Log */}
+                    <div className="flex items-center gap-1.5 bg-[#121316] border border-white/15 px-2.5 py-1 rounded-lg">
+                      <BookOpen className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span className="text-[10px] font-mono text-slate/80 font-bold uppercase">Course:</span>
+                      <select
+                        value={inspectCourseFilter}
+                        onChange={(e) => setInspectCourseFilter(e.target.value)}
+                        className="bg-transparent text-paper font-jakarta text-xs font-bold focus:outline-none cursor-pointer pr-1"
+                      >
+                        <option value="all" className="bg-[#111215] text-paper">
+                          All Courses ({allAttempts.filter((a) => !a.isCorrect).length})
+                        </option>
+                        {ALL_INSPECT_COURSES.map((crs) => {
+                          const count = allAttempts.filter((a) => a.courseId === crs.id && !a.isCorrect).length;
+                          return (
+                            <option key={crs.id} value={crs.id} className="bg-[#111215] text-paper">
+                              {crs.name} ({count})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => setMistakeFilter('all')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer ${
                         mistakeFilter === 'all'
                           ? 'bg-primary text-ink'
                           : 'bg-white/5 text-slate hover:text-paper'
@@ -6026,7 +6121,7 @@ export const AdminPanel: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setMistakeFilter('purchased')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
                         mistakeFilter === 'purchased'
                           ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20'
                           : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20'
@@ -6041,7 +6136,7 @@ export const AdminPanel: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setMistakeFilter('wrong')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer ${
                         mistakeFilter === 'wrong'
                           ? 'bg-rose-500 text-white'
                           : 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20'
@@ -6052,7 +6147,7 @@ export const AdminPanel: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setMistakeFilter('fast')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer ${
                         mistakeFilter === 'fast'
                           ? 'bg-emerald-400 text-black'
                           : 'bg-white/5 text-slate hover:text-paper'
@@ -6063,7 +6158,7 @@ export const AdminPanel: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setMistakeFilter('normal')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer ${
                         mistakeFilter === 'normal'
                           ? 'bg-sky-400 text-black'
                           : 'bg-white/5 text-slate hover:text-paper'
@@ -6074,7 +6169,7 @@ export const AdminPanel: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setMistakeFilter('slow')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer ${
                         mistakeFilter === 'slow'
                           ? 'bg-amber-400 text-black'
                           : 'bg-white/5 text-slate hover:text-paper'
@@ -6098,283 +6193,348 @@ export const AdminPanel: React.FC = () => {
                   </div>
                 ) : (
                   (() => {
-                    // Workflow segmentation: Free Trial vs Purchased Course
-                    const trialMistakes = filteredMistakes.filter(
-                      (m) => new Date(m.attemptedAt).getTime() < purchaseTime
-                    );
-                    const purchasedCourseMistakes = filteredMistakes.filter(
-                      (m) => new Date(m.attemptedAt).getTime() >= purchaseTime
-                    );
+                    // Match student purchases
+                    const sEmail = (student.email || '').toLowerCase().trim();
+                    const sId = (student.id || '').trim();
+                    const studentPurchases = coursePurchases
+                      .filter((p) => {
+                        const pe = (p.studentEmail || '').toLowerCase().trim();
+                        const pi = (p.studentId || '').trim();
+                        const match = (sEmail && pe === sEmail) || (sId && pi === sId);
+                        return match && (p.status === 'completed' || p.accessGranted);
+                      })
+                      .sort((a, b) => new Date(a.purchasedAt).getTime() - new Date(b.purchasedAt).getTime());
 
-                    interface MistakeWorkflowSegment {
-                      stage: 'free_trial' | 'purchased_course';
-                      stageLabel: string;
-                      badgeColor: string;
-                      purchaseDetails?: typeof firstPurchase;
-                      mistakes: typeof actualMistakes;
-                    }
+                    // Group mistakes by Course first
+                    const courseMistakeGroups: {
+                      courseId: string;
+                      courseName: string;
+                      courseMistakes: typeof actualMistakes;
+                    }[] = [];
 
-                    const segments: MistakeWorkflowSegment[] = [];
-                    if (mistakeFilter !== 'purchased' && trialMistakes.length > 0) {
-                      segments.push({
-                        stage: 'free_trial',
-                        stageLabel: 'Free Trial Activity',
-                        badgeColor: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-                        mistakes: trialMistakes
-                      });
-                    }
-                    if (firstPurchase) {
-                      segments.push({
-                        stage: 'purchased_course',
-                        stageLabel: `Purchased Course: ${firstPurchase.courseName}`,
-                        badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-                        purchaseDetails: firstPurchase,
-                        mistakes: purchasedCourseMistakes
-                      });
-                    }
-
-                    if (segments.length === 0) {
-                      segments.push({
-                        stage: 'free_trial',
-                        stageLabel: 'Course Learning Activity',
-                        badgeColor: 'bg-primary/15 text-primary border-primary/30',
-                        mistakes: filteredMistakes
-                      });
-                    }
+                    filteredMistakes.forEach((m) => {
+                      const cId = m.courseId || 'python-core';
+                      const cName = m.courseName || ALL_INSPECT_COURSES.find((c) => c.id === cId)?.name || 'Complete Python Course';
+                      let cGrp = courseMistakeGroups.find((g) => g.courseId === cId);
+                      if (!cGrp) {
+                        cGrp = { courseId: cId, courseName: cName, courseMistakes: [] };
+                        courseMistakeGroups.push(cGrp);
+                      }
+                      cGrp.courseMistakes.push(m);
+                    });
 
                     return (
-                      <div className="space-y-8">
-                        {segments.map((seg, sIdx) => {
-                          // Group mistakes by Part, then by Section without unnecessary arrows or nested headings
-                          interface MistakeSectionGroup {
-                            sectionKey: string;
-                            sectionLabel: string;
+                      <div className="space-y-10">
+                        {courseMistakeGroups.map((cGrp) => {
+                          const coursePurchase = studentPurchases.find((p) => {
+                            const pNorm = (p.courseId || p.courseName || '').toLowerCase().replace(/[\s_-]+/g, '');
+                            const cNorm = cGrp.courseId.toLowerCase().replace(/[\s_-]+/g, '');
+                            return pNorm.includes(cNorm) || cNorm.includes(pNorm);
+                          }) || studentPurchases[0];
+
+                          const purchaseTime = coursePurchase ? new Date(coursePurchase.purchasedAt).getTime() : Infinity;
+
+                          // Workflow segmentation: Free Trial vs Purchased Course
+                          const trialMistakes = cGrp.courseMistakes.filter(
+                            (m) => new Date(m.attemptedAt).getTime() < purchaseTime
+                          );
+                          const purchasedCourseMistakes = cGrp.courseMistakes.filter(
+                            (m) => new Date(m.attemptedAt).getTime() >= purchaseTime
+                          );
+
+                          interface MistakeWorkflowSegment {
+                            stage: 'free_trial' | 'purchased_course';
+                            stageLabel: string;
+                            badgeColor: string;
+                            purchaseDetails?: typeof coursePurchase;
                             mistakes: typeof actualMistakes;
                           }
-                          interface MistakePartGroup {
-                            partNum: number;
-                            partLabel: string;
-                            sections: MistakeSectionGroup[];
+
+                          const segments: MistakeWorkflowSegment[] = [];
+                          if (mistakeFilter !== 'purchased' && trialMistakes.length > 0) {
+                            segments.push({
+                              stage: 'free_trial',
+                              stageLabel: 'Free Trial Activity',
+                              badgeColor: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+                              mistakes: trialMistakes
+                            });
+                          }
+                          if (coursePurchase && purchasedCourseMistakes.length > 0) {
+                            segments.push({
+                              stage: 'purchased_course',
+                              stageLabel: `Purchased Course: ${coursePurchase.courseName || cGrp.courseName}`,
+                              badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+                              purchaseDetails: coursePurchase,
+                              mistakes: purchasedCourseMistakes
+                            });
                           }
 
-                          const partGroups: MistakePartGroup[] = [];
-
-                          seg.mistakes.forEach((m) => {
-                            const partNum = m.partNum || 1;
-                            const partLabel = `Part ${partNum}`;
-
-                            // Extract clean Section label (e.g. "1.1", "1.2")
-                            let sectionLabel = `${partNum}.1`;
-                            if (m.subQuestionLabel) {
-                              const secMatch = m.subQuestionLabel.match(/Sec\s+([0-9.]+)/i);
-                              if (secMatch) {
-                                sectionLabel = secMatch[1];
-                              } else {
-                                const dotMatch = m.subQuestionLabel.match(/^(\d+\.\d+)/);
-                                if (dotMatch) {
-                                  sectionLabel = dotMatch[1];
-                                }
-                              }
-                            } else if (m.section) {
-                              const sMatch = m.section.match(/Section\s*([0-9.]+)/i);
-                              if (sMatch) {
-                                sectionLabel = sMatch[1];
-                              } else {
-                                const numMatch = m.section.match(/(\d+\.\d+)/);
-                                if (numMatch) {
-                                  sectionLabel = numMatch[1];
-                                }
-                              }
-                            }
-
-                            let pGroup = partGroups.find((p) => p.partNum === partNum);
-                            if (!pGroup) {
-                              pGroup = {
-                                partNum,
-                                partLabel,
-                                sections: []
-                              };
-                              partGroups.push(pGroup);
-                            }
-
-                            let sGroup = pGroup.sections.find((s) => s.sectionLabel === sectionLabel);
-                            if (!sGroup) {
-                              sGroup = {
-                                sectionKey: `${partNum}-${sectionLabel}`,
-                                sectionLabel,
-                                mistakes: []
-                              };
-                              pGroup.sections.push(sGroup);
-                            }
-
-                            sGroup.mistakes.push(m);
-                          });
-
-                          // Sort parts numerically
-                          partGroups.sort((a, b) => a.partNum - b.partNum);
+                          if (segments.length === 0) {
+                            segments.push({
+                              stage: 'free_trial',
+                              stageLabel: 'Course Learning Activity',
+                              badgeColor: 'bg-primary/15 text-primary border-primary/30',
+                              mistakes: cGrp.courseMistakes
+                            });
+                          }
 
                           return (
-                            <div key={seg.stage + sIdx} className="space-y-6">
-                              {/* Workflow Phase Header / Separator */}
-                              {seg.stage === 'free_trial' ? (
-                                <div className="p-4 rounded-2xl bg-amber-500/[0.08] border border-amber-500/25 flex flex-wrap items-center justify-between gap-3">
-                                  <div className="flex items-center gap-2.5">
-                                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-                                    <h5 className="font-jakarta font-black text-xs sm:text-sm text-amber-300 uppercase tracking-wider">
-                                      Free Trial Learning — Mistake Log
-                                    </h5>
+                            <div key={cGrp.courseId} className="space-y-6 p-5 sm:p-6 rounded-3xl bg-[#0d0e11] border border-white/10 shadow-lg">
+                              {/* Distinct Course Mistake Header */}
+                              <div className="flex items-center justify-between gap-3 pb-3 border-b border-white/10 flex-wrap">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center font-black text-sm">
+                                    <AlertTriangle className="w-4 h-4" />
+                                  </div>
+                                  <div>
+                                    <h3 className="font-jakarta font-black text-base sm:text-lg text-paper tracking-wide">
+                                      {cGrp.courseName} — Mistake Log
+                                    </h3>
                                     <span className="text-[11px] font-mono text-slate/70">
-                                      ({seg.mistakes.length} mistakes during trial)
+                                      {cGrp.courseMistakes.length} {cGrp.courseMistakes.length === 1 ? 'mistake recorded' : 'mistakes recorded'} in this course
                                     </span>
                                   </div>
-                                  <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-mono font-bold">
-                                    Pre-Purchase
-                                  </span>
                                 </div>
-                              ) : (
-                                <div className="p-4 rounded-2xl bg-emerald-500/[0.08] border border-emerald-500/30 flex flex-wrap items-center justify-between gap-3">
-                                  <div className="flex items-center gap-2.5">
-                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-                                    <div>
-                                      <h5 className="font-jakarta font-black text-xs sm:text-sm text-emerald-300 uppercase tracking-wider">
-                                        Course Purchased &amp; Unlocked — Mistake Log
-                                      </h5>
-                                      {seg.purchaseDetails && (
-                                        <p className="text-[11px] text-slate/80 font-mono mt-0.5">
-                                          Enrolled: <strong className="text-paper">{seg.purchaseDetails.courseName}</strong> •{' '}
-                                          {new Date(seg.purchaseDetails.purchasedAt).toLocaleString()}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono font-bold">
-                                    {seg.mistakes.length} Post-Purchase Mistakes
-                                  </span>
-                                </div>
-                              )}
+                                <span className="px-3 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-xs font-mono font-bold text-rose-400">
+                                  {cGrp.courseMistakes.length} Course Mistakes
+                                </span>
+                              </div>
 
-                              {seg.mistakes.length === 0 ? (
-                                <div className="p-5 rounded-xl bg-black/40 border border-white/5 text-center text-xs text-slate font-mono">
-                                  {seg.stage === 'purchased_course'
-                                    ? 'No mistakes recorded yet after course purchase. Clean record!'
-                                    : 'No mistakes recorded during free trial.'}
-                                </div>
-                              ) : (
-                                <div className="space-y-6">
-                                  {partGroups.map((pGroup) => (
-                                    <div key={pGroup.partNum} className="space-y-4">
-                                      {/* Part Heading */}
-                                      <div className="flex items-center gap-2 pb-2 border-b border-white/10">
-                                        <span className="w-2 h-2 rounded-full bg-rose-400"></span>
-                                        <h5 className="font-jakarta font-bold text-xs sm:text-sm text-paper uppercase tracking-wider">
-                                          {pGroup.partLabel}
-                                        </h5>
-                                        <span className="text-[11px] font-mono text-slate/70">
-                                          ({pGroup.sections.reduce((acc, s) => acc + s.mistakes.length, 0)} mistakes)
-                                        </span>
-                                      </div>
+                              <div className="space-y-8">
+                                {segments.map((seg, sIdx) => {
+                                  // Group mistakes by Part, then by Section without unnecessary arrows or nested headings
+                                  interface MistakeSectionGroup {
+                                    sectionKey: string;
+                                    sectionLabel: string;
+                                    mistakes: typeof actualMistakes;
+                                  }
+                                  interface MistakePartGroup {
+                                    partNum: number;
+                                    partLabel: string;
+                                    sections: MistakeSectionGroup[];
+                                  }
 
-                                      {/* Section Sub-headings and Questions */}
-                                      <div className="space-y-4 pl-1 sm:pl-2">
-                                        {pGroup.sections.map((sGroup) => (
-                                          <div key={sGroup.sectionKey} className="space-y-2.5">
-                                            {/* Section heading */}
-                                            <div className="flex items-center gap-2">
-                                              <h6 className="font-jakarta font-bold text-xs text-cyan-400 uppercase tracking-wide">
-                                                Section {sGroup.sectionLabel}
-                                              </h6>
-                                              <span className="text-[10px] font-mono text-slate/60">
-                                                ({sGroup.mistakes.length} {sGroup.mistakes.length === 1 ? 'mistake' : 'mistakes'})
-                                              </span>
-                                            </div>
+                                  const partGroups: MistakePartGroup[] = [];
 
-                                            {/* Question Mistake Cards */}
-                                            <div className="space-y-3">
-                                              {sGroup.mistakes.map((mistake, idx) => (
-                                                <div
-                                                  key={mistake.id || idx}
-                                                  className="p-4 sm:p-5 rounded-2xl bg-rose-500/[0.05] border border-rose-500/20 space-y-3 hover:border-rose-500/35 transition-colors"
-                                                >
-                                                  {/* Top header row: Question Number + Timing + Attempt tag */}
-                                                  <div className="flex flex-wrap items-center justify-between gap-2">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                      <span className="px-2.5 py-0.5 rounded-lg bg-rose-500/15 border border-rose-500/30 font-mono font-bold text-xs text-rose-300">
-                                                        Question {mistake.questionNumber}
-                                                      </span>
-                                                      <span className="font-jakarta font-bold text-sm text-paper">
-                                                        {mistake.questionTitle}
-                                                      </span>
-                                                      {mistake.isRetest && (
-                                                        <span className="px-2 py-0.5 rounded-md bg-amber-400/15 border border-amber-400/30 text-amber-300 font-mono text-[10px] font-bold">
-                                                          Retest (Attempt {mistake.attemptsCount || 2})
-                                                        </span>
-                                                      )}
-                                                    </div>
+                                  seg.mistakes.forEach((m) => {
+                                    const partNum = m.partNum || 1;
+                                    const partLabel = `Part ${partNum}`;
 
-                                                    <div className="flex items-center gap-3 text-xs font-mono text-slate">
-                                                      <span className="flex items-center gap-1 text-slate/90">
-                                                        <Clock className="w-3.5 h-3.5 text-primary" />
-                                                        <span>Time: <strong className="text-paper">{mistake.timeTakenSeconds > 0 ? `${mistake.timeTakenSeconds}s` : '—'}</strong></span>
-                                                      </span>
-                                                      <span className="text-slate/40">•</span>
-                                                      <span className="text-slate/70 text-[11px]">{mistake.attemptedAt}</span>
-                                                    </div>
-                                                  </div>
+                                    let sectionLabel = `${partNum}.1`;
+                                    if (m.subQuestionLabel) {
+                                      const secMatch = m.subQuestionLabel.match(/Sec\s+([0-9.]+)/i);
+                                      if (secMatch) {
+                                        sectionLabel = secMatch[1];
+                                      } else {
+                                        const dotMatch = m.subQuestionLabel.match(/^(\d+\.\d+)/);
+                                        if (dotMatch) {
+                                          sectionLabel = dotMatch[1];
+                                        }
+                                      }
+                                    } else if (m.section) {
+                                      const sMatch = m.section.match(/Section\s*([0-9.]+)/i);
+                                      if (sMatch) {
+                                        sectionLabel = sMatch[1];
+                                      } else {
+                                        const numMatch = m.section.match(/(\d+\.\d+)/);
+                                        if (numMatch) {
+                                          sectionLabel = numMatch[1];
+                                        }
+                                      }
+                                    }
 
-                                                  {/* Full Question Text */}
-                                                  {mistake.questionPrompt && (
-                                                    <div className="p-3.5 rounded-xl bg-black/50 border border-white/5">
-                                                      <span className="text-[10px] font-mono uppercase tracking-wider text-slate/70 block mb-1">Question</span>
-                                                      <p className="font-sans text-xs sm:text-sm text-paper/95 leading-relaxed whitespace-pre-line">
-                                                        {mistake.questionPrompt}
-                                                      </p>
-                                                    </div>
-                                                  )}
+                                    let pGroup = partGroups.find((p) => p.partNum === partNum);
+                                    if (!pGroup) {
+                                      pGroup = {
+                                        partNum,
+                                        partLabel,
+                                        sections: []
+                                      };
+                                      partGroups.push(pGroup);
+                                    }
 
-                                                  {/* Answer Comparison: Student Selected Wrong Answer vs Correct Option */}
-                                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                    {/* Student's Wrong Answer */}
-                                                    <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-1.5">
-                                                      <div className="flex items-center justify-between">
-                                                        <span className="text-[10px] font-mono uppercase tracking-wider text-rose-300 font-bold flex items-center gap-1">
-                                                          <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-                                                          <span>Student's Wrong Answer</span>
-                                                        </span>
-                                                        <span className="px-2 py-0.5 rounded-md bg-rose-500 text-white font-mono font-bold text-[11px]">
-                                                          Option {mistake.studentOptionId || '?'}
-                                                        </span>
-                                                      </div>
-                                                      <p className="font-sans text-xs text-rose-100 font-medium leading-relaxed">
-                                                        {mistake.studentAnswer || 'Incorrect Answer'}
-                                                      </p>
-                                                    </div>
+                                    let sGroup = pGroup.sections.find((s) => s.sectionLabel === sectionLabel);
+                                    if (!sGroup) {
+                                      sGroup = {
+                                        sectionKey: `${partNum}-${sectionLabel}`,
+                                        sectionLabel,
+                                        mistakes: []
+                                      };
+                                      pGroup.sections.push(sGroup);
+                                    }
 
-                                                    {/* Correct Option */}
-                                                    <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col justify-between">
-                                                      <div className="flex items-center justify-between">
-                                                        <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-300 font-bold flex items-center gap-1">
-                                                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                                                          <span>Correct Option</span>
-                                                        </span>
-                                                        <span className="px-2.5 py-1 rounded-md bg-emerald-500 text-black font-mono font-bold text-xs">
-                                                          Option {mistake.correctOptionId || 'A'}
-                                                        </span>
-                                                      </div>
-                                                      <div className="pt-2 text-[11px] font-mono text-emerald-300/80">
-                                                        Selected: Option {mistake.studentOptionId || '?'} • Correct: Option {mistake.correctOptionId || 'A'}
-                                                      </div>
-                                                    </div>
-                                                  </div>
-                                                </div>
-                                              ))}
+                                    sGroup.mistakes.push(m);
+                                  });
+
+                                  // Sort parts numerically
+                                  partGroups.sort((a, b) => a.partNum - b.partNum);
+
+                                  return (
+                                    <div key={seg.stage + sIdx} className="space-y-6">
+                                      {/* Workflow Phase Header / Separator */}
+                                      {seg.stage === 'free_trial' ? (
+                                        <div className="p-4 rounded-2xl bg-amber-500/[0.08] border border-amber-500/25 flex flex-wrap items-center justify-between gap-3">
+                                          <div className="flex items-center gap-2.5">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                                            <h5 className="font-jakarta font-black text-xs sm:text-sm text-amber-300 uppercase tracking-wider">
+                                              Free Trial Learning — Mistake Log
+                                            </h5>
+                                            <span className="text-[11px] font-mono text-slate/70">
+                                              ({seg.mistakes.length} mistakes during trial)
+                                            </span>
+                                          </div>
+                                          <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-mono font-bold">
+                                            Pre-Purchase
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <div className="p-4 rounded-2xl bg-emerald-500/[0.08] border border-emerald-500/30 flex flex-wrap items-center justify-between gap-3">
+                                          <div className="flex items-center gap-2.5">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                                            <div>
+                                              <h5 className="font-jakarta font-black text-xs sm:text-sm text-emerald-300 uppercase tracking-wider">
+                                                Course Purchased &amp; Unlocked — Mistake Log
+                                              </h5>
+                                              {seg.purchaseDetails && (
+                                                <p className="text-[11px] text-slate/80 font-mono mt-0.5">
+                                                  Enrolled: <strong className="text-paper">{seg.purchaseDetails.courseName}</strong> •{' '}
+                                                  {new Date(seg.purchaseDetails.purchasedAt).toLocaleString()}
+                                                </p>
+                                              )}
                                             </div>
                                           </div>
-                                        ))}
-                                      </div>
+                                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono font-bold">
+                                            {seg.mistakes.length} Post-Purchase Mistakes
+                                          </span>
+                                        </div>
+                                      )}
+
+                                      {seg.mistakes.length === 0 ? (
+                                        <div className="p-5 rounded-xl bg-black/40 border border-white/5 text-center text-xs text-slate font-mono">
+                                          {seg.stage === 'purchased_course'
+                                            ? 'No mistakes recorded yet after course purchase. Clean record!'
+                                            : 'No mistakes recorded during free trial.'}
+                                        </div>
+                                      ) : (
+                                        <div className="space-y-6">
+                                          {partGroups.map((pGroup) => (
+                                            <div key={pGroup.partNum} className="space-y-4">
+                                              {/* Part Heading */}
+                                              <div className="flex items-center gap-2 pb-2 border-b border-white/10">
+                                                <span className="w-2 h-2 rounded-full bg-rose-400"></span>
+                                                <h5 className="font-jakarta font-bold text-xs sm:text-sm text-paper uppercase tracking-wider">
+                                                  {pGroup.partLabel}
+                                                </h5>
+                                                <span className="text-[11px] font-mono text-slate/70">
+                                                  ({pGroup.sections.reduce((acc, s) => acc + s.mistakes.length, 0)} mistakes)
+                                                </span>
+                                              </div>
+
+                                              {/* Section Sub-headings and Questions */}
+                                              <div className="space-y-4 pl-1 sm:pl-2">
+                                                {pGroup.sections.map((sGroup) => (
+                                                  <div key={sGroup.sectionKey} className="space-y-2.5">
+                                                    {/* Section heading */}
+                                                    <div className="flex items-center gap-2">
+                                                      <h6 className="font-jakarta font-bold text-xs text-cyan-400 uppercase tracking-wide">
+                                                        Section {sGroup.sectionLabel}
+                                                      </h6>
+                                                      <span className="text-[10px] font-mono text-slate/60">
+                                                        ({sGroup.mistakes.length} {sGroup.mistakes.length === 1 ? 'mistake' : 'mistakes'})
+                                                      </span>
+                                                    </div>
+
+                                                    {/* Question Mistake Cards */}
+                                                    <div className="space-y-3">
+                                                      {sGroup.mistakes.map((mistake, idx) => (
+                                                        <div
+                                                          key={mistake.id || idx}
+                                                          className="p-4 sm:p-5 rounded-2xl bg-rose-500/[0.05] border border-rose-500/20 space-y-3 hover:border-rose-500/35 transition-colors"
+                                                        >
+                                                          {/* Top header row: Question Number + Timing + Attempt tag */}
+                                                          <div className="flex flex-wrap items-center justify-between gap-2">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                              <span className="px-2.5 py-0.5 rounded-lg bg-rose-500/15 border border-rose-500/30 font-mono font-bold text-xs text-rose-300">
+                                                                Question {mistake.questionNumber}
+                                                              </span>
+                                                              <span className="font-jakarta font-bold text-sm text-paper">
+                                                                {mistake.questionTitle}
+                                                              </span>
+                                                              {mistake.isRetest && (
+                                                                <span className="px-2 py-0.5 rounded-md bg-amber-400/15 border border-amber-400/30 text-amber-300 font-mono text-[10px] font-bold">
+                                                                  Retest (Attempt {mistake.attemptsCount || 2})
+                                                                </span>
+                                                              )}
+                                                            </div>
+
+                                                            <div className="flex items-center gap-3 text-xs font-mono text-slate">
+                                                              <span className="flex items-center gap-1 text-slate/90">
+                                                                <Clock className="w-3.5 h-3.5 text-primary" />
+                                                                <span>Time: <strong className="text-paper">{mistake.timeTakenSeconds > 0 ? `${mistake.timeTakenSeconds}s` : '—'}</strong></span>
+                                                              </span>
+                                                              <span className="text-slate/40">•</span>
+                                                              <span className="text-slate/70 text-[11px]">{mistake.attemptedAt}</span>
+                                                            </div>
+                                                          </div>
+
+                                                          {/* Full Question Text */}
+                                                          {mistake.questionPrompt && (
+                                                            <div className="p-3.5 rounded-xl bg-black/50 border border-white/5">
+                                                              <span className="text-[10px] font-mono uppercase tracking-wider text-slate/70 block mb-1">Question</span>
+                                                              <p className="font-sans text-xs sm:text-sm text-paper/95 leading-relaxed whitespace-pre-line">
+                                                                {mistake.questionPrompt}
+                                                              </p>
+                                                            </div>
+                                                          )}
+
+                                                          {/* Answer Comparison: Student Selected Wrong Answer vs Correct Option */}
+                                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                            {/* Student's Wrong Answer */}
+                                                            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-1.5">
+                                                              <div className="flex items-center justify-between">
+                                                                <span className="text-[10px] font-mono uppercase tracking-wider text-rose-300 font-bold flex items-center gap-1">
+                                                                  <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                                                                  <span>Student's Wrong Answer</span>
+                                                                </span>
+                                                                <span className="px-2 py-0.5 rounded-md bg-rose-500 text-white font-mono font-bold text-[11px]">
+                                                                  Option {mistake.studentOptionId || '?'}
+                                                                </span>
+                                                              </div>
+                                                              <p className="font-sans text-xs text-rose-100 font-medium leading-relaxed">
+                                                                {mistake.studentAnswer || 'Incorrect Answer'}
+                                                              </p>
+                                                            </div>
+
+                                                            {/* Correct Option */}
+                                                            <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col justify-between">
+                                                              <div className="flex items-center justify-between">
+                                                                <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-300 font-bold flex items-center gap-1">
+                                                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                                                  <span>Correct Option</span>
+                                                                </span>
+                                                                <span className="px-2.5 py-1 rounded-md bg-emerald-500 text-black font-mono font-bold text-xs">
+                                                                  Option {mistake.correctOptionId || 'A'}
+                                                                </span>
+                                                              </div>
+                                                              <div className="pt-2 text-[11px] font-mono text-emerald-300/80">
+                                                                Selected: Option {mistake.studentOptionId || '?'} • Correct: Option {mistake.correctOptionId || 'A'}
+                                                              </div>
+                                                            </div>
+                                                          </div>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
-                                  ))}
-                                </div>
-                              )}
+                                  );
+                                })}
+                              </div>
                             </div>
                           );
                         })}
@@ -6387,117 +6547,136 @@ export const AdminPanel: React.FC = () => {
 
             {/* TAB 3: SECTION MASTERY */}
             {inspectTab === 'mastery' && (
-              <div className="p-6 rounded-3xl bg-[#121316] border border-white/10 space-y-5 shadow-xl">
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/10">
-                  <div>
-                    <h4 className="font-jakarta font-black text-sm text-paper uppercase tracking-wider flex items-center gap-2">
-                      <BookOpen className="w-4 h-4 text-cyan-400" />
-                      <span>Curriculum &amp; Section Mastery</span>
-                    </h4>
-                    <p className="text-xs text-slate mt-0.5">
-                      Actual question counts and answered progress calculated dynamically from curriculum and saved student records.
-                    </p>
-                  </div>
-                  <span className="font-mono text-xs font-bold text-paper bg-white/5 border border-white/10 px-3 py-1 rounded-full">
-                    {dynamicPartProgress.filter((p) => p.status === 'passed').length} / {dynamicPartProgress.length} Parts Passed
-                  </span>
-                </div>
-
-                {dynamicPartProgress.length === 0 ? (
+              <div className="space-y-6">
+                {courseMasteryList.length === 0 ? (
                   <div className="p-8 text-center text-xs text-slate/60 bg-black/40 rounded-2xl border border-white/5">
-                    No curriculum progress records available yet for this course.
+                    No curriculum progress records available yet for this student.
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {dynamicPartProgress.map((part) => {
-                      const isPassed = part.status === 'passed';
-                      const isInProgress = part.status === 'in_progress';
-                      const isFailed = part.status === 'failed';
-                      const pct = part.totalQuestions > 0 ? Math.round((part.answeredCount / part.totalQuestions) * 100) : 0;
+                  courseMasteryList.map((crsMastery) => {
+                    const passedCount = crsMastery.parts.filter((p) => p.status === 'passed').length;
+                    const totalParts = crsMastery.parts.length;
 
-                      return (
-                        <div
-                          key={part.partNum}
-                          className="p-5 rounded-2xl border border-white/10 bg-[#0f1013] space-y-4"
-                        >
-                          {/* Part Level Header Row */}
-                          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/5">
-                            <div>
-                              <div className="flex items-center gap-2.5">
-                                <span className="font-jakarta font-black text-base text-paper">
-                                  Part {part.partNum}
-                                </span>
-                                <span className={`px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold uppercase ${
-                                  isPassed
-                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                    : isFailed
-                                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                                    : isInProgress
-                                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                                    : 'bg-white/5 text-slate border border-white/10'
-                                }`}>
-                                  {part.status.replace(/_/g, ' ')}
-                                </span>
-                              </div>
-                              <span className="font-mono text-xs text-slate/90 block mt-1">
-                                Part {part.partNum} — <strong className="text-paper">{part.totalQuestions} questions</strong> | <strong className="text-primary">{part.answeredCount} answered</strong> ({pct}%)
-                              </span>
+                    return (
+                      <div key={crsMastery.courseId} className="p-6 rounded-3xl bg-[#121316] border border-white/10 space-y-5 shadow-xl">
+                        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/10">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-xs">
+                              <BookOpen className="w-4 h-4" />
                             </div>
-
-                            {/* Progress bar */}
-                            <div className="w-full sm:w-48 space-y-1">
-                              <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full transition-all duration-500 ${
-                                    isPassed ? 'bg-emerald-400' : isFailed ? 'bg-rose-400' : 'bg-primary'
-                                  }`}
-                                  style={{ width: `${Math.min(100, pct)}%` }}
-                                />
-                              </div>
-                              <div className="flex justify-between text-[10px] font-mono text-slate/60">
-                                <span>{part.answeredCount} / {part.totalQuestions}</span>
-                                <span>{pct}%</span>
-                              </div>
+                            <div>
+                              <h4 className="font-jakarta font-black text-sm sm:text-base text-paper uppercase tracking-wider">
+                                {crsMastery.courseName}
+                              </h4>
+                              <p className="text-xs text-slate mt-0.5">
+                                Actual curriculum breakdown and answered progress calculated dynamically from central database.
+                              </p>
                             </div>
                           </div>
+                          <span className="font-mono text-xs font-bold text-paper bg-white/5 border border-white/10 px-3 py-1 rounded-full">
+                            {passedCount} / {totalParts} Parts Passed
+                          </span>
+                        </div>
 
-                          {/* Section-Level Breakdown if available */}
-                          {part.sectionList && part.sectionList.length > 0 && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
-                              {part.sectionList.map((sec) => {
-                                const secPct = sec.totalQuestions > 0 ? Math.round((sec.answeredCount / sec.totalQuestions) * 100) : 0;
-                                const secDone = sec.answeredCount >= sec.totalQuestions && sec.totalQuestions > 0;
-                                return (
-                                  <div
-                                    key={sec.sectionId}
-                                    className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between gap-2"
-                                  >
-                                    <div className="min-w-0">
-                                      <span className="font-jakarta font-bold text-xs text-paper block truncate">
-                                        {sec.sectionTitle}
-                                      </span>
-                                      <span className="font-mono text-[11px] text-slate/80 block mt-0.5">
-                                        {sec.answeredCount} / {sec.totalQuestions} answered ({secPct}%)
+                        {crsMastery.parts.length === 0 ? (
+                          <div className="p-6 text-center text-xs text-slate/60 bg-black/40 rounded-2xl border border-white/5">
+                            No curriculum progress records available yet for this course.
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {crsMastery.parts.map((part) => {
+                              const isPassed = part.status === 'passed';
+                              const isInProgress = part.status === 'in_progress';
+                              const isFailed = part.status === 'failed';
+                              const pct = part.totalQuestions > 0 ? Math.round((part.answeredCount / part.totalQuestions) * 100) : 0;
+
+                              return (
+                                <div
+                                  key={part.partNum}
+                                  className="p-5 rounded-2xl border border-white/10 bg-[#0f1013] space-y-4"
+                                >
+                                  {/* Part Level Header Row */}
+                                  <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/5">
+                                    <div>
+                                      <div className="flex items-center gap-2.5">
+                                        <span className="font-jakarta font-black text-base text-paper">
+                                          Part {part.partNum}
+                                        </span>
+                                        <span className={`px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold uppercase ${
+                                          isPassed
+                                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                            : isFailed
+                                            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                            : isInProgress
+                                            ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                                            : 'bg-white/5 text-slate border border-white/10'
+                                        }`}>
+                                          {part.status.replace(/_/g, ' ')}
+                                        </span>
+                                      </div>
+                                      <span className="font-mono text-xs text-slate/90 block mt-1">
+                                        Part {part.partNum} — <strong className="text-paper">{part.totalQuestions} questions</strong> | <strong className="text-primary">{part.answeredCount} answered</strong> ({pct}%)
                                       </span>
                                     </div>
-                                    <span className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold shrink-0 ${
-                                      secDone
-                                        ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                                        : sec.answeredCount > 0
-                                        ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
-                                        : 'bg-white/5 text-slate/50 border border-white/5'
-                                    }`}>
-                                      {secDone ? 'Completed' : sec.answeredCount > 0 ? 'In Progress' : 'Pending'}
-                                    </span>
+
+                                    {/* Progress bar */}
+                                    <div className="w-full sm:w-48 space-y-1">
+                                      <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+                                        <div
+                                          className={`h-full rounded-full transition-all duration-500 ${
+                                            isPassed ? 'bg-emerald-400' : isFailed ? 'bg-rose-400' : 'bg-primary'
+                                          }`}
+                                          style={{ width: `${Math.min(100, pct)}%` }}
+                                        />
+                                      </div>
+                                      <div className="flex justify-between text-[10px] font-mono text-slate/60">
+                                        <span>{part.answeredCount} / {part.totalQuestions}</span>
+                                        <span>{pct}%</span>
+                                      </div>
+                                    </div>
                                   </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+
+                                  {/* Section-Level Breakdown if available */}
+                                  {part.sectionList && part.sectionList.length > 0 && (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
+                                      {part.sectionList.map((sec) => {
+                                        const secPct = sec.totalQuestions > 0 ? Math.round((sec.answeredCount / sec.totalQuestions) * 100) : 0;
+                                        const secDone = sec.answeredCount >= sec.totalQuestions && sec.totalQuestions > 0;
+                                        return (
+                                          <div
+                                            key={sec.sectionId}
+                                            className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between gap-2"
+                                          >
+                                            <div className="min-w-0">
+                                              <span className="font-jakarta font-bold text-xs text-paper block truncate">
+                                                {sec.sectionTitle}
+                                              </span>
+                                              <span className="font-mono text-[11px] text-slate/80 block mt-0.5">
+                                                {sec.answeredCount} / {sec.totalQuestions} answered ({secPct}%)
+                                              </span>
+                                            </div>
+                                            <span className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold shrink-0 ${
+                                              secDone
+                                                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                                                : sec.answeredCount > 0
+                                                ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
+                                                : 'bg-white/5 text-slate/50 border border-white/5'
+                                            }`}>
+                                              {secDone ? 'Completed' : sec.answeredCount > 0 ? 'In Progress' : 'Pending'}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             )}
@@ -6569,31 +6748,116 @@ export const AdminPanel: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className={`p-6 rounded-3xl border space-y-3 shadow-xl ${
-                    student.hasCertificate
-                      ? 'bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border-amber-400/30'
-                      : 'bg-[#121316] border-white/10'
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Award className={`w-5 h-5 ${student.hasCertificate ? 'text-amber-400' : 'text-slate/60'}`} />
-                        <h4 className="font-jakarta font-bold text-sm text-paper">
-                          {student.hasCertificate ? 'Course Certificate Issued' : 'Certificate Progress'}
-                        </h4>
-                      </div>
-                      {student.hasCertificate && (
-                        <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-black font-jakarta font-extrabold text-[10px] uppercase">
-                          VERIFIED
-                        </span>
-                      )}
-                    </div>
+                  {(() => {
+                    // Check actual authentic claimed certificates for this student across all courses
+                    const cleanEmail = (student.email || '').toLowerCase().trim();
+                    const studentCertificates: {
+                      courseId: string;
+                      courseTitle: string;
+                      certificateId: string;
+                      issueDate: string;
+                    }[] = [];
 
-                    <p className="text-xs text-slate leading-relaxed">
-                      {student.hasCertificate
-                        ? `This student has passed core requirements with ${student.points} points. Certificate ID: ${student.certificateId || 'CERT-DO-PILOT'} issued on ${student.certificateIssuedDate || 'Completed'}.`
-                        : `Requires scoring 20+ points or finishing Part 14 to unlock verifiable certificate. Currently at ${student.points} / 20 points.`}
-                    </p>
-                  </div>
+                    // Check memoryCourseState for certificates
+                    if (cleanEmail && memoryCourseState[cleanEmail]?.certificates) {
+                      Object.entries(memoryCourseState[cleanEmail].certificates).forEach(([storageKey, record]: [string, any]) => {
+                        if (record && record.certificateId && (record.isConfirmed || record.isLocked)) {
+                          // Match course
+                          const matchCfg = Object.values(COURSE_CERT_CONFIGS).find((cfg) => cfg.storageKey === storageKey);
+                          const title = matchCfg?.title || record.courseTitle || 'Complete Python Course';
+                          const courseId = matchCfg?.courseId || 'python-core';
+                          studentCertificates.push({
+                            courseId,
+                            courseTitle: title,
+                            certificateId: record.certificateId,
+                            issueDate: record.issueDate || 'Completed'
+                          });
+                        }
+                      });
+                    }
+
+                    // Check localStorage as well
+                    if (typeof window !== 'undefined' && window.localStorage) {
+                      Object.values(COURSE_CERT_CONFIGS).forEach((cfg) => {
+                        try {
+                          const raw = localStorage.getItem(cfg.storageKey);
+                          if (raw) {
+                            const parsed = JSON.parse(raw);
+                            if (parsed && parsed.certificateId && (parsed.isConfirmed || parsed.isLocked)) {
+                              if (!studentCertificates.some((sc) => sc.certificateId === parsed.certificateId)) {
+                                studentCertificates.push({
+                                  courseId: cfg.courseId,
+                                  courseTitle: cfg.title,
+                                  certificateId: parsed.certificateId,
+                                  issueDate: parsed.issueDate || 'Completed'
+                                });
+                              }
+                            }
+                          }
+                        } catch {}
+                      });
+                    }
+
+                    // Fallback to student record if certificateId exists
+                    if (studentCertificates.length === 0 && student.hasCertificate && student.certificateId) {
+                      const courseName = student.enrolledCourses && student.enrolledCourses[0]
+                        ? student.enrolledCourses[0]
+                        : 'Complete Python Course';
+                      studentCertificates.push({
+                        courseId: 'python-core',
+                        courseTitle: courseName,
+                        certificateId: student.certificateId,
+                        issueDate: student.certificateIssuedDate || 'Completed'
+                      });
+                    }
+
+                    if (studentCertificates.length > 0) {
+                      return (
+                        <div className="space-y-3">
+                          {studentCertificates.map((cert, cIdx) => (
+                            <div
+                              key={cert.certificateId + cIdx}
+                              className="p-6 rounded-3xl border space-y-3 shadow-xl bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border-amber-400/30"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Award className="w-5 h-5 text-amber-400" />
+                                  <h4 className="font-jakarta font-bold text-sm text-paper">
+                                    {cert.courseTitle} Certificate Issued
+                                  </h4>
+                                </div>
+                                <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-black font-jakarta font-extrabold text-[10px] uppercase">
+                                  CLAIMED &amp; VERIFIED
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate leading-relaxed">
+                                This student has genuinely passed and claimed their official verified certificate for <strong className="text-paper">{cert.courseTitle}</strong>. Certificate ID: <strong className="text-amber-300 font-mono">{cert.certificateId}</strong> issued on {cert.issueDate}.
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="p-6 rounded-3xl border space-y-3 shadow-xl bg-[#121316] border-white/10">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Award className="w-5 h-5 text-slate/60" />
+                            <h4 className="font-jakarta font-bold text-sm text-paper">
+                              Certificate Progress
+                            </h4>
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-slate font-mono text-[10px] font-bold uppercase">
+                            NOT YET CLAIMED
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate leading-relaxed">
+                          Requires completing the course modules and claiming the certificate through the official verification process. Currently at {student.points} points.
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
