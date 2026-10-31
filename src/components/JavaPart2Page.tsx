@@ -562,7 +562,7 @@ export const JavaPart2Page: React.FC = () => {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[850px] h-[250px] bg-primary/10 blur-[160px] pointer-events-none rounded-full" />
 
       {/* Top Navigation Bar - Slim & Clean (Identical to Python) */}
-      <header className="sticky top-0 z-40 bg-black/90 backdrop-blur-md border-b border-white/10 px-4 sm:px-6 py-2.5 flex items-center justify-between shrink-0">
+      <header className="sticky top-0 z-40 bg-black/90 backdrop-blur-md px-4 sm:px-6 py-2.5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/course/complete-java-programming')}
@@ -670,7 +670,7 @@ export const JavaPart2Page: React.FC = () => {
                 Part 2 Complete! 🎉
               </h2>
               <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                You have passed all 4 modules of Helsinki MOOC Java Part 2! You've mastered recurring patterns, while loops, for loops, custom methods, and modular code architecture.
+                You have passed all 4 modules of Java Part 2! You've mastered recurring patterns, while loops, for loops, custom methods, and modular code architecture.
               </p>
             </div>
 
@@ -1293,7 +1293,7 @@ export const JavaPart2Page: React.FC = () => {
                 Part 3: Lists &amp; Arrays
               </h3>
               <p className="text-slate text-xs sm:text-sm leading-relaxed">
-                You have passed all levels of Helsinki MOOC Java Part 2! Part 3 explores ArrayLists, arrays, string manipulation, and search algorithms.
+                You have passed all levels of Java Part 2! Part 3 explores ArrayLists, arrays, string manipulation, and search algorithms.
               </p>
             </div>
 

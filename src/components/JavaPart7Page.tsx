@@ -533,7 +533,7 @@ export const JavaPart7Page: React.FC = () => {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[850px] h-[250px] bg-emerald-500/10 blur-[160px] pointer-events-none rounded-full" />
 
       {/* Floating Header */}
-      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-white/10 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/course/complete-java-programming')}
@@ -679,7 +679,7 @@ export const JavaPart7Page: React.FC = () => {
                 Part 7 Complete! 🎉
               </h2>
               <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                You have passed all 3 modules of Helsinki MOOC Java Part 7! You've mastered containing collections on objects, architecting separated User Interfaces, command loops, and automated unit testing with assertions.
+                You have passed all 3 modules of Java Part 7! You've mastered containing collections on objects, architecting separated User Interfaces, command loops, and automated unit testing with assertions.
               </p>
             </div>
 
@@ -1266,7 +1266,7 @@ export const JavaPart7Page: React.FC = () => {
                 Part 7 Mastered 🎉
               </h3>
               <p className="text-slate text-xs sm:text-sm leading-relaxed">
-                You have passed all levels of Helsinki MOOC Java Part 7! You have mastered searching algorithms, linear and binary search, selection sort, the Comparable interface, Dual-Pivot Quicksort, and larger program architecture.
+                You have passed all levels of Java Part 7! You have mastered searching algorithms, linear and binary search, selection sort, the Comparable interface, Dual-Pivot Quicksort, and larger program architecture.
               </p>
             </div>
 

@@ -187,7 +187,7 @@ export const PART_2_SECTIONS: SectionContent[] = [
       },
       {
         heading: "Root of Sum Pattern",
-        text: "A classic Helsinki MOOC exercise asks to read two integers, compute their sum, and then print the square root of that sum. This requires chaining: first reading inputs, calculating sum = a + b, and then Math.sqrt(sum).",
+        text: "A classic exercise asks to read two integers, compute their sum, and then print the square root of that sum. This requires chaining: first reading inputs, calculating sum = a + b, and then Math.sqrt(sum).",
         codeSnippet: "public class RootOfSum {\n    public static void main(String[] args) {\n        int first = 9;\n        int second = 16;\n        int sum = first + second; // 25\n        double result = Math.sqrt(sum);\n        System.out.println(result);\n    }\n}",
         terminalOutput: "5.0",
         tip: "Break the problem down step-by-step: 1) calculate the sum, 2) compute square root, 3) print output.",
@@ -337,7 +337,7 @@ export const PART_2_SECTIONS: SectionContent[] = [
       },
       {
         heading: "Reading Input until Sentinel Value",
-        text: "A frequent pattern in Helsinki MOOC Part 2 is reading inputs repeatedly until the user types a specific termination number (e.g. 4 or 0). Inside the loop, read the input. If it equals the sentinel, 'break;'. Otherwise, process it.",
+        text: "A frequent pattern in Part 2 is reading inputs repeatedly until the user types a specific termination number (e.g. 4 or 0). Inside the loop, read the input. If it equals the sentinel, 'break;'. Otherwise, process it.",
         codeSnippet: "import java.util.Scanner;\n\npublic class StayPositive {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(\"1\\n5\\n4\\n\");\n        while (true) {\n            int number = Integer.valueOf(scanner.nextLine());\n            if (number == 4) {\n                break;\n            }\n            System.out.println(\"You gave: \" + number);\n        }\n    }\n}",
         terminalOutput: "You gave: 1\nYou gave: 5",
         tip: "Notice that '4' is not printed because the 'if (number == 4) break;' precedes the println statement.",
@@ -553,7 +553,7 @@ export const PART_2_SECTIONS: SectionContent[] = [
       },
       {
         heading: "Counting from a Number to Another Number",
-        text: "A Helsinki exercise asks to read a start number and an end number, then print all numbers from start to end inclusive. In a for loop, set the start value: 'for (int i = start; i <= end; i++)'. If start > end, the loop simply does not run.",
+        text: "A classic exercise asks to read a start number and an end number, then print all numbers from start to end inclusive. In a for loop, set the start value: 'for (int i = start; i <= end; i++)'. If start > end, the loop simply does not run.",
         codeSnippet: "public class FromWhereToWhere {\n    public static void main(String[] args) {\n        int start = 3;\n        int end = 6;\n        for (int i = start; i <= end; i++) {\n            System.out.println(i);\n        }\n    }\n}",
         terminalOutput: "3\n4\n5\n6",
         tip: "Notice the '<=' operator. If you use '<', the final number 'end' will not be printed!",
@@ -836,7 +836,7 @@ export const PART_2_SECTIONS: SectionContent[] = [
       },
       {
         heading: "Printing Stars Pattern with Methods",
-        text: "The classic Helsinki MOOC exercise 'Printing Stars' illustrates method decomposition: 1) write 'printStars(int count)' that prints a given number of stars using a loop, 2) write 'printSquare(int size)' that simply calls 'printStars' size times!",
+        text: "The classic exercise 'Printing Stars' illustrates method decomposition: 1) write 'printStars(int count)' that prints a given number of stars using a loop, 2) write 'printSquare(int size)' that simply calls 'printStars' size times!",
         codeSnippet: "public class PrintingStars {\n    public static void main(String[] args) {\n        printSquare(3);\n    }\n\n    public static void printStars(int count) {\n        for (int i = 0; i < count; i++) {\n            System.out.print(\"*\");\n        }\n        System.out.println();\n    }\n\n    public static void printSquare(int size) {\n        for (int i = 0; i < size; i++) {\n            printStars(size);\n        }\n    }\n}",
         terminalOutput: "***\n***\n***",
         tip: "By delegating the star-printing logic to printStars, printSquare only needs to manage rows, making both methods trivial to understand.",

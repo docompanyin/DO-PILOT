@@ -114,8 +114,8 @@ export const FULLSTACK_PART_1_SECTIONS: SectionContent[] = [
       {
         heading: "Root Element & React Fragments (<> ... </React.Fragment>)",
         text: "Every React component must return a single root element. React Fragments (`<>...</>`) allow grouping multiple children without adding extra wrapper nodes to the DOM.",
-        codeSnippet: `const Page = () => (\n  <>\n    <h1>Full Stack</h1>\n    <p>University of Helsinki</p>\n  </>\n);`,
-        terminalOutput: `DOM Output:\n<h1>Full Stack</h1>\n<p>University of Helsinki</p>`,
+        codeSnippet: `const Page = () => (\n  <>\n    <h1>Full Stack</h1>\n    <p>Do Pilot</p>\n  </>\n);`,
+        terminalOutput: `DOM Output:\n<h1>Full Stack</h1>\n<p>Do Pilot</p>`,
         mcq: {
           id: "q-1.1-2-v1",
           question: "Why does a React component require a single root element or a Fragment (<>...</>)?",

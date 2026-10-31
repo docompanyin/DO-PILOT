@@ -735,7 +735,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/10 blur-[160px] pointer-events-none rounded-full" />
 
       {/* Top Navbar Header (Matches exact Python layout) */}
-      <header className="sticky top-0 z-40 bg-black/90 backdrop-blur-md border-b border-white/10 px-4 sm:px-6 py-2.5 flex items-center justify-between shrink-0">
+      <header className="sticky top-0 z-40 bg-black/90 backdrop-blur-md px-4 sm:px-6 py-2.5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/course/cyber-security')}

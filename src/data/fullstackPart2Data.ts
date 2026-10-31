@@ -1129,7 +1129,7 @@ export const FULLSTACK_PART_2_SECTIONS: SectionContent[] = [
       {
         heading: "Inline Styles in React",
         text: "Inline styles in React are written as JavaScript objects with camelCased property names (`backgroundColor` instead of `background-color`).",
-        codeSnippet: `const footerStyle = {\n  color: '#94a3b8',\n  fontSize: 14,\n  fontStyle: 'italic',\n  marginTop: 20\n};\n\nreturn <div style={footerStyle}>Full Stack Open — University of Helsinki</div>;`,
+        codeSnippet: `const footerStyle = {\n  color: '#94a3b8',\n  fontSize: 14,\n  fontStyle: 'italic',\n  marginTop: 20\n};\n\nreturn <div style={footerStyle}>Full Stack Open — Do Pilot</div>;`,
         terminalOutput: `<div style="color: #94a3b8; font-size: 14px; font-style: italic; margin-top: 20px;">`,
         mcq: {
           id: "q-2.6-3-v1",

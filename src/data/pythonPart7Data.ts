@@ -5337,7 +5337,7 @@ export const PART_7_SECTIONS: SectionContent[] = [
         "terminalOutput": "Milestone 1: Syntax & Control Flow (Parts 1-3)\nMilestone 2: Functions & Data Structures (Parts 4-5)\nMilestone 3: Files, Errors & Modules (Parts 6-7)",
         "mcq": {
           "id": "q-7.6-5-v1",
-          "question": "What major milestone does Part 7 represent in the University of Helsinki Python curriculum?",
+          "question": "What major milestone does Part 7 represent in the Python curriculum?",
           "options": [
                     {
                               "id": "A",
@@ -5394,7 +5394,7 @@ export const PART_7_SECTIONS: SectionContent[] = [
         "questionPool": [
           {
             "id": "q-7.6-5-v1",
-            "question": "What major milestone does Part 7 represent in the University of Helsinki Python curriculum?",
+            "question": "What major milestone does Part 7 represent in the Python curriculum?",
             "options": [
                         {
                                     "id": "A",

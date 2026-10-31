@@ -754,7 +754,7 @@ export const FULLSTACK_PART_0_SECTIONS: SectionContent[] = [
       "Analyze the full page reload lifecycle and its user experience impacts",
       "Understand the resource loading waterfall and browser parser blocking",
       "Evaluate server computational load in traditional server-rendered apps",
-      "Walk through the University of Helsinki traditional Notes app implementation"
+      "Walk through the traditional Full Stack Notes app implementation"
     ],
     theoryBlocks: [
       {
@@ -1038,13 +1038,13 @@ export const FULLSTACK_PART_0_SECTIONS: SectionContent[] = [
         ]
       },
       {
-        heading: "University of Helsinki Notes App (Traditional Mode)",
+        heading: "Full Stack Notes App (Traditional Mode)",
         text: "In the Helsinki traditional example, the browser requests the HTML skeleton, fetches data.json via script, and reloads the full page on submission.",
         codeSnippet: `// 1. GET /exampleapp/notes\n// 2. GET /exampleapp/data.json\n// 3. POST /exampleapp/new_note -> 302 Redirect`,
         terminalOutput: `POST note -> 302 Redirect -> Reload page`,
         mcq: {
           id: "q-0.3-5-v1",
-          question: "In the University of Helsinki Part 0 Notes application, how are the actual note items fetched and displayed on the initial page load?",
+          question: "In the Part 0 Notes application, how are the actual note items fetched and displayed on the initial page load?",
           options: [
             { id: "A", text: "The browser executes main.js, which requests data.json from the server and dynamically appends <li> elements into the DOM", explanationIfWrong: "" },
             { id: "B", text: "The notes are hard-coded into the operating system firmware", explanationIfWrong: "Notes are fetched over the network from the server." },
@@ -1069,7 +1069,7 @@ export const FULLSTACK_PART_0_SECTIONS: SectionContent[] = [
         questionPool: [
           {
             id: "q-0.3-5-v1",
-            question: "In the University of Helsinki Part 0 Notes application, how are the actual note items fetched and displayed on the initial page load?",
+            question: "In the Part 0 Notes application, how are the actual note items fetched and displayed on the initial page load?",
             options: [
               { id: "A", text: "The browser executes main.js, which requests data.json from the server and dynamically appends <li> elements into the DOM", explanationIfWrong: "" },
               { id: "B", text: "The notes are hard-coded into the operating system firmware", explanationIfWrong: "Notes are fetched over the network from the server." },
@@ -1459,7 +1459,7 @@ export const FULLSTACK_PART_0_SECTIONS: SectionContent[] = [
       "Master JSON (JavaScript Object Notation) syntax, serialization, and parsing",
       "Understand the separation of concerns between frontend client and backend REST API",
       "Explain Client-Side Rendering (CSR) and how JavaScript builds views",
-      "Inspect the University of Helsinki Full Stack Open SPA Notes application",
+      "Inspect the Full Stack Open SPA Notes application",
       "Critically compare SPAs vs traditional multi-page web applications"
     ],
     theoryBlocks: [
@@ -1694,7 +1694,7 @@ export const FULLSTACK_PART_0_SECTIONS: SectionContent[] = [
         terminalOutput: `POST /new_note_spa -> 201 Created (no redirect)`,
         mcq: {
           id: "q-0.5-4-v1",
-          question: "In the University of Helsinki SPA Notes app, what does the server return when a new note is successfully submitted via POST?",
+          question: "In the SPA Notes app, what does the server return when a new note is successfully submitted via POST?",
           options: [
             { id: "A", text: "Status 201 Created with a confirmation JSON message (no page redirect)", explanationIfWrong: "" },
             { id: "B", text: "A 302 redirect forcing a full HTML page reload", explanationIfWrong: "That was the traditional app; the SPA app does not redirect." },
@@ -1719,7 +1719,7 @@ export const FULLSTACK_PART_0_SECTIONS: SectionContent[] = [
         questionPool: [
           {
             id: "q-0.5-4-v1",
-            question: "In the University of Helsinki SPA Notes app, what does the server return when a new note is successfully submitted via POST?",
+            question: "In the SPA Notes app, what does the server return when a new note is successfully submitted via POST?",
             options: [
               { id: "A", text: "Status 201 Created with a confirmation JSON message (no page redirect)", explanationIfWrong: "" },
               { id: "B", text: "A 302 redirect forcing a full HTML page reload", explanationIfWrong: "That was the traditional app; the SPA app does not redirect." },

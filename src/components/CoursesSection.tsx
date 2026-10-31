@@ -240,7 +240,7 @@ export const CoursesSection: React.FC<CoursesSectionProps> = ({ onEnroll }) => {
             badgeColor: 'bg-amber-400/20 text-amber-300 border-amber-400/30',
             image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80',
             title: 'Complete Java Course',
-            description: 'Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams based on Helsinki MOOC.',
+            description: 'Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams built for modern backend software development.',
             duration: '14 Parts',
             level: 'Beginner to Advanced',
             tags: ['Java 21', 'OOP & Classes', 'Collections']
@@ -252,7 +252,7 @@ export const CoursesSection: React.FC<CoursesSectionProps> = ({ onEnroll }) => {
             badgeColor: 'bg-emerald-400/20 text-emerald-300 border-emerald-400/30',
             image: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80',
             title: 'Full Stack Open Course',
-            description: 'Deep dive into modern web development by University of Helsinki. Master React, Node.js, Express, TypeScript, GraphQL, and Docker.',
+            description: 'Deep dive into modern full stack web development. Master React, Node.js, Express, TypeScript, GraphQL, REST APIs, and Docker.',
             duration: '14 Parts',
             level: 'Intermediate',
             tags: ['React & TS', 'Node & Express', 'GraphQL & Docker']
@@ -285,7 +285,7 @@ export const CoursesSection: React.FC<CoursesSectionProps> = ({ onEnroll }) => {
     badgeColor: javaFromRaw?.badgeColor || 'bg-amber-400/20 text-amber-300 border-amber-400/30',
     image: javaFromRaw?.image || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80',
     title: (javaFromRaw?.title || 'Complete Java Course').replace(/Programming/gi, 'Course'),
-    description: javaFromRaw?.description || 'Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams based on Helsinki MOOC.',
+    description: javaFromRaw?.description || 'Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams built for modern backend software development.',
     duration: javaFromRaw?.duration || '14 Parts',
     level: javaFromRaw?.level || 'Beginner to Advanced',
     tags: (Array.isArray(javaFromRaw?.tags) && javaFromRaw.tags.length > 0) ? javaFromRaw.tags : ['Java 21', 'OOP & Classes', 'Collections']
@@ -298,7 +298,7 @@ export const CoursesSection: React.FC<CoursesSectionProps> = ({ onEnroll }) => {
     badgeColor: fullstackFromRaw?.badgeColor || 'bg-emerald-400/20 text-emerald-300 border-emerald-400/30',
     image: fullstackFromRaw?.image || 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80',
     title: (fullstackFromRaw?.title || 'Full Stack Open Course').replace(/Programming/gi, 'Course'),
-    description: fullstackFromRaw?.description || 'Deep dive into modern web development by University of Helsinki. Master React, Node.js, Express, TypeScript, GraphQL, and Docker.',
+    description: fullstackFromRaw?.description || 'Deep dive into modern full stack web development. Master React, Node.js, Express, TypeScript, GraphQL, REST APIs, and Docker.',
     duration: fullstackFromRaw?.duration || '14 Parts',
     level: fullstackFromRaw?.level || 'Intermediate',
     tags: (Array.isArray(fullstackFromRaw?.tags) && fullstackFromRaw.tags.length > 0) ? fullstackFromRaw.tags : ['React & TS', 'Node & Express', 'GraphQL & Docker']

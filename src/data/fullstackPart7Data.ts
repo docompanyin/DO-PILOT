@@ -1165,7 +1165,7 @@ export const FULLSTACK_PART_7_SECTIONS: SectionContent[] = [
             { id: "D", text: "Manual spreadsheet data entry", explanationIfWrong: "Full Stack Open prepares students for professional software engineering roles." }
           ],
           correctAnswer: "A",
-          explanationNote: "You have completed the core University of Helsinki Full Stack Open curriculum, mastering the complete modern web development stack from browser UI to database architecture."
+          explanationNote: "You have completed the core Full Stack Open curriculum, mastering the complete modern web development stack from browser UI to database architecture."
         },
         retestMcq: {
           id: "q-7.6-5-v2",

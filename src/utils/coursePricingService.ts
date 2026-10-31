@@ -97,7 +97,7 @@ export const INITIAL_DEFAULT_PRICING: CoursePricing[] = [
     currency: 'INR',
     isActive: true,
     features: [
-      'Parts 0 through 13 (Helsinki University Standard)',
+      'Parts 0 through 13 (Full Comprehensive Curriculum)',
       'React, Redux, Node, TypeScript, Docker & CI/CD',
       'Official Full Stack Verified Certificate',
       'Production-Grade Portfolio Projects'

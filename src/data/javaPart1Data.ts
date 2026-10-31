@@ -236,8 +236,8 @@ export const PART_1_SECTIONS: SectionContent[] = [
         ]
       },
       {
-        heading: "Printing Ada Lovelace (Helsinki MOOC Task 1)",
-        text: "The official University of Helsinki Java MOOC starts with a tribute to Ada Lovelace, considered the world's first computer programmer. In this task, you write a Java program that outputs the name 'Ada Lovelace' exactly as requested.",
+        heading: "Printing Ada Lovelace (Java Task 1)",
+        text: "Java Programming starts with a tribute to Ada Lovelace, considered the world's first computer programmer. In this task, you write a Java program that outputs the name 'Ada Lovelace' exactly as requested.",
         codeSnippet: "public class AdaLovelace {\n    public static void main(String[] args) {\n        System.out.println(\"Ada Lovelace\");\n    }\n}",
         terminalOutput: "Ada Lovelace",
         tip: "Notice that string literals inside println are printed verbatim, preserving spaces and exact capitalization.",
@@ -652,7 +652,7 @@ export const PART_1_SECTIONS: SectionContent[] = [
       },
       {
         heading: "Dinosaur & ASCII Multi-Line Art (MOOC Exercise)",
-        text: "In the Helsinki MOOC 'Dinosaur' exercise, students write multiple println statements to output formatted multi-line ASCII text. Maintaining indentation, punctuation, and character alignment requires careful attention to sequential output.",
+        text: "In the Dinosaur exercise, students write multiple println statements to output formatted multi-line ASCII text. Maintaining indentation, punctuation, and character alignment requires careful attention to sequential output.",
         codeSnippet: "public class Dinosaur {\n    public static void main(String[] args) {\n        System.out.println(\"Once upon a time\");\n        System.out.println(\"there was\");\n        System.out.println(\"a dinosaur\");\n    }\n}",
         terminalOutput: "Once upon a time\nthere was\na dinosaur",
         tip: "Each call to System.out.println creates exactly one line of text in terminal output.",
@@ -899,14 +899,14 @@ export const PART_1_SECTIONS: SectionContent[] = [
       },
       {
         heading: "Reading Integers with Integer.valueOf()",
-        text: "Console input is initially read as a text String. In the University of Helsinki Java MOOC curriculum, reading numbers is taught using 'Integer.valueOf(scanner.nextLine())'. This reads the line as text first and safely parses it into a genuine 'int' whole number.",
+        text: "Console input is initially read as a text String. In the Java Programming curriculum, reading numbers is taught using 'Integer.valueOf(scanner.nextLine())'. This reads the line as text first and safely parses it into a genuine 'int' whole number.",
         codeSnippet: "import java.util.Scanner;\n\npublic class ReadInteger {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        System.out.print(\"Give a number: \");\n        int value = Integer.valueOf(scanner.nextLine());\n        System.out.println(\"You gave the number \" + value);\n    }\n}",
         sampleInput: "42",
         terminalOutput: "Give a number: 42\nYou gave the number 42",
         tip: "Using Integer.valueOf(scanner.nextLine()) prevents the infamous newline-skipping bug associated with scanner.nextInt().",
         mcq: {
           id: "q-1.3-2-v1",
-          question: "In Helsinki Java MOOC, how is an integer input recommended to be read from Scanner?",
+          question: "In Java, how is an integer input recommended to be read from Scanner?",
           options: [
             { id: "A", text: "Integer.valueOf(scanner.nextLine())", explanationIfWrong: "" },
             { id: "B", text: "(int) scanner.nextLine()", explanationIfWrong: "Strings cannot be directly cast to int with (int)." },
@@ -931,7 +931,7 @@ export const PART_1_SECTIONS: SectionContent[] = [
         questionPool: [
           {
             id: "q-1.3-2-v1",
-            question: "In Helsinki Java MOOC, how is an integer input recommended to be read from Scanner?",
+            question: "In Java, how is an integer input recommended to be read from Scanner?",
             options: [
               { id: "A", text: "Integer.valueOf(scanner.nextLine())", explanationIfWrong: "" },
               { id: "B", text: "(int) scanner.nextLine()", explanationIfWrong: "Strings cannot be directly cast to int with (int)." },
@@ -1733,8 +1733,8 @@ export const PART_1_SECTIONS: SectionContent[] = [
         ]
       },
       {
-        heading: "Seconds in Days (Helsinki MOOC Task 4)",
-        text: "In the Helsinki MOOC 'Seconds in a Day' exercise, the program reads a number of days from the user and calculates the total seconds. There are 24 hours in a day, 60 minutes in an hour, and 60 seconds in a minute: seconds = days * 24 * 60 * 60 = days * 86400.",
+        heading: "Seconds in Days (Java Task 4)",
+        text: "In the 'Seconds in a Day' exercise, the program reads a number of days from the user and calculates the total seconds. There are 24 hours in a day, 60 minutes in an hour, and 60 seconds in a minute: seconds = days * 24 * 60 * 60 = days * 86400.",
         codeSnippet: "public class SecondsInDays {\n    public static void main(String[] args) {\n        int days = 5;\n        int seconds = days * 24 * 60 * 60;\n        System.out.println(seconds); // 432000\n    }\n}",
         terminalOutput: "432000",
         tip: "Multiplication chain 'days * 24 * 60 * 60' is evaluated sequentially from left to right.",
@@ -1861,7 +1861,7 @@ export const PART_1_SECTIONS: SectionContent[] = [
       "Understand why Strings MUST be compared using .equals() and NEVER ==",
       "Combine conditions with logical AND (&&) and logical OR (||)",
       "Invert conditions with logical NOT (!)",
-      "Build the classic Helsinki MOOC 'Speeding Ticket' validation program"
+      "Build the classic Speeding Ticket validation program"
     ],
     theoryBlocks: [
       {
@@ -2154,7 +2154,7 @@ export const PART_1_SECTIONS: SectionContent[] = [
         text: "The logical NOT operator '!' negates or flips a boolean value: '!true' becomes 'false', and '!false' becomes 'true'. This is helpful for checking negative states like 'if (!scanner.hasNextInt())'. Combining conditionals, variables, and Scanner completes Part 1 of the Helsinki Java MOOC curriculum!",
         codeSnippet: "public class LogicalNot {\n    public static void main(String[] args) {\n        boolean isRaining = false;\n        if (!isRaining) {\n            System.out.println(\"No umbrella needed today!\");\n        }\n    }\n}",
         terminalOutput: "No umbrella needed today!",
-        tip: "Congratulations on completing all 6 modules of Helsinki Java MOOC Part 1!",
+        tip: "Congratulations on completing all 6 modules of Java Part 1!",
         mcq: {
           id: "q-1.6-5-v1",
           question: "What does the expression !(5 > 2) evaluate to in Java?",

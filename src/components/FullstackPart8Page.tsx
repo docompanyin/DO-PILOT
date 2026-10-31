@@ -561,10 +561,10 @@ export const FullstackPart8Page: React.FC = () => {
     <div className="min-h-screen bg-black text-paper selection:bg-primary selection:text-ink relative overflow-x-hidden font-sans flex flex-col">
       
       {/* Top Ambient Glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[850px] h-[250px] bg-emerald-500/10 blur-[160px] pointer-events-none rounded-full" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[850px] h-[250px] bg-primary/10 blur-[160px] pointer-events-none rounded-full" />
 
       {/* Top Navigation Bar - Slim & Clean (Identical to Python & Java) */}
-      <header className="sticky top-0 z-40 bg-black/90 backdrop-blur-md border-b border-white/10 px-4 sm:px-6 py-2.5 flex items-center justify-between shrink-0">
+      <header className="sticky top-0 z-40 bg-black/90 backdrop-blur-md px-4 sm:px-6 py-2.5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/course/fullstack-open')}
@@ -672,7 +672,7 @@ export const FullstackPart8Page: React.FC = () => {
                 Part 8 Complete! 🎉
               </h2>
               <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                You have mastered all 6 foundational levels of University of Helsinki Full Stack Open Part 8: GraphQL Schemas, Mutations, Apollo Client &amp; Subscriptions. You scored &gt; 80% across all sections and earned {points} course points!
+                You have mastered all 6 foundational levels of Full Stack Open Part 8: GraphQL Schemas, Mutations, Apollo Client &amp; Subscriptions. You scored &gt; 80% across all sections and earned {points} course points!
               </p>
             </div>
 

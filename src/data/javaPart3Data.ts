@@ -553,7 +553,7 @@ export const PART_3_SECTIONS: SectionContent[] = [
       },
       {
         heading: "Parsing CSV Structured Data",
-        text: "A classic Helsinki MOOC problem asks to read lines formatted as 'name,age' (e.g. 'sebastian,28') until an empty string is entered. Using '.split(\",\")', pieces[0] is the name and pieces[1] is the age string.",
+        text: "A classic problem asks to read lines formatted as 'name,age' (e.g. 'sebastian,28') until an empty string is entered. Using '.split(\",\")', pieces[0] is the name and pieces[1] is the age string.",
         codeSnippet: "public class ParseCSV {\n    public static void main(String[] args) {\n        String line = \"sebastian,28\";\n        String[] pieces = line.split(\",\");\n        String name = pieces[0];\n        int age = Integer.valueOf(pieces[1]);\n        System.out.println(name + \" is \" + age + \" years old\");\n    }\n}",
         terminalOutput: "sebastian is 28 years old",
         tip: "Always check 'if (line.isEmpty()) break;' or 'if (line.equals(\"\")) break;' to exit user input loops cleanly.",

@@ -550,7 +550,7 @@ export const JavaPart5Page: React.FC = () => {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[850px] h-[250px] bg-emerald-500/10 blur-[160px] pointer-events-none rounded-full" />
 
       {/* Floating Header */}
-      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-white/10 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/course/complete-java-programming')}
@@ -696,7 +696,7 @@ export const JavaPart5Page: React.FC = () => {
                 Part 5 Complete! 🎉
               </h2>
               <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                You have passed all 4 modules of Helsinki MOOC Java Part 5! You've mastered advanced OOP decomposition, method and constructor chaining, primitive vs reference mechanics on Stack and Heap, defensive copying, and deep equality.
+                You have passed all 4 modules of Java Part 5! You've mastered advanced OOP decomposition, method and constructor chaining, primitive vs reference mechanics on Stack and Heap, defensive copying, and deep equality.
               </p>
             </div>
 
@@ -1283,7 +1283,7 @@ export const JavaPart5Page: React.FC = () => {
                 Part 5 Mastered 🎉
               </h3>
               <p className="text-slate text-xs sm:text-sm leading-relaxed">
-                You have passed all levels of Helsinki MOOC Java Part 5! You have mastered advanced OOP design, constructor chaining, pass-by-value, stack vs heap memory, and deep object equality.
+                You have passed all levels of Java Part 5! You have mastered advanced OOP design, constructor chaining, pass-by-value, stack vs heap memory, and deep object equality.
               </p>
             </div>
 

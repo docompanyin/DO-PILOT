@@ -533,7 +533,7 @@ export const JavaPart4Page: React.FC = () => {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[850px] h-[250px] bg-emerald-500/10 blur-[160px] pointer-events-none rounded-full" />
 
       {/* Floating Header */}
-      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-white/10 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/course/complete-java-programming')}
@@ -679,7 +679,7 @@ export const JavaPart4Page: React.FC = () => {
                 Part 4 Complete! 🎉
               </h2>
               <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                You have passed all 3 modules of Helsinki MOOC Java Part 4! You've mastered object-oriented programming, classes, objects, constructors, storing objects in ArrayLists, CSV parsing, and reading file data.
+                You have passed all 3 modules of Java Part 4! You've mastered object-oriented programming, classes, objects, constructors, storing objects in ArrayLists, CSV parsing, and reading file data.
               </p>
             </div>
 
@@ -1266,7 +1266,7 @@ export const JavaPart4Page: React.FC = () => {
                 Part 4 Mastered 🎉
               </h3>
               <p className="text-slate text-xs sm:text-sm leading-relaxed">
-                You have passed all levels of Helsinki MOOC Java Part 4! You have mastered classes, objects, constructors, references, list of objects, and file I/O with Scanner.
+                You have passed all levels of Java Part 4! You have mastered classes, objects, constructors, references, list of objects, and file I/O with Scanner.
               </p>
             </div>
 

@@ -937,13 +937,6 @@ export const CourseDetailPage: React.FC = () => {
                 100% Free Course
               </span>
             )}
-            <span className="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-slate font-mono text-xs">
-              {course.level}
-            </span>
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-slate font-mono text-xs">
-              <Clock className="w-3.5 h-3.5 text-primary inline shrink-0" />
-              <span>Self-Paced • 14 Modules</span>
-            </span>
           </div>
 
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 sm:gap-6">
@@ -975,7 +968,7 @@ export const CourseDetailPage: React.FC = () => {
                     className="w-full sm:w-auto px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs sm:text-sm transition-all cursor-pointer flex items-center justify-center gap-2 group"
                   >
                     <Play className="w-3.5 h-3.5 text-primary fill-primary shrink-0" />
-                    <span>Try Part 1 — Free Trial</span>
+                    <span>Try Part 1 - Free Trial</span>
                   </button>
                 </div>
               ) : isCoursePython ? (
@@ -1319,7 +1312,7 @@ export const CourseDetailPage: React.FC = () => {
                   Congratulations! You've Mastered Complete Java Course 🎉
                 </h3>
                 <p className="font-sans text-xs sm:text-sm text-slate/80 mt-1 max-w-2xl leading-relaxed">
-                  You have conquered all 14 instructional stages and 84 rigorous levels of Helsinki Java MOOC I &amp; II with Distinction. Claim your permanent verified certificate and download your high-resolution A4 PDF credential anytime.
+                  You have conquered all 14 instructional stages and 84 rigorous levels of Complete Java Programming with Distinction. Claim your permanent verified certificate and download your high-resolution A4 PDF credential anytime.
                 </p>
               </div>
             </div>
@@ -1357,7 +1350,7 @@ export const CourseDetailPage: React.FC = () => {
                   Congratulations! You've Mastered Full Stack Open 🎉
                 </h3>
                 <p className="font-sans text-xs sm:text-sm text-slate/80 mt-1 max-w-2xl leading-relaxed">
-                  You have conquered all 14 rigorous curriculum modules of University of Helsinki Full Stack Open with Distinction. Claim your permanent verified certificate and download your high-resolution A4 PDF credential anytime.
+                  You have conquered all 14 rigorous curriculum modules of Full Stack Open with Distinction. Claim your permanent verified certificate and download your high-resolution A4 PDF credential anytime.
                 </p>
               </div>
             </div>
@@ -1425,7 +1418,7 @@ export const CourseDetailPage: React.FC = () => {
                     className="w-full sm:w-auto justify-center px-4 py-2 sm:py-1.5 rounded-full bg-white/[0.08] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5"
                   >
                     <Play className="w-3.5 h-3.5 text-primary fill-primary shrink-0" />
-                    <span>Try Part 1 — Free Trial</span>
+                    <span>Try Part 1 - Free Trial</span>
                   </button>
                 </>
               ) : (

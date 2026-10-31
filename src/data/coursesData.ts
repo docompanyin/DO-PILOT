@@ -570,7 +570,7 @@ export const COURSES_DATA: CourseDetail[] = [
       name: 'Matti Luukkainen',
       role: 'Full Stack Open Lead & Principal Engineer',
       experience: '15+ Years in Web Architecture & Education',
-      company: 'University of Helsinki & Industry Fellow',
+      company: 'Senior Full Stack Architect & Industry Fellow',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=160&h=160&fit=crop&crop=faces'
     }
   },

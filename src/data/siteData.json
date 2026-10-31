@@ -784,7 +784,7 @@
         "category": "java",
         "duration": "14 Parts",
         "badgeColor": "bg-amber-400/20 text-amber-300 border-amber-400/30",
-        "description": "Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams based on Helsinki MOOC."
+        "description": "Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams built for modern backend software development."
       },
       {
         "id": "fullstack-open",
@@ -800,7 +800,7 @@
         "category": "web",
         "duration": "14 Parts",
         "badgeColor": "bg-emerald-400/20 text-emerald-300 border-emerald-400/30",
-        "description": "Deep dive into modern web development by University of Helsinki. Master React, Node.js, Express, TypeScript, GraphQL, and Docker."
+        "description": "Deep dive into modern full stack web development. Master React, Node.js, Express, TypeScript, GraphQL, REST APIs, and Docker."
       },
       {
         "id": "cyber-security",
@@ -851,7 +851,7 @@
         "category": "java",
         "duration": "14 Parts",
         "badgeColor": "bg-amber-400/20 text-amber-300 border-amber-400/30",
-        "description": "Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams based on Helsinki MOOC."
+        "description": "Master Java 21 fundamentals, Scanner input, OOP class hierarchies, Collections, and Streams built for modern backend software development."
       },
       {
         "id": "fullstack-open",
@@ -867,7 +867,7 @@
         "category": "web",
         "duration": "14 Parts",
         "badgeColor": "bg-emerald-400/20 text-emerald-300 border-emerald-400/30",
-        "description": "Deep dive into modern web development by University of Helsinki. Master React, Node.js, Express, TypeScript, GraphQL, and Docker."
+        "description": "Deep dive into modern full stack web development. Master React, Node.js, Express, TypeScript, GraphQL, REST APIs, and Docker."
       },
       {
         "id": "cyber-security",

@@ -700,7 +700,7 @@ public class VideoPlayerDemo {
       "Enforce single responsibility principle (SRP) and separation of concerns across packages",
       "Write comprehensive automated unit test suites using JUnit 5 assertions",
       "Apply defensive copying and immutable design patterns to protect domain state",
-      "Assemble all 14 parts of Helsinki MOOC into a production-grade capstone project",
+      "Assemble all 14 parts of the course into a production-grade capstone project",
       "Graduate from Complete Java Course and claim official verified certification"
     ],
     theoryBlocks: [
@@ -948,7 +948,7 @@ COMPLETE JAVA PROGRAMMING CURRICULUM
       },
       {
         heading: "Graduation and Continuing Your Engineering Journey",
-        text: `Passing Level 14.3 completes your formal training in University of Helsinki Java Programming MOOC I & II.\n\nNext Steps for Professional Growth:\n1. Build a Capstone Portfolio Project: Combine JavaFX desktop or Spring Boot web backend with PostgreSQL and the Stream API.\n2. Explore Spring Boot and Jakarta EE: The industry standard for enterprise microservices, REST APIs, and cloud services.\n3. Master Relational Databases (SQL): Write advanced queries and integrate Hibernate/JPA ORM.\n4. Claim your Official Verified DO PILOT Course Certificate of Completion from the course dashboard!\n\nWelcome to the global community of professional Java software engineers!`,
+        text: `Passing Level 14.3 completes your formal training in Complete Java Programming MOOC I & II.\n\nNext Steps for Professional Growth:\n1. Build a Capstone Portfolio Project: Combine JavaFX desktop or Spring Boot web backend with PostgreSQL and the Stream API.\n2. Explore Spring Boot and Jakarta EE: The industry standard for enterprise microservices, REST APIs, and cloud services.\n3. Master Relational Databases (SQL): Write advanced queries and integrate Hibernate/JPA ORM.\n4. Claim your Official Verified DO PILOT Course Certificate of Completion from the course dashboard!\n\nWelcome to the global community of professional Java software engineers!`,
         codeSnippet: `public class GraduationSummary {
     public static void main(String[] args) {
         String graduate = "Certified Java Developer";

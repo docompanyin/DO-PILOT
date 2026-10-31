@@ -699,7 +699,7 @@ export const PART_7_SECTIONS: SectionContent[] = [
       },
       {
         heading: "Grade Interval Classification Logic",
-        text: "In the Helsinki 'Grade Statistics' project, total exam points (0-100) must be converted into discrete grades from 0 to 5. Rather than writing verbose nested compound conditions like '(points >= 50 && points < 60)', you can write a clean cascading series of lower-to-higher checks that immediately return upon meeting the threshold.",
+        text: "In the 'Grade Statistics' project, total exam points (0-100) must be converted into discrete grades from 0 to 5. Rather than writing verbose nested compound conditions like '(points >= 50 && points < 60)', you can write a clean cascading series of lower-to-higher checks that immediately return upon meeting the threshold.",
         codeSnippet: "public static int pointsToGrade(int points) {\n    if (points < 0 || points > 100) return -1; // invalid\n    if (points < 50) return 0;\n    if (points < 60) return 1;\n    if (points < 70) return 2;\n    if (points < 80) return 3;\n    if (points < 90) return 4;\n    return 5;\n}",
         terminalOutput: "Points: 49 -> Grade: 0\nPoints: 72 -> Grade: 3\nPoints: 95 -> Grade: 5",
         tip: "By returning immediately from each if branch, you eliminate the need for 'else' and redundant upper-bound checks.",
@@ -811,7 +811,7 @@ export const PART_7_SECTIONS: SectionContent[] = [
         questionPool: [
           {
             id: "j7-3-4-alt1",
-            question: "In the Helsinki Grade Distribution output, why is the printing loop written from 5 down to 0 instead of 0 up to 5?",
+            question: "In the Grade Distribution output, why is the printing loop written from 5 down to 0 instead of 0 up to 5?",
             options: [
               { id: "A", text: "The specification requires highest grade 5 at the top, down to failing grade 0 at the bottom", explanationIfWrong: "" },
               { id: "B", text: "Java arrays cannot be traversed from 0 upwards", explanationIfWrong: "Java arrays can be iterated in any direction." },
@@ -877,7 +877,7 @@ export const PART_7_SECTIONS: SectionContent[] = [
               { id: "D", text: "Terminate the program", explanationIfWrong: "The command loop should continue running." }
             ],
             correctAnswer: "A",
-            explanationNote: "According to the Helsinki MOOC Big Year exercise, missing birds prompt the message 'Not a bird!'."
+            explanationNote: "According to the Big Year exercise, missing birds prompt the message 'Not a bird!'."
           }
         ]
       },

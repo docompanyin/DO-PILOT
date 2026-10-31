@@ -2916,7 +2916,7 @@ export const PART_2_SECTIONS: SectionContent[] = [
       },
       {
         "heading": "Infinite Loops and while True:",
-        "text": "An infinite loop occurs when the condition never becomes False. In University of Helsinki's curriculum, writing while True: is a standard design pattern for interactive programs, which continue looping until a break statement is triggered by user action.",
+        "text": "An infinite loop occurs when the condition never becomes False. writing while True: is a standard design pattern for interactive programs, which continue looping until a break statement is triggered by user action.",
         "codeSnippet": "# while True creates an intentional loop\n# that runs until a break condition is met\nwhile True:\n    text = \"stop\" # simulated input\n    if text == \"stop\":\n        print(\"Exiting loop...\")\n        break",
         "terminalOutput": "Exiting loop...",
         "mcq": {
