@@ -6,7 +6,7 @@ import {
   Edit3, LogOut, Download, Printer, 
   AlertCircle, ChevronRight, X, Play,
   BookOpen, Trophy, IndianRupee, Check, GraduationCap, Clock, Lock,
-  Sparkles, ArrowRight
+  Sparkles, ArrowRight, XCircle
 } from 'lucide-react';
 import { useUserAuth } from '../../context/UserAuthContext';
 import { useCoursePoints } from '../../context/CoursePointsContext';
@@ -1240,6 +1240,7 @@ export const SettingsPage: React.FC = () => {
                 {CASH_TIERS.map((tier) => {
                   const req = rewardRequests.find(r => r.milestoneId === tier.id);
                   const isApproved = req?.status === 'approved';
+                  const isRejected = req?.status === 'rejected';
                   const isPending = req?.status === 'pending';
                   const canRequest = points >= tier.pointsRequired && !req;
 
@@ -1249,6 +1250,8 @@ export const SettingsPage: React.FC = () => {
                       className={`rounded-2xl border p-5 flex items-center justify-between gap-3 sm:gap-4 transition-all ${
                         isApproved
                           ? 'bg-emerald-500/[0.04] border-emerald-500/30 shadow-md'
+                          : isRejected
+                          ? 'bg-rose-500/[0.04] border-rose-500/30 shadow-md'
                           : isPending
                           ? 'bg-amber-500/[0.04] border-amber-500/30 shadow-md'
                           : canRequest
@@ -1272,7 +1275,12 @@ export const SettingsPage: React.FC = () => {
                         {isApproved ? (
                           <span className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono text-xs font-bold flex items-center gap-1.5 shadow-sm">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Claimed (Approved)</span>
+                            <span>Approved</span>
+                          </span>
+                        ) : isRejected ? (
+                          <span className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 font-mono text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                            <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                            <span>Rejected</span>
                           </span>
                         ) : isPending ? (
                           <span className="px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono text-xs font-bold flex items-center gap-1.5 shadow-sm">

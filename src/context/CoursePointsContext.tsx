@@ -102,6 +102,21 @@ export const CoursePointsProvider: React.FC<{ children: React.ReactNode }> = ({ 
         })
         .catch(() => {});
     }
+    // Listen for external point updates (e.g. from milestone reward point deduction)
+    const handlePointsUpdateEvent = (e: any) => {
+      const detail = e.detail;
+      if (detail && typeof detail.points === 'number') {
+        const cleanUserEmail = (user?.email || '').toLowerCase().trim();
+        if (!detail.email || detail.email.toLowerCase().trim() === cleanUserEmail) {
+          setPoints(detail.points);
+        }
+      }
+    };
+    window.addEventListener('dopilot_points_updated', handlePointsUpdateEvent);
+
+    return () => {
+      window.removeEventListener('dopilot_points_updated', handlePointsUpdateEvent);
+    };
   }, [studentKey, user?.email]);
 
   // Save to localStorage & Supabase cloud whenever points or solvedTasks change
@@ -130,6 +145,21 @@ export const CoursePointsProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } catch (e) {
       console.error('Failed to save course points:', e);
     }
+    // Listen for external point updates (e.g. from milestone reward point deduction)
+    const handlePointsUpdateEvent = (e: any) => {
+      const detail = e.detail;
+      if (detail && typeof detail.points === 'number') {
+        const cleanUserEmail = (user?.email || '').toLowerCase().trim();
+        if (!detail.email || detail.email.toLowerCase().trim() === cleanUserEmail) {
+          setPoints(detail.points);
+        }
+      }
+    };
+    window.addEventListener('dopilot_points_updated', handlePointsUpdateEvent);
+
+    return () => {
+      window.removeEventListener('dopilot_points_updated', handlePointsUpdateEvent);
+    };
   }, [studentKey, user?.email]);
 
   const isTaskSolved = useCallback((taskId: string): boolean => {

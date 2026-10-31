@@ -30,6 +30,7 @@ import {
   RewardRequest,
   getRewardRequests,
   approveRewardRequest,
+  rejectRewardRequest,
   syncRewardRequestsFromCloud,
   persistRewardRequestsToCloud
 } from '../../utils/rewardApprovalService';
@@ -795,7 +796,7 @@ export const AdminPanel: React.FC = () => {
   const [studentSearch, setStudentSearch] = useState('');
   const [studentFilter, setStudentFilter] = useState<'all' | 'started' | 'completed' | 'top_points' | 'low_marks' | 'coupon_purchases' | 'registered_only' | 'rewards'>('all');
   const [rewardRequests, setRewardRequests] = useState<RewardRequest[]>(() => getRewardRequests());
-  const [rewardStatusFilter, setRewardStatusFilter] = useState<'all' | 'pending' | 'approved'>('all');
+  const [rewardStatusFilter, setRewardStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [rewardSearch, setRewardSearch] = useState('');
   const pendingRewardCount = rewardRequests.filter((r) => r.status === 'pending').length;
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>('all');
@@ -1531,13 +1532,23 @@ export const AdminPanel: React.FC = () => {
     };
   }, []);
 
-  const handleApproveReward = (requestId: string, studentName: string, milestoneAmount: number) => {
-    const success = approveRewardRequest(requestId);
-    if (success) {
+  const handleApproveReward = async (requestId: string, studentName: string, milestoneAmount: number) => {
+    const res = await approveRewardRequest(requestId);
+    if (res.success) {
       setRewardRequests(getRewardRequests());
-      showToast(`Approved ₹${milestoneAmount} milestone reward for ${studentName}!`);
+      showToast(`Approved ₹${milestoneAmount} milestone reward for ${studentName}! Deducted milestone points.`);
     } else {
       showToast('Failed to approve request. Please try again.');
+    }
+  };
+
+  const handleRejectReward = async (requestId: string, studentName: string, milestoneAmount: number) => {
+    const res = await rejectRewardRequest(requestId);
+    if (res.success) {
+      setRewardRequests(getRewardRequests());
+      showToast(`Rejected ₹${milestoneAmount} reward claim for ${studentName}. Deducted milestone points.`);
+    } else {
+      showToast('Failed to reject request. Please try again.');
     }
   };
 
@@ -7177,6 +7188,7 @@ export const AdminPanel: React.FC = () => {
     const totalRewards = rewardRequests.length;
     const pendingRewards = rewardRequests.filter((r) => r.status === 'pending');
     const approvedRewards = rewardRequests.filter((r) => r.status === 'approved');
+    const rejectedRewards = rewardRequests.filter((r) => r.status === 'rejected');
 
     const filteredRewards = rewardRequests.filter((r) => {
       if (rewardStatusFilter !== 'all' && r.status !== rewardStatusFilter) {
@@ -7188,10 +7200,9 @@ export const AdminPanel: React.FC = () => {
         const matchEmail = r.studentEmail.toLowerCase().includes(q);
         const matchPhone = (r.studentPhone || '').toLowerCase().includes(q);
         const matchCollege = (r.collegeOrCompany || '').toLowerCase().includes(q);
-        const matchCourse = (r.courseTitle || '').toLowerCase().includes(q);
         const matchMilestone = `milestone ${r.milestonePoints}`.includes(q) || `₹${r.rewardAmount}`.includes(q);
         const matchStatus = r.status.toLowerCase().includes(q);
-        if (!matchName && !matchEmail && !matchPhone && !matchCollege && !matchCourse && !matchMilestone && !matchStatus) {
+        if (!matchName && !matchEmail && !matchPhone && !matchCollege && !matchMilestone && !matchStatus) {
           return false;
         }
       }
@@ -7246,6 +7257,7 @@ export const AdminPanel: React.FC = () => {
                 { id: 'all', label: 'All Requests', count: totalRewards },
                 { id: 'pending', label: 'Pending', count: pendingRewards.length },
                 { id: 'approved', label: 'Approved', count: approvedRewards.length },
+                { id: 'rejected', label: 'Rejected', count: rejectedRewards.length },
               ].map((subTab) => {
                 const active = rewardStatusFilter === subTab.id;
                 return (
@@ -7298,12 +7310,15 @@ export const AdminPanel: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredRewards.map((req) => {
               const isApproved = req.status === 'approved';
+              const isRejected = req.status === 'rejected';
               return (
                 <div
                   key={req.id}
                   className={`rounded-3xl bg-[#0e0f12] border p-5 space-y-4 transition-all shadow-xl flex flex-col justify-between group ${
                     isApproved
                       ? 'border-emerald-500/20 hover:border-emerald-500/40'
+                      : isRejected
+                      ? 'border-rose-500/20 hover:border-rose-500/40 bg-gradient-to-b from-rose-500/[0.02] to-transparent'
                       : 'border-amber-500/30 hover:border-amber-500/50 bg-gradient-to-b from-amber-500/[0.02] to-transparent'
                   }`}
                 >
@@ -7329,6 +7344,11 @@ export const AdminPanel: React.FC = () => {
                           <CheckCircle2 className="w-3 h-3" />
                           APPROVED
                         </span>
+                      ) : isRejected ? (
+                        <span className="px-2.5 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-400 font-mono text-[10px] font-bold flex items-center gap-1">
+                          <XCircle className="w-3 h-3" />
+                          REJECTED
+                        </span>
                       ) : (
                         <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono text-[10px] font-bold flex items-center gap-1">
                           <Clock className="w-3 h-3" />
@@ -7338,14 +7358,8 @@ export const AdminPanel: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Student Details: Course, Phone, College, Dates */}
+                  {/* Student Details: Phone, College, Dates (Course completely removed) */}
                   <div className="space-y-1.5 text-xs text-slate/70 font-mono bg-white/[0.02] p-3 rounded-2xl border border-white/5">
-                    <div className="flex items-center gap-2">
-                      <BookOpen className="w-3.5 h-3.5 text-primary/80 shrink-0" />
-                      <span className="text-paper font-semibold truncate">
-                        {req.courseTitle || 'Complete Python Course'}
-                      </span>
-                    </div>
                     {req.studentPhone && (
                       <div className="flex items-center gap-2">
                         <Phone className="w-3.5 h-3.5 text-slate/40 shrink-0" />
@@ -7366,6 +7380,12 @@ export const AdminPanel: React.FC = () => {
                       <div className="flex items-center gap-2 text-[11px] text-emerald-400/90">
                         <CheckCircle2 className="w-3 h-3 shrink-0 text-emerald-400" />
                         <span>Approved: {new Date(req.approvedAt).toLocaleString()}</span>
+                      </div>
+                    )}
+                    {isRejected && req.rejectedAt && (
+                      <div className="flex items-center gap-2 text-[11px] text-rose-400/90">
+                        <XCircle className="w-3 h-3 shrink-0 text-rose-400" />
+                        <span>Rejected: {new Date(req.rejectedAt).toLocaleString()}</span>
                       </div>
                     )}
                   </div>
@@ -7398,22 +7418,37 @@ export const AdminPanel: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Actions */}
+                  {/* Actions: Approve & Reject */}
                   <div>
                     {isApproved ? (
                       <div className="w-full py-2.5 px-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center font-jakarta font-bold text-xs text-emerald-400 flex items-center justify-center gap-1.5">
                         <CheckCircle2 className="w-4 h-4" />
                         Request Approved
                       </div>
+                    ) : isRejected ? (
+                      <div className="w-full py-2.5 px-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-center font-jakarta font-bold text-xs text-rose-400 flex items-center justify-center gap-1.5">
+                        <XCircle className="w-4 h-4" />
+                        Request Rejected
+                      </div>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleApproveReward(req.id, req.studentName, req.rewardAmount)}
-                        className="w-full py-2.5 px-4 rounded-2xl bg-primary hover:bg-primary/90 text-ink font-jakarta font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
-                      >
-                        <CheckCircle2 className="w-4 h-4 text-ink" />
-                        <span>Approve</span>
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleApproveReward(req.id, req.studentName, req.rewardAmount)}
+                          className="flex-1 py-2.5 px-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-black" />
+                          <span>Approve</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRejectReward(req.id, req.studentName, req.rewardAmount)}
+                          className="flex-1 py-2.5 px-3 rounded-2xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                        >
+                          <XCircle className="w-4 h-4 text-rose-400" />
+                          <span>Reject</span>
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
