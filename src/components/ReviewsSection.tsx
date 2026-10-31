@@ -73,7 +73,7 @@ export const ReviewsSection: React.FC = () => {
   const slidingReviews = [...reviews, ...reviews];
 
   return (
-    <section id="reviews" className="py-16 sm:py-24 lg:py-32 bg-black relative border-t border-white/10 select-none overflow-hidden">
+    <section id="reviews" className="py-16 sm:py-24 lg:py-32 bg-black relative select-none overflow-hidden">
       {/* Background ambient glow */}
       <div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[700px] h-[250px] sm:h-[350px] bg-primary/10 blur-[100px] sm:blur-[150px] rounded-full pointer-events-none"

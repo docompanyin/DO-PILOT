@@ -356,7 +356,7 @@ export const CoursesSection: React.FC<CoursesSectionProps> = ({ onEnroll }) => {
     : courses.filter(c => c.category === activeFilter);
 
   return (
-    <section id="courses" className="py-16 sm:py-24 lg:py-32 bg-black relative border-t border-white/10 select-none">
+    <section id="courses" className="py-16 sm:py-24 lg:py-32 bg-black relative select-none">
       {/* Background ambient glow */}
       <div
         className="absolute top-1/3 right-10 w-[280px] sm:w-[500px] h-[280px] sm:h-[500px] bg-primary/10 blur-[100px] sm:blur-[150px] rounded-full pointer-events-none"

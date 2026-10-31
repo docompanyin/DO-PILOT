@@ -77,7 +77,7 @@ export const LiveClassSection: React.FC<LiveClassSectionProps> = ({ onJoin }) =>
   const buttonText = liveClass?.buttonText || 'Reserve Your Free Spot';
 
   return (
-    <section id="live-class" className="py-16 sm:py-24 lg:py-32 bg-black relative border-t border-white/10 select-none">
+    <section id="live-class" className="py-16 sm:py-24 lg:py-32 bg-black relative select-none">
       {/* Background radial glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[800px] h-[250px] sm:h-[450px] bg-emerald-500/10 blur-[100px] sm:blur-[150px] rounded-full pointer-events-none" />
 

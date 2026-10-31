@@ -168,18 +168,9 @@ export const CodeLabSection: React.FC = () => {
   const lineNumbers = Array.from({ length: Math.max(lineCount, 12) }, (_, i) => i + 1);
 
   return (
-    <section id="code-lab" className="py-16 sm:py-24 lg:py-28 bg-black relative border-t border-white/10 select-none overflow-hidden">
+    <section id="code-lab" className="py-16 sm:py-24 lg:py-28 bg-black relative select-none overflow-hidden">
       {/* Background subtle ambient glow */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[700px] h-[250px] sm:h-[350px] bg-primary/10 blur-[100px] sm:blur-[150px] rounded-full pointer-events-none" />
-
-      {/* Grid Pattern overlay */}
-      <div 
-        className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none"
-        style={{
-          backgroundImage: `linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)`,
-          backgroundSize: '40px 40px'
-        }}
-      />
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         

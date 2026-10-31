@@ -1,7 +1,116 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Code, Users, Video, Briefcase, Check, X, ShieldCheck, ArrowRight } from 'lucide-react';
 import { useSiteData } from '../context/DataContext';
+
+// Spotlight card with cursor follower for Why Do Pilot feature cards
+const WhySpotlightCard: React.FC<{
+  item: any;
+  idx: number;
+  Icon: React.ElementType;
+}> = ({ item, idx, Icon }) => {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const glowRef = useRef<HTMLDivElement>(null);
+  const borderGlowRef = useRef<HTMLDivElement>(null);
+  const rafIdRef = useRef<number | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+    };
+  }, []);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (window.matchMedia('(hover: none)').matches) return;
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+
+    if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+    rafIdRef.current = requestAnimationFrame(() => {
+      if (!cardRef.current) return;
+      const rect = cardRef.current.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      if (glowRef.current) {
+        glowRef.current.style.background = `radial-gradient(400px circle at ${x}px ${y}px, rgba(0, 255, 157, 0.12), transparent 75%)`;
+      }
+      if (borderGlowRef.current) {
+        borderGlowRef.current.style.background = `radial-gradient(220px circle at ${x}px ${y}px, rgba(0, 255, 157, 0.35), transparent 70%)`;
+      }
+    });
+  };
+
+  const handleMouseEnter = () => {
+    if (glowRef.current) glowRef.current.style.opacity = '1';
+    if (borderGlowRef.current) borderGlowRef.current.style.opacity = '1';
+  };
+
+  const handleMouseLeave = () => {
+    if (glowRef.current) glowRef.current.style.opacity = '0';
+    if (borderGlowRef.current) borderGlowRef.current.style.opacity = '0';
+  };
+
+  return (
+    <motion.div
+      ref={cardRef}
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.5, delay: idx * 0.1 }}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      style={{ transform: 'translateZ(0)', willChange: 'transform' }}
+      className="group relative rounded-2xl bg-panel border border-white/10 p-5 sm:p-6 overflow-hidden hover:border-primary/40 transition-colors duration-300 flex flex-col justify-between"
+    >
+      {/* Dynamic Cursor Spotlight Glow */}
+      <div
+        ref={glowRef}
+        className="pointer-events-none absolute -inset-px rounded-2xl transition-opacity duration-300 z-10 opacity-0"
+        style={{
+          background: `radial-gradient(400px circle at 50% 50%, rgba(0, 255, 157, 0.12), transparent 75%)`,
+          transform: 'translateZ(0)',
+        }}
+      />
+
+      {/* Border Spotlight Glow */}
+      <div
+        ref={borderGlowRef}
+        className="pointer-events-none absolute -inset-px rounded-2xl transition-opacity duration-300 z-20 opacity-0"
+        style={{
+          background: `radial-gradient(220px circle at 50% 50%, rgba(0, 255, 157, 0.35), transparent 70%)`,
+          mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+          maskComposite: 'exclude',
+          WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+          WebkitMaskComposite: 'xor',
+          padding: '1px',
+          transform: 'translateZ(0)',
+        }}
+      />
+
+      <div className="relative z-10">
+        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-panel-light border border-white/15 flex items-center justify-center mb-4 sm:mb-6 group-hover:scale-110 transition-transform duration-300 group-hover:border-primary/40">
+          <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+        </div>
+
+        <h3 className="font-jakarta text-base sm:text-lg font-bold text-paper mb-2">
+          {item.title}
+        </h3>
+
+        <p className="text-slate text-xs sm:text-sm leading-relaxed font-normal">
+          {item.description}
+        </p>
+      </div>
+
+      <div className="relative z-10 pt-4 sm:pt-6 mt-4 sm:mt-6 border-t border-white/10 flex items-center justify-between">
+        <span className="font-mono text-[10px] sm:text-[11px] font-semibold text-primary">
+          {item.highlight}
+        </span>
+        <ArrowRight className="w-3.5 h-3.5 text-slate group-hover:text-primary group-hover:translate-x-1 transition-all" />
+      </div>
+    </motion.div>
+  );
+};
 
 export const WhyUsSection: React.FC = () => {
   const { data } = useSiteData();
@@ -109,40 +218,17 @@ export const WhyUsSection: React.FC = () => {
           </p>
         </div>
 
-        {/* 4 Feature Cards Grid */}
+        {/* 4 Feature Cards Grid with Spotlight Glow */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-12 sm:mb-16">
           {features.map((item, idx) => {
             const Icon = getFeatureIcon((item as any).iconName || (item as any).icon);
             return (
-              <motion.div
+              <WhySpotlightCard
                 key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: idx * 0.1 }}
-                className="group relative rounded-2xl bg-panel border border-white/10 p-5 sm:p-6 hover:border-primary/50 transition-all duration-300 hover:shadow-2xl hover:shadow-primary/10 flex flex-col justify-between"
-              >
-                <div>
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-panel-light border border-white/15 flex items-center justify-center mb-4 sm:mb-6 group-hover:scale-110 transition-transform duration-300 group-hover:border-primary/40">
-                    <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-                  </div>
-
-                  <h3 className="font-jakarta text-base sm:text-lg font-bold text-paper mb-2">
-                    {item.title}
-                  </h3>
-
-                  <p className="text-slate text-xs sm:text-sm leading-relaxed font-normal">
-                    {item.description}
-                  </p>
-                </div>
-
-                <div className="pt-4 sm:pt-6 mt-4 sm:mt-6 border-t border-white/10 flex items-center justify-between">
-                  <span className="font-mono text-[10px] sm:text-[11px] font-semibold text-primary">
-                    {item.highlight}
-                  </span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                </div>
-              </motion.div>
+                item={item}
+                idx={idx}
+                Icon={Icon}
+              />
             );
           })}
         </div>
