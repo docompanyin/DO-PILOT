@@ -29,7 +29,9 @@ import {
 import {
   RewardRequest,
   getRewardRequests,
-  approveRewardRequest
+  approveRewardRequest,
+  syncRewardRequestsFromCloud,
+  persistRewardRequestsToCloud
 } from '../../utils/rewardApprovalService';
 import {
   LockedCourseRecord,
@@ -292,6 +294,10 @@ export const AdminPanel: React.FC = () => {
       setCoursePricingList(cloudPricing);
     }).catch(() => {});
 
+    syncRewardRequestsFromCloud().then((cloudRewards) => {
+      setRewardRequests(cloudRewards);
+    }).catch(() => {});
+
     // Polling backup every 2.5s when Admin Panel is open to guarantee instant multi-device visibility
     const syncInterval = setInterval(() => {
       syncCouponsFromCloud().then((cloudCoupons) => {
@@ -305,6 +311,9 @@ export const AdminPanel: React.FC = () => {
       }).catch(() => {});
       syncCoursePricingFromCloud().then((cloudPricing) => {
         setCoursePricingList(cloudPricing);
+      }).catch(() => {});
+      syncRewardRequestsFromCloud().then((cloudRewards) => {
+        setRewardRequests(cloudRewards);
       }).catch(() => {});
     }, 2500);
 
@@ -338,6 +347,8 @@ export const AdminPanel: React.FC = () => {
                 setCoursePurchases(payload.new.content.purchases);
               } else if (payload?.new?.id === 'telemetry_dopilot_course_pricing_v1' && payload?.new?.content?.pricing) {
                 setCoursePricingList(payload.new.content.pricing);
+              } else if (payload?.new?.id === 'telemetry_dopilot_reward_requests_v1' && payload?.new?.content?.requests) {
+                setRewardRequests(payload.new.content.requests);
               }
             }
           )
@@ -1410,13 +1421,15 @@ export const AdminPanel: React.FC = () => {
         const sTarget = targetEmail.toLowerCase();
         const sId = targetId.toLowerCase();
 
-        setRewardRequests((prev) =>
-          prev.filter((r) => {
+        setRewardRequests((prev) => {
+          const remaining = prev.filter((r) => {
             const re = (r.studentEmail || '').toLowerCase().trim();
             const ri = (r.studentId || '').toLowerCase().trim();
             return (!sTarget || re !== sTarget) && (!sId || ri !== sId);
-          })
-        );
+          });
+          persistRewardRequestsToCloud(remaining).catch(() => {});
+          return remaining;
+        });
 
         setHelpMessages((prev) =>
           prev.filter((h) => {

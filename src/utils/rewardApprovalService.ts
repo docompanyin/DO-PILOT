@@ -19,14 +19,88 @@ export interface RewardRequest {
 }
 
 export const REWARDS_STORAGE_KEY = 'dopilot_reward_requests_v1';
+export const CLOUD_REWARD_REQUESTS_ID = 'telemetry_dopilot_reward_requests_v1';
 
-const INITIAL_DEMO_REWARDS: RewardRequest[] = [];
+let memoryRewardsCache: RewardRequest[] | null = null;
+let hasInitiatedCloudRewardsSync = false;
+
+/**
+ * Synchronize reward requests from Supabase cloud (site_content)
+ * Guarantees cross-device persistence across mobile phones, laptops, and PCs
+ */
+export const syncRewardRequestsFromCloud = async (): Promise<RewardRequest[]> => {
+  if (!isSupabaseConfigured()) {
+    return getRewardRequests();
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('site_content')
+      .select('content')
+      .eq('id', CLOUD_REWARD_REQUESTS_ID)
+      .maybeSingle();
+
+    if (!error && data && data.content && Array.isArray(data.content.requests)) {
+      const cloudRequests: RewardRequest[] = data.content.requests;
+      const realOnly = cloudRequests.filter(
+        (r) => !r.studentId?.startsWith('demo-std') && !r.studentEmail?.includes('techsprint.io')
+      );
+      memoryRewardsCache = realOnly;
+      try {
+        localStorage.setItem(REWARDS_STORAGE_KEY, JSON.stringify(realOnly));
+        window.dispatchEvent(new CustomEvent('dopilot_reward_request_update', { detail: realOnly }));
+      } catch {}
+      return realOnly;
+    }
+  } catch (err) {
+    console.warn('Failed to sync reward requests from Supabase cloud:', err);
+  }
+
+  return getRewardRequests();
+};
+
+/**
+ * Persist reward requests to Supabase cloud (site_content)
+ */
+export const persistRewardRequestsToCloud = async (requests: RewardRequest[]): Promise<void> => {
+  memoryRewardsCache = requests;
+  try {
+    localStorage.setItem(REWARDS_STORAGE_KEY, JSON.stringify(requests));
+  } catch {}
+
+  if (isSupabaseConfigured()) {
+    try {
+      await supabase.from('site_content').upsert({
+        id: CLOUD_REWARD_REQUESTS_ID,
+        content: {
+          requests,
+          updatedAt: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn('Failed to persist reward requests to site_content cloud:', e);
+    }
+  }
+};
 
 export const getRewardRequests = (): RewardRequest[] => {
+  if (memoryRewardsCache && Array.isArray(memoryRewardsCache)) {
+    if (!hasInitiatedCloudRewardsSync) {
+      hasInitiatedCloudRewardsSync = true;
+      syncRewardRequestsFromCloud().catch(() => {});
+    }
+    return memoryRewardsCache;
+  }
+
   try {
     const raw = localStorage.getItem(REWARDS_STORAGE_KEY);
     if (!raw) {
       localStorage.setItem(REWARDS_STORAGE_KEY, JSON.stringify([]));
+      if (!hasInitiatedCloudRewardsSync) {
+        hasInitiatedCloudRewardsSync = true;
+        syncRewardRequestsFromCloud().catch(() => {});
+      }
       return [];
     }
     const parsed = JSON.parse(raw);
@@ -37,7 +111,16 @@ export const getRewardRequests = (): RewardRequest[] => {
       if (realOnly.length !== parsed.length) {
         localStorage.setItem(REWARDS_STORAGE_KEY, JSON.stringify(realOnly));
       }
+      memoryRewardsCache = realOnly;
+      if (!hasInitiatedCloudRewardsSync) {
+        hasInitiatedCloudRewardsSync = true;
+        syncRewardRequestsFromCloud().catch(() => {});
+      }
       return realOnly;
+    }
+    if (!hasInitiatedCloudRewardsSync) {
+      hasInitiatedCloudRewardsSync = true;
+      syncRewardRequestsFromCloud().catch(() => {});
     }
     return [];
   } catch (err) {
@@ -81,6 +164,8 @@ export const submitRewardRequest = (
   };
 
   const updated = [newRequest, ...current];
+  memoryRewardsCache = updated;
+
   try {
     localStorage.setItem(REWARDS_STORAGE_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent('dopilot_reward_request_update', { detail: newRequest }));
@@ -88,29 +173,8 @@ export const submitRewardRequest = (
     console.error('Failed to write reward request to storage:', err);
   }
 
-  // Background sync to Supabase if configured
-  if (isSupabaseConfigured()) {
-    Promise.resolve(
-      supabase.from('reward_requests').upsert({
-        id: newRequest.id,
-        student_id: newRequest.studentId || null,
-        student_name: newRequest.studentName,
-        student_email: newRequest.studentEmail,
-        student_phone: newRequest.studentPhone || null,
-        collegeOrCompany: newRequest.collegeOrCompany || null,
-        course_title: newRequest.courseTitle || null,
-        milestone_id: newRequest.milestoneId,
-        milestone_points: newRequest.milestonePoints,
-        reward_amount: newRequest.rewardAmount,
-        points_balance: newRequest.pointsBalance,
-        status: newRequest.status,
-        requested_at: newRequest.requestedAt,
-        updated_at: new Date().toISOString()
-      })
-    ).catch(() => {
-      // Supabase table may not exist yet, local persistence is guaranteed
-    });
-  }
+  // Authoritative persistence to central Supabase cloud database
+  persistRewardRequestsToCloud(updated).catch(() => {});
 
   return { success: true, request: newRequest };
 };
@@ -137,6 +201,8 @@ export const approveRewardRequest = (
 
   if (!found) return false;
 
+  memoryRewardsCache = updated;
+
   try {
     localStorage.setItem(REWARDS_STORAGE_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent('dopilot_reward_request_update', { detail: { requestId, status: 'approved' } }));
@@ -145,20 +211,8 @@ export const approveRewardRequest = (
     return false;
   }
 
-  // Background sync to Supabase
-  if (isSupabaseConfigured()) {
-    Promise.resolve(
-      supabase
-        .from('reward_requests')
-        .update({
-          status: 'approved',
-          approved_at: new Date().toISOString(),
-          admin_notes: adminNotes || null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', requestId)
-    ).catch(() => {});
-  }
+  // Authoritative persistence to central Supabase cloud database
+  persistRewardRequestsToCloud(updated).catch(() => {});
 
   return true;
 };

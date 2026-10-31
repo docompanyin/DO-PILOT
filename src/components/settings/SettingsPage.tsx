@@ -30,7 +30,8 @@ import { getUserInitials } from '../../utils/userInitials';
 import {
   RewardRequest,
   submitRewardRequest,
-  getStudentRewardRequests
+  getStudentRewardRequests,
+  syncRewardRequestsFromCloud
 } from '../../utils/rewardApprovalService';
 import { navigateBackOrFallback } from '../../utils/navigationHelper';
 
@@ -103,6 +104,12 @@ export const SettingsPage: React.FC = () => {
   useEffect(() => {
     if (user) {
       setRewardRequests(getStudentRewardRequests(user.email));
+      syncRewardRequestsFromCloud().then((cloudRequests) => {
+        const studentRequests = cloudRequests.filter(
+          (r) => r.studentEmail.toLowerCase() === user.email.toLowerCase()
+        );
+        setRewardRequests(studentRequests);
+      }).catch(() => {});
     }
   }, [user]);
 
