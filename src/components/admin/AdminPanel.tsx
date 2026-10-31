@@ -5641,149 +5641,268 @@ export const AdminPanel: React.FC = () => {
                   </div>
                 ) : (
                   (() => {
-                    // Group filtered attempts by Part, then by Section in actual activity sequence
-                    interface SectionGroup {
-                      sectionKey: string;
-                      sectionLabel: string;
+                    // Match student purchases for chronological workflow segmentation
+                    const sEmail = (student.email || '').toLowerCase().trim();
+                    const sId = (student.id || '').trim();
+                    const studentPurchases = coursePurchases
+                      .filter((p) => {
+                        const pe = (p.studentEmail || '').toLowerCase().trim();
+                        const pi = (p.studentId || '').trim();
+                        const match = (sEmail && pe === sEmail) || (sId && pi === sId);
+                        return match && (p.status === 'completed' || p.accessGranted);
+                      })
+                      .sort((a, b) => new Date(a.purchasedAt).getTime() - new Date(b.purchasedAt).getTime());
+
+                    const firstPurchase = studentPurchases.length > 0 ? studentPurchases[0] : null;
+                    const purchaseTime = firstPurchase ? new Date(firstPurchase.purchasedAt).getTime() : Infinity;
+
+                    // Workflow segments: Free Trial vs Purchased Course
+                    interface WorkflowSegment {
+                      stage: 'free_trial' | 'purchased_course';
+                      stageLabel: string;
+                      badgeColor: string;
+                      purchaseDetails?: typeof firstPurchase;
                       attempts: StudentQuestionAttempt[];
                     }
-                    interface PartGroup {
-                      partNum: number;
-                      partLabel: string;
-                      sections: SectionGroup[];
+
+                    const trialAttempts = filteredAttempts.filter(
+                      (a) => new Date(a.attemptedAt).getTime() < purchaseTime
+                    );
+                    const purchasedCourseAttempts = filteredAttempts.filter(
+                      (a) => new Date(a.attemptedAt).getTime() >= purchaseTime
+                    );
+
+                    const segments: WorkflowSegment[] = [];
+                    if (trialAttempts.length > 0) {
+                      segments.push({
+                        stage: 'free_trial',
+                        stageLabel: 'Free Trial Activity',
+                        badgeColor: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+                        attempts: trialAttempts
+                      });
+                    }
+                    if (firstPurchase) {
+                      segments.push({
+                        stage: 'purchased_course',
+                        stageLabel: `Purchased Course: ${firstPurchase.courseName}`,
+                        badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+                        purchaseDetails: firstPurchase,
+                        attempts: purchasedCourseAttempts
+                      });
                     }
 
-                    const partGroups: PartGroup[] = [];
-
-                    filteredAttempts.forEach((att) => {
-                      const partNum = att.partNum || 1;
-                      const partLabel = `Part ${partNum}`;
-
-                      // Extract clean Section label (e.g. "Section 1.1", "Section 1.2")
-                      let sectionLabel = `Section ${partNum}.1`;
-                      if (att.subQuestionLabel) {
-                        const secMatch = att.subQuestionLabel.match(/Sec\s+([0-9.]+)/i);
-                        if (secMatch) {
-                          sectionLabel = `Section ${secMatch[1]}`;
-                        } else {
-                          const dotMatch = att.subQuestionLabel.match(/^(\d+\.\d+)/);
-                          if (dotMatch) {
-                            sectionLabel = `Section ${dotMatch[1]}`;
-                          }
-                        }
-                      } else if (att.section) {
-                        const sMatch = att.section.match(/Section\s*([0-9.]+)/i);
-                        if (sMatch) {
-                          sectionLabel = `Section ${sMatch[1]}`;
-                        }
-                      }
-
-                      let pGroup = partGroups.find(p => p.partNum === partNum);
-                      if (!pGroup) {
-                        pGroup = {
-                          partNum,
-                          partLabel,
-                          sections: []
-                        };
-                        partGroups.push(pGroup);
-                      }
-
-                      let sGroup = pGroup.sections.find(s => s.sectionLabel === sectionLabel);
-                      if (!sGroup) {
-                        sGroup = {
-                          sectionKey: `${partNum}-${sectionLabel}`,
-                          sectionLabel,
-                          attempts: []
-                        };
-                        pGroup.sections.push(sGroup);
-                      }
-
-                      sGroup.attempts.push(att);
-                    });
+                    // Fallback if no specific purchase found or all fall in one segment
+                    if (segments.length === 0) {
+                      segments.push({
+                        stage: 'free_trial',
+                        stageLabel: 'Course Learning Activity',
+                        badgeColor: 'bg-primary/15 text-primary border-primary/30',
+                        attempts: filteredAttempts
+                      });
+                    }
 
                     return (
-                      <div className="space-y-6">
-                        {partGroups.map((pGroup) => (
-                          <div key={pGroup.partNum} className="space-y-4">
-                            {/* Main Part Heading */}
-                            <div className="flex items-center gap-2.5 pb-2 border-b border-white/10">
-                              <span className="font-jakarta text-base sm:text-lg font-black text-paper tracking-wide">
-                                {pGroup.partLabel}
-                              </span>
-                            </div>
+                      <div className="space-y-8">
+                        {segments.map((seg, sIdx) => {
+                          // Group segment attempts by Part, then by Section in actual activity sequence
+                          interface SectionGroup {
+                            sectionKey: string;
+                            sectionLabel: string;
+                            attempts: StudentQuestionAttempt[];
+                          }
+                          interface PartGroup {
+                            partNum: number;
+                            partLabel: string;
+                            sections: SectionGroup[];
+                          }
 
-                            {/* Section Headings & Simple Question Records */}
-                            <div className="space-y-4 pl-1 sm:pl-2">
-                              {pGroup.sections.map((sGroup) => (
-                                <div key={sGroup.sectionKey} className="space-y-2.5">
-                                  {/* Simple Section Heading */}
-                                  <div className="flex items-center gap-2">
-                                    <h4 className="font-jakarta text-xs sm:text-sm font-bold text-slate">
-                                      {sGroup.sectionLabel}
-                                    </h4>
+                          const partGroups: PartGroup[] = [];
+
+                          seg.attempts.forEach((att) => {
+                            const partNum = att.partNum || 1;
+                            const partLabel = `Part ${partNum}`;
+
+                            let sectionLabel = `Section ${partNum}.1`;
+                            if (att.subQuestionLabel) {
+                              const secMatch = att.subQuestionLabel.match(/Sec\s+([0-9.]+)/i);
+                              if (secMatch) {
+                                sectionLabel = `Section ${secMatch[1]}`;
+                              } else {
+                                const dotMatch = att.subQuestionLabel.match(/^(\d+\.\d+)/);
+                                if (dotMatch) {
+                                  sectionLabel = `Section ${dotMatch[1]}`;
+                                }
+                              }
+                            } else if (att.section) {
+                              const sMatch = att.section.match(/Section\s*([0-9.]+)/i);
+                              if (sMatch) {
+                                sectionLabel = `Section ${sMatch[1]}`;
+                              }
+                            }
+
+                            let pGroup = partGroups.find((p) => p.partNum === partNum);
+                            if (!pGroup) {
+                              pGroup = {
+                                partNum,
+                                partLabel,
+                                sections: []
+                              };
+                              partGroups.push(pGroup);
+                            }
+
+                            let sGroup = pGroup.sections.find((s) => s.sectionLabel === sectionLabel);
+                            if (!sGroup) {
+                              sGroup = {
+                                sectionKey: `${partNum}-${sectionLabel}`,
+                                sectionLabel,
+                                attempts: []
+                              };
+                              pGroup.sections.push(sGroup);
+                            }
+
+                            sGroup.attempts.push(att);
+                          });
+
+                          return (
+                            <div key={seg.stage + sIdx} className="space-y-5">
+                              {/* Workflow Separator & Heading Banner */}
+                              <div className={`p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-3 ${
+                                seg.stage === 'purchased_course'
+                                  ? 'bg-gradient-to-r from-emerald-500/15 via-[#0e1713] to-transparent border-emerald-500/40 shadow-lg shadow-emerald-500/5'
+                                  : 'bg-gradient-to-r from-amber-500/10 via-[#15120c] to-transparent border-amber-500/30'
+                              }`}>
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                                    seg.stage === 'purchased_course'
+                                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                                      : 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                                  }`}>
+                                    {seg.stage === 'purchased_course' ? (
+                                      <CheckCircle2 className="w-5 h-5" />
+                                    ) : (
+                                      <Clock className="w-5 h-5" />
+                                    )}
                                   </div>
-
-                                  {/* Compact Question List */}
-                                  <div className="space-y-1.5">
-                                    {sGroup.attempts.map((att) => {
-                                      // Extract question number (e.g. 1, 2, 3...)
-                                      let qNum = att.questionNumber || 1;
-                                      if (att.subQuestionLabel) {
-                                        const qMatch = att.subQuestionLabel.match(/Q(\d+)/i);
-                                        if (qMatch) {
-                                          qNum = parseInt(qMatch[1], 10);
-                                        } else {
-                                          const dotMatch = att.subQuestionLabel.match(/\d+\.\d+\.(\d+)/);
-                                          if (dotMatch) {
-                                            qNum = parseInt(dotMatch[1], 10);
-                                          }
-                                        }
-                                      }
-
-                                      const opt = att.studentOptionId || '—';
-                                      const timeStr = att.timeTakenSeconds > 0 ? `${Math.round(att.timeTakenSeconds)} sec` : '—';
-                                      const isCorrect = Boolean(att.isCorrect);
-                                      const isRetest = Boolean(att.isRetest || (att.attemptNumber && att.attemptNumber > 1));
-
-                                      return (
-                                        <div
-                                          key={att.id}
-                                          className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#121316] border border-white/10 hover:border-white/20 transition-all font-mono text-xs text-slate"
-                                        >
-                                          {/* Compact Record: 1 | Answer: B | Time: 8 sec | Correct */}
-                                          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-                                            <span className="font-bold text-paper text-xs sm:text-sm min-w-[18px]">
-                                              {qNum}
-                                            </span>
-                                            <span className="text-white/20">|</span>
-                                            <span>
-                                              Answer: <strong className={isCorrect ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>{opt}</strong>
-                                            </span>
-                                            <span className="text-white/20">|</span>
-                                            <span>
-                                              Time: <span className="text-paper">{timeStr}</span>
-                                            </span>
-                                            <span className="text-white/20">|</span>
-                                            <span className={isCorrect ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
-                                              {isCorrect ? 'Correct' : 'Wrong'}
-                                            </span>
-                                          </div>
-
-                                          {/* Retest Tag if applicable */}
-                                          {isRetest && (
-                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
-                                              Retest {att.attemptNumber ? `(Att ${att.attemptNumber})` : ''}
-                                            </span>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${seg.badgeColor}`}>
+                                        {seg.stage === 'purchased_course' ? 'COURSE PURCHASED & UNLOCKED' : 'FREE TRIAL LEARNING'}
+                                      </span>
+                                      <span className="font-jakarta font-bold text-sm text-paper">
+                                        {seg.stageLabel}
+                                      </span>
+                                    </div>
+                                    <span className="text-xs font-mono text-slate/70 block mt-0.5">
+                                      {seg.attempts.length} {seg.attempts.length === 1 ? 'question attempt' : 'question attempts'} recorded in this stage
+                                    </span>
                                   </div>
                                 </div>
-                              ))}
+
+                                {seg.purchaseDetails && (
+                                  <div className="flex items-center gap-2 text-right shrink-0">
+                                    <div className="px-3 py-1 rounded-xl bg-black/50 border border-white/10 text-right">
+                                      <span className="text-[10px] font-mono text-slate/60 block uppercase">Purchased On</span>
+                                      <span className="text-xs font-mono text-emerald-300 font-bold">
+                                        {new Date(seg.purchaseDetails.purchasedAt).toLocaleDateString()} at {new Date(seg.purchaseDetails.purchasedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Part and Section Hierarchy */}
+                              {partGroups.length === 0 ? (
+                                <div className="p-6 text-center text-xs font-mono text-slate/50 bg-[#121316] rounded-2xl border border-white/5">
+                                  No question attempts recorded in this stage yet.
+                                </div>
+                              ) : (
+                                <div className="space-y-6">
+                                  {partGroups.map((pGroup) => (
+                                    <div key={pGroup.partNum} className="space-y-4">
+                                      {/* Main Part Heading */}
+                                      <div className="flex items-center gap-2.5 pb-2 border-b border-white/10">
+                                        <span className="font-jakarta text-base sm:text-lg font-black text-paper tracking-wide">
+                                          {pGroup.partLabel}
+                                        </span>
+                                      </div>
+
+                                      {/* Section Headings & Balanced Full-Width Grid of Question Records */}
+                                      <div className="space-y-4 pl-1 sm:pl-2">
+                                        {pGroup.sections.map((sGroup) => (
+                                          <div key={sGroup.sectionKey} className="space-y-2.5">
+                                            {/* Section Heading */}
+                                            <div className="flex items-center gap-2">
+                                              <h4 className="font-jakarta text-xs sm:text-sm font-bold text-slate">
+                                                {sGroup.sectionLabel}
+                                              </h4>
+                                              <span className="text-[10px] font-mono text-slate/50">
+                                                ({sGroup.attempts.length} {sGroup.attempts.length === 1 ? 'record' : 'records'})
+                                              </span>
+                                            </div>
+
+                                            {/* Balanced Professional Multi-Column Grid across full available width */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                                              {sGroup.attempts.map((att) => {
+                                                let qNum = att.questionNumber || 1;
+                                                if (att.subQuestionLabel) {
+                                                  const qMatch = att.subQuestionLabel.match(/Q(\d+)/i);
+                                                  if (qMatch) {
+                                                    qNum = parseInt(qMatch[1], 10);
+                                                  } else {
+                                                    const dotMatch = att.subQuestionLabel.match(/\d+\.\d+\.(\d+)/);
+                                                    if (dotMatch) {
+                                                      qNum = parseInt(dotMatch[1], 10);
+                                                    }
+                                                  }
+                                                }
+
+                                                const opt = att.studentOptionId || '—';
+                                                const timeStr = att.timeTakenSeconds > 0 ? `${Math.round(att.timeTakenSeconds)} sec` : '—';
+                                                const isCorrect = Boolean(att.isCorrect);
+                                                const isRetest = Boolean(att.isRetest || (att.attemptNumber && att.attemptNumber > 1));
+
+                                                return (
+                                                  <div
+                                                    key={att.id}
+                                                    className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#121316] border border-white/10 hover:border-white/20 transition-all font-mono text-xs text-slate shadow-sm"
+                                                  >
+                                                    <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap min-w-0">
+                                                      <span className="font-bold text-paper text-xs sm:text-sm min-w-[20px]">
+                                                        {qNum}
+                                                      </span>
+                                                      <span className="text-white/20">|</span>
+                                                      <span>
+                                                        Answer: <strong className={isCorrect ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>{opt}</strong>
+                                                      </span>
+                                                      <span className="text-white/20">|</span>
+                                                      <span>
+                                                        Time: <span className="text-paper">{timeStr}</span>
+                                                      </span>
+                                                      <span className="text-white/20">|</span>
+                                                      <span className={isCorrect ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
+                                                        {isCorrect ? 'Correct' : 'Wrong'}
+                                                      </span>
+                                                    </div>
+
+                                                    {isRetest && (
+                                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0 ml-1.5">
+                                                        Retest {att.attemptNumber ? `(Att ${att.attemptNumber})` : ''}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     );
                   })()
@@ -5827,188 +5946,301 @@ export const AdminPanel: React.FC = () => {
                   </div>
                 ) : (
                   (() => {
-                    // Group mistakes by Part, then by Section without unnecessary arrows or nested headings
-                    interface MistakeSectionGroup {
-                      sectionKey: string;
-                      sectionLabel: string;
+                    // Match student purchases for chronological workflow segmentation
+                    const sEmail = (student.email || '').toLowerCase().trim();
+                    const sId = (student.id || '').trim();
+                    const studentPurchases = coursePurchases
+                      .filter((p) => {
+                        const pe = (p.studentEmail || '').toLowerCase().trim();
+                        const pi = (p.studentId || '').trim();
+                        const match = (sEmail && pe === sEmail) || (sId && pi === sId);
+                        return match && (p.status === 'completed' || p.accessGranted);
+                      })
+                      .sort((a, b) => new Date(a.purchasedAt).getTime() - new Date(b.purchasedAt).getTime());
+
+                    const firstPurchase = studentPurchases.length > 0 ? studentPurchases[0] : null;
+                    const purchaseTime = firstPurchase ? new Date(firstPurchase.purchasedAt).getTime() : Infinity;
+
+                    // Workflow segmentation: Free Trial vs Purchased Course
+                    const trialMistakes = actualMistakes.filter(
+                      (m) => new Date(m.attemptedAt).getTime() < purchaseTime
+                    );
+                    const purchasedCourseMistakes = actualMistakes.filter(
+                      (m) => new Date(m.attemptedAt).getTime() >= purchaseTime
+                    );
+
+                    interface MistakeWorkflowSegment {
+                      stage: 'free_trial' | 'purchased_course';
+                      stageLabel: string;
+                      badgeColor: string;
+                      purchaseDetails?: typeof firstPurchase;
                       mistakes: typeof actualMistakes;
                     }
-                    interface MistakePartGroup {
-                      partNum: number;
-                      partLabel: string;
-                      sections: MistakeSectionGroup[];
+
+                    const segments: MistakeWorkflowSegment[] = [];
+                    if (trialMistakes.length > 0) {
+                      segments.push({
+                        stage: 'free_trial',
+                        stageLabel: 'Free Trial Activity',
+                        badgeColor: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+                        mistakes: trialMistakes
+                      });
+                    }
+                    if (firstPurchase) {
+                      segments.push({
+                        stage: 'purchased_course',
+                        stageLabel: `Purchased Course: ${firstPurchase.courseName}`,
+                        badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+                        purchaseDetails: firstPurchase,
+                        mistakes: purchasedCourseMistakes
+                      });
                     }
 
-                    const partGroups: MistakePartGroup[] = [];
-
-                    actualMistakes.forEach((m) => {
-                      const partNum = m.partNum || 1;
-                      const partLabel = `Part ${partNum}`;
-
-                      // Extract clean Section label (e.g. "1.1", "1.2")
-                      let sectionLabel = `${partNum}.1`;
-                      if (m.subQuestionLabel) {
-                        const secMatch = m.subQuestionLabel.match(/Sec\s+([0-9.]+)/i);
-                        if (secMatch) {
-                          sectionLabel = secMatch[1];
-                        } else {
-                          const dotMatch = m.subQuestionLabel.match(/^(\d+\.\d+)/);
-                          if (dotMatch) {
-                            sectionLabel = dotMatch[1];
-                          }
-                        }
-                      } else if (m.section) {
-                        const sMatch = m.section.match(/Section\s*([0-9.]+)/i);
-                        if (sMatch) {
-                          sectionLabel = sMatch[1];
-                        } else {
-                          const numMatch = m.section.match(/(\d+\.\d+)/);
-                          if (numMatch) {
-                            sectionLabel = numMatch[1];
-                          }
-                        }
-                      }
-
-                      let pGroup = partGroups.find((p) => p.partNum === partNum);
-                      if (!pGroup) {
-                        pGroup = {
-                          partNum,
-                          partLabel,
-                          sections: []
-                        };
-                        partGroups.push(pGroup);
-                      }
-
-                      let sGroup = pGroup.sections.find((s) => s.sectionLabel === sectionLabel);
-                      if (!sGroup) {
-                        sGroup = {
-                          sectionKey: `${partNum}-${sectionLabel}`,
-                          sectionLabel,
-                          mistakes: []
-                        };
-                        pGroup.sections.push(sGroup);
-                      }
-
-                      sGroup.mistakes.push(m);
-                    });
-
-                    // Sort parts numerically
-                    partGroups.sort((a, b) => a.partNum - b.partNum);
+                    if (segments.length === 0) {
+                      segments.push({
+                        stage: 'free_trial',
+                        stageLabel: 'Course Learning Activity',
+                        badgeColor: 'bg-primary/15 text-primary border-primary/30',
+                        mistakes: actualMistakes
+                      });
+                    }
 
                     return (
                       <div className="space-y-8">
-                        {partGroups.map((pGroup) => (
-                          <div key={pGroup.partNum} className="space-y-5">
-                            {/* Part Heading: e.g. "Part 1" */}
-                            <div className="flex items-center gap-2.5 pb-2.5 border-b border-white/10">
-                              <span className="w-2.5 h-2.5 rounded-full bg-rose-400"></span>
-                              <h5 className="font-jakarta font-black text-base text-paper uppercase tracking-wider">
-                                {pGroup.partLabel}
-                              </h5>
-                              <span className="text-xs font-mono text-slate/70">
-                                ({pGroup.sections.reduce((acc, s) => acc + s.mistakes.length, 0)} mistakes)
-                              </span>
-                            </div>
+                        {segments.map((seg, sIdx) => {
+                          // Group mistakes by Part, then by Section without unnecessary arrows or nested headings
+                          interface MistakeSectionGroup {
+                            sectionKey: string;
+                            sectionLabel: string;
+                            mistakes: typeof actualMistakes;
+                          }
+                          interface MistakePartGroup {
+                            partNum: number;
+                            partLabel: string;
+                            sections: MistakeSectionGroup[];
+                          }
 
-                            {/* Section Sub-headings and Questions */}
-                            <div className="space-y-6 pl-1 sm:pl-3">
-                              {pGroup.sections.map((sGroup) => (
-                                <div key={sGroup.sectionKey} className="space-y-3.5">
-                                  {/* Section heading: e.g. "1.1" */}
-                                  <div className="flex items-center gap-2">
-                                    <h6 className="font-jakarta font-bold text-xs sm:text-sm text-cyan-400 uppercase tracking-wide">
-                                      Section {sGroup.sectionLabel}
-                                    </h6>
-                                    <span className="text-[10px] font-mono text-slate/60">
-                                      ({sGroup.mistakes.length} {sGroup.mistakes.length === 1 ? 'mistake' : 'mistakes'})
+                          const partGroups: MistakePartGroup[] = [];
+
+                          seg.mistakes.forEach((m) => {
+                            const partNum = m.partNum || 1;
+                            const partLabel = `Part ${partNum}`;
+
+                            // Extract clean Section label (e.g. "1.1", "1.2")
+                            let sectionLabel = `${partNum}.1`;
+                            if (m.subQuestionLabel) {
+                              const secMatch = m.subQuestionLabel.match(/Sec\s+([0-9.]+)/i);
+                              if (secMatch) {
+                                sectionLabel = secMatch[1];
+                              } else {
+                                const dotMatch = m.subQuestionLabel.match(/^(\d+\.\d+)/);
+                                if (dotMatch) {
+                                  sectionLabel = dotMatch[1];
+                                }
+                              }
+                            } else if (m.section) {
+                              const sMatch = m.section.match(/Section\s*([0-9.]+)/i);
+                              if (sMatch) {
+                                sectionLabel = sMatch[1];
+                              } else {
+                                const numMatch = m.section.match(/(\d+\.\d+)/);
+                                if (numMatch) {
+                                  sectionLabel = numMatch[1];
+                                }
+                              }
+                            }
+
+                            let pGroup = partGroups.find((p) => p.partNum === partNum);
+                            if (!pGroup) {
+                              pGroup = {
+                                partNum,
+                                partLabel,
+                                sections: []
+                              };
+                              partGroups.push(pGroup);
+                            }
+
+                            let sGroup = pGroup.sections.find((s) => s.sectionLabel === sectionLabel);
+                            if (!sGroup) {
+                              sGroup = {
+                                sectionKey: `${partNum}-${sectionLabel}`,
+                                sectionLabel,
+                                mistakes: []
+                              };
+                              pGroup.sections.push(sGroup);
+                            }
+
+                            sGroup.mistakes.push(m);
+                          });
+
+                          // Sort parts numerically
+                          partGroups.sort((a, b) => a.partNum - b.partNum);
+
+                          return (
+                            <div key={seg.stage + sIdx} className="space-y-6">
+                              {/* Workflow Phase Header / Separator */}
+                              {seg.stage === 'free_trial' ? (
+                                <div className="p-4 rounded-2xl bg-amber-500/[0.08] border border-amber-500/25 flex flex-wrap items-center justify-between gap-3">
+                                  <div className="flex items-center gap-2.5">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                                    <h5 className="font-jakarta font-black text-xs sm:text-sm text-amber-300 uppercase tracking-wider">
+                                      Free Trial Learning — Mistake Log
+                                    </h5>
+                                    <span className="text-[11px] font-mono text-slate/70">
+                                      ({seg.mistakes.length} mistakes during trial)
                                     </span>
                                   </div>
-
-                                  {/* Question Mistake Cards */}
-                                  <div className="space-y-3">
-                                    {sGroup.mistakes.map((mistake, idx) => (
-                                      <div
-                                        key={mistake.id || idx}
-                                        className="p-5 rounded-2xl bg-rose-500/[0.05] border border-rose-500/20 space-y-3 hover:border-rose-500/35 transition-colors"
-                                      >
-                                        {/* Top header row: Question Number + Timing + Attempt tag */}
-                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="px-2.5 py-0.5 rounded-lg bg-rose-500/15 border border-rose-500/30 font-mono font-bold text-xs text-rose-300">
-                                              Question {mistake.questionNumber}
-                                            </span>
-                                            <span className="font-jakarta font-bold text-sm text-paper">
-                                              {mistake.questionTitle}
-                                            </span>
-                                            {mistake.isRetest && (
-                                              <span className="px-2 py-0.5 rounded-md bg-amber-400/15 border border-amber-400/30 text-amber-300 font-mono text-[10px] font-bold">
-                                                Retest (Attempt {mistake.attemptsCount || 2})
-                                              </span>
-                                            )}
-                                          </div>
-
-                                          <div className="flex items-center gap-3 text-xs font-mono text-slate">
-                                            <span className="flex items-center gap-1 text-slate/90">
-                                              <Clock className="w-3.5 h-3.5 text-primary" />
-                                              <span>Time: <strong className="text-paper">{mistake.timeTakenSeconds > 0 ? `${mistake.timeTakenSeconds}s` : '—'}</strong></span>
-                                            </span>
-                                            <span className="text-slate/40">•</span>
-                                            <span className="text-slate/70 text-[11px]">{mistake.attemptedAt}</span>
-                                          </div>
-                                        </div>
-
-                                        {/* Full Question Text */}
-                                        {mistake.questionPrompt && (
-                                          <div className="p-3.5 rounded-xl bg-black/50 border border-white/5">
-                                            <span className="text-[10px] font-mono uppercase tracking-wider text-slate/70 block mb-1">Question</span>
-                                            <p className="font-sans text-xs sm:text-sm text-paper/95 leading-relaxed whitespace-pre-line">
-                                              {mistake.questionPrompt}
-                                            </p>
-                                          </div>
-                                        )}
-
-                                        {/* Answer Comparison: Student Selected Wrong Answer vs Correct Option */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                          {/* Student's Wrong Answer */}
-                                          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-1.5">
-                                            <div className="flex items-center justify-between">
-                                              <span className="text-[10px] font-mono uppercase tracking-wider text-rose-300 font-bold flex items-center gap-1">
-                                                <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-                                                <span>Student's Wrong Answer</span>
-                                              </span>
-                                              <span className="px-2 py-0.5 rounded-md bg-rose-500 text-white font-mono font-bold text-[11px]">
-                                                Option {mistake.studentOptionId || '?'}
-                                              </span>
-                                            </div>
-                                            <p className="font-sans text-xs text-rose-100 font-medium leading-relaxed">
-                                              {mistake.studentAnswer || 'Incorrect Answer'}
-                                            </p>
-                                          </div>
-
-                                          {/* Correct Option */}
-                                          <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col justify-between">
-                                            <div className="flex items-center justify-between">
-                                              <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-300 font-bold flex items-center gap-1">
-                                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                                                <span>Correct Option</span>
-                                              </span>
-                                              <span className="px-2.5 py-1 rounded-md bg-emerald-500 text-black font-mono font-bold text-xs">
-                                                Option {mistake.correctOptionId || 'A'}
-                                              </span>
-                                            </div>
-                                            <div className="pt-2 text-[11px] font-mono text-emerald-300/80">
-                                              Selected: Option {mistake.studentOptionId || '?'} • Correct: Option {mistake.correctOptionId || 'A'}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
+                                  <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-mono font-bold">
+                                    Pre-Purchase
+                                  </span>
                                 </div>
-                              ))}
+                              ) : (
+                                <div className="p-4 rounded-2xl bg-emerald-500/[0.08] border border-emerald-500/30 flex flex-wrap items-center justify-between gap-3">
+                                  <div className="flex items-center gap-2.5">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                                    <div>
+                                      <h5 className="font-jakarta font-black text-xs sm:text-sm text-emerald-300 uppercase tracking-wider">
+                                        Course Purchased &amp; Unlocked — Mistake Log
+                                      </h5>
+                                      {seg.purchaseDetails && (
+                                        <p className="text-[11px] text-slate/80 font-mono mt-0.5">
+                                          Enrolled: <strong className="text-paper">{seg.purchaseDetails.courseName}</strong> •{' '}
+                                          {new Date(seg.purchaseDetails.purchasedAt).toLocaleString()}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono font-bold">
+                                    {seg.mistakes.length} Post-Purchase Mistakes
+                                  </span>
+                                </div>
+                              )}
+
+                              {seg.mistakes.length === 0 ? (
+                                <div className="p-5 rounded-xl bg-black/40 border border-white/5 text-center text-xs text-slate font-mono">
+                                  {seg.stage === 'purchased_course'
+                                    ? 'No mistakes recorded yet after course purchase. Clean record!'
+                                    : 'No mistakes recorded during free trial.'}
+                                </div>
+                              ) : (
+                                <div className="space-y-6">
+                                  {partGroups.map((pGroup) => (
+                                    <div key={pGroup.partNum} className="space-y-4">
+                                      {/* Part Heading */}
+                                      <div className="flex items-center gap-2 pb-2 border-b border-white/10">
+                                        <span className="w-2 h-2 rounded-full bg-rose-400"></span>
+                                        <h5 className="font-jakarta font-bold text-xs sm:text-sm text-paper uppercase tracking-wider">
+                                          {pGroup.partLabel}
+                                        </h5>
+                                        <span className="text-[11px] font-mono text-slate/70">
+                                          ({pGroup.sections.reduce((acc, s) => acc + s.mistakes.length, 0)} mistakes)
+                                        </span>
+                                      </div>
+
+                                      {/* Section Sub-headings and Questions */}
+                                      <div className="space-y-4 pl-1 sm:pl-2">
+                                        {pGroup.sections.map((sGroup) => (
+                                          <div key={sGroup.sectionKey} className="space-y-2.5">
+                                            {/* Section heading */}
+                                            <div className="flex items-center gap-2">
+                                              <h6 className="font-jakarta font-bold text-xs text-cyan-400 uppercase tracking-wide">
+                                                Section {sGroup.sectionLabel}
+                                              </h6>
+                                              <span className="text-[10px] font-mono text-slate/60">
+                                                ({sGroup.mistakes.length} {sGroup.mistakes.length === 1 ? 'mistake' : 'mistakes'})
+                                              </span>
+                                            </div>
+
+                                            {/* Question Mistake Cards */}
+                                            <div className="space-y-3">
+                                              {sGroup.mistakes.map((mistake, idx) => (
+                                                <div
+                                                  key={mistake.id || idx}
+                                                  className="p-4 sm:p-5 rounded-2xl bg-rose-500/[0.05] border border-rose-500/20 space-y-3 hover:border-rose-500/35 transition-colors"
+                                                >
+                                                  {/* Top header row: Question Number + Timing + Attempt tag */}
+                                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                      <span className="px-2.5 py-0.5 rounded-lg bg-rose-500/15 border border-rose-500/30 font-mono font-bold text-xs text-rose-300">
+                                                        Question {mistake.questionNumber}
+                                                      </span>
+                                                      <span className="font-jakarta font-bold text-sm text-paper">
+                                                        {mistake.questionTitle}
+                                                      </span>
+                                                      {mistake.isRetest && (
+                                                        <span className="px-2 py-0.5 rounded-md bg-amber-400/15 border border-amber-400/30 text-amber-300 font-mono text-[10px] font-bold">
+                                                          Retest (Attempt {mistake.attemptsCount || 2})
+                                                        </span>
+                                                      )}
+                                                    </div>
+
+                                                    <div className="flex items-center gap-3 text-xs font-mono text-slate">
+                                                      <span className="flex items-center gap-1 text-slate/90">
+                                                        <Clock className="w-3.5 h-3.5 text-primary" />
+                                                        <span>Time: <strong className="text-paper">{mistake.timeTakenSeconds > 0 ? `${mistake.timeTakenSeconds}s` : '—'}</strong></span>
+                                                      </span>
+                                                      <span className="text-slate/40">•</span>
+                                                      <span className="text-slate/70 text-[11px]">{mistake.attemptedAt}</span>
+                                                    </div>
+                                                  </div>
+
+                                                  {/* Full Question Text */}
+                                                  {mistake.questionPrompt && (
+                                                    <div className="p-3.5 rounded-xl bg-black/50 border border-white/5">
+                                                      <span className="text-[10px] font-mono uppercase tracking-wider text-slate/70 block mb-1">Question</span>
+                                                      <p className="font-sans text-xs sm:text-sm text-paper/95 leading-relaxed whitespace-pre-line">
+                                                        {mistake.questionPrompt}
+                                                      </p>
+                                                    </div>
+                                                  )}
+
+                                                  {/* Answer Comparison: Student Selected Wrong Answer vs Correct Option */}
+                                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                    {/* Student's Wrong Answer */}
+                                                    <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-1.5">
+                                                      <div className="flex items-center justify-between">
+                                                        <span className="text-[10px] font-mono uppercase tracking-wider text-rose-300 font-bold flex items-center gap-1">
+                                                          <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                                                          <span>Student's Wrong Answer</span>
+                                                        </span>
+                                                        <span className="px-2 py-0.5 rounded-md bg-rose-500 text-white font-mono font-bold text-[11px]">
+                                                          Option {mistake.studentOptionId || '?'}
+                                                        </span>
+                                                      </div>
+                                                      <p className="font-sans text-xs text-rose-100 font-medium leading-relaxed">
+                                                        {mistake.studentAnswer || 'Incorrect Answer'}
+                                                      </p>
+                                                    </div>
+
+                                                    {/* Correct Option */}
+                                                    <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col justify-between">
+                                                      <div className="flex items-center justify-between">
+                                                        <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-300 font-bold flex items-center gap-1">
+                                                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                                          <span>Correct Option</span>
+                                                        </span>
+                                                        <span className="px-2.5 py-1 rounded-md bg-emerald-500 text-black font-mono font-bold text-xs">
+                                                          Option {mistake.correctOptionId || 'A'}
+                                                        </span>
+                                                      </div>
+                                                      <div className="pt-2 text-[11px] font-mono text-emerald-300/80">
+                                                        Selected: Option {mistake.studentOptionId || '?'} • Correct: Option {mistake.correctOptionId || 'A'}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     );
                   })()
