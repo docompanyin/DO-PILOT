@@ -518,7 +518,7 @@ const DEFAULT_COURSES_ITEMS: CourseCardItem[] = [
     badgeColor: 'bg-emerald-400/20 text-emerald-300 border-emerald-400/30',
     image: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80',
     title: 'Full Stack Open Course',
-    description: 'Deep dive into modern full stack web development. Master React, Node.js, Express, TypeScript, GraphQL, REST APIs, and Docker.',
+    description: 'Master modern full stack web development from frontend to backend. Build scalable applications with React, TypeScript, Node.js, Express, GraphQL, and Docker.',
     duration: '14 Parts',
     level: 'Intermediate',
     tags: ['React & TS', 'Node & Express', 'GraphQL & Docker']
