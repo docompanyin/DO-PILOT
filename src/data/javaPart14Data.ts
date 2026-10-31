@@ -907,14 +907,14 @@ public class UserNotificationService {
         codeSnippet: `public class CapstoneMastery {
     public static void main(String[] args) {
         System.out.println("=========================================");
-        System.out.println("🎓 UNIVERSITY OF HELSINKI MOOC I & II 🎓");
+        System.out.println("🎓 COMPLETE JAVA CORE PROGRAMMING 🎓");
         System.out.println("COMPLETE JAVA PROGRAMMING CURRICULUM");
         System.out.println("14 Parts • 84 Compulsory Levels • Mastered!");
         System.out.println("=========================================");
     }
 }`,
         terminalOutput: `=========================================
-🎓 UNIVERSITY OF HELSINKI MOOC I & II 🎓
+🎓 COMPLETE JAVA CORE PROGRAMMING 🎓
 COMPLETE JAVA PROGRAMMING CURRICULUM
 14 Parts • 84 Compulsory Levels • Mastered!
 =========================================`,
@@ -948,7 +948,7 @@ COMPLETE JAVA PROGRAMMING CURRICULUM
       },
       {
         heading: "Graduation and Continuing Your Engineering Journey",
-        text: `Passing Level 14.3 completes your formal training in Complete Java Programming MOOC I & II.\n\nNext Steps for Professional Growth:\n1. Build a Capstone Portfolio Project: Combine JavaFX desktop or Spring Boot web backend with PostgreSQL and the Stream API.\n2. Explore Spring Boot and Jakarta EE: The industry standard for enterprise microservices, REST APIs, and cloud services.\n3. Master Relational Databases (SQL): Write advanced queries and integrate Hibernate/JPA ORM.\n4. Claim your Official Verified DO PILOT Course Certificate of Completion from the course dashboard!\n\nWelcome to the global community of professional Java software engineers!`,
+        text: `Passing Level 14.3 completes your formal training in Complete Java Programming Masterclass.\n\nNext Steps for Professional Growth:\n1. Build a Capstone Portfolio Project: Combine JavaFX desktop or Spring Boot web backend with PostgreSQL and the Stream API.\n2. Explore Spring Boot and Jakarta EE: The industry standard for enterprise microservices, REST APIs, and cloud services.\n3. Master Relational Databases (SQL): Write advanced queries and integrate Hibernate/JPA ORM.\n4. Claim your Official Verified DO PILOT Course Certificate of Completion from the course dashboard!\n\nWelcome to the global community of professional Java software engineers!`,
         codeSnippet: `public class GraduationSummary {
     public static void main(String[] args) {
         String graduate = "Certified Java Developer";

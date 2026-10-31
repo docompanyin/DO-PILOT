@@ -46,6 +46,7 @@ export interface StudentAllCoursesState {
   postPurchaseDecisions?: Record<string, string>;
   part1RestartUsed?: Record<string, boolean>;
   certificates?: Record<string, any>;
+  rawStorage?: Record<string, string>;
   updatedAt: string;
 }
 
@@ -276,6 +277,11 @@ export const initCourseProgressSyncInterceptor = () => {
 
       const st = memoryCourseState[email];
 
+      if (!st.rawStorage) st.rawStorage = {};
+      if (key.startsWith('dopilot_') && !key.includes('session') && !key.includes('pending_')) {
+        st.rawStorage[key] = value;
+      }
+
       if (key.includes('_part1_section_scores')) {
         if (!st.part1SectionScores) st.part1SectionScores = {};
         try {
@@ -399,6 +405,12 @@ export const initCourseProgressSyncInterceptor = () => {
       if (!email || !memoryCourseState[email]) return;
 
       const st = memoryCourseState[email];
+
+      if (st.rawStorage && key.startsWith('dopilot_')) {
+        delete st.rawStorage[key];
+        st.updatedAt = new Date().toISOString();
+        queueCloudSync(email);
+      }
 
       if (key.startsWith('dopilot_locked_') || key.includes('_locked_')) {
         if (st.globalLockedKeys) {
@@ -641,6 +653,15 @@ export const restoreAllStudentCourseProgressFromCloud = async (
 
     isRestoringFromCloud = true;
 
+    // 0. Instant rawStorage hydration for all course keys, attempts, streaks & modals
+    if (cloudState.rawStorage && typeof cloudState.rawStorage === 'object') {
+      Object.entries(cloudState.rawStorage).forEach(([k, v]) => {
+        if (typeof v === 'string' && k.startsWith('dopilot_') && !k.includes('session') && !k.includes('pending_')) {
+          localStorage.setItem(k, v);
+        }
+      });
+    }
+
     // Merge cloud state into memory cache instead of blindly replacing it
     if (!memoryCourseState[cleanEmail]) {
       memoryCourseState[cleanEmail] = cloudState;
@@ -736,10 +757,16 @@ export const restoreAllStudentCourseProgressFromCloud = async (
             targetStudyPhase = false;
           }
           localStorage.setItem(partKeys.studyPhaseKey, String(targetStudyPhase));
-          if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_study_phase', String(targetStudyPhase));
-          if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_study_phase', String(targetStudyPhase));
+          if (courseId === 'java-core' && pNum === 1) {
+            localStorage.setItem('dopilot_java_study_phase', String(targetStudyPhase));
+            localStorage.setItem('dopilot_java_part1_study_phase', String(targetStudyPhase));
+          }
+          if (courseId === 'python-core' && pNum === 1) {
+            localStorage.setItem('dopilot_study_phase', String(targetStudyPhase));
+            localStorage.setItem('dopilot_part1_study_phase', String(targetStudyPhase));
+          }
 
-          if (partState.targetEndTime) {
+          if (partState.targetEndTime && !targetStudyPhase) {
             const curEnd = Number(localStorage.getItem(partKeys.targetEndTimeKey) || '0');
             if (!curEnd || curEnd < Date.now()) {
               localStorage.setItem(partKeys.targetEndTimeKey, String(partState.targetEndTime));
@@ -747,14 +774,26 @@ export const restoreAllStudentCourseProgressFromCloud = async (
               if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_q_target_end_time', String(partState.targetEndTime));
             }
           }
-          if (partState.isTimeUpWaiting) {
+
+          // NEVER trigger false Time's Up on notes page or on answered questions!
+          if (targetStudyPhase || isAnswered) {
+            localStorage.removeItem(partKeys.timeUpKey);
+            if (courseId === 'java-core') {
+              localStorage.removeItem('dopilot_java_time_up');
+              localStorage.removeItem('dopilot_java_part1_time_up');
+            }
+            if (courseId === 'python-core') {
+              localStorage.removeItem('dopilot_time_up');
+              localStorage.removeItem('dopilot_part1_time_up');
+            }
+          } else if (partState.isTimeUpWaiting) {
             localStorage.setItem(partKeys.timeUpKey, 'true');
-            if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_time_up', 'true');
-            if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_time_up', 'true');
+            if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_time_up', 'true');
+            if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_time_up', 'true');
           } else {
             localStorage.removeItem(partKeys.timeUpKey);
-            if (courseId === 'java-core' && pNum === 1) localStorage.removeItem('dopilot_java_part1_time_up');
-            if (courseId === 'python-core' && pNum === 1) localStorage.removeItem('dopilot_part1_time_up');
+            if (courseId === 'java-core' && pNum === 1) localStorage.removeItem('dopilot_java_time_up');
+            if (courseId === 'python-core' && pNum === 1) localStorage.removeItem('dopilot_time_up');
           }
           if (partState.isCompleted) {
             localStorage.setItem(partKeys.completedKey, 'true');

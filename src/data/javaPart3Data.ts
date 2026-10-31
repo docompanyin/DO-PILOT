@@ -620,7 +620,7 @@ export const PART_3_SECTIONS: SectionContent[] = [
       {
         heading: "Searching Strings with .contains() & .indexOf()",
         text: "To determine if a substring exists within a String, call 'text.contains(sub)'. To find the exact index position where the substring starts, call 'text.indexOf(sub)'. If the substring is not found, indexOf returns -1.",
-        codeSnippet: "public class StringSearch {\n    public static void main(String[] args) {\n        String phrase = \"university of helsinki\";\n        System.out.println(phrase.contains(\"helsinki\"));\n        System.out.println(phrase.indexOf(\"helsinki\"));\n        System.out.println(phrase.indexOf(\"java\"));\n    }\n}",
+        codeSnippet: "public class StringSearch {\n    public static void main(String[] args) {\n        String phrase = \"do pilot learning academy\";\n        System.out.println(phrase.contains(\"pilot\"));\n        System.out.println(phrase.indexOf(\"pilot\"));\n        System.out.println(phrase.indexOf(\"java\"));\n    }\n}",
         terminalOutput: "true\n14\n-1",
         tip: "Checking 'text.indexOf(sub) != -1' is logically identical to 'text.contains(sub)'.",
         mcq: {

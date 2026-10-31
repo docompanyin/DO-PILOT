@@ -189,7 +189,7 @@ export const JavaPart7Page: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     document.title = `Do Pilot - ${activeSection.title}`;
     try {
-      localStorage.setItem('dopilot_java_core_last_part', '6');
+      localStorage.setItem('dopilot_java_core_last_part', '7');
     } catch {}
   }, [activeSectionId, activeQuestionIdx]);
 

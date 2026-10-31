@@ -485,8 +485,8 @@ export const CourseDetailPage: React.FC = () => {
       localStorage.setItem('dopilot_java_core_last_part', '1');
       navigate('/course/complete-java-programming/part-1');
     } else if (isCourseFullstack) {
-      localStorage.setItem('dopilot_fullstack_core_last_part', '1');
-      navigate('/course/fullstack-open/part-1');
+      localStorage.setItem('dopilot_fullstack_core_last_part', '0');
+      navigate('/course/fullstack-open/part-0');
     } else if (isCourseCyber) {
       localStorage.setItem('dopilot_cyber_core_last_part', '1');
       navigate('/course/cyber-security/part-1');
