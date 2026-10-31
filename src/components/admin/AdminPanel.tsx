@@ -8079,14 +8079,10 @@ export const AdminPanel: React.FC = () => {
           <div className="rounded-3xl border border-white/10 bg-[#0c0d10] shadow-2xl overflow-hidden">
             {/* Table Meta Bar */}
             <div className="px-6 py-3.5 bg-white/[0.02] border-b border-white/10 flex items-center justify-between text-xs text-slate">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <div className="flex items-center gap-1.5">
                 <span className="font-mono text-paper font-bold">{filteredStudents.length}</span>
                 <span>{filteredStudents.length === 1 ? 'student record' : 'student records'}</span>
               </div>
-              <span className="text-[11px] font-mono text-slate/50 hidden sm:inline">
-                Click "Inspect" to view full quiz history, mistakes &amp; onboarding details
-              </span>
             </div>
 
             <div className="overflow-x-auto">
