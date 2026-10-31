@@ -592,6 +592,13 @@ export const AdminPanel: React.FC = () => {
     totalStudyTimeMinutes?: number;
     codeExecutionsCount?: number;
     questionAttempts?: StudentQuestionAttempt[];
+    lastCompletedQuestion?: {
+      partNum: number;
+      subQuestionLabel: string;
+      sectionTitle: string;
+      questionTitle: string;
+      completedAt: string;
+    };
   }
 
   const PYTHON_CURRICULUM_QUESTIONS = (() => {
@@ -934,6 +941,45 @@ export const AdminPanel: React.FC = () => {
               });
             }
 
+            // Determine exact last completed question & learning position
+            let lastCompletedQuestion: {
+              partNum: number;
+              subQuestionLabel: string;
+              sectionTitle: string;
+              questionTitle: string;
+              completedAt: string;
+            } | undefined = undefined;
+
+            const correctAttempts = attemptsFromCloud.filter((a) => a.isCorrect);
+            if (correctAttempts.length > 0) {
+              const sortedCorrect = [...correctAttempts].sort(
+                (a, b) => new Date(a.attemptedAt).getTime() - new Date(b.attemptedAt).getTime()
+              );
+              const lastOne = sortedCorrect[sortedCorrect.length - 1];
+              lastCompletedQuestion = {
+                partNum: lastOne.partNum || 1,
+                subQuestionLabel: lastOne.subQuestionLabel || `Part ${lastOne.partNum || 1} -> Q${lastOne.questionIndex}`,
+                sectionTitle: lastOne.sectionTitle || `Part ${lastOne.partNum || 1}`,
+                questionTitle: lastOne.questionTitle || 'Question Completed',
+                completedAt: lastOne.attemptedAt || new Date().toISOString()
+              };
+            } else if (solvedCount > 0) {
+              const solvedEntries = Object.values(solvedTasks) as any[];
+              const sortedSolved = solvedEntries.sort(
+                (a, b) => new Date(a.solvedAt || 0).getTime() - new Date(b.solvedAt || 0).getTime()
+              );
+              const lastSolved = sortedSolved[sortedSolved.length - 1];
+              if (lastSolved) {
+                lastCompletedQuestion = {
+                  partNum: 1,
+                  subQuestionLabel: lastSolved.id || 'Challenge Completed',
+                  sectionTitle: 'Course Curriculum',
+                  questionTitle: lastSolved.title || 'Challenge Solved',
+                  completedAt: lastSolved.solvedAt || new Date().toISOString()
+                };
+              }
+            }
+
             return {
               id: p.id,
               name: p.name || 'Student',
@@ -984,7 +1030,8 @@ export const AdminPanel: React.FC = () => {
                 status: item.status,
                 explanation: item.explanation,
                 options: []
-              })) : undefined
+              })) : undefined,
+              lastCompletedQuestion
             };
           });
         }
@@ -4670,26 +4717,45 @@ export const AdminPanel: React.FC = () => {
       drawKpiTile(40 + (tileWidth + 5) * 4, `${metrics.avgTime}s`, "AVG RESPONSE", [238, 242, 255], [79, 70, 229]);
       drawKpiTile(40 + (tileWidth + 5) * 5, `${metrics.fastestTime}s / ${metrics.slowestTime}s`, "FAST / SLOW", [255, 251, 235], [180, 83, 9]);
 
-      // Certificate Banner
+      // Certificate Banner & Last Completed Position
       y = 246;
       if (s.hasCertificate) {
         doc.setFillColor(254, 249, 195);
-        doc.rect(40, y, pageWidth - 80, 26, 'F');
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(133, 77, 14);
-        doc.text(`[VERIFIED CERTIFIED] Certificate ID: ${s.certificateId || 'CERT-DO-PILOT'} issued on ${s.certificateIssuedDate || 'Completed'}`, 50, y + 17);
-      } else {
-        doc.setFillColor(241, 245, 249);
-        doc.rect(40, y, pageWidth - 80, 26, 'F');
+        doc.rect(40, y, pageWidth - 80, 24, 'F');
         doc.setFont("helvetica", "bold");
         doc.setFontSize(8.5);
+        doc.setTextColor(133, 77, 14);
+        doc.text(`[VERIFIED CERTIFIED] Certificate ID: ${s.certificateId || 'CERT-DO-PILOT'} issued on ${s.certificateIssuedDate || 'Completed'}`, 50, y + 15);
+      } else {
+        doc.setFillColor(241, 245, 249);
+        doc.rect(40, y, pageWidth - 80, 24, 'F');
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
         doc.setTextColor(100, 116, 139);
-        doc.text(`Certificate Status: In Progress (${s.points} / 20 points achieved)`, 50, y + 17);
+        doc.text(`Certificate Status: In Progress (${s.points} / 20 points achieved)`, 50, y + 15);
       }
 
+      // Latest Learning Position Banner
+      y = 274;
+      const correctAttempts = attempts.filter((a) => a.isCorrect);
+      const lastDone = correctAttempts.length > 0
+        ? [...correctAttempts].sort((a, b) => new Date(a.attemptedAt).getTime() - new Date(b.attemptedAt).getTime())[correctAttempts.length - 1]
+        : null;
+      const displayLast = lastDone || s.lastCompletedQuestion;
+
+      doc.setFillColor(240, 253, 244);
+      doc.setDrawColor(187, 247, 208);
+      doc.rect(40, y, pageWidth - 80, 22, 'FD');
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(22, 101, 52);
+      const lastLabel = displayLast
+        ? `LATEST COMPLETED QUESTION: ${displayLast.subQuestionLabel} - ${displayLast.questionTitle} (${displayLast.sectionTitle})`
+        : 'LATEST COMPLETED QUESTION: None';
+      doc.text(lastLabel.slice(0, 110), 48, y + 14);
+
       // Section 1: Detailed Question-by-Question Answering Log & Time Telemetry
-      y = 290;
+      y = 312;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(15, 23, 42);
@@ -5416,6 +5482,50 @@ export const AdminPanel: React.FC = () => {
                 <span className="text-[10px] font-mono text-slate/50 block">Per question (30s limit)</span>
               </div>
             </div>
+
+            {/* Exact Last Completed Question & Current Learning Position Card */}
+            {(() => {
+              const correctAttempts = attempts.filter((a) => a.isCorrect);
+              const lastDone = correctAttempts.length > 0
+                ? [...correctAttempts].sort((a, b) => new Date(a.attemptedAt).getTime() - new Date(b.attemptedAt).getTime())[correctAttempts.length - 1]
+                : null;
+              const displayLast = lastDone || student.lastCompletedQuestion;
+
+              return (
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-primary/5 to-transparent border border-emerald-500/25 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shrink-0">
+                      <CheckCircle2 className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+                          Latest Learning Position
+                        </span>
+                        {displayLast?.subQuestionLabel && (
+                          <span className="text-xs font-mono font-bold text-paper">
+                            {displayLast.subQuestionLabel}
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-jakarta font-bold text-xs sm:text-sm text-paper block truncate mt-0.5">
+                        {displayLast
+                          ? `${displayLast.questionTitle} (${displayLast.sectionTitle})`
+                          : 'Student has not completed a question yet'}
+                      </span>
+                    </div>
+                  </div>
+                  {displayLast?.completedAt && (
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] font-mono text-slate/60 block uppercase">Completed Timestamp</span>
+                      <span className="text-xs font-mono text-emerald-300 font-semibold">
+                        {new Date(displayLast.completedAt).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* TAB 1: QUESTION-BY-QUESTION TELEMETRY & EXACT ANSWER TIMES */}
             {inspectTab === 'telemetry' && (
@@ -7780,6 +7890,12 @@ export const AdminPanel: React.FC = () => {
                               <span className="font-mono text-xs text-slate/70 truncate block mt-0.5">
                                 {student.email}
                               </span>
+                              {student.lastCompletedQuestion && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400 mt-1 truncate max-w-[280px]">
+                                  <CheckCircle2 className="w-2.5 h-2.5 shrink-0" />
+                                  <span className="truncate">{student.lastCompletedQuestion.subQuestionLabel}: {student.lastCompletedQuestion.questionTitle}</span>
+                                </span>
+                              )}
                             </div>
                           </div>
                         </td>
