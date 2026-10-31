@@ -796,8 +796,10 @@ export const AdminPanel: React.FC = () => {
   const [selectedStudentForReport, setSelectedStudentForReport] = useState<StudentAdminRecord | null>(null);
   const [inspectTab, setInspectTab] = useState<'telemetry' | 'mistakes' | 'mastery' | 'profile'>('telemetry');
   const [inspectCourseFilter, setInspectCourseFilter] = useState<string>('all');
-  const [telemetryFilter, setTelemetryFilter] = useState<'all' | 'purchased' | 'correct' | 'wrong' | 'fast' | 'normal' | 'slow'>('all');
-  const [mistakeFilter, setMistakeFilter] = useState<'all' | 'purchased' | 'wrong' | 'fast' | 'normal' | 'slow'>('all');
+  const [telemetryFilter, setTelemetryFilter] = useState<'all' | 'correct' | 'wrong' | 'fast' | 'normal' | 'slow'>('all');
+  const [telemetryActivityType, setTelemetryActivityType] = useState<'all' | 'purchased' | 'trial'>('all');
+  const [mistakeFilter, setMistakeFilter] = useState<'all' | 'wrong' | 'fast' | 'normal' | 'slow'>('all');
+  const [mistakeActivityType, setMistakeActivityType] = useState<'all' | 'purchased' | 'trial'>('all');
   const [telemetrySearch, setTelemetrySearch] = useState('');
   const [mistakeSearch, setMistakeSearch] = useState('');
   const [inspectTelemetryVersion, setInspectTelemetryVersion] = useState<number>(0);
@@ -5540,9 +5542,23 @@ export const AdminPanel: React.FC = () => {
 
     // Filter attempts for Question, Time & Answers
     const filteredAttempts = attempts.filter((att) => {
-      if (telemetryFilter === 'purchased') {
-        if (new Date(att.attemptedAt).getTime() < purchaseTime) return false;
+      // Find course-specific purchase time if available, otherwise fallback to first purchase
+      const cId = att.courseId || 'python-core';
+      const cPurchase = studentPurchases.find((p) => {
+        const pNorm = (p.courseId || p.courseName || '').toLowerCase().replace(/[\s_-]+/g, '');
+        const cNorm = cId.toLowerCase().replace(/[\s_-]+/g, '');
+        return pNorm.includes(cNorm) || cNorm.includes(pNorm);
+      }) || firstPurchase;
+      const attPurchaseTime = cPurchase ? new Date(cPurchase.purchasedAt).getTime() : Infinity;
+
+      // Activity Type filter: All | Purchased Course Only | Free Trial Only
+      if (telemetryActivityType === 'purchased') {
+        if (new Date(att.attemptedAt).getTime() < attPurchaseTime) return false;
+      } else if (telemetryActivityType === 'trial') {
+        if (new Date(att.attemptedAt).getTime() >= attPurchaseTime) return false;
       }
+
+      // Performance / Pacing filters
       if (telemetryFilter === 'correct' && !att.isCorrect) return false;
       if (telemetryFilter === 'wrong' && att.isCorrect) return false;
       if (telemetryFilter === 'fast' && (att.speedCategory !== 'fast' || att.timeTakenSeconds <= 0)) return false;
@@ -5563,9 +5579,24 @@ export const AdminPanel: React.FC = () => {
 
     // Filter actual mistakes for Mistake Log
     const filteredMistakes = actualMistakes.filter((m) => {
-      if (mistakeFilter === 'purchased') {
-        if (new Date(m.attemptedAt).getTime() < purchaseTime) return false;
+      // Find course-specific purchase time if available, otherwise fallback to first purchase
+      const cId = m.courseId || 'python-core';
+      const cPurchase = studentPurchases.find((p) => {
+        const pNorm = (p.courseId || p.courseName || '').toLowerCase().replace(/[\s_-]+/g, '');
+        const cNorm = cId.toLowerCase().replace(/[\s_-]+/g, '');
+        return pNorm.includes(cNorm) || cNorm.includes(pNorm);
+      }) || firstPurchase;
+      const mPurchaseTime = cPurchase ? new Date(cPurchase.purchasedAt).getTime() : Infinity;
+
+      // Activity Type filter: All | Purchased Course Only | Free Trial Only
+      if (mistakeActivityType === 'purchased') {
+        if (new Date(m.attemptedAt).getTime() < mPurchaseTime) return false;
+      } else if (mistakeActivityType === 'trial') {
+        if (new Date(m.attemptedAt).getTime() >= mPurchaseTime) return false;
       }
+
+      // Performance / Pacing filters
+      if (mistakeFilter === 'wrong' && m.isCorrect) return false;
       if (mistakeFilter === 'fast' && (m.speedCategory !== 'fast' || m.timeTakenSeconds <= 0)) return false;
       if (mistakeFilter === 'normal' && (m.speedCategory !== 'normal' || m.timeTakenSeconds <= 0)) return false;
       if (mistakeFilter === 'slow' && ((m.speedCategory !== 'slow' && m.speedCategory !== 'timeout') || m.timeTakenSeconds <= 0)) return false;
@@ -5859,6 +5890,27 @@ export const AdminPanel: React.FC = () => {
                       </select>
                     </div>
 
+                    {/* Activity Type Dropdown: All | Purchased Course Only | Free Trial Only */}
+                    <div className="flex items-center gap-1.5 bg-[#0a0b0d] border border-white/15 px-2.5 py-1 rounded-lg">
+                      <ShoppingBag className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="text-[10px] font-mono text-slate/80 font-bold uppercase">Activity Type:</span>
+                      <select
+                        value={telemetryActivityType}
+                        onChange={(e) => setTelemetryActivityType(e.target.value as 'all' | 'purchased' | 'trial')}
+                        className="bg-transparent text-paper font-jakarta text-xs font-bold focus:outline-none cursor-pointer pr-1"
+                      >
+                        <option value="all" className="bg-[#111215] text-paper">
+                          All
+                        </option>
+                        <option value="purchased" className="bg-[#111215] text-paper">
+                          Purchased Course Only
+                        </option>
+                        <option value="trial" className="bg-[#111215] text-paper">
+                          Free Trial Only
+                        </option>
+                      </select>
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => setTelemetryFilter('all')}
@@ -5869,21 +5921,6 @@ export const AdminPanel: React.FC = () => {
                       }`}
                     >
                       All ({attempts.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTelemetryFilter('purchased')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                        telemetryFilter === 'purchased'
-                          ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20'
-                          : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20'
-                      }`}
-                    >
-                      <ShoppingBag className="w-3.5 h-3.5" />
-                      <span>Purchased Course Only</span>
-                      <span className="px-1.5 py-0.2 rounded text-[10px] bg-black/20 font-bold">
-                        {attempts.filter((a) => new Date(a.attemptedAt).getTime() >= purchaseTime).length}
-                      </span>
                     </button>
                     <button
                       type="button"
@@ -6016,7 +6053,7 @@ export const AdminPanel: React.FC = () => {
                           );
 
                           const segments: WorkflowSegment[] = [];
-                          if (telemetryFilter !== 'purchased' && trialAttempts.length > 0) {
+                          if (trialAttempts.length > 0) {
                             segments.push({
                               stage: 'free_trial',
                               stageLabel: 'Free Trial Activity',
@@ -6345,6 +6382,27 @@ export const AdminPanel: React.FC = () => {
                       </select>
                     </div>
 
+                    {/* Activity Type Dropdown: All | Purchased Course Only | Free Trial Only */}
+                    <div className="flex items-center gap-1.5 bg-[#121316] border border-white/15 px-2.5 py-1 rounded-lg">
+                      <ShoppingBag className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="text-[10px] font-mono text-slate/80 font-bold uppercase">Activity Type:</span>
+                      <select
+                        value={mistakeActivityType}
+                        onChange={(e) => setMistakeActivityType(e.target.value as 'all' | 'purchased' | 'trial')}
+                        className="bg-transparent text-paper font-jakarta text-xs font-bold focus:outline-none cursor-pointer pr-1"
+                      >
+                        <option value="all" className="bg-[#111215] text-paper">
+                          All
+                        </option>
+                        <option value="purchased" className="bg-[#111215] text-paper">
+                          Purchased Course Only
+                        </option>
+                        <option value="trial" className="bg-[#111215] text-paper">
+                          Free Trial Only
+                        </option>
+                      </select>
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => setMistakeFilter('all')}
@@ -6355,21 +6413,6 @@ export const AdminPanel: React.FC = () => {
                       }`}
                     >
                       All ({actualMistakes.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMistakeFilter('purchased')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                        mistakeFilter === 'purchased'
-                          ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20'
-                          : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20'
-                      }`}
-                    >
-                      <ShoppingBag className="w-3.5 h-3.5" />
-                      <span>Purchased Course Only</span>
-                      <span className="px-1.5 py-0.2 rounded text-[10px] bg-black/20 font-bold">
-                        {actualMistakes.filter((m) => new Date(m.attemptedAt).getTime() >= purchaseTime).length}
-                      </span>
                     </button>
                     <button
                       type="button"
@@ -6424,7 +6467,7 @@ export const AdminPanel: React.FC = () => {
                     <p className="text-slate/60 text-[11px]">
                       {actualMistakes.length === 0
                         ? "This student has completed all attempted questions without an incorrect answer on record."
-                        : mistakeFilter === 'purchased'
+                        : mistakeActivityType === 'purchased'
                         ? "No mistakes recorded after course purchase. Clean post-purchase record!"
                         : "No mistakes matched your search or selected filter."}
                     </p>
@@ -6489,7 +6532,7 @@ export const AdminPanel: React.FC = () => {
                           }
 
                           const segments: MistakeWorkflowSegment[] = [];
-                          if (mistakeFilter !== 'purchased' && trialMistakes.length > 0) {
+                          if (trialMistakes.length > 0) {
                             segments.push({
                               stage: 'free_trial',
                               stageLabel: 'Free Trial Activity',
