@@ -9,6 +9,7 @@ import { PythonCompilerLauncherButton, TaskContext } from './compiler/PythonComp
 import { useCoursePoints } from '../context/CoursePointsContext';
 import { getSavedCertificate } from '../utils/certificateGenerator';
 import { useUserAuth } from '../context/UserAuthContext';
+import { useCourseQuestionResume, saveQuestionProgressState } from '../utils/courseProgressSyncService';
 import { ContactModal } from './ContactModal';
 import { NeedHelpModal } from './NeedHelpModal';
 import { 
@@ -168,6 +169,25 @@ export const PythonPart2Page: React.FC = () => {
     } catch {
       return false;
     }
+  });
+
+  useCourseQuestionResume({
+    courseId: 'python-core',
+    partNum: 2,
+    studentEmail: user?.email,
+    activeSectionId,
+    setActiveSectionId,
+    activeQuestionIdx,
+    setActiveQuestionIdx,
+    setSelectedAnswers,
+    setIsStudyPhase,
+    setIsTimeUpWaiting,
+    setTimeLeft,
+    setTargetEndTime,
+    validSectionIds: PART_2_SECTIONS.map(s => s.id),
+    levelResult,
+    setLevelResult,
+    setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete)
   });
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -336,6 +356,20 @@ export const PythonPart2Page: React.FC = () => {
       } catch (e) {
         console.error(e);
       }
+
+      saveQuestionProgressState({
+        courseId: 'python-core',
+        partNum: 2,
+        activeSectionId: activeSection.id,
+        activeQuestionIdx: nextQ,
+        selectedAnswers: stateRef.current.selectedAnswers,
+        isStudyPhase: true,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: TIMER_DURATION,
+        studentEmail: user?.email,
+        levelResult: null
+      });
     } else {
       // Finished all questions in current level! Evaluate level exam
       evaluateLevelScore();
@@ -421,6 +455,22 @@ export const PythonPart2Page: React.FC = () => {
       try {
         localStorage.setItem('dopilot_part2_completed', 'true');
       } catch {}
+
+      saveQuestionProgressState({
+        courseId: 'python-core',
+        partNum: 2,
+        activeSectionId: activeSection.id,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase: false,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: 30,
+        studentEmail: user?.email,
+        isCompleted: true,
+        isFinishedPart: true,
+        levelResult: null
+      });
     }
   };
 

@@ -309,6 +309,23 @@ export const FullstackPart1Page: React.FC = () => {
     return false;
   });
 
+  
+
+  const [isCourseComplete, setIsCourseComplete] = useState<boolean>(() => {
+    try {
+      const decision = getPostPurchaseDecision('fullstack-open', studentId);
+      if (decision === 'retry_part1') {
+        return false;
+      }
+      const finished = localStorage.getItem('dopilot_fullstack_part1_finished') === 'true';
+      const saved = localStorage.getItem('dopilot_fullstack_part1_completed') === 'true';
+      if (saved || finished) return true;
+      return false;
+    } catch {
+      return false;
+    }
+  });
+
   useCourseQuestionResume({
     courseId: 'fullstack-open',
     partNum: 1,
@@ -326,21 +343,6 @@ export const FullstackPart1Page: React.FC = () => {
     levelResult,
     setLevelResult,
     setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete)
-  });
-
-  const [isCourseComplete, setIsCourseComplete] = useState<boolean>(() => {
-    try {
-      const decision = getPostPurchaseDecision('fullstack-open', studentId);
-      if (decision === 'retry_part1') {
-        return false;
-      }
-      const finished = localStorage.getItem('dopilot_fullstack_part1_finished') === 'true';
-      const saved = localStorage.getItem('dopilot_fullstack_part1_completed') === 'true';
-      if (saved || finished) return true;
-      return false;
-    } catch {
-      return false;
-    }
   });
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
