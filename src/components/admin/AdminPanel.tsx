@@ -22,10 +22,13 @@ import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import {
   StudentHelpMessage,
   getStudentHelpMessages,
+  syncStudentHelpFromCloud,
   updateStudentHelpMessageStatus,
   updateStudentHelpMessageNotes,
   deleteStudentHelpMessage,
-  clearResolvedStudentHelpMessages
+  clearResolvedStudentHelpMessages,
+  syncSupportChannelsFromCloud,
+  persistSupportChannelsToCloud
 } from '../../utils/studentHelpService';
 import {
   RewardRequest,
@@ -143,15 +146,19 @@ export const AdminPanel: React.FC = () => {
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // Student Help & Direct Contact Tickets State
+  // Student Help & Direct Contact Tickets State (Pending & Resolved Only)
   const [helpMessages, setHelpMessages] = useState<StudentHelpMessage[]>(() => getStudentHelpMessages());
   const [helpSearch, setHelpSearch] = useState('');
-  const [helpStatusFilter, setHelpStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'resolved'>('all');
+  const [helpStatusFilter, setHelpStatusFilter] = useState<'all' | 'pending' | 'resolved'>('all');
   const [helpCourseFilter, setHelpCourseFilter] = useState<string>('all');
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
   const [editingNotesText, setEditingNotesText] = useState('');
 
   useEffect(() => {
+    syncStudentHelpFromCloud().then(res => {
+      if (res) setHelpMessages(res);
+    });
+
     const handleHelpUpdate = () => {
       setHelpMessages(getStudentHelpMessages());
     };
@@ -433,7 +440,7 @@ export const AdminPanel: React.FC = () => {
     };
 
     try {
-      localStorage.setItem('dopilot_support_channels_v1', JSON.stringify(updatedChannels));
+      persistSupportChannelsToCloud(updatedChannels).catch(() => {});
       window.dispatchEvent(new CustomEvent('dopilot_support_channels_updated'));
     } catch (e) {}
 
@@ -9163,34 +9170,34 @@ export const AdminPanel: React.FC = () => {
     });
 
     const pendingCount = helpMessages.filter(m => m.status === 'pending').length;
-    const inProgressCount = helpMessages.filter(m => m.status === 'in_progress').length;
+    
     const resolvedCount = helpMessages.filter(m => m.status === 'resolved').length;
 
-    const handleStatusChange = (id: string, newStatus: 'pending' | 'in_progress' | 'resolved') => {
-      const updated = updateStudentHelpMessageStatus(id, newStatus);
+    const handleStatusChange = async (id: string, newStatus: 'pending' | 'resolved') => {
+      const updated = await updateStudentHelpMessageStatus(id, newStatus);
       setHelpMessages(updated);
       showToast(`Ticket status updated to "${newStatus.replace('_', ' ')}"`);
     };
 
-    const handleSaveNotes = (id: string) => {
-      const updated = updateStudentHelpMessageNotes(id, editingNotesText);
+    const handleSaveNotes = async (id: string) => {
+      const updated = await updateStudentHelpMessageNotes(id, editingNotesText);
       setHelpMessages(updated);
       setEditingNotesId(null);
       setEditingNotesText('');
       showToast('Admin notes saved successfully');
     };
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
       if (window.confirm('Are you sure you want to delete this help ticket?')) {
-        const updated = deleteStudentHelpMessage(id);
+        const updated = await deleteStudentHelpMessage(id);
         setHelpMessages(updated);
         showToast('Ticket deleted');
       }
     };
 
-    const handleClearResolved = () => {
+    const handleClearResolved = async () => {
       if (window.confirm('Are you sure you want to clear all resolved help tickets?')) {
-        const updated = clearResolvedStudentHelpMessages();
+        const updated = await clearResolvedStudentHelpMessages();
         setHelpMessages(updated);
         showToast('All resolved tickets cleared');
       }
@@ -9252,7 +9259,7 @@ export const AdminPanel: React.FC = () => {
           </div>
 
           {/* Metric Badges Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 mt-6 border-t border-white/10 relative z-10">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-6 mt-6 border-t border-white/10 relative z-10">
             <div className="p-3.5 rounded-2xl bg-black/50 border border-white/5">
               <span className="font-mono text-[10px] text-slate uppercase block">Total Tickets</span>
               <span className="font-jakarta text-2xl font-black text-paper mt-1 block">
@@ -9270,12 +9277,6 @@ export const AdminPanel: React.FC = () => {
               </span>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-sky-500/10 border border-sky-500/20">
-              <span className="font-mono text-[10px] text-sky-300 uppercase block">In Progress</span>
-              <span className="font-jakarta text-2xl font-black text-sky-300 mt-1 block">
-                {inProgressCount}
-              </span>
-            </div>
 
             <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
               <span className="font-mono text-[10px] text-emerald-300 uppercase block">Resolved</span>
@@ -9410,7 +9411,7 @@ export const AdminPanel: React.FC = () => {
 
           {/* Status Tabs & Course Filter */}
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            {(['all', 'pending', 'in_progress', 'resolved'] as const).map((st) => (
+            {(['all', 'pending', 'resolved'] as const).map((st) => (
               <button
                 key={st}
                 type="button"
@@ -9423,7 +9424,6 @@ export const AdminPanel: React.FC = () => {
               >
                 {st === 'all' && `All (${helpMessages.length})`}
                 {st === 'pending' && `Pending (${pendingCount})`}
-                {st === 'in_progress' && `In Progress (${inProgressCount})`}
                 {st === 'resolved' && `Resolved (${resolvedCount})`}
               </button>
             ))}
@@ -9477,8 +9477,6 @@ export const AdminPanel: React.FC = () => {
                   className={`p-5 sm:p-6 rounded-3xl bg-[#0c0d0e] border transition-all space-y-4 shadow-xl ${
                     item.status === 'pending'
                       ? 'border-amber-500/40 bg-gradient-to-r from-amber-500/[0.03] to-transparent'
-                      : item.status === 'in_progress'
-                      ? 'border-sky-500/40 bg-gradient-to-r from-sky-500/[0.03] to-transparent'
                       : 'border-white/10 opacity-90'
                   }`}
                 >
@@ -9489,8 +9487,6 @@ export const AdminPanel: React.FC = () => {
                         className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-[10px] font-bold uppercase tracking-wider ${
                           item.status === 'pending'
                             ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                            : item.status === 'in_progress'
-                            ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
                             : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                         }`}
                       >
@@ -9498,12 +9494,10 @@ export const AdminPanel: React.FC = () => {
                           className={`w-1.5 h-1.5 rounded-full ${
                             item.status === 'pending'
                               ? 'bg-amber-400 animate-pulse'
-                              : item.status === 'in_progress'
-                              ? 'bg-sky-400'
                               : 'bg-emerald-400'
                           }`}
                         />
-                        <span>{item.status.replace('_', ' ')}</span>
+                        <span>{item.status === 'pending' ? 'Pending' : 'Resolved'}</span>
                       </span>
 
                       <span className="font-mono text-xs text-slate/80 font-bold">
@@ -11874,9 +11868,9 @@ export const AdminPanel: React.FC = () => {
 
   const renderSidebarContent = (isMobile = false) => {
     return (
-      <div className="flex flex-col h-full bg-[#0a0b0c] text-paper">
+      <div className="flex flex-col h-full bg-black text-paper">
         {/* Brand / Logo Header */}
-        <div className="p-4 border-b border-white/10 flex items-center justify-between gap-3 shrink-0">
+        <div className="p-4 flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <img
               src={data.navbar?.companyLogo || 'https://res.cloudinary.com/ufo0zltq/image/upload/v1786197046/Do_PNG_ssyhu1.png'}
@@ -12192,19 +12186,11 @@ export const AdminPanel: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#070809] text-paper flex flex-col font-sans selection:bg-primary selection:text-ink relative">
+    <div className="min-h-screen bg-black text-paper flex flex-col font-sans selection:bg-primary selection:text-ink relative">
       
       {/* Background Ambient Radial Glow */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-gradient-to-b from-primary/10 via-teal-500/5 to-transparent blur-[140px] pointer-events-none z-0" />
 
-      {/* Subtle Grid Accent */}
-      <div 
-        className="fixed inset-0 z-0 opacity-[0.035] pointer-events-none"
-        style={{
-          backgroundImage: `linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)`,
-          backgroundSize: '48px 48px'
-        }}
-      />
 
       {/* Toast Notification */}
       {toastMsg && (
@@ -12221,7 +12207,7 @@ export const AdminPanel: React.FC = () => {
             className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
             onClick={() => setMobileSidebarOpen(false)}
           />
-          <aside className="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-[#0a0b0c] border-r border-white/10 flex flex-col z-50 shadow-2xl overflow-hidden">
+          <aside className="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-black border-r border-white/10 flex flex-col z-50 shadow-2xl overflow-hidden">
             {renderSidebarContent(true)}
           </aside>
         </div>
@@ -12231,7 +12217,7 @@ export const AdminPanel: React.FC = () => {
       <div className="flex-1 flex min-h-screen relative z-10">
         
         {/* Desktop Fixed Left Sidebar */}
-        <aside className="hidden lg:flex w-72 shrink-0 flex-col bg-[#0a0b0c] border-r border-white/10 sticky top-0 h-screen overflow-hidden">
+        <aside className="hidden lg:flex w-72 shrink-0 flex-col bg-black border-r border-white/10 sticky top-0 h-screen overflow-hidden">
           {renderSidebarContent(false)}
         </aside>
 
@@ -12239,7 +12225,7 @@ export const AdminPanel: React.FC = () => {
         <div className="flex-1 flex flex-col min-w-0">
           
           {/* Top Header Bar */}
-          <header className="sticky top-0 z-30 bg-[#08090a]/95 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+          <header className="sticky top-0 z-30 bg-[#08090a]/95 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
             {/* Left: Mobile Drawer Trigger + Breadcrumb */}
             <div className="flex items-center gap-3 min-w-0">
               <button

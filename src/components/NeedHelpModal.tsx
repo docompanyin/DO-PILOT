@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useUserAuth } from '../context/UserAuthContext';
 import { useSiteData } from '../context/DataContext';
-import { submitStudentHelpMessage } from '../utils/studentHelpService';
+import { submitStudentHelpMessage, getSupportChannels, syncSupportChannelsFromCloud } from '../utils/studentHelpService';
 import { WhatsappIcon } from './SocialIcons';
 
 interface NeedHelpModalProps {
@@ -22,17 +22,6 @@ interface NeedHelpModalProps {
   courseTitle: string;
   courseId: string;
 }
-
-const getSupportChannels = () => {
-  try {
-    const raw = localStorage.getItem('dopilot_support_channels_v1');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && (parsed.phone || parsed.whatsapp)) return parsed;
-    }
-  } catch (e) {}
-  return null;
-};
 
 export const NeedHelpModal: React.FC<NeedHelpModalProps> = ({
   isOpen,
@@ -47,6 +36,9 @@ export const NeedHelpModal: React.FC<NeedHelpModalProps> = ({
   const [supportChannels, setSupportChannels] = useState<{ phone?: string; whatsapp?: string } | null>(getSupportChannels);
 
   useEffect(() => {
+    syncSupportChannelsFromCloud().then(channels => {
+      if (channels) setSupportChannels(channels);
+    });
     const handleSync = () => {
       setSupportChannels(getSupportChannels());
     };
@@ -65,6 +57,7 @@ export const NeedHelpModal: React.FC<NeedHelpModalProps> = ({
   const cleanPhoneForWhatsApp = rawWhatsApp.replace(/[^0-9]/g, '');
 
   const [activeView, setActiveView] = useState<'options' | 'directContact'>('options');
+  const [directHelpMessage, setDirectHelpMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -76,6 +69,7 @@ export const NeedHelpModal: React.FC<NeedHelpModalProps> = ({
       setIsSubmitted(false);
       setIsSubmitting(false);
       setSubmitError(null);
+      setDirectHelpMessage('');
     }
   }, [isOpen]);
 
@@ -92,23 +86,27 @@ export const NeedHelpModal: React.FC<NeedHelpModalProps> = ({
     window.open(`https://wa.me/${cleanPhoneForWhatsApp}?text=${defaultText}`, '_blank');
   };
 
-  const handleConfirmDirectContact = () => {
+  const handleConfirmDirectContact = async () => {
     setSubmitError(null);
     setIsSubmitting(true);
 
     try {
-      submitStudentHelpMessage({
+      const studentNotes = directHelpMessage.trim();
+      const finalMsg = studentNotes || `Student requested direct academic and mentor assistance for ${courseTitle}.`;
+
+      await submitStudentHelpMessage({
         studentId: user?.id,
         studentName: user?.name || 'Enrolled Student',
         studentEmail: user?.email || '',
         studentPhone: user?.phone || 'Available in account',
         courseTitle,
         courseId,
-        message: `Student requested direct academic and mentor assistance for ${courseTitle}.`
+        message: finalMsg
       });
 
       setIsSubmitting(false);
       setIsSubmitted(true);
+      setDirectHelpMessage('');
     } catch (err: any) {
       setIsSubmitting(false);
       setSubmitError(err?.message || 'Failed to submit help request. Please try again.');
@@ -314,12 +312,26 @@ export const NeedHelpModal: React.FC<NeedHelpModalProps> = ({
                 </div>
                 <div className="space-y-1">
                   <h4 className="font-jakarta text-base font-bold text-paper">
-                    Send Help Request?
+                    Send Help Request
                   </h4>
                   <p className="font-mono text-xs text-slate leading-relaxed">
-                    Would you like to send a direct help request for <span className="text-paper font-semibold">{courseTitle}</span> to our academic mentors?
+                    Submit your question or problem directly to our academic mentors for <span className="text-paper font-semibold">{courseTitle}</span>.
                   </p>
                 </div>
+              </div>
+
+              {/* Text Input Box immediately above Send Help Request button */}
+              <div className="space-y-1.5">
+                <label className="block font-mono text-[11px] text-slate font-semibold">
+                  Describe your question or problem:
+                </label>
+                <textarea
+                  value={directHelpMessage}
+                  onChange={(e) => setDirectHelpMessage(e.target.value)}
+                  placeholder="Type your specific question, problem, or additional details here..."
+                  rows={3}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/10 text-paper font-jakarta text-xs focus:outline-none focus:border-primary transition-colors resize-none placeholder:text-slate/50"
+                />
               </div>
 
               {/* Action Buttons */}
