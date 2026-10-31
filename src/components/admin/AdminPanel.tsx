@@ -8260,12 +8260,6 @@ export const AdminPanel: React.FC = () => {
                               <span className="font-mono text-xs text-slate/70 truncate block mt-0.5">
                                 {student.email}
                               </span>
-                              {student.lastCompletedQuestion && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400 mt-1 truncate max-w-[280px]">
-                                  <CheckCircle2 className="w-2.5 h-2.5 shrink-0" />
-                                  <span className="truncate">{student.lastCompletedQuestion.subQuestionLabel}: {student.lastCompletedQuestion.questionTitle}</span>
-                                </span>
-                              )}
                             </div>
                           </div>
                         </td>
