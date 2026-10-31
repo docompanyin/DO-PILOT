@@ -5352,8 +5352,11 @@ export const AdminPanel: React.FC = () => {
     });
 
     return (
-      <div className="fixed inset-0 z-[99999] bg-black/90 backdrop-blur-xl flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200">
-        <div className="w-full max-w-[1550px] h-[92vh] rounded-3xl bg-[#0a0b0d] border border-white/15 shadow-2xl flex flex-col relative overflow-hidden">
+      <div 
+        data-no-reveal="true" 
+        className="fixed inset-0 z-[99999] bg-black/90 backdrop-blur-xl flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden"
+      >
+        <div className="w-full max-w-[1550px] h-[92vh] rounded-3xl bg-[#0a0b0d] border border-white/15 shadow-2xl flex flex-col relative overflow-hidden transform-none">
           
           {/* Modal Top Header (Fixed) */}
           <div className="px-6 py-4 border-b border-white/10 bg-[#0f1013]/95 backdrop-blur-md flex items-center justify-between gap-4 shrink-0">
@@ -5514,7 +5517,11 @@ export const AdminPanel: React.FC = () => {
           </div>
 
           {/* Scrollable Modal Content Body */}
-          <div data-lenis-prevent className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 overscroll-contain">
+          <div 
+            data-lenis-prevent 
+            className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 overscroll-contain transform-none [contain:paint]"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
             
             {/* Top 5 KPI Metric Cards Strip */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -5891,9 +5898,9 @@ export const AdminPanel: React.FC = () => {
                                   return (
                                     <div key={seg.stage + sIdx} className="space-y-5">
                                       {/* Workflow Separator & Heading Banner */}
-                                      <div className={`p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-3 ${
+                                      <div className={`relative transform-none p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-3 ${
                                         seg.stage === 'purchased_course'
-                                          ? 'bg-gradient-to-r from-emerald-500/15 via-[#0e1713] to-transparent border-emerald-500/40 shadow-lg shadow-emerald-500/5'
+                                          ? 'bg-gradient-to-r from-emerald-500/15 via-[#0e1713] to-transparent border-emerald-500/40 shadow-emerald-500/5'
                                           : 'bg-gradient-to-r from-amber-500/10 via-[#15120c] to-transparent border-amber-500/30'
                                       }`}>
                                         <div className="flex items-center gap-3 min-w-0">
@@ -6373,9 +6380,9 @@ export const AdminPanel: React.FC = () => {
                                     <div key={seg.stage + sIdx} className="space-y-6">
                                       {/* Workflow Phase Header / Separator */}
                                       {seg.stage === 'free_trial' ? (
-                                        <div className="p-4 rounded-2xl bg-amber-500/[0.08] border border-amber-500/25 flex flex-wrap items-center justify-between gap-3">
+                                        <div className="relative transform-none p-4 rounded-2xl bg-amber-500/[0.08] border border-amber-500/25 flex flex-wrap items-center justify-between gap-3">
                                           <div className="flex items-center gap-2.5">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                                            <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
                                             <h5 className="font-jakarta font-black text-xs sm:text-sm text-amber-300 uppercase tracking-wider">
                                               Free Trial Learning — Mistake Log
                                             </h5>
@@ -6388,7 +6395,7 @@ export const AdminPanel: React.FC = () => {
                                           </span>
                                         </div>
                                       ) : (
-                                        <div className="p-4 rounded-2xl bg-emerald-500/[0.08] border border-emerald-500/30 flex flex-wrap items-center justify-between gap-3">
+                                        <div className="relative transform-none p-4 rounded-2xl bg-emerald-500/[0.08] border border-emerald-500/30 flex flex-wrap items-center justify-between gap-3">
                                           <div className="flex items-center gap-2.5">
                                             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
                                             <div>
@@ -8021,7 +8028,11 @@ export const AdminPanel: React.FC = () => {
     };
 
     return (
-      <section id="section-students" className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative">
+      <section 
+        id="section-students" 
+        data-no-reveal="true" 
+        className="rounded-3xl bg-[#0c0d0e] border border-white/10 p-6 sm:p-8 space-y-6 shadow-2xl relative"
+      >
         {/* Section Header */}
         <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
           <div>
