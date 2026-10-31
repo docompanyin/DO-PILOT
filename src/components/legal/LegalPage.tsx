@@ -114,51 +114,35 @@ export const LegalPage: React.FC<LegalPageProps> = ({ defaultSection }) => {
         </div>
 
         {/* Dynamic Legal Text Content rendered from Central Database */}
-        <div className="space-y-8 text-sm leading-relaxed text-slate">
+        <div className="space-y-8 text-sm leading-relaxed text-slate text-justify">
           {currentPolicy.sections && currentPolicy.sections.length > 0 ? (
             <div className="space-y-6 text-sm">
               {currentPolicy.sections.map((section, sIdx) => (
                 <section key={sIdx} className="space-y-2">
-                  <h2 className="text-sm font-bold text-paper font-jakarta">
+                  <h2 className="text-sm font-bold text-paper font-jakarta text-left">
                     {section.title}
                   </h2>
                   {section.content && (
-                    <div className="text-sm space-y-2 whitespace-pre-line">
-                      {section.content.split('\n\n').map((paragraph, pIdx) => (
-                        <p key={pIdx} className="text-sm">
-                          {paragraph.includes('Zero-Sale Guarantee:') ? (
-                            <>
-                              <strong className="text-paper font-semibold">Zero-Sale Guarantee:</strong>
-                              {paragraph.replace('Zero-Sale Guarantee:', '')}
-                            </>
-                          ) : (
-                            paragraph
-                          )}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                  {section.bullets && section.bullets.length > 0 && (
-                    <ul className="list-disc pl-5 space-y-1.5 text-sm text-slate">
-                      {section.bullets.map((bullet, bIdx) => {
-                        const colonIdx = bullet.indexOf(':');
-                        if (colonIdx > 0 && colonIdx < 45) {
-                          const boldPrefix = bullet.slice(0, colonIdx + 1);
-                          const restText = bullet.slice(colonIdx + 1);
+                    <div className="text-sm space-y-2 whitespace-pre-line text-justify">
+                      {section.content.split('\n\n').map((paragraph, pIdx) => {
+                        const colonIdx = paragraph.indexOf(':');
+                        if (colonIdx > 0 && colonIdx < 45 && !paragraph.startsWith('http')) {
+                          const boldPrefix = paragraph.slice(0, colonIdx + 1);
+                          const restText = paragraph.slice(colonIdx + 1);
                           return (
-                            <li key={bIdx} className="text-sm">
+                            <p key={pIdx} className="text-sm text-justify">
                               <strong className="text-paper font-semibold">{boldPrefix}</strong>
                               {restText}
-                            </li>
+                            </p>
                           );
                         }
                         return (
-                          <li key={bIdx} className="text-sm">
-                            {bullet}
-                          </li>
+                          <p key={pIdx} className="text-sm text-justify">
+                            {paragraph}
+                          </p>
                         );
                       })}
-                    </ul>
+                    </div>
                   )}
                 </section>
               ))}

@@ -3464,20 +3464,11 @@ export const AdminPanel: React.FC = () => {
     const updatedSections = (basePolicy.sections || []).map((sec, idx) => {
       const secTitle = (formData.get(`section_${idx}_title`) as string)?.trim() ?? sec.title;
       const secContent = (formData.get(`section_${idx}_content`) as string)?.trim() ?? sec.content;
-      
-      let secBullets = sec.bullets;
-      if (sec.bullets && sec.bullets.length > 0) {
-        secBullets = sec.bullets.map((b, bIdx) => {
-          const val = (formData.get(`section_${idx}_bullet_${bIdx}`) as string)?.trim();
-          return val !== undefined ? val : b;
-        });
-      }
 
       return {
         ...sec,
         title: secTitle,
         content: secContent,
-        ...(secBullets ? { bullets: secBullets } : {})
       };
     });
 
@@ -3516,7 +3507,7 @@ export const AdminPanel: React.FC = () => {
             <div className="flex items-center gap-2">
               <h2 className="font-jakarta text-base sm:text-lg font-black text-paper">Legal Policies Content Editor</h2>
               <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold border border-primary/20">
-                Central DB
+                08
               </span>
             </div>
             <p className="text-xs text-slate mt-0.5">
@@ -3600,29 +3591,12 @@ export const AdminPanel: React.FC = () => {
                 <div>
                   <label className="block text-[10px] font-mono text-slate/70 mb-1">Clause Body Text</label>
                   <textarea
-                    rows={4}
+                    rows={6}
                     name={`section_${sIdx}_content`}
                     defaultValue={section.content}
-                    className="w-full bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-slate focus:text-paper focus:border-primary focus:outline-none resize-y leading-relaxed font-sans"
+                    className="w-full bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-slate focus:text-paper focus:border-primary focus:outline-none resize-y leading-relaxed font-sans text-justify"
                   />
                 </div>
-
-                {section.bullets && section.bullets.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t border-white/5">
-                    <label className="block text-[10px] font-mono text-slate/70">Bullet Points</label>
-                    {section.bullets.map((bullet, bIdx) => (
-                      <div key={bIdx} className="flex items-start gap-2">
-                        <span className="text-slate/40 text-xs mt-1.5">•</span>
-                        <textarea
-                          rows={2}
-                          name={`section_${sIdx}_bullet_${bIdx}`}
-                          defaultValue={bullet}
-                          className="flex-1 bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-slate focus:text-paper focus:border-primary focus:outline-none resize-y font-sans"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             ))}
           </div>
