@@ -606,6 +606,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
       ].filter(Boolean);
       const isNextAnswered = nextKeys.some(k => Boolean(currentAns[k]));
 
+      const nextStudyPhase = !isNextAnswered;
       if (isNextAnswered) {
         setIsStudyPhase(false);
         try {
@@ -617,6 +618,20 @@ export const CyberSecurityPart1Page: React.FC = () => {
           localStorage.setItem('dopilot_cyber_part1_study_phase', 'true');
         } catch {}
       }
+
+      saveQuestionProgressState({
+        courseId: 'cyber-security',
+        partNum: 1,
+        activeSectionId: activeSection.id,
+        activeQuestionIdx: nextQ,
+        selectedAnswers: currentAns,
+        isStudyPhase: nextStudyPhase,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: TIMER_DURATION,
+        studentEmail: user?.email,
+        levelResult: null
+      });
     } else {
       evaluateLevelScore();
     }
@@ -690,16 +705,33 @@ export const CyberSecurityPart1Page: React.FC = () => {
       }
     } else {
       const part1Summary = getPart1OverallScore('cyber-security', studentId);
+      const isComp = hasPurchased || part1Summary.isAbove50;
       setIsCourseComplete(true);
       try {
         localStorage.setItem('dopilot_cyber_part1_finished', 'true');
         localStorage.removeItem('dopilot_cyber_part1_level_result');
-        if (hasPurchased || part1Summary.isAbove50) {
+        if (isComp) {
           localStorage.setItem('dopilot_cyber_part1_completed', 'true');
         } else {
           localStorage.removeItem('dopilot_cyber_part1_completed');
         }
       } catch {}
+
+      saveQuestionProgressState({
+        courseId: 'cyber-security',
+        partNum: 1,
+        activeSectionId: activeSection.id,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase: false,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: 30,
+        studentEmail: user?.email,
+        isCompleted: isComp,
+        isFinishedPart: true,
+        levelResult: null
+      });
     }
   };
 

@@ -590,6 +590,7 @@ export const PythonPart1Page: React.FC = () => {
       ].filter(Boolean);
       const isNextAnswered = nextKeys.some(k => Boolean(currentAns[k]));
 
+      const nextStudyPhase = !isNextAnswered;
       if (isNextAnswered) {
         setIsStudyPhase(false);
         try {
@@ -601,6 +602,21 @@ export const PythonPart1Page: React.FC = () => {
           localStorage.setItem('dopilot_study_phase', 'true');
         } catch {}
       }
+
+      // Immediately save advance state to central database
+      saveQuestionProgressState({
+        courseId: 'python-core',
+        partNum: 1,
+        activeSectionId: activeSection.id,
+        activeQuestionIdx: nextQ,
+        selectedAnswers: currentAns,
+        isStudyPhase: nextStudyPhase,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: TIMER_DURATION,
+        studentEmail: user?.email,
+        levelResult: null
+      });
     } else {
       // Finished all questions in current level! Evaluate level exam
       evaluateLevelScore();
@@ -683,16 +699,33 @@ export const PythonPart1Page: React.FC = () => {
     } else {
       // Finished all sections of Part 1!
       const part1Summary = getPart1OverallScore('python-core', studentId);
+      const isComp = hasPurchased || part1Summary.isAbove50;
       setIsCourseComplete(true);
       try {
         localStorage.setItem('dopilot_part1_finished', 'true');
         localStorage.removeItem('dopilot_level_result');
-        if (hasPurchased || part1Summary.isAbove50) {
+        if (isComp) {
           localStorage.setItem('dopilot_part1_completed', 'true');
         } else {
           localStorage.removeItem('dopilot_part1_completed');
         }
       } catch {}
+
+      saveQuestionProgressState({
+        courseId: 'python-core',
+        partNum: 1,
+        activeSectionId: activeSection.id,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase: false,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: 30,
+        studentEmail: user?.email,
+        isCompleted: isComp,
+        isFinishedPart: true,
+        levelResult: null
+      });
     }
   };
 

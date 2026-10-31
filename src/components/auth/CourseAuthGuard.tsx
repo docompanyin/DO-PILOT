@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useUserAuth, USER_SESSION_KEY, hasAuthCookie } from '../../context/UserAuthContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { purgeStudentLocalData } from '../../utils/studentDataPurge';
+import { restoreAllStudentCourseProgressFromCloud } from '../../utils/courseProgressSyncService';
 
 interface CourseAuthGuardProps {
   children: React.ReactNode;
@@ -123,8 +124,17 @@ export const CourseAuthGuard: React.FC<CourseAuthGuardProps> = ({ children }) =>
       return;
     }
 
-    // 2. Validate against backend
+    // 2. Validate against backend and ensure student course progress is restored from cloud
     validateSessionAgainstBackend();
+    const rawSession = localStorage.getItem(USER_SESSION_KEY);
+    if (rawSession) {
+      try {
+        const parsedSession = JSON.parse(rawSession);
+        if (parsedSession?.email) {
+          restoreAllStudentCourseProgressFromCloud(parsedSession.email);
+        }
+      } catch {}
+    }
 
     // 3. Listen for logout event (dispatched on sign out)
     const onLogout = () => {

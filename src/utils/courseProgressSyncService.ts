@@ -763,17 +763,20 @@ export const restoreAllStudentCourseProgressFromCloud = async (
             localStorage.setItem(partKeys.levelResultKey, JSON.stringify(partState.levelResult));
             if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_level_result', JSON.stringify(partState.levelResult));
             if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_level_result', JSON.stringify(partState.levelResult));
+            if (courseId === 'fullstack-open' && pNum === 1) localStorage.setItem('dopilot_fullstack_part1_level_result', JSON.stringify(partState.levelResult));
             if (courseId === 'cyber-security' && pNum === 1) localStorage.setItem('dopilot_cyber_part1_level_result', JSON.stringify(partState.levelResult));
           } else {
             localStorage.removeItem(partKeys.levelResultKey);
             if (courseId === 'java-core' && pNum === 1) localStorage.removeItem('dopilot_java_level_result');
             if (courseId === 'python-core' && pNum === 1) localStorage.removeItem('dopilot_level_result');
+            if (courseId === 'fullstack-open' && pNum === 1) localStorage.removeItem('dopilot_fullstack_part1_level_result');
             if (courseId === 'cyber-security' && pNum === 1) localStorage.removeItem('dopilot_cyber_part1_level_result');
           }
           if (partState.isFinishedPart) {
             localStorage.setItem(partKeys.finishedKey, 'true');
             if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_finished', 'true');
             if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_finished', 'true');
+            if (courseId === 'fullstack-open' && pNum === 1) localStorage.setItem('dopilot_fullstack_part1_finished', 'true');
             if (courseId === 'cyber-security' && pNum === 1) localStorage.setItem('dopilot_cyber_part1_finished', 'true');
           }
         });
