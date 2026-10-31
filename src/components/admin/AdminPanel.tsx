@@ -1119,6 +1119,42 @@ export const AdminPanel: React.FC = () => {
                   await supabase.from('site_content').delete().eq('id', row.id);
                 }
               }
+
+              // Purge student records from global telemetry_dopilot_course_purchases_v1
+              try {
+                const { data: purchaseDoc } = await supabase
+                  .from('site_content')
+                  .select('content')
+                  .eq('id', 'telemetry_dopilot_course_purchases_v1')
+                  .maybeSingle();
+
+                if (purchaseDoc && purchaseDoc.content && Array.isArray(purchaseDoc.content.purchases)) {
+                  const filteredPurchases = purchaseDoc.content.purchases.filter((p: any) => {
+                    const pe = (p?.studentEmail || '').toLowerCase().trim();
+                    const pi = (p?.studentId || '').toLowerCase().trim();
+                    const sEmail = targetEmail.toLowerCase();
+                    const sId = (targetId || '').toLowerCase();
+                    const matchesEmail = sEmail && (pe === sEmail || pi === sEmail);
+                    const matchesId = sId && (pi === sId || pe === sId);
+                    return !(matchesEmail || matchesId);
+                  });
+
+                  if (filteredPurchases.length !== purchaseDoc.content.purchases.length) {
+                    await supabase
+                      .from('site_content')
+                      .upsert({
+                        id: 'telemetry_dopilot_course_purchases_v1',
+                        content: {
+                          purchases: filteredPurchases,
+                          updatedAt: new Date().toISOString()
+                        },
+                        updated_at: new Date().toISOString()
+                      });
+                  }
+                }
+              } catch (purErr) {
+                console.warn('Error purging from telemetry_dopilot_course_purchases_v1 in AdminPanel:', purErr);
+              }
             } catch (courseStateErr) {
               console.warn('Supabase course state delete notice:', courseStateErr);
             }

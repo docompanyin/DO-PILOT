@@ -174,6 +174,41 @@ export default async function handler(req, res) {
       for (const tid of targetIds) {
         await supabase.from('site_content').delete().eq('id', `student_course_state_${tid}`);
       }
+
+      // Purge student records from global telemetry_dopilot_course_purchases_v1
+      try {
+        const { data: purchaseDoc } = await supabase
+          .from('site_content')
+          .select('content')
+          .eq('id', 'telemetry_dopilot_course_purchases_v1')
+          .maybeSingle();
+
+        if (purchaseDoc && purchaseDoc.content && Array.isArray(purchaseDoc.content.purchases)) {
+          const filteredPurchases = purchaseDoc.content.purchases.filter((p) => {
+            const pe = (p?.studentEmail || '').toLowerCase().trim();
+            const pi = (p?.studentId || '').toLowerCase().trim();
+            const matchesEmail = Array.from(targetEmails).some((em) => pe === em || pi === em);
+            const matchesId = Array.from(targetIds).some((id) => pi === id.toLowerCase() || pe === id.toLowerCase());
+            return !(matchesEmail || matchesId);
+          });
+
+          if (filteredPurchases.length !== purchaseDoc.content.purchases.length) {
+            await supabase
+              .from('site_content')
+              .upsert({
+                id: 'telemetry_dopilot_course_purchases_v1',
+                content: {
+                  purchases: filteredPurchases,
+                  updatedAt: new Date().toISOString()
+                },
+                updated_at: new Date().toISOString()
+              });
+          }
+        }
+      } catch (purErr) {
+        console.warn('Error purging from telemetry_dopilot_course_purchases_v1 in API:', purErr);
+      }
+
       results.site_content = true;
     } catch (e) {
       console.warn('Error deleting site_content:', e);
