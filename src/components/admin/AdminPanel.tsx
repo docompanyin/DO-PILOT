@@ -16,6 +16,7 @@ import {
 import { jsPDF } from 'jspdf';
 import { PART_1_SECTIONS } from '../../data/pythonPart1Data';
 import { useSiteData } from '../../context/DataContext';
+import { DEFAULT_LEGAL_POLICIES, LegalPoliciesData, LegalPolicyData } from '../../data/legalData';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import {
@@ -478,6 +479,7 @@ export const AdminPanel: React.FC = () => {
     | 'codeLab'
     | 'liveClass'
     | 'footer'
+    | 'legalPolicies'
     | 'security'
     | 'studentExport';
 
@@ -2210,6 +2212,7 @@ export const AdminPanel: React.FC = () => {
     { id: 'codeLab' as SectionId, label: 'Python Code Lab', icon: Terminal, tag: 'IDE' },
     { id: 'liveClass' as SectionId, label: 'Live Masterclass', icon: Video, tag: 'Schedule & Host' },
     { id: 'footer' as SectionId, label: 'Footer & Links', icon: ExternalLink, tag: 'Brand & Social' },
+    { id: 'legalPolicies' as SectionId, label: 'Legal Policies', icon: FileText, tag: '3 Policies' },
   ];
 
   const systemList = [
@@ -3443,6 +3446,200 @@ export const AdminPanel: React.FC = () => {
       </form>
     </section>
   );
+
+  // Active Policy tab for Legal Policies editor
+  const [activePolicyTab, setActivePolicyTab] = useState<'privacy' | 'terms' | 'refund'>('privacy');
+
+  // Handle saving an individual legal policy
+  const handleSaveLegalPolicy = async (policyKey: 'privacy' | 'terms' | 'refund', e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const existing = data.legalPolicies || DEFAULT_LEGAL_POLICIES;
+    const basePolicy = existing[policyKey] || DEFAULT_LEGAL_POLICIES[policyKey];
+
+    const title = (formData.get('policyTitle') as string)?.trim() || basePolicy.title;
+    const contactEmail = (formData.get('contactEmail') as string)?.trim() || basePolicy.contactEmail || 'support@dopilot.com';
+
+    // Parse sections from form inputs
+    const updatedSections = (basePolicy.sections || []).map((sec, idx) => {
+      const secTitle = (formData.get(`section_${idx}_title`) as string)?.trim() ?? sec.title;
+      const secContent = (formData.get(`section_${idx}_content`) as string)?.trim() ?? sec.content;
+      
+      let secBullets = sec.bullets;
+      if (sec.bullets && sec.bullets.length > 0) {
+        secBullets = sec.bullets.map((b, bIdx) => {
+          const val = (formData.get(`section_${idx}_bullet_${bIdx}`) as string)?.trim();
+          return val !== undefined ? val : b;
+        });
+      }
+
+      return {
+        ...sec,
+        title: secTitle,
+        content: secContent,
+        ...(secBullets ? { bullets: secBullets } : {})
+      };
+    });
+
+    const updatedPolicy: LegalPolicyData = {
+      ...basePolicy,
+      title,
+      contactEmail,
+      sections: updatedSections,
+      lastUpdated: new Date().getFullYear().toString()
+    };
+
+    const newLegalPolicies: LegalPoliciesData = {
+      ...existing,
+      [policyKey]: updatedPolicy
+    };
+
+    await updateSection('legalPolicies', newLegalPolicies);
+    addAuditLog('UPDATE_LEGAL_POLICY', `Updated ${policyKey.toUpperCase()} policy content.`);
+    showToast(`${updatedPolicy.title} saved and synced to database!`);
+  };
+
+  const renderLegalPoliciesSection = () => {
+    const policies = data.legalPolicies || DEFAULT_LEGAL_POLICIES;
+    const currentPolicy = policies[activePolicyTab] || DEFAULT_LEGAL_POLICIES[activePolicyTab];
+
+    const policyTabs = [
+      { key: 'privacy' as const, label: 'Privacy Policy' },
+      { key: 'terms' as const, label: 'Terms of Service' },
+      { key: 'refund' as const, label: 'Refund & Cancellation' },
+    ];
+
+    return (
+      <section id="section-legal-policies" className="rounded-2xl bg-[#0c0d0e] border border-white/10 p-5 sm:p-6 space-y-6 shadow-2xl relative">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/10">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-jakarta text-base sm:text-lg font-black text-paper">Legal Policies Content Editor</h2>
+              <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold border border-primary/20">
+                Central DB
+              </span>
+            </div>
+            <p className="text-xs text-slate mt-0.5">
+              Edit the live Privacy Policy, Terms of Service, and Refund Policy. Every part including text and email is editable and saved to the central database.
+            </p>
+          </div>
+        </div>
+
+        {/* Policy Tab Switcher */}
+        <div className="flex items-center gap-2 border-b border-white/10 pb-3 overflow-x-auto no-scrollbar">
+          {policyTabs.map((tab) => {
+            const isActive = activePolicyTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActivePolicyTab(tab.key)}
+                className={`px-3.5 py-1.5 rounded-xl font-jakarta text-xs font-bold transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-primary text-ink shadow-md shadow-primary/20 scale-[1.02]'
+                    : 'bg-white/5 text-slate hover:text-paper hover:bg-white/10'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Independent Editor Form for the Active Policy */}
+        <form
+          key={activePolicyTab}
+          onSubmit={(e) => handleSaveLegalPolicy(activePolicyTab, e)}
+          className="space-y-5 text-xs"
+        >
+          {/* Top Policy Metadata */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-black/60 border border-white/10">
+            <div>
+              <label className="block text-[11px] font-bold text-slate mb-1">Policy Page Title</label>
+              <input
+                type="text"
+                name="policyTitle"
+                defaultValue={currentPolicy.title}
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-2 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate mb-1">Compliance & Support Contact Email</label>
+              <input
+                type="email"
+                name="contactEmail"
+                defaultValue={currentPolicy.contactEmail || 'support@dopilot.com'}
+                className="w-full bg-black border border-white/15 rounded-xl px-3 py-2 text-xs text-paper font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Sections List */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between pb-1 border-b border-white/5">
+              <span className="font-mono text-[11px] text-primary font-bold uppercase tracking-wider">
+                // Policy Clauses &amp; Sections ({currentPolicy.sections?.length || 0})
+              </span>
+              <span className="text-[10px] text-slate font-mono">Changes persist globally in central database</span>
+            </div>
+
+            {currentPolicy.sections?.map((section, sIdx) => (
+              <div key={sIdx} className="p-4 rounded-xl bg-black/40 border border-white/10 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[10px] text-primary font-bold bg-primary/10 px-2 py-0.5 rounded">
+                    Clause {sIdx + 1}
+                  </span>
+                  <input
+                    type="text"
+                    name={`section_${sIdx}_title`}
+                    defaultValue={section.title}
+                    className="flex-1 bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-paper font-bold focus:border-primary focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono text-slate/70 mb-1">Clause Body Text</label>
+                  <textarea
+                    rows={4}
+                    name={`section_${sIdx}_content`}
+                    defaultValue={section.content}
+                    className="w-full bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-slate focus:text-paper focus:border-primary focus:outline-none resize-y leading-relaxed font-sans"
+                  />
+                </div>
+
+                {section.bullets && section.bullets.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-white/5">
+                    <label className="block text-[10px] font-mono text-slate/70">Bullet Points</label>
+                    {section.bullets.map((bullet, bIdx) => (
+                      <div key={bIdx} className="flex items-start gap-2">
+                        <span className="text-slate/40 text-xs mt-1.5">•</span>
+                        <textarea
+                          rows={2}
+                          name={`section_${sIdx}_bullet_${bIdx}`}
+                          defaultValue={bullet}
+                          className="flex-1 bg-black border border-white/15 rounded-lg px-3 py-1.5 text-xs text-slate focus:text-paper focus:border-primary focus:outline-none resize-y font-sans"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              className="px-6 py-2.5 rounded-xl bg-primary text-ink font-jakarta font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:brightness-110 shadow-lg shadow-primary/20 transition-all cursor-pointer"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>Save {currentPolicy.title}</span>
+            </button>
+          </div>
+        </form>
+      </section>
+    );
+  };
 
 
   const renderSecuritySection = () => {
@@ -12099,6 +12296,7 @@ export const AdminPanel: React.FC = () => {
                 {activeSection === 'codeLab' && renderCodeLabSection()}
                 {activeSection === 'liveClass' && renderLiveClassSection()}
                 {activeSection === 'footer' && renderFooterSection()}
+                {activeSection === 'legalPolicies' && renderLegalPoliciesSection()}
                 {activeSection === 'security' && renderSecuritySection()}
                 {activeSection === 'studentExport' && renderStudentExportSection()}
               </>

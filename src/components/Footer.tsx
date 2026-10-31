@@ -3,11 +3,13 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ArrowUp, Mail, Phone, MapPin } from 'lucide-react';
 import { GithubIcon, LinkedinIcon, WhatsappIcon, YoutubeIcon, InstagramIcon, FacebookIcon } from './SocialIcons';
 import { useAdminAuth } from '../context/AdminAuthContext';
+import { useUserAuth } from '../context/UserAuthContext';
 import { useSiteData } from '../context/DataContext';
 
 export const Footer: React.FC = () => {
   const navigate = useNavigate();
   const { triggerSecretAccess, triggerEmergencyRecovery } = useAdminAuth();
+  const { isLoggedIn } = useUserAuth();
   const { data } = useSiteData();
   const footerData = data.footer;
 
@@ -278,7 +280,14 @@ export const Footer: React.FC = () => {
                   <li key={link.id || lIdx}>
                     <a
                       href={href}
-                      onClick={(e) => handleFooterNavClick(e, href)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (!isLoggedIn) {
+                          navigate(`/login?redirect=${encodeURIComponent(href)}`);
+                        } else {
+                          navigate(href);
+                        }
+                      }}
                       className="text-slate hover:text-primary transition-colors cursor-pointer no-underline block"
                     >
                       {name}

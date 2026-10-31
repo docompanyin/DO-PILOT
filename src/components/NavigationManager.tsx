@@ -51,6 +51,25 @@ export const NavigationManager: React.FC = () => {
     const currentPath = location.pathname;
     const isCoursePartPage = currentPath.startsWith('/course/') && currentPath.includes('/part-');
     const isCourseDetailsPage = currentPath.startsWith('/course/') && !currentPath.includes('/part-');
+    const isSettingsPage = currentPath === '/settings' || currentPath === '/profile';
+
+    if (isSettingsPage) {
+      // Push history sentinel to trap hardware back button
+      try {
+        window.history.pushState({ doPilotTrap: true, page: 'settings' }, '', window.location.href);
+      } catch {}
+
+      const handlePopState = () => {
+        // When user taps phone/browser back button from any User Settings section (Profile, Progress, Rewards, Certificates),
+        // navigate directly to Home Page without traversing previous section history.
+        navigate('/', { replace: true });
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
 
     if (isCoursePartPage) {
       // Determine intended Course Details destination

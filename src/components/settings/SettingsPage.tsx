@@ -282,10 +282,10 @@ export const SettingsPage: React.FC = () => {
   const [certModalOpen, setCertModalOpen] = useState(false);
   const [modalCourseId, setModalCourseId] = useState<string>('python-core');
 
-  // Sync tab with URL
+  // Sync tab with URL without pushing backwards navigation history
   const handleTabChange = (tab: SettingsTab) => {
     setActiveTab(tab);
-    setSearchParams({ tab });
+    setSearchParams({ tab }, { replace: true });
   };
 
   useEffect(() => {
@@ -784,11 +784,11 @@ export const SettingsPage: React.FC = () => {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] max-w-full h-[280px] bg-gradient-to-b from-primary/10 via-transparent to-transparent blur-[120px] pointer-events-none" />
 
       {/* Top Navbar Header (Pinned to the LEFT like other pages) */}
-      <header className="sticky top-0 z-30 bg-black/80 backdrop-blur-xl border-b border-white/10 px-4 sm:px-8 py-3.5 w-full">
+      <header className="sticky top-0 z-30 bg-black/80 backdrop-blur-xl px-4 sm:px-8 py-3.5 w-full">
         <div className="w-full flex items-center justify-between">
           <button
             type="button"
-            onClick={() => navigateBackOrFallback(navigate, window.location.pathname)}
+            onClick={() => navigate('/', { replace: true })}
             className="inline-flex items-center gap-2 text-xs sm:text-sm font-mono text-slate hover:text-primary transition-colors cursor-pointer group"
             aria-label="Back"
           >

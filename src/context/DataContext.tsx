@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import initialSiteData from '../data/siteData.json';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { LegalPoliciesData, DEFAULT_LEGAL_POLICIES } from '../data/legalData';
 
 export interface HeroData {
   eyebrow: string;
@@ -404,6 +405,7 @@ export interface SiteData {
   footer: FooterData;
   messages: MessageItem[];
   cloudinary?: CloudinaryConfigData;
+  legalPolicies?: LegalPoliciesData;
 }
 
 export const DEFAULT_SECTIONS_MANAGER: SectionsManagerData = {
@@ -769,6 +771,7 @@ const DEFAULT_SITE_DATA: SiteData = {
   codeLab: (initialSiteData as any)?.codeLab || DEFAULT_CODE_LAB,
   liveClass: (initialSiteData as any)?.liveClass || DEFAULT_LIVE_CLASS,
   footer: DEFAULT_FOOTER,
+  legalPolicies: DEFAULT_LEGAL_POLICIES,
 };
 
 const STORAGE_KEY = "docompany_portfolio_site_data_v1";
@@ -1002,7 +1005,14 @@ export const reconcileSiteData = (rawContent: any, baseline: SiteData): SiteData
       description: (rawContent.footer?.description && !rawContent.footer.description.includes('Full Stack development, and real-time live masterclasses'))
         ? rawContent.footer.description
         : (baseline.footer?.description || DEFAULT_FOOTER.description),
-    }
+    },
+    legalPolicies: rawContent.legalPolicies
+      ? {
+          privacy: rawContent.legalPolicies.privacy || baseline.legalPolicies?.privacy || DEFAULT_LEGAL_POLICIES.privacy,
+          terms: rawContent.legalPolicies.terms || baseline.legalPolicies?.terms || DEFAULT_LEGAL_POLICIES.terms,
+          refund: rawContent.legalPolicies.refund || baseline.legalPolicies?.refund || DEFAULT_LEGAL_POLICIES.refund,
+        }
+      : (baseline.legalPolicies || DEFAULT_LEGAL_POLICIES)
   };
 
   return content;

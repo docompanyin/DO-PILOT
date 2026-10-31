@@ -867,7 +867,7 @@ export const CourseDetailPage: React.FC = () => {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/10 blur-[160px] pointer-events-none rounded-full" />
 
       {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-white/10 px-4 sm:px-8 py-3 sm:py-3.5 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl px-4 sm:px-8 py-3 sm:py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3 sm:gap-4">
           <button
             onClick={handleBackToCourses}

@@ -92,11 +92,7 @@ const SuccessLottie: React.FC<{ onComplete: () => void; isRelogin?: boolean }> =
   return (
     <div 
       ref={containerRef} 
-      className={
-        isRelogin 
-          ? "w-44 h-44 sm:w-56 sm:h-56 md:w-64 md:h-64 flex items-center justify-center pointer-events-none"
-          : "w-72 h-72 sm:w-96 sm:h-96 md:w-[420px] md:h-[420px] flex items-center justify-center pointer-events-none"
-      }
+      className="w-44 h-44 sm:w-56 sm:h-56 md:w-64 md:h-64 flex items-center justify-center pointer-events-none"
     />
   );
 };
@@ -573,12 +569,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
 
                   {/* Phone Number: 10 Digits Only - Compulsory */}
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="block font-jakarta font-bold text-xs text-paper">
-                        Phone Number <span className="text-rose-400">*</span>
-                      </label>
-                      <span className="text-[10px] font-mono text-slate/50">10 digits only</span>
-                    </div>
+                    <label className="block font-jakarta font-bold text-xs text-paper">
+                      Phone Number <span className="text-rose-400">*</span>
+                    </label>
                     <div className="relative">
                       <Phone className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate/50" />
                       <input
@@ -774,13 +767,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode = 'login' }) => {
                   <span>Secured by Google</span>
                 </div>
 
-                <div className="flex items-center justify-center gap-2 text-[11px] font-mono text-slate/40">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    <span>256-bit SSL</span>
-                  </span>
-                  <span>•</span>
-                  <span>Zero Password Storage</span>
+                <div className="flex items-center justify-center gap-2 text-[11px] font-mono text-slate/50">
+                  <span>Secure Password Protection</span>
                 </div>
 
                 <p className="text-center text-[11px] text-slate/50 leading-relaxed pt-1">
