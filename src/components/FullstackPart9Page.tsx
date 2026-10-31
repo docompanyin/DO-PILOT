@@ -697,7 +697,7 @@ export const FullstackPart9Page: React.FC = () => {
           </div>
         ) : levelResult?.isFinished ? (
           /* SCENARIO 2: Level Evaluation Result */
-          <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full mx-auto text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
+          <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
             <div className={`absolute top-0 left-0 right-0 h-1.5 ${
               levelResult.isPassed
                 ? 'bg-gradient-to-r from-emerald-500 via-primary to-emerald-400'
@@ -710,58 +710,93 @@ export const FullstackPart9Page: React.FC = () => {
 
             {/* Status Pill Badge */}
             <div className="flex items-center justify-center pt-2">
-              <span className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border ${
-                levelResult.isPassed
-                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
-                  : levelResult.isLocked
-                  ? 'bg-rose-500/20 border-rose-500/60 text-rose-300'
-                  : 'bg-amber-500/15 border-amber-500/40 text-amber-300'
-              }`}>
-                {levelResult.isPassed ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Level {activeSection.number} Passed ({levelResult.percentage}%)</span>
-                  </>
-                ) : levelResult.isLocked ? (
-                  <>
-                    <ShieldAlert className="w-4 h-4 text-rose-400" />
-                    <span>Progression Temporarily Locked</span>
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle className="w-4 h-4 text-amber-400" />
-                    <span>Level {activeSection.number} Needs Retest ({levelResult.percentage}%)</span>
-                  </>
-                )}
-              </span>
+              {levelResult.isPassed ? (
+                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Level {activeSection.number} Passed • &gt; 80% Scored</span>
+                </span>
+              ) : levelResult.isLocked ? (
+                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-rose-500/20 border-rose-500/50 text-rose-300 shadow-rose-500/25">
+                  <ShieldAlert className="w-4 h-4 text-rose-400" />
+                  <span>Contact Team Required • Level Progression Locked</span>
+                </span>
+              ) : levelResult.isSecondFailureInLevel ? (
+                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-amber-500/20">
+                  <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  <span>
+                    Level {activeSection.number} Failed Twice • {levelResult.streak === 1 ? 'Warning 1 of 2' : 'Final Warning'}
+                  </span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-rose-500/15 border-rose-500/40 text-rose-300 shadow-rose-500/20">
+                  <AlertCircle className="w-4 h-4 text-rose-400" />
+                  <span>Exam Failed • Score ≤ 80% (Attempt 1 of 2)</span>
+                </span>
+              )}
             </div>
 
-            {/* Score & Evaluation Narrative */}
+            {/* Headline and Narrative */}
             <div className="space-y-2">
               <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
                 {levelResult.isPassed
-                  ? "Great Job! You've Mastered This Level"
+                  ? `Level ${activeSection.number} Passed!`
                   : levelResult.isLocked
-                  ? "3 Consecutive Level Failures Reached"
+                  ? 'Contact Team Required'
                   : levelResult.isSecondFailureInLevel
-                  ? "Second Attempt Did Not Meet 80% Benchmark"
-                  : "First Attempt Did Not Meet 80% Benchmark"}
+                  ? `Exam Failed (2nd Failure in Level ${activeSection.number})`
+                  : 'Exam Failed'}
               </h2>
-
               <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                {levelResult.isPassed ? (
-                  `You answered ${levelResult.correctCount} out of ${levelResult.totalCount} questions correctly (${levelResult.percentage}%). You are ready to advance to the next level!`
-                ) : levelResult.isLocked ? (
-                  `You have reached 3 consecutive failed levels. To ensure thorough mastery, curriculum progression is locked. Please consult our course advisors or reset your practice.`
-                ) : levelResult.isSecondFailureInLevel ? (
-                  `You scored ${levelResult.percentage}% (${levelResult.correctCount}/${levelResult.totalCount}). Proceeding to the next level will count as 1 consecutive level failure (3 will lock progression). Or you can Retest Now with alternate questions.`
-                ) : (
-                  `You scored ${levelResult.percentage}% (${levelResult.correctCount}/${levelResult.totalCount}). A minimum of 80% (5/6 correct) is required. Take the retest now with alternative questions!`
-                )}
+                {levelResult.isPassed
+                  ? `Congratulations! You scored ${levelResult.percentage}%, successfully meeting the requirement of more than 80%. Your consecutive-failure streak has reset to 0.`
+                  : levelResult.isLocked
+                  ? 'You have reached 3 consecutive failed levels. Progression is locked. Please reach out to our team to review your concepts and unlock further levels.'
+                  : levelResult.isSecondFailureInLevel
+                  ? levelResult.streak === 1
+                    ? `You have failed Level ${activeSection.number} twice. You have 2 more warnings remaining before course progression is locked.`
+                    : `Warning: You failed Level ${activeSection.number} twice. Only 1 more warning remaining! If you fail the next level twice, your course progression will be completely locked.`
+                  : 'Your score was 80% or below. The passing requirement is more than 80%. Click "Reset Questions" to receive a completely new set of questions testing the same concepts with no duplicates.'}
               </p>
             </div>
 
-            {/* Action Buttons depending on pass/fail */}
+            {/* Scorecard Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div className={`p-4 rounded-2xl border flex flex-col items-center justify-center gap-1 ${
+                levelResult.isPassed ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'
+              }`}>
+                <span className="text-[11px] font-mono uppercase tracking-wider text-slate">Score</span>
+                <span className={`font-mono text-3xl sm:text-4xl font-black ${
+                  levelResult.isPassed ? 'text-emerald-400' : 'text-rose-400'
+                }`}>
+                  {levelResult.percentage}%
+                </span>
+                <span className="text-[10px] font-mono text-slate/70">Requirement: &gt; 80%</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col items-center justify-center gap-1">
+                <span className="text-[11px] font-mono uppercase tracking-wider text-slate">Correct Answers</span>
+                <span className="font-mono text-3xl sm:text-4xl font-black text-paper">
+                  {levelResult.correctCount} <span className="text-slate/60 text-lg font-normal">/ {levelResult.totalCount}</span>
+                </span>
+                <span className="text-[10px] font-mono text-slate/70">
+                  {levelResult.isPassed ? 'Benchmark achieved' : 'More than 80% needed'}
+                </span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col items-center justify-center gap-1">
+                <span className="text-[11px] font-mono uppercase tracking-wider text-slate">Failed Level Streak</span>
+                <span className={`font-mono text-3xl sm:text-4xl font-black ${
+                  levelResult.isPassed ? 'text-emerald-400' : levelResult.isLocked ? 'text-rose-400' : 'text-amber-300'
+                }`}>
+                  {levelResult.isPassed ? '0' : levelResult.streak}
+                </span>
+                <span className="text-[10px] font-mono text-slate/70">
+                  {levelResult.isPassed ? 'Streak reset to 0' : `${levelResult.streak} of 3 before locked`}
+                </span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
             <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
               {levelResult.isPassed ? (
                 <button
@@ -772,52 +807,51 @@ export const FullstackPart9Page: React.FC = () => {
                   <span>Continue to Next Level</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
-              ) : levelResult.isLocked ? (
+              ) : !levelResult.isSecondFailureInLevel ? (
+                <button
+                  type="button"
+                  onClick={handleResetQuestions}
+                  className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                >
+                  <Shuffle className="w-4 h-4" />
+                  <span>Reset Questions</span>
+                </button>
+              ) : !levelResult.isLocked ? (
                 <>
                   <button
                     type="button"
                     onClick={() => setModalOpen(true)}
-                    className="py-2.5 px-6 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-rose-500/25"
+                    className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/20 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
                   >
-                    <span>Consult Advisor to Unlock</span>
+                    <span>Contact Team Now</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDisclaimerModalOpen(true)}
+                    className="py-2.5 px-5 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-1.5 shadow-lg shadow-primary/20 cursor-pointer"
+                  >
+                    <span>Continue to Next Set</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </button>
 
                   <button
                     type="button"
                     onClick={handleResetQuestions}
-                    className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="py-2.5 px-4 rounded-xl bg-white/[0.02] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
                   >
-                    <Shuffle className="w-3.5 h-3.5" />
-                    <span>Practice Level Again</span>
+                    <span>Reset &amp; Retry Level</span>
                   </button>
                 </>
               ) : (
-                <>
-                  {/* RETEST BUTTON */}
-                  <button
-                    type="button"
-                    onClick={handleResetQuestions}
-                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
-                  >
-                    <Shuffle className="w-4 h-4" />
-                    <span>Retest Questions (Fresh Set)</span>
-                  </button>
-
-                  {/* PROCEED ON 2ND ATTEMPT WITH DISCLAIMER */}
-                  {levelResult.isSecondFailureInLevel && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDisclaimerConfirmed(false);
-                        setDisclaimerModalOpen(true);
-                      }}
-                      className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-amber-400/40 text-amber-300 font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <span>Continue to Next Level (Risk Streak)</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </>
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(true)}
+                  className="py-2.5 px-6 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-rose-500/25 cursor-pointer"
+                >
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>Contact Team Now (Required)</span>
+                </button>
               )}
             </div>
           </div>
@@ -1147,61 +1181,85 @@ export const FullstackPart9Page: React.FC = () => {
       </main>
 
       {/* 2nd Attempt Failure Disclaimer Modal */}
-      <AnimatePresence>
-        {disclaimerModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#0e121a] border border-amber-400/40 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4"
-            >
-              <div className="flex items-center gap-2.5 text-amber-400 font-jakarta font-bold text-base">
-                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-                <span>Progression Risk Notice</span>
-              </div>
+      {/* Second Failure Disclaimer Modal (Exact Reference Implementation) */}
+      {disclaimerModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-panel border border-amber-400/40 rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-5 shadow-2xl relative">
+            <div className="flex items-center gap-2.5 text-amber-400 font-mono text-xs font-bold uppercase tracking-wider">
+              <AlertTriangle className="w-5 h-5 text-amber-400" />
+              <span>
+                {levelResult?.streak === 1
+                  ? 'Progression Notice — Disclaimer 1 of 2'
+                  : 'Final Warning Notice — Disclaimer 2 of 2'}
+              </span>
+            </div>
 
-              <p className="text-white text-xs leading-relaxed">
-                You scored below 80% on your second attempt. If you choose to continue rather than retesting with alternative questions, this will count as <strong>1 consecutive level failure</strong>. If you reach <strong>3 consecutive failures</strong>, progression will be locked until advisor unlock.
+            <div className="space-y-2 text-left">
+              <h3 className="font-jakarta text-xl sm:text-2xl font-black text-paper">
+                {levelResult?.streak === 1
+                  ? `Warning: Level ${activeSection.number} Failed Twice`
+                  : `Critical Warning: Level ${activeSection.number} Failed Twice`}
+              </h3>
+              <p className="text-amber-300 font-medium text-xs sm:text-sm leading-relaxed">
+                {levelResult?.streak === 1
+                  ? `Warning: You failed Level ${activeSection.number} twice. You have 2 more warnings remaining before course progression is locked.`
+                  : `Warning: You failed Level ${activeSection.number} twice. Only 1 more warning remaining! If you fail the next level twice, your course progression will be completely locked.`}
               </p>
+              <p className="text-slate text-xs leading-relaxed pt-1">
+                {levelResult?.streak === 1
+                  ? 'You are allowed to continue to the next level. However, if you continue to fail consecutive levels, you will receive only 1 more warning before your course progression is locked until support intervention.'
+                  : 'This is your final warning before course lockdown. You are permitted to advance, but failing the next level twice will require mandatory contact with our support team to unlock progression.'}
+              </p>
+            </div>
 
-              <label className="flex items-start gap-2.5 pt-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={disclaimerConfirmed}
-                  onChange={(e) => setDisclaimerConfirmed(e.target.checked)}
-                  className="mt-0.5 rounded border-white/20 text-primary focus:ring-primary cursor-pointer"
-                />
-                <span className="font-sans text-xs text-paper/90 select-none">
-                  I understand that proceeding without retesting increases my consecutive failure streak, and 3 consecutive failures will lock my progress.
-                </span>
+            <div className="p-3 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-start gap-2.5 text-left">
+              <input
+                type="checkbox"
+                id="disclaimer-check-fullstack-p9"
+                checked={disclaimerConfirmed}
+                onChange={(e) => setDisclaimerConfirmed(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-white/20 text-primary accent-primary cursor-pointer"
+              />
+              <label htmlFor="disclaimer-check-fullstack-p9" className="text-xs text-amber-200 cursor-pointer select-none">
+                {levelResult?.streak === 1
+                  ? 'I understand that after 2 more level failures my course will be locked, and I confirm to continue.'
+                  : 'I understand that after 1 more level failure my course will be locked, and I confirm to continue.'}
               </label>
+            </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setDisclaimerModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/10 text-paper font-jakarta text-xs font-bold transition-all cursor-pointer"
-                >
-                  Cancel
-                </button>
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={!disclaimerConfirmed}
+                onClick={() => {
+                  setDisclaimerModalOpen(false);
+                  setDisclaimerConfirmed(false);
+                  handleProceedToNextLevel();
+                }}
+                className={`flex-1 py-2.5 px-4 rounded-xl font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 ${
+                  disclaimerConfirmed
+                    ? 'bg-primary hover:bg-white text-ink cursor-pointer shadow-md shadow-primary/20'
+                    : 'bg-white/10 text-slate/40 cursor-not-allowed'
+                }`}
+              >
+                <span>Confirm &amp; Continue</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
 
-                <button
-                  type="button"
-                  disabled={!disclaimerConfirmed}
-                  onClick={() => {
-                    setDisclaimerModalOpen(false);
-                    handleProceedToNextLevel();
-                  }}
-                  className="px-5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-jakarta font-extrabold text-xs transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Acknowledge &amp; Proceed
-                </button>
-              </div>
-            </motion.div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDisclaimerModalOpen(false);
+                  setDisclaimerConfirmed(false);
+                }}
+                className="py-2.5 px-4 rounded-xl bg-white/[0.04] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
 
       {/* Part 10 Teaser Modal */}
       <AnimatePresence>
