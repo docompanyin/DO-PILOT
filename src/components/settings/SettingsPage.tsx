@@ -1574,7 +1574,7 @@ export const SettingsPage: React.FC = () => {
                       Claim Milestone Reward
                     </h3>
                     <span className="text-[10px] font-mono text-slate/60">
-                      ₹{requestModalTier.cashAmount.toLocaleString('en-IN')} Reward • {requestModalTier.pointsRequired.toLocaleString('en-IN')} Points Milestone
+                      ₹{requestModalTier.cashAmount.toLocaleString('en-IN')} Reward
                     </span>
                   </div>
                 </div>
@@ -1594,10 +1594,6 @@ export const SettingsPage: React.FC = () => {
                     <strong className="text-paper">{user.name}</strong>
                   </div>
                   <div className="flex justify-between items-center text-slate/80">
-                    <span>Course:</span>
-                    <span className="text-paper truncate max-w-[200px]">{(user.enrolledCourses && user.enrolledCourses.length > 0) ? user.enrolledCourses[0] : 'Complete Python Course'}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-slate/80">
                     <span>Email:</span>
                     <span className="text-paper truncate max-w-[200px]">{user.email}</span>
                   </div>
@@ -1612,7 +1608,7 @@ export const SettingsPage: React.FC = () => {
                 </div>
 
                 <p className="text-xs text-slate/80 leading-relaxed font-sans">
-                  Your milestone claim will be submitted to the DO PILOT admin for verification. Once approved, your status will update to <strong className="text-emerald-400 font-semibold">Approved</strong> and your reward will be processed.
+                  Your milestone claim will be submitted to the admin for verification. Once approved, your status will be updated to <strong className="text-emerald-400 font-semibold">Approved</strong> and your reward will be processed.
                 </p>
 
                 {requestError && (
