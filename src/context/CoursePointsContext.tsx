@@ -222,7 +222,6 @@ export const CoursePointsProvider: React.FC<{ children: React.ReactNode }> = ({ 
               user_email: user.email,
               points,
               solved_tasks: solvedTasks,
-              wrong_attempts: updated,
               updated_at: new Date().toISOString()
             })
         ).catch(() => {});

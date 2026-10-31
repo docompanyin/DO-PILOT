@@ -125,6 +125,23 @@ export const logQuestionAttempt = (
 export const memoryTelemetryCache: Record<string, QuestionTelemetryRecord[]> = {};
 
 /**
+ * Hydrates the in-memory cache and localStorage with student telemetry records.
+ */
+export const setStudentTelemetryInMemory = (studentEmailOrId: string, records: QuestionTelemetryRecord[]) => {
+  const cleanEmail = normalizeStudentEmail(studentEmailOrId);
+  const memKey = cleanEmail || (studentEmailOrId || '').toLowerCase().trim();
+  if (memKey && Array.isArray(records)) {
+    memoryTelemetryCache[memKey] = records;
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const key = getStudentTelemetryStorageKey(memKey);
+        localStorage.setItem(key, JSON.stringify(records));
+      } catch {}
+    }
+  }
+};
+
+/**
  * Retrieve all logged question attempts for a student.
  * Checks memory cache first, then localStorage.
  */
@@ -513,9 +530,17 @@ export const buildStudentActivitySequence = (
 
   // If we have explicit logged telemetry for this course, return it sorted by attemptedAt
   if (loggedAttempts.length > 0) {
-    const matching = loggedAttempts.filter(
-      (a) => a.courseId === courseId || courseId === 'all'
-    );
+    const targetNorm = (courseId || '').toLowerCase().trim().replace(/[\s_-]+/g, '');
+    const isTargetAll = !courseId || courseId === 'all';
+    const matching = loggedAttempts.filter((a) => {
+      if (isTargetAll) return true;
+      const aNorm = (a.courseId || '').toLowerCase().trim().replace(/[\s_-]+/g, '');
+      if (targetNorm.includes('python') && aNorm.includes('python')) return true;
+      if (targetNorm.includes('java') && aNorm.includes('java')) return true;
+      if (targetNorm.includes('fullstack') && aNorm.includes('fullstack')) return true;
+      if (targetNorm.includes('cyber') && aNorm.includes('cyber')) return true;
+      return a.courseId === courseId || aNorm === targetNorm;
+    });
     if (matching.length > 0) {
       return matching.sort(
         (a, b) => new Date(a.attemptedAt).getTime() - new Date(b.attemptedAt).getTime()

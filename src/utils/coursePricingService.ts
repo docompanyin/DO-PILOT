@@ -131,12 +131,12 @@ const INITIAL_DEMO_PURCHASES: CoursePurchaseRecord[] = [];
  * Normalize course identifier for comparison
  */
 export const normalizeCourseId = (rawId: string): string => {
-  const norm = rawId.toLowerCase().trim();
+  const norm = (rawId || '').toLowerCase().trim().replace(/[\s_-]+/g, '');
   if (norm.includes('python')) return 'python-core';
   if (norm.includes('java')) return 'java-core';
   if (norm.includes('fullstack')) return 'fullstack-open';
   if (norm.includes('cyber')) return 'cyber-security';
-  return norm;
+  return (rawId || '').toLowerCase().trim();
 };
 
 /**

@@ -72,6 +72,7 @@ import {
   buildStudentActivitySequence,
   QuestionTelemetryRecord,
   restoreStudentTelemetryFromCloud,
+  setStudentTelemetryInMemory,
   getCourseCurriculumQuestions
 } from '../../utils/studentTelemetryService';
 
@@ -643,10 +644,6 @@ export const AdminPanel: React.FC = () => {
   })();
 
   const getStudentQuestionTelemetry = (student: StudentAdminRecord): StudentQuestionAttempt[] => {
-    if (student.questionAttempts && student.questionAttempts.length > 0) {
-      return student.questionAttempts;
-    }
-
     // Determine target course for telemetry
     const targetCourse = selectedCourseFilter !== 'all'
       ? selectedCourseFilter
@@ -693,6 +690,10 @@ export const AdminPanel: React.FC = () => {
           options: curMatch?.options || []
         };
       });
+    }
+
+    if (student.questionAttempts && student.questionAttempts.length > 0) {
+      return student.questionAttempts;
     }
 
     return [];
@@ -804,23 +805,77 @@ export const AdminPanel: React.FC = () => {
           return acc;
         }, {});
 
+        // Fetch authoritative telemetry for all students from Supabase site_content
+        const { data: telemetryDocs } = await supabase
+          .from('site_content')
+          .select('id, content')
+          .ilike('id', 'telemetry_%');
+
+        const telemetryMap: Record<string, QuestionTelemetryRecord[]> = {};
+        if (Array.isArray(telemetryDocs)) {
+          telemetryDocs.forEach((doc) => {
+            if (Array.isArray(doc.content)) {
+              const safeKey = doc.id.replace(/^telemetry_/, '').toLowerCase().trim();
+              telemetryMap[safeKey] = doc.content;
+            }
+          });
+        }
+
         if (profiles && profiles.length > 0) {
           cloudStudents = profiles.map((p: any) => {
-            const prog = progressMap[p.email?.toLowerCase()] || {};
+            const cleanEmail = (p.email || '').toLowerCase().trim();
+            const emailSafe = cleanEmail.replace(/[^a-z0-9_]/g, '_');
+            const attemptsFromCloud = telemetryMap[emailSafe] || telemetryMap[cleanEmail] || [];
+
+            // Hydrate in-memory telemetry cache so every tab and PDF export has instant access
+            if (attemptsFromCloud.length > 0) {
+              setStudentTelemetryInMemory(cleanEmail, attemptsFromCloud);
+            }
+
+            const prog = progressMap[cleanEmail] || {};
             const points = Number(prog.points) || 0;
             const solvedTasks = prog.solved_tasks || {};
             const solvedCount = Object.keys(solvedTasks).length;
-            const wrongAttempts = Array.isArray(prog.wrong_attempts) ? prog.wrong_attempts : [];
-            const testsFailedCount = wrongAttempts.length;
-            const testsPassedCount = solvedCount;
-            const testsAttemptedCount = testsPassedCount + testsFailedCount;
+
+            const wrongFromAttempts = attemptsFromCloud
+              .filter((a) => !a.isCorrect)
+              .map((a) => ({
+                taskTitle: a.questionTitle,
+                section: a.sectionTitle || `Part ${a.partNum}`,
+                failedAt: a.attemptedAt ? new Date(a.attemptedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Logged',
+                detail: `Option ${a.studentOptionId || '?'}: ${a.studentAnswer || 'Incorrect Answer'}`
+              }));
+
+            const wrongAttempts = attemptsFromCloud.length > 0
+              ? wrongFromAttempts
+              : (Array.isArray(prog.wrong_attempts) ? prog.wrong_attempts : []);
+
+            const testsFailedCount = attemptsFromCloud.length > 0
+              ? attemptsFromCloud.filter((a) => !a.isCorrect).length
+              : wrongAttempts.length;
+
+            const testsPassedCount = attemptsFromCloud.length > 0
+              ? attemptsFromCloud.filter((a) => a.isCorrect).length
+              : solvedCount;
+
+            const testsAttemptedCount = attemptsFromCloud.length > 0
+              ? attemptsFromCloud.length
+              : (testsPassedCount + testsFailedCount);
+
+            // Calculate average answer time from actual telemetry
+            const timedAttempts = attemptsFromCloud.filter((a) => a.timeTakenSeconds > 0);
+            const sumTimes = timedAttempts.reduce((acc, a) => acc + a.timeTakenSeconds, 0);
+            const avgAnswerTimeSeconds = timedAttempts.length > 0
+              ? Number((sumTimes / timedAttempts.length).toFixed(1))
+              : undefined;
+
             const hasCertificate = Boolean(prog.certificate_issued || points >= 20);
             const certificateId = prog.certificate_id || (hasCertificate ? `CERT-DO-PY-${p.id.slice(-4).toUpperCase()}` : undefined);
 
             let status: 'completed' | 'in_progress' | 'enrolled_not_started' | 'registered_only';
             if (points >= 20) {
               status = 'completed';
-            } else if (points > 0 || solvedCount > 0) {
+            } else if (points > 0 || solvedCount > 0 || testsAttemptedCount > 0) {
               status = 'in_progress';
             } else if (p.has_completed_details) {
               status = 'enrolled_not_started';
@@ -902,7 +957,34 @@ export const AdminPanel: React.FC = () => {
               certificateIssuedDate: hasCertificate ? new Date(p.created_at || Date.now()).toLocaleDateString() : undefined,
               wrongAttempts,
               sectionProgress,
-              courseProgressStatus: status
+              courseProgressStatus: status,
+              avgAnswerTimeSeconds,
+              questionAttempts: attemptsFromCloud.length > 0 ? attemptsFromCloud.map((item, idx) => ({
+                id: item.id || `att-${p.id}-${idx + 1}`,
+                questionNumber: item.questionIndex || (idx + 1),
+                subQuestionLabel: item.subQuestionLabel || `Part ${item.partNum} -> Q${item.questionIndex}`,
+                partNum: item.partNum,
+                section: item.sectionTitle || `Part ${item.partNum}`,
+                levelTitle: item.subQuestionLabel ? `Level ${item.subQuestionLabel}` : `Question ${idx + 1}`,
+                questionTitle: item.questionTitle || `Question ${item.questionIndex || idx + 1}`,
+                questionPrompt: item.questionPrompt || '',
+                codeSnippet: item.codeSnippet,
+                studentOptionId: item.studentOptionId,
+                studentAnswer: item.studentAnswer,
+                correctOptionId: item.correctOptionId || 'A',
+                correctAnswer: item.correctAnswer || '',
+                isCorrect: item.isCorrect,
+                timeTakenSeconds: item.timeTakenSeconds,
+                timeLimitSeconds: item.timeLimitSeconds || 30,
+                attemptsCount: item.attemptNumber || (item.isRetest ? 2 : 1),
+                attemptNumber: item.attemptNumber || 1,
+                isRetest: Boolean(item.isRetest || (item.attemptNumber && item.attemptNumber > 1)),
+                attemptedAt: item.attemptedAt ? new Date(item.attemptedAt).toLocaleString() : new Date().toLocaleString(),
+                speedCategory: item.speedCategory,
+                status: item.status,
+                explanation: item.explanation,
+                options: []
+              })) : undefined
             };
           });
         }
@@ -4401,13 +4483,21 @@ export const AdminPanel: React.FC = () => {
     );
   };
 
-  const exportIndividualStudentPDF = (s: StudentAdminRecord) => {
+  const exportIndividualStudentPDF = async (s: StudentAdminRecord) => {
     try {
+      // Ensure student telemetry is hydrated from cloud if not yet loaded locally
+      let attempts = getStudentQuestionTelemetry(s);
+      if (attempts.length === 0 && s.email) {
+        const cloudAttempts = await restoreStudentTelemetryFromCloud(s.email);
+        if (cloudAttempts && cloudAttempts.length > 0) {
+          attempts = getStudentQuestionTelemetry(s);
+        }
+      }
+
       const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
 
-      const attempts = getStudentQuestionTelemetry(s);
       const metrics = computeTelemetryMetrics(attempts);
 
       // Extract real mistakes directly from student telemetry
@@ -5286,7 +5376,9 @@ export const AdminPanel: React.FC = () => {
                 <span className="text-[10px] font-mono text-slate/70 uppercase tracking-wider block">Tests Attempted</span>
                 <div className="flex items-center gap-1.5">
                   <BookOpen className="w-4 h-4 text-cyan-400" />
-                  <span className="font-jakarta font-black text-xl text-paper">{student.testsAttemptedCount}</span>
+                  <span className="font-jakarta font-black text-xl text-paper">
+                    {attempts.length > 0 ? attempts.length : student.testsAttemptedCount}
+                  </span>
                 </div>
                 <span className="text-[10px] font-mono text-slate/50 block">Total questions</span>
               </div>
@@ -5295,7 +5387,9 @@ export const AdminPanel: React.FC = () => {
                 <span className="text-[10px] font-mono text-slate/70 uppercase tracking-wider block">Tasks Passed</span>
                 <div className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span className="font-jakarta font-black text-xl text-emerald-400">{student.testsPassedCount}</span>
+                  <span className="font-jakarta font-black text-xl text-emerald-400">
+                    {attempts.length > 0 ? metrics.passed : student.testsPassedCount}
+                  </span>
                 </div>
                 <span className="text-[10px] font-mono text-emerald-400/80 block">{metrics.accuracyPct}% accuracy</span>
               </div>
