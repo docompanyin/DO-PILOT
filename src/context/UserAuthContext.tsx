@@ -479,13 +479,18 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } catch (e) {}
 
     // 4. Check for cloud progress record and handle orphaned records for newly registered accounts
+    // Reliable identity & explicit marker check:
+    // A returning registered student already had a profile and valid progress linked to their account identity.
+    // If a brand-new registration arrives (or re-registration after deletion), verify whether the existing cloud record
+    // belongs to a different student account ID or has an explicit deletion tombstone marker.
+    // We NEVER delete progress based on timestamp or profile age.
     if (isSupabaseConfigured() && finalized.email) {
       try {
         const { getStudentDocId } = await import('../utils/courseProgressSyncService');
         const docId = getStudentDocId(finalized.email);
         const { data: existingCloud } = await supabase
           .from('site_content')
-          .select('id')
+          .select('id, content')
           .eq('id', docId)
           .maybeSingle();
 
@@ -493,27 +498,13 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           // No cloud record: genuinely new or post-deletion re-registration — start fresh
           purgeStudentLocalData(finalized.email, finalized.id);
         } else {
-          // Cloud record exists: check if profile was created recently (within last 5 mins).
-          // If profile is brand new but site_content exists, admin deletion left an orphaned progress record.
-          let isOrphanedRecord = false;
-          try {
-            const { data: profileRecord } = await supabase
-              .from('student_profiles')
-              .select('created_at')
-              .eq('email', finalized.email)
-              .maybeSingle();
+          const content = existingCloud.content as any;
+          const isExplicitlyDeleted = content?._deleted === true || content?.status === 'deleted';
+          const storedStudentId = content?.studentId || content?.id || (content?.rawStorage ? content.rawStorage['dopilot_student_id'] : null);
+          const hasMismatchedStudentId = Boolean(storedStudentId && finalized.id && storedStudentId !== finalized.id);
 
-            if (profileRecord && profileRecord.created_at) {
-              const profileAgeMs = Date.now() - new Date(profileRecord.created_at).getTime();
-              // Created within last 5 minutes (300,000 ms)
-              if (profileAgeMs < 5 * 60 * 1000) {
-                isOrphanedRecord = true;
-              }
-            }
-          } catch {}
-
-          if (isOrphanedRecord) {
-            // Remove orphaned progress record directly and wipe local data for a clean slate
+          if (isExplicitlyDeleted || hasMismatchedStudentId) {
+            // Definitively an orphaned record from a deleted or foreign account
             await supabase.from('site_content').delete().eq('id', docId);
             purgeStudentLocalData(finalized.email, finalized.id);
           }

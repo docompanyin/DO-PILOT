@@ -24,6 +24,8 @@ export const purgeStudentLocalData = (studentEmail?: string, studentId?: string)
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k) continue;
+      // Do not wipe pending logout save snapshots — they are preserved as emergency backup
+      if (k.startsWith('dopilot_pending_logout_save_')) continue;
       const kLower = k.toLowerCase();
       if (
         (cleanEmail && (kLower.includes(cleanEmail) || (emailSafe && kLower.includes(emailSafe)))) ||
