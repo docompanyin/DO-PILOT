@@ -15,7 +15,7 @@ import { CoursePurchaseModal } from './checkout/CoursePurchaseModal';
 import { hasCourseAccess, getCoursePricing, CoursePricing, syncUserPurchasesFromCloud } from '../utils/coursePricingService';
 import { getUserInitials } from '../utils/userInitials';
 import { getPostPurchaseStartingPart, getPart1OverallScore, getPostPurchaseDecision, hasAttemptedTrial } from '../utils/part1ScoreService';
-import { restoreAllStudentCourseProgressFromCloud } from '../utils/courseProgressSyncService';
+import { restoreAllStudentCourseProgressFromCloud, memoryCourseState } from '../utils/courseProgressSyncService';
 import { getSavedCertificate } from '../utils/certificateGenerator';
 import { navigateBackOrFallback } from '../utils/navigationHelper';
 
@@ -512,9 +512,19 @@ export const CourseDetailPage: React.FC = () => {
     }
 
     if (isCoursePython) {
-      const target = isPurchased 
+      let target = isPurchased 
         ? getPostPurchaseStartingPart('python-core', resumeInfo.targetPart, studentId) 
         : (resumeInfo.targetPart || 1);
+
+      if (user?.email) {
+        const mem = memoryCourseState[user.email.toLowerCase().trim()]?.courses?.['python-core'];
+        if (mem && mem.lastPart) {
+          if (!isPurchased || mem.lastPart >= target) {
+            target = mem.lastPart;
+          }
+        }
+      }
+
       localStorage.setItem('dopilot_python_core_last_part', String(target));
       navigate(`/course/python-core/part-${target}`);
     } else if (isCourseJava) {

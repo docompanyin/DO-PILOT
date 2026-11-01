@@ -228,6 +228,17 @@ export const PythonPart2Page: React.FC = () => {
       localStorage.setItem('dopilot_python_core_last_part', '2');
     } catch {}
     document.title = `Do Pilot - ${activeSection.title}`;
+
+    try {
+      const curState = window.history.state || {};
+      if (curState.qIdx !== activeQuestionIdx || curState.secId !== activeSectionId) {
+        window.history.pushState(
+          { partNum: 2, secId: activeSectionId, qIdx: activeQuestionIdx },
+          '',
+          window.location.pathname
+        );
+      }
+    } catch {}
   }, [activeSectionId, activeQuestionIdx]);
 
   // Keep stateRef fresh for non-stale intervals
@@ -273,6 +284,20 @@ export const PythonPart2Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'python-core',
+      partNum: 2,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime: newEndTime,
+      timeLeft: TIMER_DURATION,
+      studentEmail: user?.email,
+      levelResult: null
+    });
   };
 
   // Evaluate Level Score when all questions in current level are completed
@@ -339,6 +364,20 @@ export const PythonPart2Page: React.FC = () => {
     try {
       localStorage.setItem('dopilot_part2_level_result', JSON.stringify(resultState));
     } catch {}
+
+    saveQuestionProgressState({
+      courseId: 'python-core',
+      partNum: 2,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers: answers,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime: 0,
+      timeLeft: 30,
+      studentEmail: user?.email,
+      levelResult: resultState
+    });
   };
 
   // Advance function to go to next question or complete level
@@ -571,6 +610,20 @@ export const PythonPart2Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'python-core',
+      partNum: 2,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers: updated,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime,
+      timeLeft,
+      studentEmail: user?.email,
+      levelResult: null
+    });
     if (isCorrect) {
       const isRetestAttempt = (() => {
         try {
@@ -625,6 +678,19 @@ export const PythonPart2Page: React.FC = () => {
   const currentChoice = selectedAnswers[taskId];
   const isLocked = Boolean(currentChoice);
   const isUserWrongAnswer = Boolean(currentChoice && currentChoice !== currentMcq.correctAnswer);
+
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state && typeof e.state.qIdx === 'number' && e.state.secId) {
+        if (e.state.partNum === 2) {
+          setActiveSectionId(e.state.secId);
+          setActiveQuestionIdx(e.state.qIdx);
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   return (
     <div className="min-h-screen bg-black text-paper selection:bg-primary selection:text-ink relative overflow-x-hidden font-sans flex flex-col">
