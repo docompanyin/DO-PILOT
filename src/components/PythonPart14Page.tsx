@@ -32,6 +32,7 @@ interface LevelResultState {
   attemptCount: number;
   isSecondFailureInLevel: boolean;
   isLocked: boolean;
+  hadPriorStreak?: boolean;
 }
 
 export const PythonPart14Page: React.FC = () => {
@@ -277,7 +278,9 @@ export const PythonPart14Page: React.FC = () => {
     const isPassed = percentage > 80;
 
     // Record attempt result in persistent consecutive failure history
+    const prevStreak = getConsecutiveFailedLevelsPart14(studentId);
     const result = recordLevelAttemptResultPart14(activeSection.id, studentId, isPassed);
+    const hadPriorStreak = isPassed && prevStreak > 0;
     setConsecutiveFailures(result.consecutiveFailedLevels);
 
     const resultState = {
@@ -289,7 +292,8 @@ export const PythonPart14Page: React.FC = () => {
       streak: result.consecutiveFailedLevels,
       attemptCount: result.attemptCount,
       isSecondFailureInLevel: result.isSecondFailureInLevel,
-      isLocked: result.isLocked
+      isLocked: result.isLocked,
+      hadPriorStreak
     };
     setLevelResult(resultState);
     try {
@@ -756,7 +760,7 @@ export const PythonPart14Page: React.FC = () => {
                 {levelResult.isPassed
                   ? activeIdx === PART_14_SECTIONS.length - 1
                     ? `Congratulations! You scored ${levelResult.percentage}%, successfully mastering all concepts in Part 14. Click Continue to view your overall performance and claim your official certificate.`
-                    : `Congratulations! You scored ${levelResult.percentage}%, successfully meeting the requirement of more than 80%. Your consecutive-failure streak has reset to 0.`
+                    : `Congratulations! You scored ${levelResult.percentage}%, successfully meeting the requirement of more than 80%.${levelResult.hadPriorStreak ? ' Your consecutive failure streak has reset to 0.' : ''}`
                   : levelResult.isLocked
                   ? 'You have reached 3 consecutive failed levels in Part 14. Progression is locked. Please reach out to our team to review your concepts and unlock further levels.'
                   : levelResult.isSecondFailureInLevel

@@ -43,6 +43,7 @@ interface LevelResultState {
   attemptCount: number;
   isSecondFailureInLevel: boolean;
   isLocked: boolean;
+  hadPriorStreak?: boolean;
 }
 
 export const PythonPart1Page: React.FC = () => {
@@ -489,9 +490,12 @@ export const PythonPart1Page: React.FC = () => {
     let attemptCount = 1;
     let isSecondFailureInLevel = false;
     let isLocked = false;
+    let hadPriorStreak = false;
 
     if (hasPurchased) {
+      const prevStreak = getConsecutiveFailedLevels(studentId);
       const result = recordLevelAttemptResult(activeSection.id, studentId, isPassed);
+      hadPriorStreak = isPassed && prevStreak > 0;
       streak = result.consecutiveFailedLevels;
       attemptCount = result.attemptCount;
       isSecondFailureInLevel = result.isSecondFailureInLevel;
@@ -514,7 +518,8 @@ export const PythonPart1Page: React.FC = () => {
       streak,
       attemptCount,
       isSecondFailureInLevel,
-      isLocked
+      isLocked,
+      hadPriorStreak
     };
 
     setLevelResult(resultState);
@@ -1349,7 +1354,7 @@ export const PythonPart1Page: React.FC = () => {
                 </h2>
                 <p className="text-slate text-xs sm:text-sm max-w-md mx-auto leading-relaxed">
                   {levelResult.isPassed
-                    ? `Congratulations! You scored ${levelResult.percentage}%, successfully meeting the passing requirement of more than 80%. Your consecutive failure streak has reset to 0.`
+                    ? `Congratulations! You scored ${levelResult.percentage}%, successfully meeting the passing requirement of more than 80%.${levelResult.hadPriorStreak ? ' Your consecutive failure streak has reset to 0.' : ''}`
                     : levelResult.isLocked
                     ? 'You have reached 3 consecutive failed levels. Progression is locked. Please reach out to our team to review concepts and unlock further levels.'
                     : levelResult.isSecondFailureInLevel
