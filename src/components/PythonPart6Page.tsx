@@ -352,11 +352,22 @@ export const PythonPart6Page: React.FC = () => {
     const newQuestions = getActiveQuestionsForLevelPart6(activeSection, studentId, true);
     setLevelQuestions(newQuestions);
 
-    // 2. Clear answers for this level
+    // 2. Clear answers for this level — delete under ALL candidate key formats and any existing keys for this section
     const updatedAnswers = { ...selectedAnswers };
+    Object.keys(updatedAnswers).forEach(k => {
+      if (k.startsWith(`${activeSection.id}-`) || k.startsWith(`python-${activeSection.id}-`)) {
+        delete updatedAnswers[k];
+      }
+    });
     newQuestions.forEach((q, idx) => {
-      const oldTaskId = `${activeSection.id}-${q.id || idx}`;
-      delete updatedAnswers[oldTaskId];
+      const keysToDelete = [
+        `${activeSection.id}-${q.id || idx}`,
+        `${activeSection.id}-${idx}`,
+        q.id ? `${activeSection.id}-${q.id}` : '',
+        `python-${activeSection.id}-${q.id || idx}`,
+        `python-${activeSection.id}-${idx}`
+      ].filter(Boolean);
+      keysToDelete.forEach(k => delete updatedAnswers[k]);
     });
     setSelectedAnswers(updatedAnswers);
 

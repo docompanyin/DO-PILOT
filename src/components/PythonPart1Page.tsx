@@ -258,11 +258,14 @@ export const PythonPart1Page: React.FC = () => {
   ].filter(Boolean);
 
   // Whether user is currently in Study Phase (reading note with no timer pressure) or Question Phase (30s timer)
+  // On initial mount: only unlock if this exact question was already answered under the current taskId.
+  // Never use candidate keys here — old-format answers must not bypass the Notes lock.
   const [isStudyPhase, setIsStudyPhase] = useState<boolean>(() => {
     if (isReviewMode) return false;
     try {
       const answers = JSON.parse(localStorage.getItem('dopilot_mcq_answers_v2') || '{}');
-      if (candidateCurrentKeys.some(k => Boolean(answers[k]))) return false; // Already answered, show unblurred
+      // Only check the exact taskId — not candidate keys
+      if (answers[taskId]) return false;
       const savedPhase = localStorage.getItem('dopilot_study_phase');
       if (savedPhase !== null) return savedPhase === 'true';
     } catch {}
@@ -871,7 +874,10 @@ export const PythonPart1Page: React.FC = () => {
     }
   };
 
-  // Normalize older key format answers to taskId format on mount/step change
+  // Normalize older key format answers to taskId format on mount/step change.
+  // This runs BEFORE isLocked/currentChoice are derived, so the exact taskId
+  // key is populated from any legacy format. After this runs, all other logic
+  // only needs to check selectedAnswers[taskId].
   useEffect(() => {
     let changed = false;
     const updated = { ...selectedAnswers };
@@ -899,12 +905,14 @@ export const PythonPart1Page: React.FC = () => {
         localStorage.setItem('dopilot_mcq_answers_v2', JSON.stringify(updated));
       } catch {}
     }
-  }, [activeSectionId, activeQuestionIdx, levelQuestions]);
+  }, [activeSectionId, levelQuestions]);
 
   const isSolved = isTaskSolved(taskId);
-  // Both isLocked and currentChoice now use taskId consistently after key normalization
-  const currentChoice = selectedAnswers[taskId] || candidateCurrentKeys.map(k => selectedAnswers[k]).find(Boolean);
-  const isLocked = Boolean(selectedAnswers[taskId] || currentChoice);
+  // After key normalization above, selectedAnswers[taskId] is the single source of truth.
+  // currentChoice uses only taskId. isLocked uses only taskId.
+  // candidateCurrentKeys is kept only for evaluateLevelScore (score calculation).
+  const currentChoice = selectedAnswers[taskId];
+  const isLocked = Boolean(currentChoice);
   const isUserWrongAnswer = Boolean(currentChoice && currentChoice !== currentMcq.correctAnswer);
 
   // When restoring a question that was already answered in a previous session,

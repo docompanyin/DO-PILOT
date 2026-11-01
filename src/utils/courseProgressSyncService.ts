@@ -784,11 +784,22 @@ export const restoreAllStudentCourseProgressFromCloud = async (
           // Study Phase: NEVER relock if already unlocked locally or if target question is answered!
           const curPhase = localStorage.getItem(partKeys.studyPhaseKey);
           const sec = partState.activeSectionId || localStorage.getItem(partKeys.sectionIdKey) || '';
-          const isAnswered = Object.keys(mergedAnswers).some(k => 
-            k.includes(sec) && (k.endsWith(`-${targetIdx}`) || k.includes(`-${targetIdx}-`))
+          // Only check if the specific active question has an answer (exact key match)
+          const isAnswered = Object.keys(mergedAnswers).some(k => {
+            if (!sec) return false;
+            // Exact taskId format matches: e.g. "sectionId-idx" or "sectionId-qId"
+            return k === `${sec}-${targetIdx}` || k.startsWith(`${sec}-`);
+          }) && Boolean(
+            mergedAnswers[`${sec}-${targetIdx}`] ||
+            Object.entries(mergedAnswers).find(([k, v]) => k.startsWith(`${sec}-`) && Boolean(v))
+          );
+          // Only consider the target question answered if exact taskId key or index matches
+          const exactActiveKeyAnswered = Boolean(
+            mergedAnswers[`${sec}-${targetIdx}`] ||
+            (targetIdx === 0 && mergedAnswers[sec])
           );
           let targetStudyPhase = partState.isStudyPhase;
-          if (curPhase === 'false' || isAnswered) {
+          if (curPhase === 'false' || exactActiveKeyAnswered) {
             targetStudyPhase = false;
           }
           localStorage.setItem(partKeys.studyPhaseKey, String(targetStudyPhase));
@@ -1044,15 +1055,16 @@ export function useCourseQuestionResume(params: {
         setLevelResult?.(null);
       }
 
-      // 2. Study Phase: Check if user already unlocked locally or already answered this question
+      // 2. Study Phase: Check if user already unlocked locally or already answered this specific question
       const partKeys = getCourseStorageKeys(courseId, partNum);
       const curLocalStudy = localStorage.getItem(partKeys.studyPhaseKey);
       const qIdxStr = String(saved.activeQuestionIdx);
-      const hasAnswer = Object.keys(saved.selectedAnswers || {}).some(k => 
-        k.includes(saved.activeSectionId) && (
-          k.includes(`-${qIdxStr}-`) || 
-          k.endsWith(`-${qIdxStr}`)
-        )
+      const secId = saved.activeSectionId;
+      const exactKey = `${secId}-${qIdxStr}`;
+      const answersMap = saved.selectedAnswers || {};
+      const hasAnswer = Boolean(
+        answersMap[exactKey] ||
+        Object.keys(answersMap).some(k => k.startsWith(`${secId}-`) && (k.endsWith(`-${qIdxStr}`) || k === exactKey))
       );
 
       if (curLocalStudy === 'false' || hasAnswer) {

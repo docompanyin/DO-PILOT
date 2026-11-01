@@ -355,11 +355,22 @@ export const PythonPart14Page: React.FC = () => {
     const newQuestions = getActiveQuestionsForLevelPart14(activeSection, studentId, true);
     setLevelQuestions(newQuestions);
 
-    // 2. Clear answers for this level
+    // 2. Clear answers for this level — delete under ALL candidate key formats and any existing keys for this section
     const updatedAnswers = { ...selectedAnswers };
+    Object.keys(updatedAnswers).forEach(k => {
+      if (k.startsWith(`${activeSection.id}-`) || k.startsWith(`python-${activeSection.id}-`)) {
+        delete updatedAnswers[k];
+      }
+    });
     newQuestions.forEach((q, idx) => {
-      const oldTaskId = `${activeSection.id}-${q.id || idx}`;
-      delete updatedAnswers[oldTaskId];
+      const keysToDelete = [
+        `${activeSection.id}-${q.id || idx}`,
+        `${activeSection.id}-${idx}`,
+        q.id ? `${activeSection.id}-${q.id}` : '',
+        `python-${activeSection.id}-${q.id || idx}`,
+        `python-${activeSection.id}-${idx}`
+      ].filter(Boolean);
+      keysToDelete.forEach(k => delete updatedAnswers[k]);
     });
     setSelectedAnswers(updatedAnswers);
 
@@ -563,7 +574,7 @@ export const PythonPart14Page: React.FC = () => {
 
     setActiveSectionId(lastSec.id);
     setActiveQuestionIdx(lastQIdx);
-    setIsStudyPhase(false);
+    setIsStudyPhase(true);
     setLevelResult(null);
     setIsCourseComplete(false);
     setSelectedAnswers(answers);
@@ -576,7 +587,7 @@ export const PythonPart14Page: React.FC = () => {
       localStorage.setItem('dopilot_part14_mcq_answers_v2', JSON.stringify(answers));
       localStorage.setItem('dopilot_part14_active_section_id', lastSec.id);
       localStorage.setItem('dopilot_part14_active_q_idx', String(lastQIdx));
-      localStorage.setItem('dopilot_part14_study_phase', 'false');
+      localStorage.setItem('dopilot_part14_study_phase', 'true');
       localStorage.setItem('dopilot_part14_q_target_end_time', String(freshEndTime));
       localStorage.removeItem('dopilot_part14_time_up');
       localStorage.removeItem('dopilot_part14_level_result');
