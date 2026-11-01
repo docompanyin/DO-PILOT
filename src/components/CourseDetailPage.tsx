@@ -968,7 +968,7 @@ export const CourseDetailPage: React.FC = () => {
                     className="w-full sm:w-auto px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs sm:text-sm transition-all cursor-pointer flex items-center justify-center gap-2 group"
                   >
                     <Play className="w-3.5 h-3.5 text-primary fill-primary shrink-0" />
-                    <span>Try Part 1 - Free Trial</span>
+                    <span>{isCourseFullstack ? 'Try Part 0 - Free Trial' : 'Try Part 1 - Free Trial'}</span>
                   </button>
                 </div>
               ) : isCoursePython ? (
@@ -1418,7 +1418,7 @@ export const CourseDetailPage: React.FC = () => {
                     className="w-full sm:w-auto justify-center px-4 py-2 sm:py-1.5 rounded-full bg-white/[0.08] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5"
                   >
                     <Play className="w-3.5 h-3.5 text-primary fill-primary shrink-0" />
-                    <span>Try Part 1 - Free Trial</span>
+                    <span>{isCourseFullstack ? 'Try Part 0 - Free Trial' : 'Try Part 1 - Free Trial'}</span>
                   </button>
                 </>
               ) : (

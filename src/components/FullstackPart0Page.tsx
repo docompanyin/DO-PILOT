@@ -318,6 +318,20 @@ export const FullstackPart0Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'fullstack-open',
+      partNum: 0,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime: freshEnd,
+      timeLeft: TIMER_DURATION,
+      studentEmail: user?.email,
+      levelResult: null
+    });
   };
 
   // Evaluate Level Score after the 6 compulsory questions in a level
@@ -364,6 +378,20 @@ export const FullstackPart0Page: React.FC = () => {
     try {
       localStorage.setItem('dopilot_fullstack_part0_level_result', JSON.stringify(resultState));
     } catch {}
+
+    saveQuestionProgressState({
+      courseId: 'fullstack-open',
+      partNum: 0,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers: currentAnswers,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime,
+      timeLeft,
+      studentEmail: user?.email,
+      levelResult: resultState
+    });
   };
 
   // Advance function to go to next question or complete level
@@ -408,6 +436,19 @@ export const FullstackPart0Page: React.FC = () => {
       } catch (e) {
         console.error(e);
       }
+      saveQuestionProgressState({
+        courseId: 'fullstack-open',
+        partNum: 0,
+        activeSectionId: activeSection.id,
+        activeQuestionIdx: nextQ,
+        selectedAnswers: stateRef.current.selectedAnswers,
+        isStudyPhase: true,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: TIMER_DURATION,
+        studentEmail: user?.email,
+        levelResult: null
+      });
     } else {
       evaluateLevelScore();
     }
@@ -444,6 +485,20 @@ export const FullstackPart0Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'fullstack-open',
+      partNum: 0,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx: 0,
+      selectedAnswers: updatedAnswers,
+      isStudyPhase: true,
+      isTimeUpWaiting: false,
+      targetEndTime: fresh,
+      timeLeft: TIMER_DURATION,
+      studentEmail: user?.email,
+      levelResult: null
+    });
   };
 
   // Progress to the next level
@@ -480,12 +535,42 @@ export const FullstackPart0Page: React.FC = () => {
       } catch (e) {
         console.error(e);
       }
+
+      saveQuestionProgressState({
+        courseId: 'fullstack-open',
+        partNum: 0,
+        activeSectionId: nextSec.id,
+        activeQuestionIdx: 0,
+        selectedAnswers,
+        isStudyPhase: true,
+        isTimeUpWaiting: false,
+        targetEndTime: fresh,
+        timeLeft: TIMER_DURATION,
+        studentEmail: user?.email,
+        levelResult: null
+      });
     } else {
       setIsCourseComplete(true);
       playTwinkleSound();
       try {
         localStorage.setItem('dopilot_fullstack_part0_completed', 'true');
       } catch {}
+
+      saveQuestionProgressState({
+        courseId: 'fullstack-open',
+        partNum: 0,
+        activeSectionId: activeSection.id,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase: false,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: 30,
+        studentEmail: user?.email,
+        isCompleted: true,
+        isFinishedPart: true,
+        levelResult: null
+      });
     }
   };
 

@@ -151,7 +151,11 @@ const Part0RouteWrapper: React.FC = () => {
 const Part1RouteWrapper: React.FC = () => {
   const { courseId } = useParams<{ courseId: string }>();
   if (courseId && (courseId.includes('fullstack') || courseId === 'fullstack-open')) {
-    return <FullstackPart1Page />;
+    return (
+      <CoursePaidGuard partNum={1} courseId="fullstack-open">
+        <FullstackPart1Page />
+      </CoursePaidGuard>
+    );
   }
   if (courseId && (courseId.includes('java') || courseId === 'complete-java-programming' || courseId === 'java-core')) {
     return <JavaPart1Page />;
@@ -378,7 +382,7 @@ export const App: React.FC = () => {
 
             {/* Full Stack Open Question Routes (Protected by CourseAuthGuard) */}
             <Route path="/course/fullstack-open/part-0" element={<CourseAuthGuard><FullstackPart0Page /></CourseAuthGuard>} />
-            <Route path="/course/fullstack-open/part-1" element={<CourseAuthGuard><FullstackPart1Page /></CourseAuthGuard>} />
+            <Route path="/course/fullstack-open/part-1" element={<CourseAuthGuard><CoursePaidGuard partNum={1} courseId="fullstack-open"><FullstackPart1Page /></CoursePaidGuard></CourseAuthGuard>} />
             <Route path="/course/fullstack-open/part-2" element={<CourseAuthGuard><CoursePaidGuard partNum={2} courseId="fullstack-open"><FullstackPart2Page /></CoursePaidGuard></CourseAuthGuard>} />
             <Route path="/course/fullstack-open/part-3" element={<CourseAuthGuard><CoursePaidGuard partNum={3} courseId="fullstack-open"><FullstackPart3Page /></CoursePaidGuard></CourseAuthGuard>} />
             <Route path="/course/fullstack-open/part-4" element={<CourseAuthGuard><CoursePaidGuard partNum={4} courseId="fullstack-open"><FullstackPart4Page /></CoursePaidGuard></CourseAuthGuard>} />
