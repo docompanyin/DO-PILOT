@@ -31,7 +31,7 @@ interface UserAuthContextType {
   loginWithGoogleDirect: (profileData?: { name?: string; email?: string; avatar?: string; id?: string }) => Promise<UserProfile | null>;
   completeOnboardingAndLogin: (profile: UserProfile) => Promise<{ success: boolean; error?: string }>;
   updateUserProfile: (details: Partial<UserProfile>) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   enrollInCourse: (courseName: string) => void;
   clearPendingRegistration: () => void;
   refreshUserSession: () => Promise<void>;
@@ -478,8 +478,50 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     } catch (e) {}
 
-    // 4. Ensure no stale purchase keys, progress, or point caches linger from deleted accounts
-    purgeStudentLocalData(finalized.email, finalized.id);
+    // 4. Check for cloud progress record and handle orphaned records for newly registered accounts
+    if (isSupabaseConfigured() && finalized.email) {
+      try {
+        const { getStudentDocId } = await import('../utils/courseProgressSyncService');
+        const docId = getStudentDocId(finalized.email);
+        const { data: existingCloud } = await supabase
+          .from('site_content')
+          .select('id')
+          .eq('id', docId)
+          .maybeSingle();
+
+        if (!existingCloud) {
+          // No cloud record: genuinely new or post-deletion re-registration — start fresh
+          purgeStudentLocalData(finalized.email, finalized.id);
+        } else {
+          // Cloud record exists: check if profile was created recently (within last 5 mins).
+          // If profile is brand new but site_content exists, admin deletion left an orphaned progress record.
+          let isOrphanedRecord = false;
+          try {
+            const { data: profileRecord } = await supabase
+              .from('student_profiles')
+              .select('created_at')
+              .eq('email', finalized.email)
+              .maybeSingle();
+
+            if (profileRecord && profileRecord.created_at) {
+              const profileAgeMs = Date.now() - new Date(profileRecord.created_at).getTime();
+              // Created within last 5 minutes (300,000 ms)
+              if (profileAgeMs < 5 * 60 * 1000) {
+                isOrphanedRecord = true;
+              }
+            }
+          } catch {}
+
+          if (isOrphanedRecord) {
+            // Remove orphaned progress record directly and wipe local data for a clean slate
+            await supabase.from('site_content').delete().eq('id', docId);
+            purgeStudentLocalData(finalized.email, finalized.id);
+          }
+        }
+      } catch {
+        // If the check itself fails, do not purge — safer to keep existing local data
+      }
+    }
 
     // 5. Save completed session locally
     saveUserSession(finalized);
@@ -496,9 +538,60 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     saveUserSession(updated);
   };
 
-  const logout = () => {
+  const logout = async () => {
     const currentEmail = user?.email || pendingUser?.email;
     const currentId = user?.id || pendingUser?.id;
+
+    // Step 1: Flush in-memory state to Supabase BEFORE wiping localStorage.
+    // This is awaited so the final progress is guaranteed to be written first.
+    if (currentEmail && isSupabaseConfigured()) {
+      const pendingKey = `dopilot_pending_logout_save_${currentEmail.toLowerCase().trim()}`;
+      try {
+        const { memoryCourseState, getStudentDocId, normalizeStudentEmail, clearMemoryCourseState } =
+          await import('../utils/courseProgressSyncService');
+        const cleanEmail = normalizeStudentEmail(currentEmail);
+        const state = memoryCourseState[cleanEmail];
+        if (state) {
+          const docId = getStudentDocId(cleanEmail);
+          // Persist snapshot under pending key before attempting save
+          try {
+            localStorage.setItem(pendingKey, JSON.stringify(state));
+          } catch {}
+
+          // Try server-side endpoint first, fall back to direct Supabase
+          let saved = false;
+          try {
+            const resp = await fetch('/api/student-sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: cleanEmail, type: 'progress', content: state })
+            });
+            if (resp.ok) saved = true;
+          } catch {}
+          if (!saved) {
+            const { error: upsertErr } = await supabase.from('site_content').upsert({
+              id: docId,
+              content: state,
+              updated_at: new Date().toISOString()
+            });
+            if (!upsertErr) saved = true;
+          }
+
+          if (saved) {
+            // Save succeeded: safe to remove pending snapshot
+            try {
+              localStorage.removeItem(pendingKey);
+            } catch {}
+          }
+          clearMemoryCourseState(cleanEmail);
+        }
+      } catch (e) {
+        // Save failed — log it but keep pendingKey so next login can retry upload
+        console.warn('Logout progress save failed:', e);
+      }
+    }
+
+    // Step 2: Now safe to wipe local data
     if (currentEmail) {
       purgeStudentLocalData(currentEmail, currentId);
     }

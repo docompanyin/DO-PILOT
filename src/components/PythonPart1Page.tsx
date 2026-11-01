@@ -582,32 +582,12 @@ export const PythonPart1Page: React.FC = () => {
       // Advance to next question in same level
       setActiveQuestionIdx(nextQ);
       setTimeLeft(TIMER_DURATION);
+      setIsStudyPhase(true);
       try {
         localStorage.setItem('dopilot_active_q_idx', String(nextQ));
+        localStorage.setItem('dopilot_study_phase', 'true');
       } catch (e) {
         console.error(e);
-      }
-
-      // Check if next question has already been answered
-      const nextMcq = qList[nextQ] || activeSection.theoryBlocks[nextQ]?.mcq;
-      const nextKeys = [
-        `${activeSection.id}-${nextMcq?.id || nextQ}`,
-        `${activeSection.id}-${nextQ}`,
-        nextMcq?.id ? `${activeSection.id}-${nextMcq.id}` : ''
-      ].filter(Boolean);
-      const isNextAnswered = nextKeys.some(k => Boolean(currentAns[k]));
-
-      const nextStudyPhase = !isNextAnswered;
-      if (isNextAnswered) {
-        setIsStudyPhase(false);
-        try {
-          localStorage.setItem('dopilot_study_phase', 'false');
-        } catch {}
-      } else {
-        setIsStudyPhase(true);
-        try {
-          localStorage.setItem('dopilot_study_phase', 'true');
-        } catch {}
       }
 
       // Immediately save advance state to central database
@@ -617,7 +597,7 @@ export const PythonPart1Page: React.FC = () => {
         activeSectionId: activeSection.id,
         activeQuestionIdx: nextQ,
         selectedAnswers: currentAns,
-        isStudyPhase: nextStudyPhase,
+        isStudyPhase: true,
         isTimeUpWaiting: false,
         targetEndTime: 0,
         timeLeft: TIMER_DURATION,
@@ -884,15 +864,40 @@ export const PythonPart1Page: React.FC = () => {
     }
   };
 
-  const isSolved = isTaskSolved(taskId);
-  let currentChoice: string | undefined = undefined;
-  for (const k of candidateCurrentKeys) {
-    if (selectedAnswers[k]) {
-      currentChoice = selectedAnswers[k];
-      break;
+  // Normalize older key format answers to taskId format on mount/step change
+  useEffect(() => {
+    let changed = false;
+    const updated = { ...selectedAnswers };
+    levelQuestions.forEach((q, idx) => {
+      const currentQTaskId = `${activeSection.id}-${q.id || idx}`;
+      if (!updated[currentQTaskId]) {
+        const legacyKeys = [
+          `${activeSection.id}-${idx}`,
+          q.id ? `${activeSection.id}-${q.id}` : '',
+          `python-${activeSection.id}-${q.id || idx}`,
+          `python-${activeSection.id}-${idx}`
+        ].filter(Boolean);
+        for (const k of legacyKeys) {
+          if (updated[k]) {
+            updated[currentQTaskId] = updated[k];
+            changed = true;
+            break;
+          }
+        }
+      }
+    });
+    if (changed) {
+      setSelectedAnswers(updated);
+      try {
+        localStorage.setItem('dopilot_mcq_answers_v2', JSON.stringify(updated));
+      } catch {}
     }
-  }
-  const isLocked = Boolean(currentChoice);
+  }, [activeSectionId, activeQuestionIdx, levelQuestions]);
+
+  const isSolved = isTaskSolved(taskId);
+  // Both isLocked and currentChoice now use taskId consistently after key normalization
+  const currentChoice = selectedAnswers[taskId] || candidateCurrentKeys.map(k => selectedAnswers[k]).find(Boolean);
+  const isLocked = Boolean(selectedAnswers[taskId] || currentChoice);
   const isUserWrongAnswer = Boolean(currentChoice && currentChoice !== currentMcq.correctAnswer);
 
   // When viewing an already answered question, ensure it remains unblurred and timer is inactive

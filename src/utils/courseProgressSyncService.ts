@@ -638,6 +638,40 @@ export const restoreAllStudentCourseProgressFromCloud = async (
 
   try {
     const docId = getStudentDocId(cleanEmail);
+
+    // Issue 1: Check and flush any pending logout save snapshot if present
+    const pendingKey = `dopilot_pending_logout_save_${cleanEmail}`;
+    try {
+      const pendingRaw = localStorage.getItem(pendingKey);
+      if (pendingRaw) {
+        const pendingState = JSON.parse(pendingRaw);
+        if (pendingState && pendingState.courses) {
+          let reUploaded = false;
+          try {
+            const resp = await fetch('/api/student-sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: cleanEmail, type: 'progress', content: pendingState })
+            });
+            if (resp.ok) reUploaded = true;
+          } catch {}
+          if (!reUploaded) {
+            const { error: upsertErr } = await supabase.from('site_content').upsert({
+              id: docId,
+              content: pendingState,
+              updated_at: new Date().toISOString()
+            });
+            if (!upsertErr) reUploaded = true;
+          }
+          if (reUploaded) {
+            localStorage.removeItem(pendingKey);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to re-upload pending logout state:', e);
+    }
+
     const { data, error } = await supabase
       .from('site_content')
       .select('content')
@@ -738,10 +772,11 @@ export const restoreAllStudentCourseProgressFromCloud = async (
           if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_mcq_answers', JSON.stringify(mergedAnswers));
           if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_mcq_answers_v2', JSON.stringify(mergedAnswers));
 
-          // Question Index: Keep max index so user does not jump backwards
-          const curIdxStr = localStorage.getItem(partKeys.questionIdxKey);
-          const curIdx = curIdxStr !== null ? parseInt(curIdxStr, 10) : -1;
-          const targetIdx = curIdx >= 0 ? Math.max(curIdx, partState.activeQuestionIdx || 0) : (partState.activeQuestionIdx || 0);
+          // Question Index: Always use the cloud value on login restore.
+          // Cloud is the source of truth. localStorage is only a write-through cache.
+          // On a fresh device or after cache clear, curIdx is -1 and cloud value is used directly.
+          // On re-login to the same device, we still use cloud value to restore the exact last page.
+          const targetIdx = partState.activeQuestionIdx || 0;
           localStorage.setItem(partKeys.questionIdxKey, String(targetIdx));
           if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_active_q_idx', String(targetIdx));
           if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_active_q_idx', String(targetIdx));
@@ -978,6 +1013,8 @@ export function useCourseQuestionResume(params: {
   const hasHydratedRef = useRef(false);
 
   useEffect(() => {
+    // Reset hydration flag on every effect run (e.g. section changes or remounts)
+    hasHydratedRef.current = false;
     const cleanEmail = normalizeStudentEmail(studentEmail);
     if (!cleanEmail) return;
 

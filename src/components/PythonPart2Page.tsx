@@ -278,13 +278,36 @@ export const PythonPart2Page: React.FC = () => {
   // Evaluate Level Score when all questions in current level are completed
   const evaluateLevelScore = () => {
     const qList = stateRef.current.levelQuestions;
-    const answers = stateRef.current.selectedAnswers;
+    const secId = stateRef.current.activeSectionId;
+
+    let localAnswers: Record<string, string> = {};
+    try {
+      const saved = localStorage.getItem('dopilot_part2_mcq_answers_v2');
+      if (saved) localAnswers = JSON.parse(saved);
+    } catch {}
+    const answers = { ...localAnswers, ...stateRef.current.selectedAnswers };
+
     let correctCount = 0;
     const totalCount = qList.length;
 
     qList.forEach((q, idx) => {
-      const qTaskId = `${stateRef.current.activeSectionId}-${q.id || idx}`;
-      if (answers[qTaskId] === q.correctAnswer) {
+      const candidateKeys = [
+        `${secId}-${q.id}`,
+        `${secId}-${idx}`,
+        q.id ? `${secId}-${q.id || idx}` : '',
+        `python-${secId}-${q.id || idx}`,
+        `python-${secId}-${idx}`
+      ].filter(Boolean);
+
+      let userChoice: string | undefined = undefined;
+      for (const k of candidateKeys) {
+        if (answers[k]) {
+          userChoice = answers[k];
+          break;
+        }
+      }
+
+      if (userChoice === q.correctAnswer) {
         correctCount++;
       }
     });
