@@ -203,7 +203,7 @@ export const getPostPurchaseStartingPart = (
 ): number => {
   const track = normalizeTrackId(courseId);
 
-  // If student already progressed beyond Part 2 (e.g. Part 3, 4, etc.), keep their advance
+  // If student already progressed beyond Part 2, keep their advance
   if (currentUncompletedPart > 2) {
     return currentUncompletedPart;
   }
@@ -220,15 +220,15 @@ export const getPostPurchaseStartingPart = (
   // Check if student attempted the free trial before purchase
   const trialAttempted = hasAttemptedTrial(track, studentId);
   if (!trialAttempted) {
-    // Purchased before starting: start normally at Part 1 without 50% trial rule
-    return currentUncompletedPart;
+    // Purchased before starting / without completing trial: ALWAYS start from Part 1
+    return 1;
   }
 
   const { isAbove50 } = getPart1OverallScore(track, studentId);
 
   // For users who attempted the free trial and then purchased:
-  // Total score >= 50% -> start directly from Part 2
-  // Total score < 50% -> start again from Part 1
+  // Total score >= 50% across all Part 1 questions -> start directly from Part 2
+  // Total score < 50% across all Part 1 questions -> start again from Part 1
   return isAbove50 ? 2 : 1;
 };
 

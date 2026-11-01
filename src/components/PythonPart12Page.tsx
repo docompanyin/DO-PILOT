@@ -817,14 +817,7 @@ export const PythonPart12Page: React.FC = () => {
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={handleResetQuestions}
-                    className="py-2.5 px-4 rounded-xl bg-white/[0.02] hover:bg-white/10 text-white hover:text-white font-mono text-xs transition-all cursor-pointer"
-                  >
-                    <span>Reset &amp; Retry Level</span>
-                  </button>
-                </>
+                                  </>
               ) : (
                 /* 3+ CONSECUTIVE FAILURES: Locked! Only Contact Team Available */
                 <button

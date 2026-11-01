@@ -14,7 +14,7 @@ import { NeedHelpModal } from './NeedHelpModal';
 import { CoursePurchaseModal } from './checkout/CoursePurchaseModal';
 import { hasCourseAccess, getCoursePricing, CoursePricing, syncUserPurchasesFromCloud } from '../utils/coursePricingService';
 import { getUserInitials } from '../utils/userInitials';
-import { getPostPurchaseStartingPart, getPart1OverallScore, getPostPurchaseDecision } from '../utils/part1ScoreService';
+import { getPostPurchaseStartingPart, getPart1OverallScore, getPostPurchaseDecision, hasAttemptedTrial } from '../utils/part1ScoreService';
 import { restoreAllStudentCourseProgressFromCloud } from '../utils/courseProgressSyncService';
 import { getSavedCertificate } from '../utils/certificateGenerator';
 import { navigateBackOrFallback } from '../utils/navigationHelper';
@@ -34,9 +34,14 @@ const getPythonResumeInfo = (isPurchased = false, studentId?: string): PythonRes
     for (let i = 1; i <= 14; i++) {
       let isComp = false;
       if (i === 1) {
-        const stored = localStorage.getItem('dopilot_part1_completed') === 'true' || localStorage.getItem('dopilot_completed') === 'true';
-        const decision = getPostPurchaseDecision('python-core', studentId);
-        isComp = stored && (getPart1OverallScore('python-core', studentId).isAbove50 || decision === 'continue_to_part2');
+        const trialAttempted = hasAttemptedTrial('python-core', studentId);
+        if (!trialAttempted && isPurchased) {
+          isComp = false;
+        } else {
+          const stored = localStorage.getItem('dopilot_part1_completed') === 'true' || localStorage.getItem('dopilot_completed') === 'true';
+          const decision = getPostPurchaseDecision('python-core', studentId);
+          isComp = stored && (getPart1OverallScore('python-core', studentId).isAbove50 || decision === 'continue_to_part2');
+        }
       } else {
         isComp = localStorage.getItem(`dopilot_part${i}_completed`) === 'true';
       }

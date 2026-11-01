@@ -1433,15 +1433,7 @@ export const PythonPart1Page: React.FC = () => {
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={handleResetQuestions}
-                      className="py-2.5 px-4 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/10 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5"
-                    >
-                      <Shuffle className="w-3.5 h-3.5" />
-                      <span>Reset &amp; Retry Level</span>
-                    </button>
-
+                    
                     <button
                       type="button"
                       onClick={() => setHelpModalOpen(true)}
