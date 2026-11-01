@@ -616,11 +616,18 @@ export const PythonPart1Page: React.FC = () => {
     const newQuestions = getActiveQuestionsForLevel(activeSection, studentId, true);
     setLevelQuestions(newQuestions);
 
-    // 2. Clear answers for this level
+    // 2. Clear answers for this level — delete under ALL candidate key formats
+    // so old-format answers do not survive the reset and trigger auto-unlock
     const updatedAnswers = { ...selectedAnswers };
     newQuestions.forEach((q, idx) => {
-      const oldTaskId = `${activeSection.id}-${q.id || idx}`;
-      delete updatedAnswers[oldTaskId];
+      const keysToDelete = [
+        `${activeSection.id}-${q.id || idx}`,
+        `${activeSection.id}-${idx}`,
+        q.id ? `${activeSection.id}-${q.id}` : '',
+        `python-${activeSection.id}-${q.id || idx}`,
+        `python-${activeSection.id}-${idx}`
+      ].filter(Boolean);
+      keysToDelete.forEach(k => delete updatedAnswers[k]);
     });
     setSelectedAnswers(updatedAnswers);
 
@@ -900,13 +907,16 @@ export const PythonPart1Page: React.FC = () => {
   const isLocked = Boolean(selectedAnswers[taskId] || currentChoice);
   const isUserWrongAnswer = Boolean(currentChoice && currentChoice !== currentMcq.correctAnswer);
 
-  // When viewing an already answered question, ensure it remains unblurred and timer is inactive
+  // When restoring a question that was already answered in a previous session,
+  // ensure it remains unblurred and timer is inactive.
+  // Uses selectedAnswers[taskId] (exact key only) so that answers saved under
+  // old key formats do NOT auto-unlock a fresh question on index change.
   useEffect(() => {
-    if (currentChoice) {
+    if (selectedAnswers[taskId]) {
       setIsStudyPhase(false);
       setIsTimeUpWaiting(false);
     }
-  }, [activeSectionId, activeQuestionIdx, currentChoice]);
+  }, [activeSectionId, activeQuestionIdx, taskId]);
 
   return (
     <div className="min-h-screen bg-black text-paper selection:bg-primary selection:text-ink relative overflow-x-hidden font-sans flex flex-col">
