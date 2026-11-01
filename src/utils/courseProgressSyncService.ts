@@ -127,44 +127,57 @@ export const getCourseStorageKeys = (courseId: string, partNum: number) => {
 export const memoryCourseState: Record<string, StudentAllCoursesState> = {};
 let syncTimeout: any = null;
 
-export const queueCloudSync = (email: string) => {
+export const flushCloudSync = async (email: string) => {
+  if (syncTimeout) {
+    clearTimeout(syncTimeout);
+    syncTimeout = null;
+  }
+  const cleanEmail = normalizeStudentEmail(email);
+  if (!cleanEmail || !isSupabaseConfigured()) return;
+  const state = memoryCourseState[cleanEmail];
+  if (!state) return;
+
+  try {
+    // 1. Primary: Save via authenticated server-side sync endpoint with keepalive
+    try {
+      const resp = await fetch('/api/student-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: cleanEmail,
+          type: 'progress',
+          content: state
+        }),
+        keepalive: true
+      });
+      if (resp.ok) return;
+    } catch (netErr) {
+      // Fallback for offline dev
+    }
+
+    // 2. Direct fallback
+    const docId = getStudentDocId(cleanEmail);
+    await supabase.from('site_content').upsert({
+      id: docId,
+      content: state,
+      updated_at: new Date().toISOString()
+    });
+  } catch (e) {
+    console.warn('Background course progress cloud sync error:', e);
+  }
+};
+
+export const queueCloudSync = (email: string, immediate = false) => {
+  if (immediate) {
+    flushCloudSync(email);
+    return;
+  }
   if (syncTimeout) {
     clearTimeout(syncTimeout);
   }
-  syncTimeout = setTimeout(async () => {
-    const cleanEmail = normalizeStudentEmail(email);
-    if (!cleanEmail || !isSupabaseConfigured()) return;
-    const state = memoryCourseState[cleanEmail];
-    if (!state) return;
-
-    try {
-      // 1. Primary: Save via authenticated server-side sync endpoint
-      try {
-        const resp = await fetch('/api/student-sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: cleanEmail,
-            type: 'progress',
-            content: state
-          })
-        });
-        if (resp.ok) return;
-      } catch (netErr) {
-        // Fallback for offline dev
-      }
-
-      // 2. Direct fallback
-      const docId = getStudentDocId(cleanEmail);
-      await supabase.from('site_content').upsert({
-        id: docId,
-        content: state,
-        updated_at: new Date().toISOString()
-      });
-    } catch (e) {
-      console.warn('Background course progress cloud sync error:', e);
-    }
-  }, 250);
+  syncTimeout = setTimeout(() => {
+    flushCloudSync(email);
+  }, 100);
 };
 
 export const clearMemoryCourseState = (email?: string) => {
@@ -475,6 +488,7 @@ export const saveQuestionProgressState = (params: {
   isCompleted?: boolean;
   isFinishedPart?: boolean;
   levelResult?: LevelResultRecord | null;
+  forceImmediate?: boolean;
 }) => {
   const {
     courseId,
@@ -489,7 +503,8 @@ export const saveQuestionProgressState = (params: {
     studentEmail,
     isCompleted = false,
     isFinishedPart = false,
-    levelResult = null
+    levelResult = null,
+    forceImmediate = false
   } = params;
 
   // 1. Immediately persist to localStorage
@@ -579,7 +594,7 @@ export const saveQuestionProgressState = (params: {
   } catch {}
 
   studentState.updatedAt = new Date().toISOString();
-  queueCloudSync(cleanEmail);
+  queueCloudSync(cleanEmail, forceImmediate);
 };
 
 /**
@@ -624,7 +639,7 @@ export const saveCoursePartCompletion = (
   }
 
   studentState.updatedAt = new Date().toISOString();
-  queueCloudSync(cleanEmail);
+  queueCloudSync(cleanEmail, true);
 };
 
 /**

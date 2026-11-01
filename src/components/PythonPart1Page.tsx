@@ -26,7 +26,7 @@ import {
   hasUsedPart1Restart, setPostPurchaseDecision, getPostPurchaseDecision,
   markTrialAttempted, hasAttemptedTrial 
 } from '../utils/part1ScoreService';
-import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState } from '../utils/courseProgressSyncService';
+import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -59,6 +59,11 @@ export const PythonPart1Page: React.FC = () => {
   // Persistent Active Section ID (Defaults to Section 1.1)
   const [activeSectionId, setActiveSectionId] = useState<string>(() => {
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['python-core']?.parts?.['1'] : null;
+      if (memPart?.activeSectionId && PART_1_SECTIONS.some(s => s.id === memPart.activeSectionId)) {
+        return memPart.activeSectionId;
+      }
       const saved = localStorage.getItem('dopilot_active_section_id');
       return saved || '1-1-getting-started';
     } catch {
@@ -69,6 +74,11 @@ export const PythonPart1Page: React.FC = () => {
   // Persistent Question Index
   const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(() => {
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['python-core']?.parts?.['1'] : null;
+      if (typeof memPart?.activeQuestionIdx === 'number') {
+        return memPart.activeQuestionIdx;
+      }
       const saved = localStorage.getItem('dopilot_active_q_idx');
       return saved !== null ? Number(saved) : 0;
     } catch {
@@ -263,6 +273,11 @@ export const PythonPart1Page: React.FC = () => {
   const [isStudyPhase, setIsStudyPhase] = useState<boolean>(() => {
     if (isReviewMode) return false;
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['python-core']?.parts?.['1'] : null;
+      if (typeof memPart?.isStudyPhase === 'boolean') {
+        return memPart.isStudyPhase;
+      }
       const answers = JSON.parse(localStorage.getItem('dopilot_mcq_answers_v2') || '{}');
       // Only check the exact taskId — not candidate keys
       if (answers[taskId]) return false;
@@ -383,7 +398,25 @@ export const PythonPart1Page: React.FC = () => {
     try {
       localStorage.setItem('dopilot_python_core_last_part', '1');
     } catch {}
-  }, [activeSectionId, activeQuestionIdx]);
+
+    // Auto-checkpoint active location & notes phase to Supabase so clearing cookies preserves exact step
+    if (user?.email && !levelResult?.isFinished && !isCourseComplete) {
+      saveQuestionProgressState({
+        courseId: 'python-core',
+        partNum: 1,
+        activeSectionId,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase,
+        isTimeUpWaiting,
+        targetEndTime,
+        timeLeft,
+        studentEmail: user?.email,
+        levelResult: null,
+        forceImmediate: true
+      });
+    }
+  }, [activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
 
   // Ref to track latest state inside setInterval
   const stateRef = useRef({
@@ -707,6 +740,21 @@ export const PythonPart1Page: React.FC = () => {
       } catch (e) {
         console.error(e);
       }
+
+      saveQuestionProgressState({
+        courseId: 'python-core',
+        partNum: 1,
+        activeSectionId: nextSec.id,
+        activeQuestionIdx: 0,
+        selectedAnswers,
+        isStudyPhase: true,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: TIMER_DURATION,
+        studentEmail: user?.email,
+        levelResult: null,
+        forceImmediate: true
+      });
     } else {
       // Finished all sections of Part 1!
       const part1Summary = getPart1OverallScore('python-core', studentId);
