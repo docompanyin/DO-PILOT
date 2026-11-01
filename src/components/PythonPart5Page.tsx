@@ -445,19 +445,7 @@ export const PythonPart5Page: React.FC = () => {
     }
   };
 
-  // Auto-skip after exactly 3 seconds when answered correctly
-  useEffect(() => {
-    if (correctCountdown === null) return;
-    if (correctCountdown <= 0) {
-      setCorrectCountdown(null);
-      advanceToNextQuestion();
-      return;
-    }
-    const t = setTimeout(() => {
-      setCorrectCountdown(prev => (prev !== null ? prev - 1 : null));
-    }, 1000);
-    return () => clearTimeout(t);
-  }, [correctCountdown]);
+  // Auto-skip countdown removed: questions require manual Continue
 
   // Timer Tick: Checks every 250ms against exact target timestamp ONLY when study phase is finished!
   useEffect(() => {
@@ -528,7 +516,7 @@ export const PythonPart5Page: React.FC = () => {
       if (!isRetestAttempt) {
         awardPoint(tId, heading, optId);
       }
-      setCorrectCountdown(3);
+      
     }
   };
 
@@ -567,7 +555,7 @@ export const PythonPart5Page: React.FC = () => {
   };
 
   const isSolved = isTaskSolved(taskId);
-  const currentChoice = selectedAnswers[taskId] || (isSolved ? currentMcq.correctAnswer : undefined);
+  const currentChoice = selectedAnswers[taskId];
   const isLocked = Boolean(currentChoice);
   const isUserWrongAnswer = Boolean(currentChoice && currentChoice !== currentMcq.correctAnswer);
 
@@ -878,10 +866,10 @@ export const PythonPart5Page: React.FC = () => {
                       <Clock className="w-3.5 h-3.5" />
                       <span>Review Answer</span>
                     </div>
-                  ) : correctCountdown !== null ? (
+                  ) : currentChoice ? (
                     <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-emerald-400">
                       <Clock className="w-3.5 h-3.5" />
-                      <span>Next in {correctCountdown}s</span>
+                      <span>Answer Recorded</span>
                     </div>
                   ) : isReviewMode ? (
                     <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-emerald-400">
@@ -1149,8 +1137,6 @@ export const PythonPart5Page: React.FC = () => {
                           <span className="text-[11px] font-mono text-white">
                             {isUserWrongAnswer
                               ? 'Review the explanation above, then click Continue:'
-                              : correctCountdown !== null
-                              ? `Next question in ${correctCountdown}s, or click Continue:`
                               : 'Click Continue to proceed:'}
                           </span>
                           <button
