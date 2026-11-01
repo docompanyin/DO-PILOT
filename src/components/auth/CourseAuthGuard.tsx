@@ -53,14 +53,11 @@ export const CourseAuthGuard: React.FC<CourseAuthGuardProps> = ({ children }) =>
 
   const handleUnauthorized = useCallback((email?: string, id?: string) => {
     setIsAuthorized(false);
-    const targetEmail = email || user?.email;
-    const targetId = id || user?.id;
-    if (targetEmail) {
-      purgeStudentLocalData(targetEmail, targetId);
-    }
+    // Never purge student progress on unauthenticated redirect.
+    // Progress must remain safe in cloud & local storage for re-login restoration.
     logout();
     navigate('/', { replace: true });
-  }, [logout, navigate, user?.email, user?.id]);
+  }, [logout, navigate]);
 
   // Server-side validation against Supabase backend (student_profiles table)
   const validateSessionAgainstBackend = useCallback(async () => {

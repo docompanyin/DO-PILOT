@@ -441,7 +441,8 @@ export const PythonPart5Page: React.FC = () => {
         targetEndTime: 0,
         timeLeft: TIMER_DURATION,
         studentEmail: user?.email,
-        levelResult: null
+        levelResult: null,
+        forceImmediate: true
       });
     } else {
       // Finished all questions in current level! Evaluate level exam
