@@ -1447,9 +1447,9 @@ export const PythonPart3Page: React.FC = () => {
       {/* Part 4 Introduction Modal */}
       {part4ModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-panel border border-white/10 rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-6 shadow-2xl relative text-left">
+          <div className="bg-panel border border-white/10 rounded-3xl p-6 sm:p-8 max-w-lg md:max-w-xl w-full space-y-6 shadow-2xl relative text-left">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/25 text-primary font-mono text-xs font-bold uppercase tracking-wider">
+              <div className="inline-flex items-center text-primary font-mono text-xs font-bold uppercase tracking-wider">
                 <span>Part 4 Introduction</span>
               </div>
               <h3 className="font-jakarta text-2xl font-black text-paper tracking-tight">
