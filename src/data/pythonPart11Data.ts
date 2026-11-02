@@ -3805,6 +3805,7 @@ export const recordLevelAttemptResultPart11 = (
       localStorage.setItem(`dopilot_part11_consecutive_failures_${studentId}`, '0');
       localStorage.setItem(`dopilot_part11_attempt_${sectionId}_${studentId}`, '1');
       localStorage.removeItem(`dopilot_part11_locked_${studentId}`);
+      localStorage.removeItem(`dopilot_locked_${studentId}`);
     } catch {}
 
     return {
@@ -3837,6 +3838,7 @@ export const recordLevelAttemptResultPart11 = (
         localStorage.setItem(`dopilot_part11_consecutive_failures_${studentId}`, String(newStreak));
         if (isLocked) {
           localStorage.setItem(`dopilot_part11_locked_${studentId}`, 'true');
+          localStorage.setItem(`dopilot_locked_${studentId}`, 'true');
         }
       } catch {}
 
