@@ -554,6 +554,7 @@ export const PythonPart12Page: React.FC = () => {
       });
     } else {
       // Finished all sections of Part 12!
+      setPart13ModalOpen(true);
       setIsCourseComplete(true);
       try {
         localStorage.setItem('dopilot_part12_completed', 'true');
@@ -1415,36 +1416,58 @@ export const PythonPart12Page: React.FC = () => {
       )}
 
       {/* Stage 1 Completion Modal when student completes Part 12 */}
+      {/* Part 13 Introduction Modal */}
       {part13ModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-panel border border-emerald-500/30 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-5 text-center shadow-2xl relative">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 font-mono text-xs font-bold">
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Part 12 Certified (&gt; 80% Scored)</span>
-            </div>
-
-            <div className="space-y-1.5">
-              <h3 className="font-jakarta text-xl sm:text-2xl font-black text-paper">
-                Part 12 Certified: Functional Programming &amp; Regular Expressions Mastered!
+          <div className="bg-panel border border-white/10 rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-6 shadow-2xl relative text-left">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/25 text-primary font-mono text-xs font-bold uppercase tracking-wider">
+                <span>Part 13 Introduction</span>
+              </div>
+              <h3 className="font-jakarta text-2xl font-black text-paper tracking-tight">
+                Part 13: Decorators, Closures & Functional Python
               </h3>
               <p className="text-slate text-xs sm:text-sm leading-relaxed">
-                Congratulations! You have completed all 4 levels of Part 12 and mastered First-Class Functions, Custom Sorting with key=, Generators & yield, Functional Pipelines (map, filter, reduce), Closures, and Regular Expressions!
+                Master first-class functions, closures, function decorators, parameterized decorators, functools.wraps, and functional programming constructs.
               </p>
             </div>
 
-            <div className="flex flex-col gap-2 pt-2">
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2.5">
+              <div className="text-[11px] font-mono uppercase tracking-wider text-slate/70 font-semibold">
+                What you will learn:
+              </div>
+              <ul className="space-y-2">
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>First-class functions and higher-order functions</span>
+                </li>
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>Scope, lexical enclosing environments, and closures</span>
+                </li>
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>Function decorators, timing wrappers, and logging hooks</span>
+                </li>
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>Parameterized decorators and preserving metadata with @wraps</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="pt-2">
               <button
                 type="button"
                 onClick={() => {
                   setPart13ModalOpen(false);
                   navigate('/course/python-core/part-13');
                 }}
-                className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20"
+                className="w-full py-3 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-lg shadow-primary/25 flex items-center justify-center gap-2"
               >
-                Start Part 13: Pygame, Animation &amp; Events
+                <span>Start Part 13</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
-
-
             </div>
           </div>
         </div>

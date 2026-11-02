@@ -554,6 +554,7 @@ export const PythonPart6Page: React.FC = () => {
       });
     } else {
       // Finished all sections of Part 6!
+      setPart7ModalOpen(true);
       setIsCourseComplete(true);
       try {
         localStorage.setItem('dopilot_part6_completed', 'true');
@@ -1415,36 +1416,58 @@ export const PythonPart6Page: React.FC = () => {
       )}
 
       {/* Part 3 Modal when student completes all Part 2 levels */}
+      {/* Part 7 Introduction Modal */}
       {part7ModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-panel border border-emerald-500/30 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-5 text-center shadow-2xl relative">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 font-mono text-xs font-bold">
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Part 6 Certified (&gt; 80% Scored)</span>
-            </div>
-
-            <div className="space-y-1.5">
-              <h3 className="font-jakarta text-xl sm:text-2xl font-black text-paper">
-                Part 6 Certified! Unlocking Part 7
+          <div className="bg-panel border border-white/10 rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-6 shadow-2xl relative text-left">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/25 text-primary font-mono text-xs font-bold uppercase tracking-wider">
+                <span>Part 7 Introduction</span>
+              </div>
+              <h3 className="font-jakarta text-2xl font-black text-paper tracking-tight">
+                Part 7: Modules, Standard Library & Stage 1 Integration
               </h3>
               <p className="text-slate text-xs sm:text-sm leading-relaxed">
-                You have passed all levels and unlocked Part 7! You mastered file reading, CSV parsing, file writing, and robust exception handling with try-except.
+                Structure multi-file Python applications using standard library modules (random, datetime, math), JSON data handling, and comprehensive Stage 1 synthesis.
               </p>
             </div>
 
-            <div className="flex flex-col gap-2 pt-2">
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2.5">
+              <div className="text-[11px] font-mono uppercase tracking-wider text-slate/70 font-semibold">
+                What you will learn:
+              </div>
+              <ul className="space-y-2">
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>Importing and organizing Python modules and namespaces</span>
+                </li>
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>Standard library power: random, math, and datetime</span>
+                </li>
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>JSON parsing, serialization, and working with external data</span>
+                </li>
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>Comprehensive Stage 1 application architecture</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="pt-2">
               <button
                 type="button"
                 onClick={() => {
                   setPart7ModalOpen(false);
                   navigate('/course/python-core/part-7');
                 }}
-                className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20"
+                className="w-full py-3 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-lg shadow-primary/25 flex items-center justify-center gap-2"
               >
-                Start Part 7: Modules &amp; Data Processing
+                <span>Start Part 7</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
-
-
             </div>
           </div>
         </div>

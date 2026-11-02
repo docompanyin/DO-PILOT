@@ -1099,7 +1099,7 @@ export const PythonPart1Page: React.FC = () => {
       <main className={`flex-1 flex flex-col items-center justify-center ${!isCourseComplete && !levelResult ? 'max-w-7xl' : 'max-w-5xl'} w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto transition-all`}>
         
         {/* SCENARIO 1: Entire Part 1 Course Completed */}
-        {isCourseComplete ? (() => {
+        {isCourseComplete && hasPurchased ? (() => {
           const overall = getPart1OverallScore('python-core', studentId);
           
           if (!hasPurchased) {
@@ -1375,16 +1375,40 @@ export const PythonPart1Page: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pt-2 flex justify-center">
-                <button
-                  type="button"
-                  onClick={handleProceedToNextLevel}
-                  className="py-2.5 px-8 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 cursor-pointer"
-                >
-                  <span>Continue to Next Level</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
+              {activeIdx === PART_1_SECTIONS.length - 1 ? (
+                /* Section 1.5 Final Level Buttons for Free Trial: Buy Course & Back to Dashboard */
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setPurchaseModalOpen(true)}
+                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>Buy Course</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/course/python-core')}
+                    className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Back to Dashboard</span>
+                  </button>
+                </div>
+              ) : (
+                /* Sections 1.1 - 1.4: Continue to Next Level */
+                <div className="pt-2 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleProceedToNextLevel}
+                    className="py-2.5 px-8 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 cursor-pointer"
+                  >
+                    <span>Continue to Next Level</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             /* SCENARIO 2B: Clean, Professional Exam Result for Purchased Students */

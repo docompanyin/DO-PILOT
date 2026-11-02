@@ -802,32 +802,47 @@ export const PythonPart7Page: React.FC = () => {
       {/* Main Focus Arena */}
       <main className={`flex-1 flex flex-col items-center justify-center ${!isCourseComplete && !levelResult?.isFinished ? 'max-w-7xl' : 'max-w-5xl'} w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto transition-all`}>
         
-        {/* SCENARIO 1: Entire Part 2 Course Completed */}
+        {/* SCENARIO 1: Stage 1 Completed Summary */}
         {isCourseComplete ? (
-          <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
+          <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-3xl w-full text-center space-y-8 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
 
-            <div className="flex items-center justify-center pt-2">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Part 7 Fully Certified</span>
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
-                Stage 1 Complete! 🎉
+            <div className="space-y-3 pt-2">
+              <h2 className="font-jakarta text-3xl sm:text-4xl font-black text-paper tracking-tight">
+                STAGE 1 COMPLETED 🎉
               </h2>
-              <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                You have passed all levels from 7.1 through 7.6. You scored &gt; 80% across all sections and earned {points} course points!
+              <p className="text-slate text-xs sm:text-sm max-w-xl mx-auto leading-relaxed">
+                Outstanding accomplishment! You have successfully mastered Stage 1 (Parts 1 through 7) of the Complete Python Course. Every fundamental concept has been thoroughly tested and validated.
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+            {/* 7 Clean Stage 1 Part Completion Boxes */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl mx-auto text-left">
+              {[
+                { part: 'Part 1', title: 'Python Basics' },
+                { part: 'Part 2', title: 'Conditionals' },
+                { part: 'Part 3', title: 'Loops & Funcs' },
+                { part: 'Part 4', title: 'Lists & Iter' },
+                { part: 'Part 5', title: '2D & Dicts' },
+                { part: 'Part 6', title: 'Files & Errors' },
+                { part: 'Part 7', title: 'Modules & Arch' }
+              ].map((item, idx) => (
+                <div key={idx} className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-mono text-primary font-bold uppercase">{item.part}</span>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  </div>
+                  <div className="text-xs font-bold text-paper truncate">{item.title}</div>
+                  <div className="text-[10px] font-mono text-emerald-400 font-semibold">Completed</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setPart8ModalOpen(true)}
-                className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                className="py-3 px-8 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
               >
                 <span>Proceed to Stage 2 (Part 8)</span>
                 <ArrowRight className="w-4 h-4" />
@@ -836,7 +851,7 @@ export const PythonPart7Page: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/course/python-core')}
-                className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                className="py-3 px-6 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <span>Back to Dashboard</span>
               </button>
@@ -1415,36 +1430,58 @@ export const PythonPart7Page: React.FC = () => {
       )}
 
       {/* Stage 1 Completion Modal when student completes Part 7 */}
+      {/* Part 8 Introduction Modal */}
       {part8ModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-panel border border-emerald-500/30 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-5 text-center shadow-2xl relative">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 font-mono text-xs font-bold">
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Part 7 Certified (&gt; 80% Scored)</span>
-            </div>
-
-            <div className="space-y-1.5">
-              <h3 className="font-jakarta text-xl sm:text-2xl font-black text-paper">
-                Stage 1 Certified: Core Fundamentals Mastered!
+          <div className="bg-panel border border-white/10 rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-6 shadow-2xl relative text-left">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/25 text-primary font-mono text-xs font-bold uppercase tracking-wider">
+                <span>Part 8 Introduction</span>
+              </div>
+              <h3 className="font-jakarta text-2xl font-black text-paper tracking-tight">
+                Part 8: Objects, Classes & Methods
               </h3>
               <p className="text-slate text-xs sm:text-sm leading-relaxed">
-                Congratulations! You have completed all 6 levels of Part 7 and mastered Modules, Randomness, Timestamps, JSON Data Processing, Multi-file Architecture, and Advanced Built-ins. Stage 1 is 100% complete!
+                Enter Object-Oriented Programming (OOP). Learn how to encapsulate data and logic using classes, constructors (__init__), instance methods, and attributes.
               </p>
             </div>
 
-            <div className="flex flex-col gap-2 pt-2">
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2.5">
+              <div className="text-[11px] font-mono uppercase tracking-wider text-slate/70 font-semibold">
+                What you will learn:
+              </div>
+              <ul className="space-y-2">
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>Core OOP philosophy: objects, blueprints, and encapsulation</span>
+                </li>
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>Defining classes and instantiating custom objects</span>
+                </li>
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>The __init__ constructor and instance variables</span>
+                </li>
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>Instance methods, the self parameter, and object state</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="pt-2">
               <button
                 type="button"
                 onClick={() => {
                   setPart8ModalOpen(false);
                   navigate('/course/python-core/part-8');
                 }}
-                className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20"
+                className="w-full py-3 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-lg shadow-primary/25 flex items-center justify-center gap-2"
               >
-                Start Stage 2: Part 8 (Objects &amp; Classes)
+                <span>Start Part 8</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
-
-
             </div>
           </div>
         </div>

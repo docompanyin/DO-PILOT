@@ -577,6 +577,7 @@ export const PythonPart2Page: React.FC = () => {
       });
     } else {
       // Finished all sections of Part 2!
+      setPart3ModalOpen(true);
       setIsCourseComplete(true);
       try {
         localStorage.setItem('dopilot_part2_completed', 'true');
@@ -1438,37 +1439,58 @@ export const PythonPart2Page: React.FC = () => {
       )}
 
       {/* Part 3 Modal when student completes all Part 2 levels */}
+      {/* Part 3 Introduction Modal */}
       {part3ModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-panel border border-emerald-500/30 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-5 text-center shadow-2xl relative">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 font-mono text-xs font-bold">
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Part 2 Certified (&gt; 80% Scored)</span>
-            </div>
-
-            <div className="space-y-1.5">
-              <h3 className="font-jakarta text-xl sm:text-2xl font-black text-paper">
-                Part 3: Loops with Conditions &amp; Functions
+          <div className="bg-panel border border-white/10 rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-6 shadow-2xl relative text-left">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/25 text-primary font-mono text-xs font-bold uppercase tracking-wider">
+                <span>Part 3 Introduction</span>
+              </div>
+              <h3 className="font-jakarta text-2xl font-black text-paper tracking-tight">
+                Part 3: Loops with Conditions & Defining Functions
               </h3>
               <p className="text-slate text-xs sm:text-sm leading-relaxed">
-                You have passed all levels and unlocked Part 3! You mastered terminology, nested conditionals, logical operators, and while loops.
+                Master advanced control flow using while loops, break and continue statements, string indexing and slicing, nested loops, and writing modular custom functions with return values.
               </p>
             </div>
 
-            <div className="flex flex-col gap-2 pt-2">
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2.5">
+              <div className="text-[11px] font-mono uppercase tracking-wider text-slate/70 font-semibold">
+                What you will learn:
+              </div>
+              <ul className="space-y-2">
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>Loops with conditions (while loops, break, continue)</span>
+                </li>
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>Working with strings, indexing, and slicing</span>
+                </li>
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>More loops and nested iteration patterns</span>
+                </li>
+                <li className="flex items-start gap-2.5 text-xs text-slate/90 leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <span>Defining custom functions and return values</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="pt-2">
               <button
                 type="button"
                 onClick={() => {
                   setPart3ModalOpen(false);
                   navigate('/course/python-core/part-3');
                 }}
-                className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-primary/20 flex items-center justify-center gap-1.5"
+                className="w-full py-3 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all cursor-pointer shadow-lg shadow-primary/25 flex items-center justify-center gap-2"
               >
-                <span>Start Part 3: Loops with Conditions &amp; Functions</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <span>Start Part 3</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
-
-
             </div>
           </div>
         </div>
