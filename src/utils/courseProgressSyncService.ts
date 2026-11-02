@@ -127,6 +127,61 @@ export const getCourseStorageKeys = (courseId: string, partNum: number) => {
 export const memoryCourseState: Record<string, StudentAllCoursesState> = {};
 let syncTimeout: any = null;
 
+// Guard the very first upload so a freshly loaded page cannot overwrite cloud
+// failure/lock data before the initial restore has merged it into memory.
+const initialRestorePromises: Record<string, Promise<StudentAllCoursesState | null>> = {};
+const initialRestoreCompleted: Record<string, boolean> = {};
+
+async function ensureInitialRestore(email: string): Promise<StudentAllCoursesState | null> {
+  if (initialRestoreCompleted[email]) return null;
+  if (!initialRestorePromises[email]) {
+    initialRestorePromises[email] = restoreAllStudentCourseProgressFromCloud(email)
+      .then((res) => {
+        initialRestoreCompleted[email] = true;
+        return res;
+      })
+      .catch(() => {
+        initialRestoreCompleted[email] = true;
+        return null;
+      })
+      .finally(() => {
+        delete initialRestorePromises[email];
+      });
+  }
+  return initialRestorePromises[email];
+}
+
+/**
+ * Copies every consecutive-failure counter and lock flag currently present in
+ * localStorage into the in-memory cloud snapshot. This keeps the counters in
+ * every upload even when a page has just loaded and memory was re-created.
+ */
+const hydrateFailureAndLockState = (st: StudentAllCoursesState): void => {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    if (!st.consecutiveFailures) st.consecutiveFailures = {};
+    if (!st.globalLockedKeys) st.globalLockedKeys = {};
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+
+      if (key.includes('consecutive_failures') || key.includes('failed_levels_streak')) {
+        const raw = localStorage.getItem(key);
+        if (raw !== null) st.consecutiveFailures[key] = Number(raw) || 0;
+      }
+
+      if (key.startsWith('dopilot_locked_') || key.includes('_locked_')) {
+        // The locked-courses registry is a JSON list, not a student lock flag.
+        if (key.includes('locked_courses_registry')) continue;
+        st.globalLockedKeys[key] = localStorage.getItem(key) === 'true';
+      }
+    }
+  } catch {
+    /* storage unavailable */
+  }
+};
+
 export const flushCloudSync = async (email: string) => {
   if (syncTimeout) {
     clearTimeout(syncTimeout);
@@ -134,8 +189,19 @@ export const flushCloudSync = async (email: string) => {
   }
   const cleanEmail = normalizeStudentEmail(email);
   if (!cleanEmail || !isSupabaseConfigured()) return;
+
+  // Never upload before the first cloud restore has completed. Otherwise a
+  // fresh device (empty localStorage) could erase the saved failure streak.
+  if (!initialRestoreCompleted[cleanEmail]) {
+    await ensureInitialRestore(cleanEmail);
+  }
+
   const state = memoryCourseState[cleanEmail];
   if (!state) return;
+
+  // Final safety net: every upload carries the current failure counters and
+  // lock flags, even if this flush was triggered by an unrelated storage key.
+  hydrateFailureAndLockState(state);
 
   try {
     // 1. Primary: Save via authenticated server-side sync endpoint with keepalive
@@ -187,11 +253,13 @@ export const clearMemoryCourseState = (email?: string) => {
   }
   if (!email) {
     Object.keys(memoryCourseState).forEach((k) => delete memoryCourseState[k]);
+    Object.keys(initialRestoreCompleted).forEach((k) => delete initialRestoreCompleted[k]);
     return;
   }
   const cleanEmail = normalizeStudentEmail(email);
-  if (cleanEmail && memoryCourseState[cleanEmail]) {
+  if (cleanEmail) {
     delete memoryCourseState[cleanEmail];
+    delete initialRestoreCompleted[cleanEmail];
   }
 };
 
@@ -293,6 +361,14 @@ export const initCourseProgressSyncInterceptor = () => {
       if (!st.rawStorage) st.rawStorage = {};
       if (key.startsWith('dopilot_') && !key.includes('session') && !key.includes('pending_')) {
         st.rawStorage[key] = value;
+      }
+
+      // Part-introduction markers live only in rawStorage, so they need an
+      // explicit sync trigger to reach the cloud for cross-device resume.
+      if (key.includes('python_intro_required')) {
+        st.updatedAt = new Date().toISOString();
+        queueCloudSync(email);
+        return;
       }
 
       if (key.includes('_part1_section_scores')) {
@@ -557,6 +633,10 @@ export const saveQuestionProgressState = (params: {
     };
   }
 
+  // Ensure the upload always carries the current failure counters and locks,
+  // even when the in-memory snapshot was re-created on this page load.
+  hydrateFailureAndLockState(studentState);
+
   const courseRec = studentState.courses[courseId];
   courseRec.lastPart = partNum;
   if (isCompleted && !courseRec.completedParts.includes(partNum)) {
@@ -638,6 +718,8 @@ export const saveCoursePartCompletion = (
     }
   }
 
+  hydrateFailureAndLockState(studentState);
+
   studentState.updatedAt = new Date().toISOString();
   queueCloudSync(cleanEmail, true);
 };
@@ -716,6 +798,22 @@ export const restoreAllStudentCourseProgressFromCloud = async (
       memoryCourseState[cleanEmail] = cloudState;
     } else {
       const curMem = memoryCourseState[cleanEmail];
+
+      // Failure counters and lock flags must survive the merge; otherwise the
+      // next upload would erase them before they reach the page.
+      curMem.globalLockedKeys = {
+        ...(curMem.globalLockedKeys || {}),
+        ...(cloudState.globalLockedKeys || {})
+      };
+      curMem.consecutiveFailures = {
+        ...(curMem.consecutiveFailures || {}),
+        ...(cloudState.consecutiveFailures || {})
+      };
+      curMem.rawStorage = {
+        ...(curMem.rawStorage || {}),
+        ...(cloudState.rawStorage || {})
+      };
+
       Object.entries(cloudState.courses).forEach(([cId, cRec]) => {
         if (!curMem.courses[cId]) {
           curMem.courses[cId] = cRec;

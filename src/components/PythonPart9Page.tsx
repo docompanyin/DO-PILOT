@@ -18,6 +18,8 @@ import {
   setLevelAttemptCountPart9
 } from '../data/pythonPart9Data';
 import { useCourseQuestionResume, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
+import { useCorrectAutoAdvance } from '../utils/useCorrectAutoAdvance';
+import { markPythonPartIntroRequired, clearPythonPartIntroRequired, isPythonPartIntroRequired, usePythonPartIntroModal, usePythonPartIntroGuard } from '../utils/pythonPartIntro';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -43,6 +45,9 @@ export const PythonPart9Page: React.FC = () => {
   const studentId = user?.id || 'default_student';
   const [searchParams] = useSearchParams();
   const isReviewMode = searchParams.get('review') === 'true' && Boolean(getSavedCertificate('python-core'));
+
+  // Keep the Part 9 introduction as the resume point until Start Part 9 is clicked
+  usePythonPartIntroGuard(9);
 
   // Persistent Active Section ID (Defaults to Section 2.1)
   const [activeSectionId, setActiveSectionId] = useState<string>(() => {
@@ -222,7 +227,9 @@ export const PythonPart9Page: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
-  const [part10ModalOpen, setPart10ModalOpen] = useState(false);
+  const [part10ModalOpen, setPart10ModalOpen] = useState<boolean>(() => isPythonPartIntroRequired(10));
+
+  usePythonPartIntroModal(10, setPart10ModalOpen);
   const [, setActiveTask] = useState<TaskContext | null>(null);
 
   // Smooth animated points celebration state
@@ -466,6 +473,9 @@ export const PythonPart9Page: React.FC = () => {
     }
   };
 
+  // Advance automatically 3 seconds after a correct answer (not on the final question of a section)
+  useCorrectAutoAdvance(correctCountdown, advanceToNextQuestion);
+
   // Reset Questions for Current Level (generates brand-new, unseen questions for the same concepts)
   const handleResetQuestions = () => {
     // 1. Generate completely new question set excluding any questions already seen by this student
@@ -676,7 +686,10 @@ export const PythonPart9Page: React.FC = () => {
       if (!isRetestAttempt) {
         awardPoint(tId, heading, optId);
       }
-      
+      // Auto-advance after 3 seconds on correct answers, except on the final question of a section
+      if (!isReviewMode && activeQuestionIdx < levelQuestions.length - 1) {
+        setCorrectCountdown(3);
+      }
     }
   };
 
@@ -704,6 +717,7 @@ export const PythonPart9Page: React.FC = () => {
       localStorage.removeItem('dopilot_part9_active_section_id');
       localStorage.removeItem('dopilot_part9_active_q_idx');
       localStorage.removeItem('dopilot_part9_completed');
+      clearPythonPartIntroRequired(10);
       localStorage.removeItem('dopilot_part9_q_target_end_time');
       localStorage.removeItem(`dopilot_part9_consecutive_failures_${studentId}`);
       localStorage.removeItem(`dopilot_part9_failed_levels_streak_${studentId}`);
@@ -723,6 +737,7 @@ export const PythonPart9Page: React.FC = () => {
     const handlePopState = (e: PopStateEvent) => {
       if (e.state && typeof e.state.qIdx === 'number' && e.state.secId) {
         if (e.state.partNum === 9) {
+          setCorrectCountdown(null);
           setActiveSectionId(e.state.secId);
           setActiveQuestionIdx(e.state.qIdx);
         }
@@ -854,7 +869,10 @@ export const PythonPart9Page: React.FC = () => {
             <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
               <button
                 type="button"
-                onClick={() => setPart10ModalOpen(true)}
+                onClick={() => {
+                  markPythonPartIntroRequired(10);
+                  setPart10ModalOpen(true);
+                }}
                 className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
               >
                 <span>Continue to Part 10 (Class Hierarchies)</span>
@@ -1488,6 +1506,7 @@ export const PythonPart9Page: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
+                  clearPythonPartIntroRequired(10);
                   setPart10ModalOpen(false);
                   navigate('/course/python-core/part-10');
                 }}

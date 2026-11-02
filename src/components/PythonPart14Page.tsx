@@ -20,6 +20,8 @@ import {
   setLevelAttemptCountPart14
 } from '../data/pythonPart14Data';
 import { useCourseQuestionResume, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
+import { useCorrectAutoAdvance } from '../utils/useCorrectAutoAdvance';
+import { usePythonPartIntroGuard } from '../utils/pythonPartIntro';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -45,6 +47,9 @@ export const PythonPart14Page: React.FC = () => {
   const studentId = user?.id || 'default_student';
   const [searchParams] = useSearchParams();
   const isReviewMode = searchParams.get('review') === 'true' && Boolean(getSavedCertificate('python-core'));
+
+  // Keep the Part 14 introduction as the resume point until Start Part 14 is clicked
+  usePythonPartIntroGuard(14);
 
   // Persistent Active Section ID (Defaults to Section 2.1)
   const [activeSectionId, setActiveSectionId] = useState<string>(() => {
@@ -469,6 +474,9 @@ export const PythonPart14Page: React.FC = () => {
     }
   };
 
+  // Advance automatically 3 seconds after a correct answer (not on the final question of a section)
+  useCorrectAutoAdvance(correctCountdown, advanceToNextQuestion);
+
   // Reset Questions for Current Level (generates brand-new, unseen questions for the same concepts)
   const handleResetQuestions = () => {
     // 1. Generate completely new question set excluding any questions already seen by this student
@@ -662,7 +670,10 @@ export const PythonPart14Page: React.FC = () => {
       if (!isRetestAttempt) {
         awardPoint(tId, heading, optId);
       }
-      
+      // Auto-advance after 3 seconds on correct answers, except on the final question of a section
+      if (!isReviewMode && activeQuestionIdx < levelQuestions.length - 1) {
+        setCorrectCountdown(3);
+      }
     }
   };
 
@@ -765,6 +776,7 @@ export const PythonPart14Page: React.FC = () => {
     const handlePopState = (e: PopStateEvent) => {
       if (e.state && typeof e.state.qIdx === 'number' && e.state.secId) {
         if (e.state.partNum === 14) {
+          setCorrectCountdown(null);
           setActiveSectionId(e.state.secId);
           setActiveQuestionIdx(e.state.qIdx);
         }

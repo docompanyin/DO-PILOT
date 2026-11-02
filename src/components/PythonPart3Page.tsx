@@ -18,6 +18,8 @@ import {
   setLevelAttemptCountPart3
 } from '../data/pythonPart3Data';
 import { useCourseQuestionResume, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
+import { useCorrectAutoAdvance } from '../utils/useCorrectAutoAdvance';
+import { markPythonPartIntroRequired, clearPythonPartIntroRequired, isPythonPartIntroRequired, usePythonPartIntroModal, usePythonPartIntroGuard } from '../utils/pythonPartIntro';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -43,6 +45,9 @@ export const PythonPart3Page: React.FC = () => {
   const studentId = user?.id || 'default_student';
   const [searchParams] = useSearchParams();
   const isReviewMode = searchParams.get('review') === 'true' && Boolean(getSavedCertificate('python-core'));
+
+  // Keep the Part 3 introduction as the resume point until Start Part 3 is clicked
+  usePythonPartIntroGuard(3);
 
   // Persistent Active Section ID (Defaults to Section 2.1)
   const [activeSectionId, setActiveSectionId] = useState<string>(() => {
@@ -222,7 +227,9 @@ export const PythonPart3Page: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
-  const [part4ModalOpen, setPart4ModalOpen] = useState(false);
+  const [part4ModalOpen, setPart4ModalOpen] = useState<boolean>(() => isPythonPartIntroRequired(4));
+
+  usePythonPartIntroModal(4, setPart4ModalOpen);
   const [, setActiveTask] = useState<TaskContext | null>(null);
 
   // Smooth animated points celebration state
@@ -466,6 +473,9 @@ export const PythonPart3Page: React.FC = () => {
     }
   };
 
+  // Advance automatically 3 seconds after a correct answer (not on the final question of a section)
+  useCorrectAutoAdvance(correctCountdown, advanceToNextQuestion);
+
   // Reset Questions for Current Level (generates brand-new, unseen questions for the same concepts)
   const handleResetQuestions = () => {
     // 1. Generate completely new question set excluding any questions already seen by this student
@@ -567,6 +577,7 @@ export const PythonPart3Page: React.FC = () => {
       });
     } else {
       // Finished all sections of Part 3!
+      markPythonPartIntroRequired(4);
       setPart4ModalOpen(true);
       setIsCourseComplete(true);
       try {
@@ -676,7 +687,10 @@ export const PythonPart3Page: React.FC = () => {
       if (!isRetestAttempt) {
         awardPoint(tId, heading, optId);
       }
-      
+      // Auto-advance after 3 seconds on correct answers, except on the final question of a section
+      if (!isReviewMode && activeQuestionIdx < levelQuestions.length - 1) {
+        setCorrectCountdown(3);
+      }
     }
   };
 
@@ -704,6 +718,7 @@ export const PythonPart3Page: React.FC = () => {
       localStorage.removeItem('dopilot_part3_active_section_id');
       localStorage.removeItem('dopilot_part3_active_q_idx');
       localStorage.removeItem('dopilot_part3_completed');
+      clearPythonPartIntroRequired(4);
       localStorage.removeItem('dopilot_part3_q_target_end_time');
       localStorage.removeItem(`dopilot_part3_consecutive_failures_${studentId}`);
       localStorage.removeItem(`dopilot_part3_failed_levels_streak_${studentId}`);
@@ -723,6 +738,7 @@ export const PythonPart3Page: React.FC = () => {
     const handlePopState = (e: PopStateEvent) => {
       if (e.state && typeof e.state.qIdx === 'number' && e.state.secId) {
         if (e.state.partNum === 3) {
+          setCorrectCountdown(null);
           setActiveSectionId(e.state.secId);
           setActiveQuestionIdx(e.state.qIdx);
         }
@@ -832,44 +848,7 @@ export const PythonPart3Page: React.FC = () => {
         
         {/* SCENARIO 1: Entire Part 2 Course Completed */}
         {isCourseComplete ? (
-          <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
-
-            <div className="flex items-center justify-center pt-2">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Part 2 Fully Certified</span>
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
-                Part 2 Complete! 🎉
-              </h2>
-              <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                You have passed all levels from 2.1 through 2.4. You scored &gt; 80% across all sections and earned {points} course points!
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
-              <button
-                type="button"
-                onClick={() => setPart4ModalOpen(true)}
-                className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
-              >
-                <span>Continue to Part 3</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => navigate('/course/python-core')}
-                className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>Back to Dashboard</span>
-              </button>
-            </div>
-          </div>
+          null
         ) : levelResult?.isFinished ? (
           /* SCENARIO 2: Level Evaluation Result (Pass, First Failure, Second Failure, or Locked) */
           <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
@@ -1445,7 +1424,7 @@ export const PythonPart3Page: React.FC = () => {
 
       {/* Part 3 Modal when student completes all Part 2 levels */}
       {/* Part 4 Introduction Modal */}
-      {part4ModalOpen && (
+      {(part4ModalOpen || isCourseComplete) && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-panel border border-white/10 rounded-3xl p-6 sm:p-8 max-w-lg md:max-w-xl w-full space-y-6 shadow-2xl relative text-left">
             <div className="space-y-2">
@@ -1488,6 +1467,7 @@ export const PythonPart3Page: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
+                  clearPythonPartIntroRequired(4);
                   setPart4ModalOpen(false);
                   navigate('/course/python-core/part-4');
                 }}
