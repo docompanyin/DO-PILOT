@@ -1422,12 +1422,12 @@ export const PythonPart1Page: React.FC = () => {
                     <span>Second Failure Warning</span>
                   </span>
                 ) : (
-                  <div className="flex flex-col items-center gap-1">
+                  <div className="flex flex-col items-center gap-1.5">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-xs font-semibold border bg-rose-500/10 border-rose-500/30 text-rose-300">
                       <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
                       <span>Exam Failed</span>
                     </span>
-                    <span className="text-[11px] font-mono text-slate/70 font-medium">Attempt 1 of 2</span>
+                    <span className="text-xs font-mono text-rose-300/80 font-medium tracking-wide">Attempt 1 of 2</span>
                   </div>
                 )}
               </div>

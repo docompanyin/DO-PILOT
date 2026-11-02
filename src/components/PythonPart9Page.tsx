@@ -903,13 +903,13 @@ export const PythonPart9Page: React.FC = () => {
                   </span>
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-rose-500/15 border-rose-500/40 text-rose-300 shadow-rose-500/20">
-                  <AlertCircle className="w-4 h-4 text-rose-400" />
-                  <div className="flex flex-col items-center gap-1">
+                <div className="flex flex-col items-center gap-1.5">
+                  <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-rose-500/15 border-rose-500/40 text-rose-300 shadow-rose-500/20">
+                    <AlertCircle className="w-4 h-4 text-rose-400" />
                     <span>Exam Failed</span>
-                    <span className="text-[11px] font-mono text-slate/70 font-medium">Attempt 1 of 2</span>
-                  </div>
-                </span>
+                  </span>
+                  <span className="text-xs font-mono text-rose-300/80 font-medium tracking-wide">Attempt 1 of 2</span>
+                </div>
               )}
             </div>
 
