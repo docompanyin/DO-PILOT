@@ -158,36 +158,14 @@ export const PythonPart1Page: React.FC = () => {
     try {
       localStorage.removeItem(`dopilot_locked_${studentId}`);
       localStorage.removeItem(`dopilot_locked_progression_${studentId}`);
+      localStorage.setItem('dopilot_part1_completed', 'true');
+      localStorage.setItem('dopilot_python_core_last_part', '2');
     } catch {}
 
-    const overallScore = getPart1OverallScore('python-core', studentId);
-    const savedDecision = getPostPurchaseDecision('python-core', studentId);
-
-    if (savedDecision === 'continue_to_part2') {
-      try {
-        localStorage.setItem('dopilot_part1_completed', 'true');
-        localStorage.setItem('dopilot_python_core_last_part', '2');
-      } catch {}
-      navigate('/course/python-core/part-2');
-      return;
-    }
-    if (savedDecision === 'retry_part1') {
-      setIsCourseComplete(false);
-      return;
-    }
-
-    // Users who passed the free trial (50% or higher) redirect directly to Part 2:
-    if (overallScore.isAbove50) {
-      try {
-        localStorage.setItem('dopilot_part1_completed', 'true');
-        localStorage.setItem('dopilot_python_core_last_part', '2');
-      } catch {}
-      navigate('/course/python-core/part-2');
-    } else {
-      // Below 50% following a failed trial:
-      // Keep isCourseComplete = true and hasPurchased = true so user gets exactly one additional attempt at Part 1
-      setIsCourseComplete(true);
-    }
+    // Per exact specification: After purchase, redirect the student directly
+    // to the Course Details page. Do NOT automatically open Part 2.1.
+    // The student manually clicks 'Start Learning' on Course Details to enter Part 2.1.
+    navigate('/course/python-core');
   };
 
   const handleRetryPart1 = () => {
@@ -1030,14 +1008,17 @@ export const PythonPart1Page: React.FC = () => {
 
         <div className="flex items-center gap-2">
           {/* Consecutive failure indicator if student has an active failure streak (purchased only) */}
-          {hasPurchased && consecutiveFailures > 0 && (
-            <span className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-mono text-[11px] border ${
-              consecutiveFailures >= 3
-                ? 'bg-rose-500/20 border-rose-500/50 text-rose-300 font-bold'
-                : 'bg-amber-400/10 border-amber-400/30 text-amber-300'
-            }`}>
-              <AlertTriangle className="w-3 h-3" />
-              <span>Consecutive Failures: {consecutiveFailures}</span>
+          {consecutiveFailures > 0 && (
+            <span
+              title="Consecutive Failures"
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-mono text-xs font-bold border transition-all shadow-sm ${
+                consecutiveFailures >= 3
+                  ? 'bg-rose-500/20 border-rose-500/50 text-rose-300 shadow-rose-500/20 animate-pulse'
+                  : 'bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-amber-500/15'
+              }`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span>{consecutiveFailures}</span>
             </span>
           )}
 
@@ -1441,10 +1422,13 @@ export const PythonPart1Page: React.FC = () => {
                     <span>Second Failure Warning</span>
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-xs font-semibold border bg-rose-500/10 border-rose-500/30 text-rose-300">
-                    <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-                    <span>Exam Failed • Attempt 1 of 2</span>
-                  </span>
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-xs font-semibold border bg-rose-500/10 border-rose-500/30 text-rose-300">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Exam Failed</span>
+                    </span>
+                    <span className="text-[11px] font-mono text-slate/70 font-medium">Attempt 1 of 2</span>
+                  </div>
                 )}
               </div>
 
@@ -1910,9 +1894,7 @@ export const PythonPart1Page: React.FC = () => {
             <div className="flex items-center gap-2.5 text-amber-400 font-mono text-xs font-bold uppercase tracking-wider">
               <AlertTriangle className="w-5 h-5 text-amber-400" />
               <span>
-                {levelResult?.streak === 1
-                  ? 'Progression Notice — Disclaimer 1 of 2'
-                  : 'Final Warning Notice — Disclaimer 2 of 2'}
+                {'Progression Notice'}
               </span>
             </div>
 

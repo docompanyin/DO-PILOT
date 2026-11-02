@@ -3757,8 +3757,14 @@ export const getConsecutiveFailuresPart11 = (studentId: string): number => {
 
 export const getConsecutiveFailedLevelsPart11 = (studentId: string): number => {
   try {
-    const saved = localStorage.getItem(`dopilot_part11_failed_levels_streak_${studentId}`);
-    return saved ? Number(saved) : 0;
+    const saved = localStorage.getItem(`dopilot_failed_levels_streak_${studentId}`);
+    if (saved !== null && saved !== '') {
+      return Number(saved) || 0;
+    }
+    const legacy = localStorage.getItem(`dopilot_part11_failed_levels_streak_${studentId}`) ||
+      localStorage.getItem(`dopilot_part11_consecutive_failures_${studentId}`) ||
+      localStorage.getItem(`dopilot_consecutive_failures_${studentId}`);
+    return legacy ? Number(legacy) || 0 : 0;
   } catch {
     return 0;
   }
@@ -3794,6 +3800,7 @@ export const recordLevelAttemptResultPart11 = (
 
   if (isPassed) {
     try {
+      localStorage.setItem(`dopilot_failed_levels_streak_${studentId}`, '0');
       localStorage.setItem(`dopilot_part11_failed_levels_streak_${studentId}`, '0');
       localStorage.setItem(`dopilot_part11_consecutive_failures_${studentId}`, '0');
       localStorage.setItem(`dopilot_part11_attempt_${sectionId}_${studentId}`, '1');
@@ -3825,6 +3832,7 @@ export const recordLevelAttemptResultPart11 = (
       const isLocked = newStreak >= 3;
 
       try {
+        localStorage.setItem(`dopilot_failed_levels_streak_${studentId}`, String(newStreak));
         localStorage.setItem(`dopilot_part11_failed_levels_streak_${studentId}`, String(newStreak));
         localStorage.setItem(`dopilot_part11_consecutive_failures_${studentId}`, String(newStreak));
         if (isLocked) {
@@ -3845,9 +3853,11 @@ export const recordLevelAttemptResultPart11 = (
 
 export const resetConsecutiveFailuresPart11 = (studentId: string): void => {
   try {
-    localStorage.setItem(`dopilot_part11_consecutive_failures_${studentId}`, '0');
+    localStorage.setItem(`dopilot_failed_levels_streak_${studentId}`, '0');
     localStorage.setItem(`dopilot_part11_failed_levels_streak_${studentId}`, '0');
+    localStorage.setItem(`dopilot_part11_consecutive_failures_${studentId}`, '0');
     localStorage.removeItem(`dopilot_part11_locked_${studentId}`);
+    localStorage.removeItem(`dopilot_locked_${studentId}`);
     localStorage.removeItem(`dopilot_part11_locked_progression_${studentId}`);
   } catch {}
 };

@@ -4646,7 +4646,13 @@ export const getConsecutiveFailures = (studentId: string): number => {
 export const getConsecutiveFailedLevels = (studentId: string): number => {
   try {
     const saved = localStorage.getItem(`dopilot_failed_levels_streak_${studentId}`);
-    return saved ? Number(saved) : 0;
+    if (saved !== null && saved !== '') {
+      return Number(saved) || 0;
+    }
+    const legacy = localStorage.getItem(`dopilot_part1_failed_levels_streak_${studentId}`) ||
+      localStorage.getItem(`dopilot_part1_consecutive_failures_${studentId}`) ||
+      localStorage.getItem(`dopilot_consecutive_failures_${studentId}`);
+    return legacy ? Number(legacy) || 0 : 0;
   } catch {
     return 0;
   }

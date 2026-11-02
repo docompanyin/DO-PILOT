@@ -93,9 +93,22 @@ export const PythonPart9Page: React.FC = () => {
   });
 
   // Consecutive failure counter (loaded dynamically from student record)
-  const [, setConsecutiveFailures] = useState<number>(() => {
+  const [consecutiveFailures, setConsecutiveFailures] = useState<number>(() => {
     return getConsecutiveFailedLevelsPart9(studentId);
   });
+
+  // Synchronize failure streak across parts and cloud updates
+  useEffect(() => {
+    const updateStreak = () => {
+      setConsecutiveFailures(getConsecutiveFailedLevelsPart9(studentId));
+    };
+    window.addEventListener('storage', updateStreak);
+    window.addEventListener('dopilot_progress_restored', updateStreak);
+    return () => {
+      window.removeEventListener('storage', updateStreak);
+      window.removeEventListener('dopilot_progress_restored', updateStreak);
+    };
+  }, [studentId]);
 
   // Disclaimer popup state when choosing "Continue to Next Set" on 2nd consecutive failure
   const [disclaimerModalOpen, setDisclaimerModalOpen] = useState(false);
@@ -747,6 +760,20 @@ export const PythonPart9Page: React.FC = () => {
 
         <div className="flex items-center gap-2">
           {/* Live Points Counter Pill with smooth spring pop and floating +1 particle */}
+          {consecutiveFailures > 0 && (
+            <span
+              title="Consecutive Failures"
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-mono text-xs font-bold border transition-all shadow-sm ${
+                consecutiveFailures >= 3
+                  ? 'bg-rose-500/20 border-rose-500/50 text-rose-300 shadow-rose-500/20 animate-pulse'
+                  : 'bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-amber-500/15'
+              }`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span>{consecutiveFailures}</span>
+            </span>
+          )}
+
           <div className="relative">
             <Link
               to="/settings"
@@ -861,7 +888,7 @@ export const PythonPart9Page: React.FC = () => {
               {levelResult.isPassed ? (
                 <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Level {activeSection.number} Passed • &gt; 80% Scored</span>
+                  <span>Level {activeSection.number} Passed</span>
                 </span>
               ) : levelResult.isLocked ? (
                 <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-rose-500/20 border-rose-500/50 text-rose-300 shadow-rose-500/25">
@@ -872,13 +899,16 @@ export const PythonPart9Page: React.FC = () => {
                 <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-amber-500/20">
                   <AlertTriangle className="w-4 h-4 text-amber-400" />
                   <span>
-                    Level {activeSection.number} Failed Twice • {levelResult.streak === 1 ? 'Warning 1 of 2' : 'Final Warning'}
+                    Level {activeSection.number} Failed Twice
                   </span>
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-rose-500/15 border-rose-500/40 text-rose-300 shadow-rose-500/20">
                   <AlertCircle className="w-4 h-4 text-rose-400" />
-                  <span>Exam Failed • Score ≤ 80% (Attempt 1 of 2)</span>
+                  <div className="flex flex-col items-center gap-1">
+                    <span>Exam Failed</span>
+                    <span className="text-[11px] font-mono text-slate/70 font-medium">Attempt 1 of 2</span>
+                  </div>
                 </span>
               )}
             </div>
@@ -1342,9 +1372,7 @@ export const PythonPart9Page: React.FC = () => {
             <div className="flex items-center gap-2.5 text-amber-400 font-mono text-xs font-bold uppercase tracking-wider">
               <AlertTriangle className="w-5 h-5 text-amber-400" />
               <span>
-                {levelResult?.streak === 1
-                  ? 'Progression Notice — Disclaimer 1 of 2'
-                  : 'Final Warning Notice — Disclaimer 2 of 2'}
+                {'Progression Notice'}
               </span>
             </div>
 
