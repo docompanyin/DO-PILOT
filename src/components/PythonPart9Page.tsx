@@ -926,7 +926,6 @@ export const PythonPart9Page: React.FC = () => {
                     <AlertCircle className="w-4 h-4 text-rose-400" />
                     <span>Exam Failed</span>
                   </span>
-                  <span className="text-xs font-mono text-rose-300/80 font-medium tracking-wide">Attempt 1 of 2</span>
                 </div>
               )}
             </div>
