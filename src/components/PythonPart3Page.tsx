@@ -474,7 +474,7 @@ export const PythonPart3Page: React.FC = () => {
   };
 
   // Advance automatically 3 seconds after a correct answer (not on the final question of a section)
-  useCorrectAutoAdvance(correctCountdown, advanceToNextQuestion);
+  useCorrectAutoAdvance(correctCountdown, advanceToNextQuestion, setCorrectCountdown);
 
   // Reset Questions for Current Level (generates brand-new, unseen questions for the same concepts)
   const handleResetQuestions = () => {
@@ -1034,6 +1034,11 @@ export const PythonPart3Page: React.FC = () => {
                       <Clock className="w-3.5 h-3.5" />
                       <span>Review Answer</span>
                     </div>
+                  ) : correctCountdown !== null ? (
+                    <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-emerald-400">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Next in {correctCountdown}s</span>
+                    </div>
                   ) : currentChoice ? (
                     <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-emerald-400">
                       <Clock className="w-3.5 h-3.5" />
@@ -1305,6 +1310,8 @@ export const PythonPart3Page: React.FC = () => {
                           <span className="text-[11px] font-mono text-white">
                             {isUserWrongAnswer
                               ? 'Review the explanation above, then click Continue:'
+                              : correctCountdown !== null
+                              ? `Next question in ${correctCountdown}s, or click Continue:`
                               : 'Click Continue to proceed:'}
                           </span>
                           <button

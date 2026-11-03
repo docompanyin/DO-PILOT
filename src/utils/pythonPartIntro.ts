@@ -15,8 +15,30 @@ import { useNavigate } from 'react-router-dom';
 const introRequiredKey = (partNum: number): string =>
   `dopilot_python_intro_required_${partNum}`;
 
+/**
+ * Local-only hint that the student already clicked "Start Part N" on this
+ * device. It deliberately does not start with "dopilot_" so the cloud
+ * rawStorage interceptor does not sync it; it only exists to keep a refresh
+ * from re-applying a stale cloud "required" snapshot.
+ */
+const introStartedKey = (partNum: number): string =>
+  `python_course_intro_started_${partNum}`;
+
+/**
+ * Parts the student has explicitly started during this app session.
+ *
+ * A cloud restore can land after the student clicks "Start Part N" and write
+ * back an older "required" marker (the snapshot was taken before the click).
+ * That made the route guard bounce the first question back to the
+ * introduction several times. Once the student has explicitly started a part,
+ * a late restore must not send them back for the rest of the session.
+ */
+const startedParts = new Set<number>();
+
 export const isPythonPartIntroRequired = (partNum: number): boolean => {
+  if (startedParts.has(partNum)) return false;
   try {
+    if (localStorage.getItem(introStartedKey(partNum)) === 'true') return false;
     return localStorage.getItem(introRequiredKey(partNum)) === 'true';
   } catch {
     return false;
@@ -24,7 +46,10 @@ export const isPythonPartIntroRequired = (partNum: number): boolean => {
 };
 
 export const markPythonPartIntroRequired = (partNum: number): void => {
+  startedParts.delete(partNum);
   try {
+    // An explicit new requirement always wins over the local started hint.
+    localStorage.removeItem(introStartedKey(partNum));
     localStorage.setItem(introRequiredKey(partNum), 'true');
   } catch {
     /* storage unavailable */
@@ -32,7 +57,11 @@ export const markPythonPartIntroRequired = (partNum: number): void => {
 };
 
 export const clearPythonPartIntroRequired = (partNum: number): void => {
+  startedParts.add(partNum);
   try {
+    // Remember the explicit start locally so a refresh (and a late stale
+    // cloud restore) cannot bounce the first question back to the intro.
+    localStorage.setItem(introStartedKey(partNum), 'true');
     // Write an explicit "not required" marker instead of removing the key.
     // Keeping the key in cloud rawStorage lets a second device overwrite a
     // stale "true" marker after the student has already started this part.

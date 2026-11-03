@@ -492,7 +492,7 @@ export const PythonPart10Page: React.FC = () => {
   };
 
   // Advance automatically 3 seconds after a correct answer (not on the final question of a section)
-  useCorrectAutoAdvance(correctCountdown, advanceToNextQuestion);
+  useCorrectAutoAdvance(correctCountdown, advanceToNextQuestion, setCorrectCountdown);
 
   // Reset Questions for Current Level (generates brand-new, unseen questions for the same concepts)
   const handleResetQuestions = () => {
@@ -595,6 +595,7 @@ export const PythonPart10Page: React.FC = () => {
       });
     } else {
       // Finished all sections of Part 10!
+      markPythonPartIntroRequired(11);
       setPart11ModalOpen(true);
       setIsCourseComplete(true);
       try {
@@ -890,47 +891,7 @@ export const PythonPart10Page: React.FC = () => {
         
         {/* SCENARIO 1: Entire Part 2 Course Completed */}
         {isCourseComplete ? (
-          <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
-
-            <div className="flex items-center justify-center pt-2">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Part 10 Fully Certified</span>
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
-                Part 10 Complete! 🎉
-              </h2>
-              <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                You have passed all levels from 10.1 through 10.6. You scored &gt; 80% across all sections and earned {points} course points!
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
-              <button
-                type="button"
-                onClick={() => {
-                  markPythonPartIntroRequired(11);
-                  setPart11ModalOpen(true);
-                }}
-                className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
-              >
-                <span>Continue to Part 11 (Comprehensions & Recursion)</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => navigate('/course/python-core')}
-                className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>Back to Dashboard</span>
-              </button>
-            </div>
-          </div>
+          null
         ) : levelResult?.isFinished ? (
           /* SCENARIO 2: Level Evaluation Result (Pass, First Failure, Second Failure, or Locked) */
           <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
@@ -1115,6 +1076,11 @@ export const PythonPart10Page: React.FC = () => {
                     <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-rose-400">
                       <Clock className="w-3.5 h-3.5" />
                       <span>Review Answer</span>
+                    </div>
+                  ) : correctCountdown !== null ? (
+                    <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-emerald-400">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Next in {correctCountdown}s</span>
                     </div>
                   ) : currentChoice ? (
                     <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-emerald-400">
@@ -1387,6 +1353,8 @@ export const PythonPart10Page: React.FC = () => {
                           <span className="text-[11px] font-mono text-white">
                             {isUserWrongAnswer
                               ? 'Review the explanation above, then click Continue:'
+                              : correctCountdown !== null
+                              ? `Next question in ${correctCountdown}s, or click Continue:`
                               : 'Click Continue to proceed:'}
                           </span>
                           <button
@@ -1505,7 +1473,7 @@ export const PythonPart10Page: React.FC = () => {
 
       {/* Stage 1 Completion Modal when student completes Part 10 */}
       {/* Part 11 Introduction Modal */}
-      {part11ModalOpen && (
+      {(part11ModalOpen || isCourseComplete) && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-panel border border-white/10 rounded-3xl p-6 sm:p-8 max-w-lg md:max-w-xl w-full space-y-6 shadow-2xl relative text-left">
             <div className="space-y-2">
