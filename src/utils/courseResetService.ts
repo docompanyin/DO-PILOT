@@ -1,4 +1,8 @@
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { normalizeStudentEmail, getStudentDocId, memoryCourseState } from './courseProgressSyncService';
+import { clearPythonPartIntroRequired } from './pythonPartIntro';
 
 export interface LockedCourseRecord {
   id: string;
@@ -13,6 +17,7 @@ export interface LockedCourseRecord {
   partTitle?: string;
   failedPart?: string;
   failedSection?: string;
+  failedSectionId?: string;
   consecutiveFailures: number;
   lockStatus: 'locked' | 'unlocked';
   lockedAt: string;       // ISO date string
@@ -36,13 +41,425 @@ export interface CourseResetAuditEntry {
   previousFailures: number;
   adminNotes?: string;
   status: 'SUCCESS' | 'FAILED';
+  unlockedLocation?: string;
+  continuationSection?: string;
 }
 
 export const LOCKED_COURSES_STORAGE_KEY = 'dopilot_locked_courses_registry_v1';
 export const COURSE_RESETS_AUDIT_KEY = 'dopilot_course_resets_audit_v1';
+export const CLOUD_LOCKED_COURSES_ID = 'dopilot_locked_courses_registry_v1';
+export const CLOUD_COURSE_RESETS_AUDIT_ID = 'dopilot_course_resets_audit_v1';
 
-const INITIAL_DEMO_LOCKED_COURSES: LockedCourseRecord[] = [];
-const INITIAL_DEMO_AUDIT_LOGS: CourseResetAuditEntry[] = [];
+export interface PythonSectionMeta {
+  id: string;
+  number: string;
+  title: string;
+}
+
+/**
+ * Authoritative Section Catalog for Python Course (Parts 1 - 14)
+ * Used to resolve exact failure titles and compute exact next-section continuation upon unlock.
+ */
+export const PYTHON_SECTIONS_CATALOG: Record<number, PythonSectionMeta[]> = {
+  1: [
+    { id: '1-1-getting-started', number: '1.1', title: 'Getting Started & The Print Command' },
+    { id: '1-2-user-input', number: '1.2', title: 'Information from the User' },
+    { id: '1-3-variables-types', number: '1.3', title: 'More About Variables & Data Types' },
+    { id: '1-4-arithmetic', number: '1.4', title: 'Arithmetic Operations & Calculations' },
+    { id: '1-5-conditionals', number: '1.5', title: 'Conditional Statements & Logic' }
+  ],
+  2: [
+    { id: '2-1-terminology', number: '2.1', title: 'Programming Terminology' },
+    { id: '2-2-more-conditionals', number: '2.2', title: 'More Conditionals & Nested Logic' },
+    { id: '2-3-combining-conditions', number: '2.3', title: 'Combining Conditions with Logical Operators' },
+    { id: '2-4-simple-loops', number: '2.4', title: 'Simple Loops & while Statements' }
+  ],
+  3: [
+    { id: '3-1-loops-with-conditions', number: '3.1', title: 'Loops with Conditions' },
+    { id: '3-2-strings', number: '3.2', title: 'Working with Strings' },
+    { id: '3-3-more-loops', number: '3.3', title: 'More Loops & Nested Iteration' },
+    { id: '3-4-functions', number: '3.4', title: 'Defining Functions' }
+  ],
+  4: [
+    { id: '4-1-developer-tools', number: '4.1', title: 'Developer Tools & Debugging' },
+    { id: '4-2-more-functions', number: '4.2', title: 'More Functions' },
+    { id: '4-3-lists', number: '4.3', title: 'Lists: Creation & Methods' },
+    { id: '4-4-definite-iteration', number: '4.4', title: 'Definite Iteration with For Loops' },
+    { id: '4-5-formatting', number: '4.5', title: 'Print Formatting & F-Strings' },
+    { id: '4-6-strings-and-lists', number: '4.6', title: 'Working with Strings and Lists Together' }
+  ],
+  5: [
+    { id: '5-1-more-lists-and-matrices', number: '5.1', title: 'More Lists & 2D Matrices' },
+    { id: '5-2-references-and-memory', number: '5.2', title: 'References & Memory Mechanics' },
+    { id: '5-3-dictionary-basics', number: '5.3', title: 'Dictionary Fundamentals' },
+    { id: '5-4-tuples-and-complex-structures', number: '5.4', title: 'Tuples & Complex Data Structures' }
+  ],
+  6: [
+    { id: '6-1-reading-files', number: '6.1', title: 'Reading Files' },
+    { id: '6-2-writing-files', number: '6.2', title: 'Writing Files' },
+    { id: '6-3-handling-errors', number: '6.3', title: 'Handling Errors & Exceptions' }
+  ],
+  7: [
+    { id: '7-1-modules', number: '7.1', title: 'Modules & Namespaces' },
+    { id: '7-2-randomness', number: '7.2', title: 'Randomness & Probabilities' },
+    { id: '7-3-times-and-dates', number: '7.3', title: 'Times and Dates' },
+    { id: '7-4-data-processing', number: '7.4', title: 'Data Processing & JSON' },
+    { id: '7-5-creating-modules', number: '7.5', title: 'Creating Your Own Modules' },
+    { id: '7-6-more-features', number: '7.6', title: 'More Python Features' }
+  ],
+  8: [
+    { id: '8-1-objects-and-methods', number: '8.1', title: 'Objects & Methods' },
+    { id: '8-2-classes-and-instances', number: '8.2', title: 'Classes & Object Instances' },
+    { id: '8-3-constructors-init', number: '8.3', title: 'Constructors & __init__' },
+    { id: '8-4-methods-and-self', number: '8.4', title: 'Defining Methods & self' },
+    { id: '8-5-str-and-repr', number: '8.5', title: 'String Representations (__str__ & __repr__)' },
+    { id: '8-6-classes-in-practice', number: '8.6', title: 'Classes in Practice & State' }
+  ],
+  9: [
+    { id: '9-1-memory-references', number: '9.1', title: 'Objects & Memory References' },
+    { id: '9-2-composition-objects-as-attributes', number: '9.2', title: 'Objects as Attributes (Composition)' },
+    { id: '9-3-encapsulation-data-protection', number: '9.3', title: 'Encapsulation & Data Protection' },
+    { id: '9-4-properties-getters-setters', number: '9.4', title: 'Properties (Getters & Setters)' },
+    { id: '9-5-class-vs-instance-attributes', number: '9.5', title: 'Class vs Instance Attributes' },
+    { id: '9-6-scope-methods-class-design', number: '9.6', title: 'Scope of Methods & Class Design' }
+  ],
+  10: [
+    { id: '10-1-class-hierarchies-inheritance', number: '10.1', title: 'Class Hierarchies & Inheritance' },
+    { id: '10-2-super-and-constructors', number: '10.2', title: 'The super() Function & Constructors' },
+    { id: '10-3-method-overriding-extension', number: '10.3', title: 'Method Overriding & Extension' },
+    { id: '10-4-polymorphism-duck-typing', number: '10.4', title: 'Polymorphism & Duck Typing' },
+    { id: '10-5-abstract-base-classes', number: '10.5', title: 'Abstract Base Classes (ABCs)' },
+    { id: '10-6-larger-modular-applications', number: '10.6', title: 'Modular OOP Application Architecture' }
+  ],
+  11: [
+    { id: '11-1-list-comprehensions', number: '11.1', title: 'List Comprehensions & Concise Syntax' },
+    { id: '11-2-more-comprehensions', number: '11.2', title: 'More Comprehensions (Dicts, Sets & Generators)' },
+    { id: '11-3-recursion-fundamentals', number: '11.3', title: 'Recursion Fundamentals & Call Stack' },
+    { id: '11-4-practical-recursion-data-structures', number: '11.4', title: 'Practical Recursion & Data Structures' }
+  ],
+  12: [
+    { id: '12-1-functions-as-arguments', number: '12.1', title: 'Functions as First-Class Citizens' },
+    { id: '12-2-generators-and-iterators', number: '12.2', title: 'Generators & the \'yield\' Keyword' },
+    { id: '12-3-functional-programming-lambda', number: '12.3', title: 'Functional Programming (map, filter, lambda)' },
+    { id: '12-4-regular-expressions', number: '12.4', title: 'Regular Expressions & Pattern Matching' }
+  ],
+  13: [
+    { id: '13-1-pygame-window-game-loop', number: '13.1', title: 'Pygame Setup & The Central Game Loop' },
+    { id: '13-2-rendering-graphics-animation', number: '13.2', title: 'Drawing Shapes, Images & Animation' },
+    { id: '13-3-keyboard-mouse-events', number: '13.3', title: 'Keyboard & Mouse Input Handling' },
+    { id: '13-4-movement-mechanics-collision', number: '13.4', title: 'Movement Mechanics & Collision Physics' }
+  ],
+  14: [
+    { id: '14-1-game-architecture-setup', number: '14.1', title: 'Game Architecture & OOP Design' },
+    { id: '14-2-robot-obstacles-mechanics', number: '14.2', title: 'Player Control, Obstacles & Movement Physics' },
+    { id: '14-3-collision-rules-scoring', number: '14.3', title: 'Win/Loss Rules, Health & Persistence' },
+    { id: '14-4-custom-game-project', number: '14.4', title: 'Game Polish, Optimization & Capstone Synthesis' }
+  ]
+};
+
+/**
+ * Format a human-friendly section label, e.g. "Section 8.3: Constructors & __init__"
+ */
+export const formatPythonSectionLabel = (partNum: number, sectionIdentifier?: string): string => {
+  if (!sectionIdentifier) return `Section ${partNum}.1`;
+  const clean = sectionIdentifier.trim();
+  const catalog = PYTHON_SECTIONS_CATALOG[partNum] || [];
+
+  const found = catalog.find(
+    (s) =>
+      s.id.toLowerCase() === clean.toLowerCase() ||
+      s.number === clean ||
+      clean.toLowerCase().includes(s.id.toLowerCase()) ||
+      clean.includes(`Section ${s.number}`) ||
+      clean.includes(`Level ${s.number}`)
+  );
+
+  if (found) {
+    return `Section ${found.number}: ${found.title}`;
+  }
+
+  if (clean.includes(':')) {
+    return clean;
+  }
+
+  const matchNum = clean.match(/(\d+\.\d+)/);
+  if (matchNum) {
+    const numFound = catalog.find((s) => s.number === matchNum[1]);
+    if (numFound) return `Section ${numFound.number}: ${numFound.title}`;
+    return `Section ${matchNum[1]}`;
+  }
+
+  return clean;
+};
+
+/**
+ * Determine exact next section and next part continuation across Parts 1-14.
+ *
+ * Example:
+ * - Locked in Part 8, Section 8.3 -> returns Part 8, Section 8.4 ('8-4-methods-and-self')
+ * - Locked in Part 8, Section 8.6 (last section) -> returns Part 9, Section 9.1 ('9-1-memory-references')
+ */
+export const getNextPythonSection = (
+  currentPart: number,
+  currentSectionIdentifier?: string
+): {
+  nextPart: number;
+  nextSectionId: string;
+  nextSectionNumber: string;
+  nextSectionTitle: string;
+} => {
+  const partNum = Math.max(1, Math.min(14, currentPart || 1));
+  const sections = PYTHON_SECTIONS_CATALOG[partNum] || [];
+
+  let currentIdx = -1;
+  const rawTarget = String(currentSectionIdentifier || '').trim().toLowerCase();
+
+  if (rawTarget) {
+    currentIdx = sections.findIndex((s) => {
+      const sId = s.id.toLowerCase();
+      const sNum = s.number.toLowerCase();
+      return (
+        sId === rawTarget ||
+        sNum === rawTarget ||
+        rawTarget.includes(sId) ||
+        rawTarget.includes(`section ${sNum}`) ||
+        rawTarget.includes(`level ${sNum}`) ||
+        rawTarget.startsWith(sNum)
+      );
+    });
+  }
+
+  // If section was not specifically matched, try checking digits
+  if (currentIdx === -1 && rawTarget) {
+    const matchNum = rawTarget.match(/(\d+\.\d+)/);
+    if (matchNum) {
+      currentIdx = sections.findIndex((s) => s.number === matchNum[1]);
+    }
+  }
+
+  // If still not matched, default to index 0 of current part
+  if (currentIdx === -1) {
+    currentIdx = 0;
+  }
+
+  // If there is a subsequent section within the same Part
+  if (currentIdx + 1 < sections.length) {
+    const nextSec = sections[currentIdx + 1];
+    return {
+      nextPart: partNum,
+      nextSectionId: nextSec.id,
+      nextSectionNumber: nextSec.number,
+      nextSectionTitle: nextSec.title
+    };
+  }
+
+  // If this was the final section of Part N, advance to Part N + 1, Section 1
+  if (partNum < 14) {
+    const nextPartSections = PYTHON_SECTIONS_CATALOG[partNum + 1] || [];
+    const firstNextSec = nextPartSections[0];
+    if (firstNextSec) {
+      return {
+        nextPart: partNum + 1,
+        nextSectionId: firstNextSec.id,
+        nextSectionNumber: firstNextSec.number,
+        nextSectionTitle: firstNextSec.title
+      };
+    }
+  }
+
+  // If on the final section of Part 14, resume on final section with fresh attempt
+  const finalSec = sections[currentIdx] || sections[sections.length - 1];
+  return {
+    nextPart: 14,
+    nextSectionId: finalSec?.id || '14-4-custom-game-project',
+    nextSectionNumber: finalSec?.number || '14.4',
+    nextSectionTitle: finalSec?.title || 'Game Polish, Optimization & Capstone Synthesis'
+  };
+};
+
+let memoryLockedCoursesCache: LockedCourseRecord[] | null = null;
+let hasInitiatedCloudSync = false;
+
+/**
+ * Scan Supabase database (site_content and student_profiles) for real locked records
+ * Replaces dummy placeholders with authentic student credentials.
+ */
+export const syncLockedCoursesFromCloud = async (): Promise<LockedCourseRecord[]> => {
+  let records: LockedCourseRecord[] = [];
+
+  // 1. Read existing registry from localStorage
+  try {
+    const raw = localStorage.getItem(LOCKED_COURSES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        records = parsed.filter(
+          (r) => !r.studentId?.startsWith('demo-std') && !r.studentEmail?.includes('techsprint.io')
+        );
+      }
+    }
+  } catch {}
+
+  if (!isSupabaseConfigured()) {
+    memoryLockedCoursesCache = records;
+    return records;
+  }
+
+  try {
+    // 2. Fetch existing cloud registry from site_content
+    const { data: regData } = await supabase
+      .from('site_content')
+      .select('content')
+      .eq('id', CLOUD_LOCKED_COURSES_ID)
+      .maybeSingle();
+
+    if (regData?.content?.records && Array.isArray(regData.content.records)) {
+      const cloudRecs: LockedCourseRecord[] = regData.content.records;
+      for (const cr of cloudRecs) {
+        if (cr.studentId?.startsWith('demo-std') || cr.studentEmail?.includes('techsprint.io')) continue;
+        const existingIdx = records.findIndex((r) => r.id === cr.id || r.studentId === cr.studentId);
+        if (existingIdx !== -1) {
+          records[existingIdx] = { ...records[existingIdx], ...cr };
+        } else {
+          records.push(cr);
+        }
+      }
+    }
+
+    // 3. Fetch authentic student profiles from Supabase database
+    const { data: profiles } = await supabase
+      .from('student_profiles')
+      .select('id, name, email, phone, college_or_company, where_did_you_find_us');
+
+    const profileMap = new Map<string, any>();
+    if (profiles && Array.isArray(profiles)) {
+      for (const p of profiles) {
+        if (p.email) profileMap.set(p.email.toLowerCase().trim(), p);
+        if (p.id) profileMap.set(p.id.trim(), p);
+      }
+    }
+
+    // 4. Fetch live student progress states from site_content to detect real locks
+    const { data: states } = await supabase
+      .from('site_content')
+      .select('id, content')
+      .like('id', 'student_course_state_%');
+
+    if (states && Array.isArray(states)) {
+      for (const row of states) {
+        const state = row.content || {};
+        const email = (state.email || '').toLowerCase().trim();
+        if (!email || email.includes('techsprint.io')) continue;
+
+        const profile = profileMap.get(email) || null;
+        const studentId = profile?.id || state.rawStorage?.['dopilot_student_id'] || email.replace(/[^a-z0-9]/g, '');
+
+        // Check if user has lock keys
+        const globalLocks = state.globalLockedKeys || {};
+        const isGloballyLocked = Object.values(globalLocks).some((v) => v === true);
+
+        // Check python parts for locks
+        const pyParts = state.courses?.['python-core']?.parts || {};
+        let lockedPartNum = 0;
+        let lockedSectionId = '';
+        let streak = 0;
+        let isLevelLocked = false;
+
+        for (const [pStr, part] of Object.entries(pyParts)) {
+          const pNum = Number(pStr);
+          const lr = (part as any)?.levelResult;
+          if (lr?.isLocked || (typeof lr?.streak === 'number' && lr.streak >= 3)) {
+            lockedPartNum = pNum;
+            lockedSectionId = lr.sectionId || (part as any)?.activeSectionId || '';
+            streak = lr.streak || 3;
+            isLevelLocked = true;
+            break;
+          }
+        }
+
+        // Check consecutive failure streak in student state
+        const failures = state.consecutiveFailures || {};
+        let maxFailureStreak = 0;
+        for (const [fKey, count] of Object.entries(failures)) {
+          const n = Number(count);
+          if (n > maxFailureStreak) maxFailureStreak = n;
+          if (n >= 3 && !lockedPartNum) {
+            const m = fKey.match(/part(\d+)/i);
+            if (m) lockedPartNum = Number(m[1]);
+          }
+        }
+
+        if (isGloballyLocked || isLevelLocked || maxFailureStreak >= 3) {
+          if (!lockedPartNum) lockedPartNum = state.courses?.['python-core']?.lastPart || 1;
+          if (!lockedSectionId) {
+            lockedSectionId = pyParts[String(lockedPartNum)]?.activeSectionId || `${lockedPartNum}-1`;
+          }
+
+          const existingIdx = records.findIndex(
+            (r) =>
+              (r.studentEmail && r.studentEmail.toLowerCase() === email) ||
+              r.studentId === studentId
+          );
+
+          const realName = profile?.name || (existingIdx !== -1 && records[existingIdx].studentName !== 'Active Learner' ? records[existingIdx].studentName : email.split('@')[0]);
+          const realPhone = profile?.phone ? (profile.phone.startsWith('+91') ? profile.phone : `+91 ${profile.phone}`) : undefined;
+          const college = profile?.college_or_company || profile?.where_did_you_find_us || undefined;
+          const formattedSection = formatPythonSectionLabel(lockedPartNum, lockedSectionId);
+
+          // If record exists and is already unlocked by admin, don't revert to locked unless streak >= 3 in state
+          const currentlyUnlocked = existingIdx !== -1 && records[existingIdx].lockStatus === 'unlocked' && !isGloballyLocked && !isLevelLocked;
+
+          const updatedRecord: LockedCourseRecord = {
+            id: existingIdx !== -1 ? records[existingIdx].id : `LC-${studentId.slice(-6)}`,
+            studentId,
+            studentName: realName,
+            studentEmail: profile?.email || email,
+            studentPhone: realPhone || (existingIdx !== -1 ? records[existingIdx].studentPhone : undefined),
+            collegeOrCompany: college || (existingIdx !== -1 ? records[existingIdx].collegeOrCompany : undefined),
+            courseId: 'python',
+            courseName: 'Complete Python Course',
+            partNum: lockedPartNum,
+            partTitle: `Part ${lockedPartNum}`,
+            failedPart: `Part ${lockedPartNum}`,
+            failedSection: formattedSection,
+            failedSectionId: lockedSectionId,
+            consecutiveFailures: currentlyUnlocked ? 0 : (streak || maxFailureStreak || 3),
+            lockStatus: currentlyUnlocked ? 'unlocked' : 'locked',
+            lockedAt: existingIdx !== -1 ? records[existingIdx].lockedAt : new Date().toISOString(),
+            progressSummary: `Part ${lockedPartNum}: ${formattedSection} • ${currentlyUnlocked ? 'Progression Active' : 'Lock Active'}`,
+            earnedPoints: existingIdx !== -1 ? records[existingIdx].earnedPoints : 0
+          };
+
+          if (existingIdx !== -1) {
+            records[existingIdx] = { ...records[existingIdx], ...updatedRecord };
+          } else {
+            records.unshift(updatedRecord);
+          }
+        }
+      }
+    }
+
+    // Persist unified authoritative records back to cloud and local storage
+    memoryLockedCoursesCache = records;
+    try {
+      localStorage.setItem(LOCKED_COURSES_STORAGE_KEY, JSON.stringify(records));
+      await supabase.from('site_content').upsert({
+        id: CLOUD_LOCKED_COURSES_ID,
+        content: {
+          records,
+          updatedAt: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString()
+      });
+    } catch {}
+
+    return records;
+  } catch (err) {
+    console.warn('Error synchronizing locked courses from cloud:', err);
+    memoryLockedCoursesCache = records;
+    return records;
+  }
+};
 
 /**
  * Scan browser localStorage for live locked keys to discover any newly locked student sessions
@@ -102,8 +519,13 @@ export const scanAndSyncLiveLocks = (): LockedCourseRecord[] => {
           (r) => r.studentId === studentId && r.courseId === courseId && (r.partNum === partNum || !r.partNum)
         );
 
+        const currentSecId = localStorage.getItem(
+          partNum === 1 ? 'dopilot_active_section_id' : `dopilot_part${partNum}_active_section_id`
+        ) || `${partNum}-1`;
+
+        const formattedSec = formatPythonSectionLabel(partNum, currentSecId);
+
         if (existingIdx === -1) {
-          // Add new live locked record
           const newRecord: LockedCourseRecord = {
             id: `LC-LIVE-${Date.now().toString().slice(-4)}`,
             studentId,
@@ -114,16 +536,16 @@ export const scanAndSyncLiveLocks = (): LockedCourseRecord[] => {
             partNum,
             partTitle: `Part ${partNum}`,
             failedPart: `Part ${partNum}`,
-            failedSection: 'Compulsory Level Assessment',
+            failedSection: formattedSec,
+            failedSectionId: currentSecId,
             consecutiveFailures: 3,
             lockStatus: 'locked',
             lockedAt: new Date().toISOString(),
-            progressSummary: `Part ${partNum} Assessment • Lock Active`,
+            progressSummary: `Part ${partNum}: ${formattedSec} • Lock Active`,
             earnedPoints: 0
           };
           records.unshift(newRecord);
         } else if (records[existingIdx].lockStatus === 'unlocked') {
-          // Re-locked if key is explicitly true again
           records[existingIdx].lockStatus = 'locked';
           records[existingIdx].consecutiveFailures = 3;
         }
@@ -136,6 +558,16 @@ export const scanAndSyncLiveLocks = (): LockedCourseRecord[] => {
   try {
     localStorage.setItem(LOCKED_COURSES_STORAGE_KEY, JSON.stringify(records));
   } catch {}
+
+  // Trigger background cloud sync to ensure real database records from Supabase are fetched
+  if (!hasInitiatedCloudSync && isSupabaseConfigured()) {
+    hasInitiatedCloudSync = true;
+    syncLockedCoursesFromCloud().then((cloudRecords) => {
+      if (cloudRecords && cloudRecords.length > 0) {
+        window.dispatchEvent(new CustomEvent('dopilot_locked_courses_updated'));
+      }
+    }).catch(() => {});
+  }
 
   return records;
 };
@@ -154,9 +586,16 @@ export const getRecordFailedPart = (r: LockedCourseRecord): string => {
  * Helper to get clean failed section display
  */
 export const getRecordFailedSection = (r: LockedCourseRecord): string => {
-  if (r.failedSection) return r.failedSection;
-  if (r.partTitle && r.partTitle.includes(':')) return r.partTitle.split(':')[1].trim();
-  return r.partTitle || 'Compulsory Level Assessment';
+  if (r.failedSection) {
+    return formatPythonSectionLabel(r.partNum || 1, r.failedSection);
+  }
+  if (r.failedSectionId) {
+    return formatPythonSectionLabel(r.partNum || 1, r.failedSectionId);
+  }
+  if (r.partTitle && r.partTitle.includes(':')) {
+    return r.partTitle.split(':')[1].trim();
+  }
+  return formatPythonSectionLabel(r.partNum || 1, `Section ${r.partNum || 1}.1`);
 };
 
 /**
@@ -208,28 +647,40 @@ export const recordCourseLock = (params: {
   partTitle?: string;
   failedPart?: string;
   failedSection?: string;
+  failedSectionId?: string;
   consecutiveFailures?: number;
   progressSummary?: string;
   earnedPoints?: number;
 }): LockedCourseRecord => {
   const current = getLockedCourseRecords();
   const existingIdx = current.findIndex(
-    (r) => r.studentId === params.studentId && r.courseId === params.courseId
+    (r) =>
+      r.studentId === params.studentId ||
+      (params.studentEmail && r.studentEmail.toLowerCase() === params.studentEmail.toLowerCase())
   );
+
+  const cleanPart = params.partNum || 1;
+  const cleanSectionId = params.failedSectionId || params.failedSection;
+  const formattedSection = formatPythonSectionLabel(cleanPart, cleanSectionId);
 
   let record: LockedCourseRecord;
 
   if (existingIdx !== -1) {
     current[existingIdx] = {
       ...current[existingIdx],
+      studentName: params.studentName || current[existingIdx].studentName,
+      studentEmail: params.studentEmail || current[existingIdx].studentEmail,
+      studentPhone: params.studentPhone || current[existingIdx].studentPhone,
+      collegeOrCompany: params.collegeOrCompany || current[existingIdx].collegeOrCompany,
       lockStatus: 'locked',
       consecutiveFailures: params.consecutiveFailures || 3,
       lockedAt: new Date().toISOString(),
-      partNum: params.partNum ?? current[existingIdx].partNum,
-      partTitle: params.partTitle ?? current[existingIdx].partTitle,
-      failedPart: params.failedPart ?? current[existingIdx].failedPart,
-      failedSection: params.failedSection ?? current[existingIdx].failedSection,
-      progressSummary: params.progressSummary ?? current[existingIdx].progressSummary,
+      partNum: cleanPart,
+      partTitle: `Part ${cleanPart}`,
+      failedPart: `Part ${cleanPart}`,
+      failedSection: formattedSection,
+      failedSectionId: cleanSectionId,
+      progressSummary: params.progressSummary || `Part ${cleanPart}: ${formattedSection} • Lock Active`,
       earnedPoints: params.earnedPoints ?? current[existingIdx].earnedPoints,
       unlockedAt: undefined,
       unlockedBy: undefined
@@ -237,22 +688,23 @@ export const recordCourseLock = (params: {
     record = current[existingIdx];
   } else {
     record = {
-      id: `LC-${Date.now().toString().slice(-6)}`,
+      id: `LC-${params.studentId.slice(-6)}`,
       studentId: params.studentId,
       studentName: params.studentName || 'Enrolled Student',
-      studentEmail: params.studentEmail || `${params.studentId}@dopilot.io`,
+      studentEmail: params.studentEmail || `${params.studentId}@student.dopilot.io`,
       studentPhone: params.studentPhone,
       collegeOrCompany: params.collegeOrCompany,
       courseId: params.courseId,
       courseName: params.courseName,
-      partNum: params.partNum,
-      partTitle: params.partTitle,
-      failedPart: params.failedPart || (params.partNum ? `Part ${params.partNum}` : undefined),
-      failedSection: params.failedSection || (params.partTitle && params.partTitle.includes(':') ? params.partTitle.split(':')[1]?.trim() : 'Compulsory Level Assessment'),
+      partNum: cleanPart,
+      partTitle: `Part ${cleanPart}`,
+      failedPart: `Part ${cleanPart}`,
+      failedSection: formattedSection,
+      failedSectionId: cleanSectionId,
       consecutiveFailures: params.consecutiveFailures || 3,
       lockStatus: 'locked',
       lockedAt: new Date().toISOString(),
-      progressSummary: params.progressSummary || 'Course Assessment Locked',
+      progressSummary: params.progressSummary || `Part ${cleanPart}: ${formattedSection} • Lock Active`,
       earnedPoints: params.earnedPoints || 0
     };
     current.unshift(record);
@@ -265,20 +717,15 @@ export const recordCourseLock = (params: {
     console.error('Failed to write locked course to storage:', e);
   }
 
-  // Sync to Supabase if configured
+  // Persist to Supabase site_content for cross-device visibility
   if (isSupabaseConfigured()) {
     Promise.resolve(
-      supabase.from('locked_courses').upsert({
-        id: record.id,
-        student_id: record.studentId,
-        student_name: record.studentName,
-        student_email: record.studentEmail,
-        course_id: record.courseId,
-        course_name: record.courseName,
-        part_num: record.partNum || null,
-        consecutive_failures: record.consecutiveFailures,
-        lock_status: record.lockStatus,
-        locked_at: record.lockedAt,
+      supabase.from('site_content').upsert({
+        id: CLOUD_LOCKED_COURSES_ID,
+        content: {
+          records: current,
+          updatedAt: new Date().toISOString()
+        },
         updated_at: new Date().toISOString()
       })
     ).catch(() => {});
@@ -289,10 +736,16 @@ export const recordCourseLock = (params: {
 
 /**
  * Target reset for specific student and course
- * Removes lock keys, clears failure streak to 0, resets attempt counters to 1.
- * DOES NOT touch points, certificates, or other enrolled courses.
+ * Removes lock keys, resets failure streaks, advances progression to exact next section.
+ * DOES NOT touch points, certificates, or valid answers in earlier sections.
  */
-export const clearStudentCourseLockKeys = (studentId: string, courseId: string) => {
+export const clearStudentCourseLockKeys = (
+  studentId: string,
+  courseId: string,
+  nextPart?: number,
+  nextSectionId?: string,
+  studentEmail?: string
+) => {
   const normCourse = courseId.toLowerCase();
 
   try {
@@ -307,6 +760,32 @@ export const clearStudentCourseLockKeys = (studentId: string, courseId: string) 
         localStorage.removeItem(`dopilot_part${p}_locked_progression_${studentId}`);
         localStorage.setItem(`dopilot_part${p}_consecutive_failures_${studentId}`, '0');
         localStorage.setItem(`dopilot_part${p}_failed_levels_streak_${studentId}`, '0');
+        localStorage.removeItem(`dopilot_part${p}_disclaimer_open`);
+        localStorage.removeItem(`dopilot_part${p}_disclaimer_confirmed`);
+        localStorage.removeItem(`dopilot_part${p}_level_result`);
+      }
+      localStorage.removeItem('dopilot_level_result');
+
+      // Set progression to exact next section
+      if (nextPart && nextSectionId) {
+        localStorage.setItem(
+          nextPart === 1 ? 'dopilot_active_section_id' : `dopilot_part${nextPart}_active_section_id`,
+          nextSectionId
+        );
+        localStorage.setItem(
+          nextPart === 1 ? 'dopilot_active_q_idx' : `dopilot_part${nextPart}_active_q_idx`,
+          '0'
+        );
+        localStorage.setItem(
+          nextPart === 1 ? 'dopilot_study_phase' : `dopilot_part${nextPart}_study_phase`,
+          'true'
+        );
+        localStorage.removeItem(nextPart === 1 ? 'dopilot_time_up' : `dopilot_part${nextPart}_time_up`);
+        localStorage.removeItem(nextPart === 1 ? 'dopilot_q_target_end_time' : `dopilot_part${nextPart}_q_target_end_time`);
+        localStorage.setItem('dopilot_python_core_last_part', String(nextPart));
+
+        // Prevent showing intro page when continuing
+        clearPythonPartIntroRequired(nextPart);
       }
 
       // Reset level attempts for python to 1
@@ -327,14 +806,9 @@ export const clearStudentCourseLockKeys = (studentId: string, courseId: string) 
         localStorage.removeItem(`dopilot_java_part${p}_locked_progression_${studentId}`);
         localStorage.setItem(`dopilot_java_part${p}_consecutive_failures_${studentId}`, '0');
         localStorage.setItem(`dopilot_java_part${p}_failed_levels_streak_${studentId}`, '0');
+        localStorage.removeItem(`dopilot_java_part${p}_level_result`);
       }
-
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('dopilot_java') && key.includes(studentId) && key.includes('attempt')) {
-          localStorage.setItem(key, '1');
-        }
-      }
+      localStorage.removeItem('dopilot_java_level_result');
     } else if (normCourse.includes('fullstack')) {
       localStorage.removeItem(`dopilot_fullstack_locked_${studentId}`);
       localStorage.removeItem(`dopilot_fullstack_locked_progression_${studentId}`);
@@ -347,13 +821,7 @@ export const clearStudentCourseLockKeys = (studentId: string, courseId: string) 
         localStorage.removeItem(`dopilot_fullstack_p${p}_locked_progression_${studentId}`);
         localStorage.setItem(`dopilot_fullstack_p${p}_consecutive_failures_${studentId}`, '0');
         localStorage.setItem(`dopilot_fullstack_p${p}_failed_levels_streak_${studentId}`, '0');
-      }
-
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('dopilot_fullstack') && key.includes(studentId) && key.includes('attempt')) {
-          localStorage.setItem(key, '1');
-        }
+        localStorage.removeItem(`dopilot_fullstack_part${p}_level_result`);
       }
     } else if (normCourse.includes('cyber')) {
       localStorage.removeItem(`dopilot_cyber_locked_${studentId}`);
@@ -366,13 +834,7 @@ export const clearStudentCourseLockKeys = (studentId: string, courseId: string) 
         localStorage.removeItem(`dopilot_cyber_part${p}_locked_progression_${studentId}`);
         localStorage.setItem(`dopilot_cyber_part${p}_consecutive_failures_${studentId}`, '0');
         localStorage.setItem(`dopilot_cyber_part${p}_failed_levels_streak_${studentId}`, '0');
-      }
-
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('dopilot_cyber') && key.includes(studentId) && key.includes('attempt')) {
-          localStorage.setItem(key, '1');
-        }
+        localStorage.removeItem(`dopilot_cyber_part${p}_level_result`);
       }
     }
   } catch (e) {
@@ -381,18 +843,28 @@ export const clearStudentCourseLockKeys = (studentId: string, courseId: string) 
 };
 
 /**
- * Execute course reset by Admin
- * - Unlocks the course
- * - Resets failure counts and attempts
- * - Creates an audit log
- * - Saves to localStorage and Supabase
- * - Emits custom event for real-time reactivity
+ * Execute course reset and unlocking by Admin.
+ *
+ * Requirements guaranteed:
+ * 1. Target student unlocked globally.
+ * 2. Next-section continuation calculated based on actual locked section.
+ * 3. Locked state completely removed without user-facing popup.
+ * 4. Global persistence synchronized across devices, browsers, and re-login via Supabase site_content.
  */
 export const resetStudentCourse = (
   recordId: string,
   adminIdentifier: string = 'admin',
   adminNotes?: string
-): { success: boolean; record?: LockedCourseRecord; auditEntry?: CourseResetAuditEntry; error?: string } => {
+): {
+  success: boolean;
+  record?: LockedCourseRecord;
+  auditEntry?: CourseResetAuditEntry;
+  nextPart?: number;
+  nextSectionId?: string;
+  nextSectionNumber?: string;
+  nextSectionTitle?: string;
+  error?: string;
+} => {
   const records = getLockedCourseRecords();
   const targetRecord = records.find((r) => r.id === recordId);
 
@@ -400,10 +872,70 @@ export const resetStudentCourse = (
     return { success: false, error: 'Locked course record not found.' };
   }
 
-  // 1. Clear targeted keys for this course and student
-  clearStudentCourseLockKeys(targetRecord.studentId, targetRecord.courseId);
+  // 1. Calculate exact next section for continuation
+  const lockedPart = targetRecord.partNum || 1;
+  const lockedSection = targetRecord.failedSectionId || targetRecord.failedSection;
+  const continuation = getNextPythonSection(lockedPart, lockedSection);
 
-  // 2. Update record in registry
+  const { nextPart, nextSectionId, nextSectionNumber, nextSectionTitle } = continuation;
+  const cleanEmail = normalizeStudentEmail(targetRecord.studentEmail);
+
+  // 2. Clear targeted keys and advance local storage
+  clearStudentCourseLockKeys(
+    targetRecord.studentId,
+    targetRecord.courseId,
+    nextPart,
+    nextSectionId,
+    cleanEmail
+  );
+
+  // 3. Update in-memory course state cache
+  if (cleanEmail) {
+    if (!memoryCourseState[cleanEmail]) {
+      memoryCourseState[cleanEmail] = {
+        email: cleanEmail,
+        courses: {},
+        updatedAt: new Date().toISOString()
+      };
+    }
+    const mem = memoryCourseState[cleanEmail];
+    mem.globalLockedKeys = {};
+    mem.consecutiveFailures = {};
+
+    if (!mem.courses) mem.courses = {};
+    if (!mem.courses['python-core']) {
+      mem.courses['python-core'] = {
+        lastPart: nextPart,
+        completedParts: [],
+        parts: {}
+      };
+    }
+
+    const pyCourse = mem.courses['python-core'];
+    pyCourse.lastPart = nextPart;
+    if (!pyCourse.parts) pyCourse.parts = {};
+
+    // Clear levelResult on previous locked part
+    if (pyCourse.parts[String(lockedPart)]) {
+      pyCourse.parts[String(lockedPart)].levelResult = null;
+      pyCourse.parts[String(lockedPart)].isTimeUpWaiting = false;
+    }
+
+    // Set progression on nextPart
+    pyCourse.parts[String(nextPart)] = {
+      ...(pyCourse.parts[String(nextPart)] || {}),
+      activeSectionId: nextSectionId,
+      activeQuestionIdx: 0,
+      isStudyPhase: true,
+      levelResult: null,
+      isTimeUpWaiting: false,
+      timeLeft: 30,
+      targetEndTime: 0,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  // 4. Update record in registry
   const nowIso = new Date().toISOString();
   targetRecord.lockStatus = 'unlocked';
   targetRecord.unlockedAt = nowIso;
@@ -412,6 +944,7 @@ export const resetStudentCourse = (
   if (adminNotes) {
     targetRecord.adminNotes = adminNotes;
   }
+  targetRecord.progressSummary = `Part ${nextPart}: Section ${nextSectionNumber} • Unlocked by Admin`;
 
   try {
     localStorage.setItem(LOCKED_COURSES_STORAGE_KEY, JSON.stringify(records));
@@ -419,7 +952,7 @@ export const resetStudentCourse = (
     console.error('Failed to update locked courses registry:', e);
   }
 
-  // 3. Record audit trail entry
+  // 5. Record audit trail entry
   const auditEntry: CourseResetAuditEntry = {
     id: `RST-${Date.now().toString().slice(-6)}`,
     recordId: targetRecord.id,
@@ -431,8 +964,10 @@ export const resetStudentCourse = (
     adminIdentifier,
     resetTimestamp: nowIso,
     previousFailures: 3,
-    adminNotes: adminNotes || 'Admin unlocked course progression after review.',
-    status: 'SUCCESS'
+    adminNotes: adminNotes || `Course unlocked by admin. Continuation position: Part ${nextPart}, Section ${nextSectionNumber}: ${nextSectionTitle}`,
+    status: 'SUCCESS',
+    unlockedLocation: `Part ${lockedPart}: ${getRecordFailedSection(targetRecord)}`,
+    continuationSection: `Part ${nextPart}, Section ${nextSectionNumber}: ${nextSectionTitle}`
   };
 
   const auditLogs = getCourseResetAuditEntries();
@@ -443,61 +978,200 @@ export const resetStudentCourse = (
     console.error('Failed to save reset audit entry:', e);
   }
 
-  // 4. Dispatch browser custom event for instant reactivity in student tabs
+  // 6. Dispatch custom events for instant student-tab reactivity
+  const unlockDetail = {
+    recordId: targetRecord.id,
+    studentId: targetRecord.studentId,
+    studentEmail: targetRecord.studentEmail,
+    courseId: targetRecord.courseId,
+    unlockedBy: adminIdentifier,
+    timestamp: nowIso,
+    lockedPart,
+    nextPart,
+    nextSectionId,
+    nextSectionNumber,
+    nextSectionTitle
+  };
+
   window.dispatchEvent(
-    new CustomEvent('dopilot_course_unlocked', {
-      detail: {
-        recordId: targetRecord.id,
-        studentId: targetRecord.studentId,
-        courseId: targetRecord.courseId,
-        unlockedBy: adminIdentifier,
-        timestamp: nowIso
-      }
-    })
+    new CustomEvent('dopilot_course_unlocked', { detail: unlockDetail })
   );
 
   window.dispatchEvent(
-    new CustomEvent('dopilot_locked_courses_updated', {
-      detail: targetRecord
+    new CustomEvent('dopilot_locked_courses_updated', { detail: targetRecord })
+  );
+
+  window.dispatchEvent(
+    new CustomEvent('dopilot_progress_restored', {
+      detail: { courseId: 'python-core', studentId: targetRecord.studentId }
     })
   );
 
-  // 5. Database background sync with Supabase
+  // 7. Authoritative Global Persistence to Supabase site_content
   if (isSupabaseConfigured()) {
+    // A. Update student course state document in site_content
+    const docId = getStudentDocId(cleanEmail);
     Promise.resolve(
-      supabase.from('course_resets').insert({
-        id: auditEntry.id,
-        record_id: auditEntry.recordId,
-        student_id: auditEntry.studentId,
-        student_name: auditEntry.studentName,
-        student_email: auditEntry.studentEmail,
-        course_id: auditEntry.courseId,
-        course_name: auditEntry.courseName,
-        admin_identifier: auditEntry.adminIdentifier,
-        reset_timestamp: auditEntry.resetTimestamp,
-        previous_failures: auditEntry.previousFailures,
-        admin_notes: auditEntry.adminNotes || null,
-        status: auditEntry.status
+      supabase
+        .from('site_content')
+        .select('content')
+        .eq('id', docId)
+        .maybeSingle()
+        .then(async ({ data: existingDoc }) => {
+          const cloudState = existingDoc?.content || memoryCourseState[cleanEmail] || {
+            email: cleanEmail,
+            courses: {},
+            updatedAt: nowIso
+          };
+
+          cloudState.globalLockedKeys = {};
+          cloudState.consecutiveFailures = {};
+
+          if (!cloudState.courses) cloudState.courses = {};
+          if (!cloudState.courses['python-core']) {
+            cloudState.courses['python-core'] = {
+              lastPart: nextPart,
+              completedParts: [],
+              parts: {}
+            };
+          }
+
+          const py = cloudState.courses['python-core'];
+          py.lastPart = nextPart;
+          if (!py.parts) py.parts = {};
+
+          // Clear locked levelResult
+          if (py.parts[String(lockedPart)]) {
+            py.parts[String(lockedPart)].levelResult = null;
+            py.parts[String(lockedPart)].isTimeUpWaiting = false;
+          }
+
+          // Advance to next section
+          py.parts[String(nextPart)] = {
+            ...(py.parts[String(nextPart)] || {}),
+            activeSectionId: nextSectionId,
+            activeQuestionIdx: 0,
+            isStudyPhase: true,
+            levelResult: null,
+            isTimeUpWaiting: false,
+            timeLeft: 30,
+            targetEndTime: 0,
+            updatedAt: nowIso
+          };
+
+          if (!cloudState.rawStorage) cloudState.rawStorage = {};
+          cloudState.rawStorage[`dopilot_part${nextPart}_active_section_id`] = nextSectionId;
+          cloudState.rawStorage[`dopilot_part${nextPart}_active_q_idx`] = '0';
+          cloudState.rawStorage[`dopilot_part${nextPart}_study_phase`] = 'true';
+          cloudState.rawStorage['dopilot_python_core_last_part'] = String(nextPart);
+          cloudState.rawStorage[`dopilot_python_intro_required_${nextPart}`] = 'false';
+          cloudState.rawStorage[`python_course_intro_started_${nextPart}`] = 'true';
+          delete cloudState.rawStorage[`dopilot_locked_${targetRecord.studentId}`];
+          delete cloudState.rawStorage[`dopilot_part${lockedPart}_locked_${targetRecord.studentId}`];
+          delete cloudState.rawStorage[`dopilot_part${lockedPart}_level_result`];
+          delete cloudState.rawStorage['dopilot_level_result'];
+
+          cloudState.updatedAt = nowIso;
+
+          await supabase.from('site_content').upsert({
+            id: docId,
+            content: cloudState,
+            updated_at: nowIso
+          });
+        })
+    ).catch((err) => {
+      console.warn('Error syncing unlocked state to student document:', err);
+    });
+
+    // B. Persist locked courses registry to site_content
+    Promise.resolve(
+      supabase.from('site_content').upsert({
+        id: CLOUD_LOCKED_COURSES_ID,
+        content: {
+          records,
+          updatedAt: nowIso
+        },
+        updated_at: nowIso
       })
     ).catch(() => {});
 
+    // C. Persist reset audit logs to site_content
     Promise.resolve(
-      supabase.from('locked_courses').upsert({
-        id: targetRecord.id,
-        student_id: targetRecord.studentId,
-        student_name: targetRecord.studentName,
-        student_email: targetRecord.studentEmail,
-        course_id: targetRecord.courseId,
-        course_name: targetRecord.courseName,
-        consecutive_failures: 0,
-        lock_status: 'unlocked',
-        unlocked_at: nowIso,
-        unlocked_by: adminIdentifier,
-        admin_notes: adminNotes || null,
+      supabase.from('site_content').upsert({
+        id: CLOUD_COURSE_RESETS_AUDIT_ID,
+        content: {
+          auditLogs: updatedAuditLogs,
+          updatedAt: nowIso
+        },
         updated_at: nowIso
       })
     ).catch(() => {});
   }
 
-  return { success: true, record: targetRecord, auditEntry };
+  return {
+    success: true,
+    record: targetRecord,
+    auditEntry,
+    nextPart,
+    nextSectionId,
+    nextSectionNumber,
+    nextSectionTitle
+  };
 };
+
+/**
+ * Reusable hook for Python Part pages to react immediately to admin unlocks without showing any popup.
+ */
+export function useCourseUnlockedListener(params: {
+  partNum: number;
+  studentId: string;
+  studentEmail?: string;
+  setLevelResult: (val: any) => void;
+  setConsecutiveFailures: (val: number) => void;
+  setActiveSectionId?: (val: string) => void;
+  setActiveQuestionIdx?: (val: number) => void;
+  setIsStudyPhase?: (val: boolean) => void;
+}): void {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleCourseUnlocked = (e: any) => {
+      const detail = e?.detail;
+      const cleanStudent = String(params.studentId || '').trim();
+      const cleanEmail = String(params.studentEmail || '').toLowerCase().trim();
+
+      const isMatch =
+        !detail ||
+        detail.studentId === cleanStudent ||
+        (detail.studentEmail && detail.studentEmail.toLowerCase() === cleanEmail) ||
+        detail.courseId === 'python' ||
+        detail.courseId === 'python-core' ||
+        detail.courseId === 'all';
+
+      if (isMatch) {
+        // Remove locked screen completely without showing any unlock alert or popup
+        params.setLevelResult(null);
+        params.setConsecutiveFailures(0);
+
+        try {
+          localStorage.removeItem(`dopilot_part${params.partNum}_level_result`);
+          localStorage.removeItem(`dopilot_part${params.partNum}_locked_${cleanStudent}`);
+          localStorage.removeItem(`dopilot_locked_${cleanStudent}`);
+          localStorage.removeItem(`dopilot_part${params.partNum}_disclaimer_open`);
+        } catch {}
+
+        // Continue to exact next section
+        if (detail?.nextPart === params.partNum && detail?.nextSectionId) {
+          if (params.setActiveSectionId) params.setActiveSectionId(detail.nextSectionId);
+          if (params.setActiveQuestionIdx) params.setActiveQuestionIdx(0);
+          if (params.setIsStudyPhase) params.setIsStudyPhase(true);
+        } else if (detail?.nextPart && detail.nextPart !== params.partNum) {
+          navigate(`/course/python-core/part-${detail.nextPart}`, { replace: true });
+        }
+      }
+    };
+
+    window.addEventListener('dopilot_course_unlocked', handleCourseUnlocked);
+    return () => window.removeEventListener('dopilot_course_unlocked', handleCourseUnlocked);
+  }, [params.partNum, params.studentId, params.studentEmail, navigate]);
+}

@@ -43,6 +43,8 @@ import {
   CourseResetAuditEntry,
   getLockedCourseRecords,
   scanAndSyncLiveLocks,
+  syncLockedCoursesFromCloud,
+  getNextPythonSection,
   resetStudentCourse,
   getCourseResetAuditEntries,
   getRecordFailedPart,
@@ -184,6 +186,13 @@ export const AdminPanel: React.FC = () => {
   const [isResettingCourse, setIsResettingCourse] = useState(false);
 
   useEffect(() => {
+    // Initial fetch of real locked database records from Supabase
+    syncLockedCoursesFromCloud().then((cloudRecs) => {
+      if (cloudRecs && cloudRecs.length > 0) {
+        setLockedRecords(cloudRecs);
+      }
+    }).catch(() => {});
+
     const handleCourseResetUpdate = () => {
       setLockedRecords(getLockedCourseRecords());
       setCourseResetAuditLogs(getCourseResetAuditEntries());
@@ -9708,14 +9717,17 @@ export const AdminPanel: React.FC = () => {
         const adminName = getAdminUsername() || 'admin';
         const res = resetStudentCourse(confirmResetTarget.id, adminName, adminResetNotes);
         if (res.success) {
+          const contMsg = res.nextPart && res.nextSectionNumber
+            ? ` (Continues at Part ${res.nextPart}, Section ${res.nextSectionNumber}: ${res.nextSectionTitle})`
+            : '';
           addAuditLog(
             'COURSE_UNLOCKED',
-            `Admin ${adminName} unlocked ${confirmResetTarget.courseName} for student ${confirmResetTarget.studentName} (${confirmResetTarget.studentEmail}). Failure streak reset to 0.`,
+            `Admin ${adminName} unlocked ${confirmResetTarget.courseName} for student ${confirmResetTarget.studentName} (${confirmResetTarget.studentEmail}).${contMsg}`,
             'SUCCESS'
           );
           setLockedRecords(getLockedCourseRecords());
           setCourseResetAuditLogs(getCourseResetAuditEntries());
-          showToast(`Course successfully unlocked for ${confirmResetTarget.studentName}!`);
+          showToast(`Course successfully unlocked for ${confirmResetTarget.studentName}!${contMsg}`);
           setConfirmResetTarget(null);
           setAdminResetNotes('');
         } else {
@@ -9764,41 +9776,65 @@ export const AdminPanel: React.FC = () => {
           </div>
 
           {/* Target Student & Course Details */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-black/60 border border-white/10 space-y-3 relative z-10">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div>
-                <span className="font-mono text-[10px] text-slate/70 uppercase block">Student Name</span>
-                <span className="font-jakarta font-bold text-paper text-sm">{confirmResetTarget.studentName}</span>
-              </div>
-              <div>
-                <span className="font-mono text-[10px] text-slate/70 uppercase block">Student Email</span>
-                <span className="font-mono text-paper truncate block">{confirmResetTarget.studentEmail}</span>
-              </div>
-              {confirmResetTarget.studentPhone && (
-                <div>
-                  <span className="font-mono text-[10px] text-slate/70 uppercase block">Phone</span>
-                  <span className="font-mono text-paper block">{confirmResetTarget.studentPhone}</span>
+          {(() => {
+            const continuation = getNextPythonSection(
+              confirmResetTarget.partNum || 1,
+              confirmResetTarget.failedSectionId || confirmResetTarget.failedSection
+            );
+            return (
+              <div className="p-4 sm:p-5 rounded-2xl bg-black/60 border border-white/10 space-y-3 relative z-10">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="font-mono text-[10px] text-slate/70 uppercase block">Student Name</span>
+                    <span className="font-jakarta font-bold text-paper text-sm">{confirmResetTarget.studentName}</span>
+                  </div>
+                  <div>
+                    <span className="font-mono text-[10px] text-slate/70 uppercase block">Student Email</span>
+                    <span className="font-mono text-paper truncate block">{confirmResetTarget.studentEmail}</span>
+                  </div>
+                  <div>
+                    <span className="font-mono text-[10px] text-slate/70 uppercase block">User ID</span>
+                    <span className="font-mono text-paper block">{confirmResetTarget.studentId}</span>
+                  </div>
+                  {confirmResetTarget.studentPhone && (
+                    <div>
+                      <span className="font-mono text-[10px] text-slate/70 uppercase block">Phone</span>
+                      <span className="font-mono text-paper block">{confirmResetTarget.studentPhone}</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="font-mono text-[10px] text-slate/70 uppercase block">Course Name</span>
+                    <span className="font-jakarta font-bold text-cyan-300 block">{confirmResetTarget.courseName}</span>
+                  </div>
+                  <div>
+                    <span className="font-mono text-[10px] text-slate/70 uppercase block">Locked Part & Section</span>
+                    <span className="font-mono text-rose-300 font-bold block">{targetFailedPart} — {targetFailedSection}</span>
+                  </div>
+                  <div>
+                    <span className="font-mono text-[10px] text-slate/70 uppercase block">Consecutive Failures</span>
+                    <span className="font-mono text-rose-400 font-bold block">{confirmResetTarget.consecutiveFailures || 3} of 3 (Locked)</span>
+                  </div>
+                  <div>
+                    <span className="font-mono text-[10px] text-slate/70 uppercase block">Progress & Lock Status</span>
+                    <span className="font-mono text-paper block">{confirmResetTarget.progressSummary || "Level Progression Suspended"}</span>
+                  </div>
                 </div>
-              )}
-              <div>
-                <span className="font-mono text-[10px] text-slate/70 uppercase block">Course</span>
-                <span className="font-jakarta font-bold text-cyan-300 block">{confirmResetTarget.courseName}</span>
-              </div>
-              <div>
-                <span className="font-mono text-[10px] text-slate/70 uppercase block">Failed Part</span>
-                <span className="font-mono text-paper font-bold block">{targetFailedPart}</span>
-              </div>
-              <div>
-                <span className="font-mono text-[10px] text-slate/70 uppercase block">Failed Section</span>
-                <span className="font-mono text-rose-300 font-bold block">{targetFailedSection}</span>
-              </div>
-            </div>
 
-            <div className="pt-3 border-t border-white/5 font-mono text-[11px] text-emerald-400 flex items-center gap-2">
-              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              <span>Resets 3 consecutive failures to 0 and unlocks {confirmResetTarget.courseName}</span>
-            </div>
-          </div>
+                {/* Course Continuation Preview */}
+                <div className="p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/25 space-y-1.5">
+                  <span className="font-mono text-[10px] text-cyan-400 font-bold uppercase tracking-wider block">
+                    Course Continuation After Unlock
+                  </span>
+                  <p className="font-jakarta text-xs text-paper font-bold">
+                    Part {continuation.nextPart}, Section {continuation.nextSectionNumber}: {continuation.nextSectionTitle}
+                  </p>
+                  <p className="font-mono text-[11px] text-slate/80">
+                    Upon unlocking, the student will continue from this exact next section with all previous sections, valid answers, and points earned preserved.
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Admin Notes Field */}
           <div className="space-y-2 relative z-10">
@@ -9867,11 +9903,11 @@ export const AdminPanel: React.FC = () => {
       return matchSearch && matchStatus && matchCourse;
     });
 
-    const handleRefresh = () => {
-      const live = scanAndSyncLiveLocks();
+    const handleRefresh = async () => {
+      const live = await syncLockedCoursesFromCloud();
       setLockedRecords(live);
       setCourseResetAuditLogs(getCourseResetAuditEntries());
-      showToast('Course lock records refreshed');
+      showToast('Course lock records refreshed from database');
     };
 
     return (
@@ -10124,29 +10160,46 @@ export const AdminPanel: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Course Details: Course Name, Failed Part, Failed Section */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2.5 border-t border-white/5">
-                        <div className="p-2.5 rounded-xl bg-black/60 border border-white/5 min-w-0">
-                          <span className="font-mono text-[10px] text-slate/50 uppercase block">Course Name</span>
-                          <span className="font-jakarta font-bold text-xs text-paper block truncate">
-                            {item.courseName}
-                          </span>
-                        </div>
+                      {/* Course Details: Course Name, Failed Part, Failed Section, Failures & Next Continuation */}
+                      {(() => {
+                        const continuation = getNextPythonSection(
+                          item.partNum || 1,
+                          item.failedSectionId || item.failedSection
+                        );
+                        return (
+                          <div className="space-y-2 pt-2.5 border-t border-white/5">
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                              <div className="p-2.5 rounded-xl bg-black/60 border border-white/5 min-w-0">
+                                <span className="font-mono text-[10px] text-slate/50 uppercase block">Course Name</span>
+                                <span className="font-jakarta font-bold text-xs text-paper block truncate">
+                                  {item.courseName}
+                                </span>
+                              </div>
 
-                        <div className="p-2.5 rounded-xl bg-black/60 border border-white/5 min-w-0">
-                          <span className="font-mono text-[10px] text-slate/50 uppercase block">Failed Part</span>
-                          <span className="font-mono text-xs font-bold text-cyan-300 block truncate">
-                            {failedPart}
-                          </span>
-                        </div>
+                              <div className="p-2.5 rounded-xl bg-black/60 border border-white/5 min-w-0">
+                                <span className="font-mono text-[10px] text-slate/50 uppercase block">Locked Location</span>
+                                <span className="font-mono text-xs font-bold text-rose-300 block truncate">
+                                  {failedPart} — {failedSection}
+                                </span>
+                              </div>
 
-                        <div className="p-2.5 rounded-xl bg-black/60 border border-white/5 min-w-0">
-                          <span className="font-mono text-[10px] text-slate/50 uppercase block">Failed Section</span>
-                          <span className="font-mono text-xs text-rose-300 block truncate">
-                            {failedSection}
-                          </span>
-                        </div>
-                      </div>
+                              <div className="p-2.5 rounded-xl bg-black/60 border border-white/5 min-w-0">
+                                <span className="font-mono text-[10px] text-slate/50 uppercase block">Consecutive Failures</span>
+                                <span className="font-mono text-xs font-bold text-rose-400 block truncate">
+                                  {item.consecutiveFailures || 3} of 3 Failures
+                                </span>
+                              </div>
+
+                              <div className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 min-w-0">
+                                <span className="font-mono text-[10px] text-cyan-400 uppercase font-bold block">Next On Unlock</span>
+                                <span className="font-mono text-xs font-bold text-cyan-200 block truncate">
+                                  Part {continuation.nextPart}, Sec {continuation.nextSectionNumber}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}

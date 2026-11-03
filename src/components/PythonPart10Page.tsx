@@ -20,6 +20,7 @@ import {
 } from '../data/pythonPart10Data';
 import { useCourseQuestionResume, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
 import { notifyCourseLocked } from '../utils/lockNotificationService';
+import { useCourseUnlockedListener } from '../utils/courseResetService';
 import { useCorrectAutoAdvance } from '../utils/useCorrectAutoAdvance';
 import { markPythonPartIntroRequired, clearPythonPartIntroRequired, isPythonPartIntroRequired, usePythonPartIntroModal, usePythonPartIntroGuard } from '../utils/pythonPartIntro';
 
@@ -52,6 +53,7 @@ export const PythonPart10Page: React.FC = () => {
   // Keep the Part 10 introduction as the resume point until Start Part 10 is clicked
   usePythonPartIntroGuard(10);
 
+  
   // Persistent Active Section ID (Defaults to Section 2.1)
   const [activeSectionId, setActiveSectionId] = useState<string>(() => {
     try {
@@ -212,6 +214,17 @@ export const PythonPart10Page: React.FC = () => {
   // Whether user is currently in Study Phase (reading note with no timer pressure) or Question Phase (30s timer)
   const [isStudyPhase, setIsStudyPhase] = useState<boolean>(() => {
     if (isReviewMode) return false;
+
+  useCourseUnlockedListener({
+    partNum: 10,
+    studentId,
+    studentEmail: user?.email,
+    setLevelResult,
+    setConsecutiveFailures,
+    setActiveSectionId,
+    setActiveQuestionIdx,
+    setIsStudyPhase
+  });
     try {
       const email = user?.email?.toLowerCase().trim();
       const memPart = email ? memoryCourseState[email]?.courses?.['python-core']?.parts?.['10'] : null;
@@ -454,7 +467,11 @@ export const PythonPart10Page: React.FC = () => {
         streak: result.consecutiveFailedLevels,
         attemptCount: result.attemptCount,
         studentId,
-        studentEmail: user?.email
+        studentEmail: user?.email,
+        studentName: user?.name,
+        studentPhone: user?.phone,
+        collegeOrCompany: user?.collegeOrCompany,
+        earnedPoints: points
       });
       recordCourseLock({
         studentId,
@@ -700,30 +717,7 @@ export const PythonPart10Page: React.FC = () => {
 
   // Auto-skip countdown removed: questions require manual Continue
 
-  // Real-time listener for Admin Course Reset / Unlock
-  useEffect(() => {
-    const handleCourseUnlocked = (e: any) => {
-      const detail = e?.detail;
-      if (!detail || detail.studentId === studentId || detail.courseId === 'python' || detail.courseId === 'all') {
-        const isLockedInStorage = localStorage.getItem(`dopilot_part10_locked_${studentId}`) === 'true';
-        if (!isLockedInStorage) {
-          setLevelResult(prev => {
-            if (prev && prev.isLocked) {
-              return { ...prev, isLocked: false, streak: 0 };
-            }
-            return prev;
-          });
-          setConsecutiveFailures(0);
-        }
-      }
-    };
-    window.addEventListener('dopilot_course_unlocked', handleCourseUnlocked);
-    window.addEventListener('storage', handleCourseUnlocked);
-    return () => {
-      window.removeEventListener('dopilot_course_unlocked', handleCourseUnlocked);
-      window.removeEventListener('storage', handleCourseUnlocked);
-    };
-  }, [studentId]);
+
 
   // Timer Tick: Checks every 250ms against exact target timestamp ONLY when study phase is finished!
   useEffect(() => {

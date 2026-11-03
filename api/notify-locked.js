@@ -268,6 +268,64 @@ export default async function handler(req, res) {
       console.warn('Error saving lock notification audit in database:', e);
     }
 
+    // 7. Update authoritative Course Reset registry in site_content
+    try {
+      const { data: regDoc } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('id', 'dopilot_locked_courses_registry_v1')
+        .maybeSingle();
+
+      const existingRecords = Array.isArray(regDoc?.content?.records) ? regDoc.content.records : [];
+      const matchIdx = existingRecords.findIndex(
+        (r) =>
+          r.studentId === (profile?.id || cleanId) ||
+          (cleanEmail && r.studentEmail && r.studentEmail.toLowerCase() === cleanEmail.toLowerCase())
+      );
+
+      const recordItem = {
+        id: matchIdx >= 0 ? existingRecords[matchIdx].id : `LC-${(profile?.id || cleanId).slice(-6)}`,
+        studentId: profile?.id || cleanId,
+        studentName: studentName || 'Registered Student',
+        studentEmail: profile?.email || cleanEmail,
+        studentPhone: phoneDigits ? `+91 ${phoneDigits}` : undefined,
+        collegeOrCompany: collegeOrCompany !== 'Not provided' ? collegeOrCompany : undefined,
+        courseId: 'python',
+        courseName: 'Complete Python Course',
+        partNum: Number(partNum) || 1,
+        partTitle: `Part ${partNum}`,
+        failedPart: `Part ${partNum}`,
+        failedSection: sectionTitle || sectionId || `Section ${partNum}.1`,
+        failedSectionId: sectionId || undefined,
+        consecutiveFailures: Number(streak) || 3,
+        lockStatus: 'locked',
+        lockedAt: new Date().toISOString(),
+        progressSummary: `Part ${partNum}: ${sectionTitle || sectionId} • Lock Active`,
+        earnedPoints: 0
+      };
+
+      if (matchIdx >= 0) {
+        existingRecords[matchIdx] = {
+          ...existingRecords[matchIdx],
+          ...recordItem,
+          lockStatus: 'locked'
+        };
+      } else {
+        existingRecords.unshift(recordItem);
+      }
+
+      await supabase.from('site_content').upsert({
+        id: 'dopilot_locked_courses_registry_v1',
+        content: {
+          records: existingRecords,
+          updatedAt: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn('Error updating locked courses registry in site_content:', e);
+    }
+
     if (delivered) {
       return res.status(200).json({
         success: true,

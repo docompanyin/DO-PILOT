@@ -19,6 +19,7 @@ import {
 } from '../data/pythonPart8Data';
 import { useCourseQuestionResume, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
 import { notifyCourseLocked } from '../utils/lockNotificationService';
+import { useCourseUnlockedListener } from '../utils/courseResetService';
 import { useCorrectAutoAdvance } from '../utils/useCorrectAutoAdvance';
 import { markPythonPartIntroRequired, clearPythonPartIntroRequired, isPythonPartIntroRequired, usePythonPartIntroModal, usePythonPartIntroGuard } from '../utils/pythonPartIntro';
 
@@ -51,6 +52,7 @@ export const PythonPart8Page: React.FC = () => {
   // Keep the Part 8 introduction as the resume point until Start Part 8 is clicked
   usePythonPartIntroGuard(8);
 
+  
   // Persistent Active Section ID (Defaults to Section 2.1)
   const [activeSectionId, setActiveSectionId] = useState<string>(() => {
     try {
@@ -211,6 +213,17 @@ export const PythonPart8Page: React.FC = () => {
   // Whether user is currently in Study Phase (reading note with no timer pressure) or Question Phase (30s timer)
   const [isStudyPhase, setIsStudyPhase] = useState<boolean>(() => {
     if (isReviewMode) return false;
+
+  useCourseUnlockedListener({
+    partNum: 8,
+    studentId,
+    studentEmail: user?.email,
+    setLevelResult,
+    setConsecutiveFailures,
+    setActiveSectionId,
+    setActiveQuestionIdx,
+    setIsStudyPhase
+  });
     try {
       const email = user?.email?.toLowerCase().trim();
       const memPart = email ? memoryCourseState[email]?.courses?.['python-core']?.parts?.['8'] : null;
@@ -452,7 +465,11 @@ export const PythonPart8Page: React.FC = () => {
         streak: result.consecutiveFailedLevels,
         attemptCount: result.attemptCount,
         studentId,
-        studentEmail: user?.email
+        studentEmail: user?.email,
+        studentName: user?.name,
+        studentPhone: user?.phone,
+        collegeOrCompany: user?.collegeOrCompany,
+        earnedPoints: points
       });
     }
 

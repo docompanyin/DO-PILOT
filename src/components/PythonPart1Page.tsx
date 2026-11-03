@@ -28,6 +28,7 @@ import {
 } from '../utils/part1ScoreService';
 import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
 import { notifyCourseLocked } from '../utils/lockNotificationService';
+import { useCourseUnlockedListener } from '../utils/courseResetService';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -130,6 +131,7 @@ export const PythonPart1Page: React.FC = () => {
     };
   }, [studentId]);
 
+  
   // Disclaimer popup state when choosing "Continue to Next Set" on 2nd consecutive failure
   const [disclaimerModalOpen, setDisclaimerModalOpen] = useState<boolean>(() => {
     try {
@@ -325,6 +327,17 @@ export const PythonPart1Page: React.FC = () => {
   // Never use candidate keys here — old-format answers must not bypass the Notes lock.
   const [isStudyPhase, setIsStudyPhase] = useState<boolean>(() => {
     if (isReviewMode) return false;
+
+  useCourseUnlockedListener({
+    partNum: 1,
+    studentId,
+    studentEmail: user?.email,
+    setLevelResult,
+    setConsecutiveFailures,
+    setActiveSectionId,
+    setActiveQuestionIdx,
+    setIsStudyPhase
+  });
     try {
       const email = user?.email?.toLowerCase().trim();
       const memPart = email ? memoryCourseState[email]?.courses?.['python-core']?.parts?.['1'] : null;
@@ -618,7 +631,11 @@ export const PythonPart1Page: React.FC = () => {
           streak: result.consecutiveFailedLevels,
           attemptCount: result.attemptCount,
           studentId,
-          studentEmail: user?.email
+          studentEmail: user?.email,
+          studentName: user?.name,
+          studentPhone: user?.phone,
+          collegeOrCompany: user?.collegeOrCompany,
+          earnedPoints: points
         });
       }
     } else {

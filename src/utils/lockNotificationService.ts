@@ -4,6 +4,8 @@
  * when a student reaches 3 consecutive failed levels.
  */
 
+import { recordCourseLock } from './courseResetService';
+
 export interface CourseLockPayload {
   courseId: string;
   courseName?: string;
@@ -18,6 +20,10 @@ export interface CourseLockPayload {
   attemptCount?: number;
   studentId: string;
   studentEmail?: string;
+  studentName?: string;
+  studentPhone?: string;
+  collegeOrCompany?: string;
+  earnedPoints?: number;
 }
 
 export const notifyCourseLocked = async (
@@ -26,6 +32,28 @@ export const notifyCourseLocked = async (
   // Only trigger when course is locked (streak >= 3)
   if (Number(payload.streak) < 3) {
     return { success: false };
+  }
+
+  // Authoritatively record lock in Course Reset directory
+  try {
+    recordCourseLock({
+      studentId: payload.studentId,
+      studentName: payload.studentName,
+      studentEmail: payload.studentEmail,
+      studentPhone: payload.studentPhone,
+      collegeOrCompany: payload.collegeOrCompany,
+      courseId: payload.courseId.includes('python') ? 'python' : payload.courseId,
+      courseName: payload.courseName || 'Complete Python Course',
+      partNum: payload.partNum,
+      failedPart: `Part ${payload.partNum}`,
+      failedSection: payload.sectionTitle || payload.sectionId,
+      failedSectionId: payload.sectionId,
+      consecutiveFailures: Number(payload.streak) || 3,
+      progressSummary: `Part ${payload.partNum}: ${payload.sectionTitle || payload.sectionId} • Lock Active`,
+      earnedPoints: payload.earnedPoints || 0
+    });
+  } catch (err) {
+    console.warn('Failed to record course lock locally:', err);
   }
 
   const cleanEmail = (payload.studentEmail || '').toLowerCase().trim();
