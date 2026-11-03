@@ -9873,9 +9873,6 @@ export const AdminPanel: React.FC = () => {
                 {/* Progress & Lock Status - Compact Strip */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 px-3.5 py-2 rounded-xl bg-white/[0.03] border border-white/10">
                   <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Progress & Lock Status</span>
-                  <span className="font-mono text-xs text-paper text-left sm:text-right font-medium truncate">
-                    {confirmResetTarget.progressSummary || "Locked • Level Progression Suspended"}
-                  </span>
                 </div>
 
                 {/* Course Continuation After Unlock - Compact Box */}
