@@ -1186,23 +1186,26 @@ export const clearStudentCourseLockKeys = (
   studentEmail?: string
 ) => {
   const normCourse = courseId.toLowerCase();
+  const idList = Array.from(new Set([studentId, studentEmail].filter(Boolean))) as string[];
 
   try {
     if (normCourse.includes('python')) {
-      localStorage.removeItem(`dopilot_locked_${studentId}`);
-      localStorage.removeItem(`dopilot_locked_progression_${studentId}`);
-      localStorage.setItem(`dopilot_consecutive_failures_${studentId}`, '0');
-      localStorage.setItem(`dopilot_failed_levels_streak_${studentId}`, '0');
+      idList.forEach(id => {
+        localStorage.removeItem(`dopilot_locked_${id}`);
+        localStorage.removeItem(`dopilot_locked_progression_${id}`);
+        localStorage.setItem(`dopilot_consecutive_failures_${id}`, '0');
+        localStorage.setItem(`dopilot_failed_levels_streak_${id}`, '0');
 
-      for (let p = 1; p <= 14; p++) {
-        localStorage.removeItem(`dopilot_part${p}_locked_${studentId}`);
-        localStorage.removeItem(`dopilot_part${p}_locked_progression_${studentId}`);
-        localStorage.setItem(`dopilot_part${p}_consecutive_failures_${studentId}`, '0');
-        localStorage.setItem(`dopilot_part${p}_failed_levels_streak_${studentId}`, '0');
-        localStorage.removeItem(`dopilot_part${p}_disclaimer_open`);
-        localStorage.removeItem(`dopilot_part${p}_disclaimer_confirmed`);
-        localStorage.removeItem(`dopilot_part${p}_level_result`);
-      }
+        for (let p = 1; p <= 14; p++) {
+          localStorage.removeItem(`dopilot_part${p}_locked_${id}`);
+          localStorage.removeItem(`dopilot_part${p}_locked_progression_${id}`);
+          localStorage.setItem(`dopilot_part${p}_consecutive_failures_${id}`, '0');
+          localStorage.setItem(`dopilot_part${p}_failed_levels_streak_${id}`, '0');
+          localStorage.removeItem(`dopilot_part${p}_disclaimer_open`);
+          localStorage.removeItem(`dopilot_part${p}_disclaimer_confirmed`);
+          localStorage.removeItem(`dopilot_part${p}_level_result`);
+        }
+      });
       localStorage.removeItem('dopilot_level_result');
 
       // Set progression to exact next section
@@ -1221,6 +1224,7 @@ export const clearStudentCourseLockKeys = (
         );
         localStorage.removeItem(nextPart === 1 ? 'dopilot_time_up' : `dopilot_part${nextPart}_time_up`);
         localStorage.removeItem(nextPart === 1 ? 'dopilot_q_target_end_time' : `dopilot_part${nextPart}_q_target_end_time`);
+        localStorage.removeItem(nextPart === 1 ? 'dopilot_level_result' : `dopilot_part${nextPart}_level_result`);
         localStorage.setItem('dopilot_python_core_last_part', String(nextPart));
 
         // Prevent showing intro page when continuing
@@ -1230,51 +1234,57 @@ export const clearStudentCourseLockKeys = (
       // Reset level attempts for python to 1
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (key.startsWith('dopilot_part') || key.startsWith('dopilot_attempt_')) && key.includes(studentId) && key.includes('attempt')) {
+        if (key && (key.startsWith('dopilot_part') || key.startsWith('dopilot_attempt_')) && idList.some(id => key.includes(id)) && key.includes('attempt')) {
           localStorage.setItem(key, '1');
         }
       }
     } else if (normCourse.includes('java')) {
-      localStorage.removeItem(`dopilot_java_locked_${studentId}`);
-      localStorage.removeItem(`dopilot_java_locked_progression_${studentId}`);
-      localStorage.setItem(`dopilot_java_consecutive_failures_${studentId}`, '0');
-      localStorage.setItem(`dopilot_java_failed_levels_streak_${studentId}`, '0');
+      idList.forEach(id => {
+        localStorage.removeItem(`dopilot_java_locked_${id}`);
+        localStorage.removeItem(`dopilot_java_locked_progression_${id}`);
+        localStorage.setItem(`dopilot_java_consecutive_failures_${id}`, '0');
+        localStorage.setItem(`dopilot_java_failed_levels_streak_${id}`, '0');
 
-      for (let p = 1; p <= 14; p++) {
-        localStorage.removeItem(`dopilot_java_part${p}_locked_${studentId}`);
-        localStorage.removeItem(`dopilot_java_part${p}_locked_progression_${studentId}`);
-        localStorage.setItem(`dopilot_java_part${p}_consecutive_failures_${studentId}`, '0');
-        localStorage.setItem(`dopilot_java_part${p}_failed_levels_streak_${studentId}`, '0');
-        localStorage.removeItem(`dopilot_java_part${p}_level_result`);
-      }
+        for (let p = 1; p <= 14; p++) {
+          localStorage.removeItem(`dopilot_java_part${p}_locked_${id}`);
+          localStorage.removeItem(`dopilot_java_part${p}_locked_progression_${id}`);
+          localStorage.setItem(`dopilot_java_part${p}_consecutive_failures_${id}`, '0');
+          localStorage.setItem(`dopilot_java_part${p}_failed_levels_streak_${id}`, '0');
+          localStorage.removeItem(`dopilot_java_part${p}_level_result`);
+        }
+      });
       localStorage.removeItem('dopilot_java_level_result');
     } else if (normCourse.includes('fullstack')) {
-      localStorage.removeItem(`dopilot_fullstack_locked_${studentId}`);
-      localStorage.removeItem(`dopilot_fullstack_locked_progression_${studentId}`);
-      localStorage.setItem(`dopilot_fullstack_consecutive_failures_${studentId}`, '0');
-      localStorage.setItem(`dopilot_fullstack_failed_levels_streak_${studentId}`, '0');
+      idList.forEach(id => {
+        localStorage.removeItem(`dopilot_fullstack_locked_${id}`);
+        localStorage.removeItem(`dopilot_fullstack_locked_progression_${id}`);
+        localStorage.setItem(`dopilot_fullstack_consecutive_failures_${id}`, '0');
+        localStorage.setItem(`dopilot_fullstack_failed_levels_streak_${id}`, '0');
 
-      for (let p = 0; p <= 13; p++) {
-        localStorage.removeItem(`dopilot_fullstack_p${p}_locked_${studentId}`);
-        localStorage.removeItem(`dopilot_fullstack_part${p}_locked_${studentId}`);
-        localStorage.removeItem(`dopilot_fullstack_p${p}_locked_progression_${studentId}`);
-        localStorage.setItem(`dopilot_fullstack_p${p}_consecutive_failures_${studentId}`, '0');
-        localStorage.setItem(`dopilot_fullstack_p${p}_failed_levels_streak_${studentId}`, '0');
-        localStorage.removeItem(`dopilot_fullstack_part${p}_level_result`);
-      }
+        for (let p = 0; p <= 13; p++) {
+          localStorage.removeItem(`dopilot_fullstack_p${p}_locked_${id}`);
+          localStorage.removeItem(`dopilot_fullstack_part${p}_locked_${id}`);
+          localStorage.removeItem(`dopilot_fullstack_p${p}_locked_progression_${id}`);
+          localStorage.setItem(`dopilot_fullstack_p${p}_consecutive_failures_${id}`, '0');
+          localStorage.setItem(`dopilot_fullstack_p${p}_failed_levels_streak_${id}`, '0');
+          localStorage.removeItem(`dopilot_fullstack_part${p}_level_result`);
+        }
+      });
     } else if (normCourse.includes('cyber')) {
-      localStorage.removeItem(`dopilot_cyber_locked_${studentId}`);
-      localStorage.removeItem(`dopilot_cyber_locked_progression_${studentId}`);
-      localStorage.setItem(`dopilot_cyber_consecutive_failures_${studentId}`, '0');
-      localStorage.setItem(`dopilot_cyber_failed_levels_streak_${studentId}`, '0');
+      idList.forEach(id => {
+        localStorage.removeItem(`dopilot_cyber_locked_${id}`);
+        localStorage.removeItem(`dopilot_cyber_locked_progression_${id}`);
+        localStorage.setItem(`dopilot_cyber_consecutive_failures_${id}`, '0');
+        localStorage.setItem(`dopilot_cyber_failed_levels_streak_${id}`, '0');
 
-      for (let p = 1; p <= 14; p++) {
-        localStorage.removeItem(`dopilot_cyber_part${p}_locked_${studentId}`);
-        localStorage.removeItem(`dopilot_cyber_part${p}_locked_progression_${studentId}`);
-        localStorage.setItem(`dopilot_cyber_part${p}_consecutive_failures_${studentId}`, '0');
-        localStorage.setItem(`dopilot_cyber_part${p}_failed_levels_streak_${studentId}`, '0');
-        localStorage.removeItem(`dopilot_cyber_part${p}_level_result`);
-      }
+        for (let p = 1; p <= 14; p++) {
+          localStorage.removeItem(`dopilot_cyber_part${p}_locked_${id}`);
+          localStorage.removeItem(`dopilot_cyber_part${p}_locked_progression_${id}`);
+          localStorage.setItem(`dopilot_cyber_part${p}_consecutive_failures_${id}`, '0');
+          localStorage.setItem(`dopilot_cyber_part${p}_failed_levels_streak_${id}`, '0');
+          localStorage.removeItem(`dopilot_cyber_part${p}_level_result`);
+        }
+      });
     }
   } catch (e) {
     console.error('Error clearing student course lock keys:', e);

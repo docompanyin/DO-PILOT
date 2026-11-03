@@ -654,6 +654,16 @@ export const PythonPart9Page: React.FC = () => {
     const nextSecIdx = activeIdx + 1;
     if (nextSecIdx < PART_9_SECTIONS.length) {
       const nextSec = PART_9_SECTIONS[nextSecIdx];
+
+      // Clear any prior answers for the new section so it starts fresh
+      const updatedAnswers = { ...selectedAnswers };
+      Object.keys(updatedAnswers).forEach(k => {
+        if (k.startsWith(`${nextSec.id}-`) || k.startsWith(`python-${nextSec.id}-`)) {
+          delete updatedAnswers[k];
+        }
+      });
+      setSelectedAnswers(updatedAnswers);
+
       setActiveSectionId(nextSec.id);
       setActiveQuestionIdx(0);
       setLevelResult(null);
@@ -675,10 +685,18 @@ export const PythonPart9Page: React.FC = () => {
         localStorage.setItem('dopilot_part9_active_q_idx', '0');
         localStorage.setItem('dopilot_part9_study_phase', 'true');
         localStorage.setItem('dopilot_part9_q_target_end_time', String(fresh));
+        localStorage.setItem('dopilot_part9_mcq_answers_v2', JSON.stringify(updatedAnswers));
         localStorage.removeItem('dopilot_part9_time_up');
-      localStorage.removeItem('dopilot_part9_level_result');
+        localStorage.removeItem('dopilot_part9_level_result');
+        localStorage.removeItem('dopilot_level_result');
       } catch (e) {
         console.error(e);
+      }
+
+      const cleanEmail = user?.email?.toLowerCase()?.trim();
+      if (cleanEmail && memoryCourseState[cleanEmail]?.courses?.['python-core']?.parts?.['9']) {
+        memoryCourseState[cleanEmail].courses['python-core'].parts['9'].levelResult = null;
+        memoryCourseState[cleanEmail].courses['python-core'].parts['9'].activeSectionId = nextSec.id;
       }
 
       saveQuestionProgressState({
@@ -686,7 +704,7 @@ export const PythonPart9Page: React.FC = () => {
         partNum: 9,
         activeSectionId: nextSec.id,
         activeQuestionIdx: 0,
-        selectedAnswers,
+        selectedAnswers: updatedAnswers,
         isStudyPhase: true,
         isTimeUpWaiting: false,
         targetEndTime: 0,

@@ -852,16 +852,24 @@ export const restoreAllStudentCourseProgressFromCloud = async (
                 memCourse.parts[pStr] = cPart;
               } else {
                 const memPart = memCourse.parts[pStr];
+                // Check if in-memory part is newer than cloud snapshot
+                const memTime = memPart.updatedAt ? new Date(memPart.updatedAt).getTime() : 0;
+                const cloudTime = cPart.updatedAt ? new Date(cPart.updatedAt).getTime() : 0;
+                const isMemoryNewer = memTime > cloudTime;
+
                 memPart.selectedAnswers = { ...(cPart.selectedAnswers || {}), ...(memPart.selectedAnswers || {}) };
-                memPart.activeQuestionIdx = Math.max(memPart.activeQuestionIdx || 0, cPart.activeQuestionIdx || 0);
-                // Fill in any page/result fields the in-memory part is missing.
-                // This keeps a result page, finished part or timer state from
-                // being dropped when memory was created before the restore.
-                if (!memPart.activeSectionId && cPart.activeSectionId) {
-                  memPart.activeSectionId = cPart.activeSectionId;
-                }
-                if (!memPart.levelResult && cPart.levelResult) {
-                  memPart.levelResult = cPart.levelResult;
+                if (!isMemoryNewer) {
+                  memPart.activeQuestionIdx = Math.max(memPart.activeQuestionIdx || 0, cPart.activeQuestionIdx || 0);
+                  if (!memPart.activeSectionId && cPart.activeSectionId) {
+                    memPart.activeSectionId = cPart.activeSectionId;
+                  }
+                  // Only restore levelResult if section matches active section
+                  if (!memPart.levelResult && cPart.levelResult) {
+                    const cSec = cPart.levelResult.sectionId || cPart.activeSectionId;
+                    if (!cSec || cSec === (memPart.activeSectionId || cPart.activeSectionId)) {
+                      memPart.levelResult = cPart.levelResult;
+                    }
+                  }
                 }
                 if (cPart.isFinishedPart) memPart.isFinishedPart = true;
                 if (cPart.isCompleted) memPart.isCompleted = true;
@@ -872,7 +880,7 @@ export const restoreAllStudentCourseProgressFromCloud = async (
                 if (!memPart.timeLeft) memPart.timeLeft = cPart.timeLeft;
                 if (memPart.isStudyPhase === false) {
                   // Keep unlocked!
-                } else {
+                } else if (!isMemoryNewer) {
                   memPart.isStudyPhase = cPart.isStudyPhase;
                 }
               }
@@ -906,7 +914,12 @@ export const restoreAllStudentCourseProgressFromCloud = async (
           if (isNaN(pNum)) return;
           const partKeys = getCourseStorageKeys(courseId, pNum);
 
-          if (partState.activeSectionId) {
+          const curMemPart = memoryCourseState[cleanEmail]?.courses?.[courseId]?.parts?.[pNumStr];
+          const memTime = curMemPart?.updatedAt ? new Date(curMemPart.updatedAt).getTime() : 0;
+          const cloudTime = partState.updatedAt ? new Date(partState.updatedAt).getTime() : 0;
+          const isMemoryNewer = memTime > cloudTime;
+
+          if (!isMemoryNewer && partState.activeSectionId) {
             localStorage.setItem(partKeys.sectionIdKey, partState.activeSectionId);
             if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_active_section_id', partState.activeSectionId);
             if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_active_section_id', partState.activeSectionId);
@@ -923,18 +936,17 @@ export const restoreAllStudentCourseProgressFromCloud = async (
           if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_mcq_answers', JSON.stringify(mergedAnswers));
           if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_mcq_answers_v2', JSON.stringify(mergedAnswers));
 
-          // Question Index: Always use the cloud value on login restore.
-          // Cloud is the source of truth. localStorage is only a write-through cache.
-          // On a fresh device or after cache clear, curIdx is -1 and cloud value is used directly.
-          // On re-login to the same device, we still use cloud value to restore the exact last page.
-          const targetIdx = partState.activeQuestionIdx || 0;
+          // Question Index: Always use the cloud value on login restore, unless memory is newer
+          const targetIdx = isMemoryNewer
+            ? (curMemPart?.activeQuestionIdx ?? partState.activeQuestionIdx ?? 0)
+            : (partState.activeQuestionIdx || 0);
           localStorage.setItem(partKeys.questionIdxKey, String(targetIdx));
           if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_active_q_idx', String(targetIdx));
           if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_active_q_idx', String(targetIdx));
 
           // Study Phase: NEVER relock if already unlocked locally or if target question is answered!
           const curPhase = localStorage.getItem(partKeys.studyPhaseKey);
-          const sec = partState.activeSectionId || localStorage.getItem(partKeys.sectionIdKey) || '';
+          const sec = (isMemoryNewer ? curMemPart?.activeSectionId : partState.activeSectionId) || localStorage.getItem(partKeys.sectionIdKey) || '';
           // Only check if the specific active question has an answer (exact key match)
           const isAnswered = Object.keys(mergedAnswers).some(k => {
             if (!sec) return false;
@@ -949,7 +961,9 @@ export const restoreAllStudentCourseProgressFromCloud = async (
             mergedAnswers[`${sec}-${targetIdx}`] ||
             (targetIdx === 0 && mergedAnswers[sec])
           );
-          let targetStudyPhase = partState.isStudyPhase;
+          let targetStudyPhase = isMemoryNewer && typeof curMemPart?.isStudyPhase === 'boolean'
+            ? curMemPart.isStudyPhase
+            : partState.isStudyPhase;
           if (curPhase === 'false' || exactActiveKeyAnswered) {
             targetStudyPhase = false;
           }
@@ -995,14 +1009,20 @@ export const restoreAllStudentCourseProgressFromCloud = async (
           if (partState.isCompleted) {
             localStorage.setItem(partKeys.completedKey, 'true');
           }
-          if (partState.levelResult && partState.levelResult.isFinished) {
-            localStorage.setItem(partKeys.levelResultKey, JSON.stringify(partState.levelResult));
-            if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_level_result', JSON.stringify(partState.levelResult));
-            if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_level_result', JSON.stringify(partState.levelResult));
-            if (courseId === 'fullstack-open' && pNum === 0) localStorage.setItem('dopilot_fullstack_part0_level_result', JSON.stringify(partState.levelResult));
-            if (courseId === 'fullstack-open' && pNum === 1) localStorage.setItem('dopilot_fullstack_part1_level_result', JSON.stringify(partState.levelResult));
-            if (courseId === 'cyber-security' && pNum === 1) localStorage.setItem('dopilot_cyber_part1_level_result', JSON.stringify(partState.levelResult));
-          } else {
+          if (!isMemoryNewer && partState.levelResult && partState.levelResult.isFinished) {
+            const lrSec = partState.levelResult.sectionId || partState.activeSectionId;
+            const curSec = localStorage.getItem(partKeys.sectionIdKey);
+            if (!lrSec || !curSec || lrSec === curSec) {
+              localStorage.setItem(partKeys.levelResultKey, JSON.stringify(partState.levelResult));
+              if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_level_result', JSON.stringify(partState.levelResult));
+              if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_level_result', JSON.stringify(partState.levelResult));
+              if (courseId === 'fullstack-open' && pNum === 0) localStorage.setItem('dopilot_fullstack_part0_level_result', JSON.stringify(partState.levelResult));
+              if (courseId === 'fullstack-open' && pNum === 1) localStorage.setItem('dopilot_fullstack_part1_level_result', JSON.stringify(partState.levelResult));
+              if (courseId === 'cyber-security' && pNum === 1) localStorage.setItem('dopilot_cyber_part1_level_result', JSON.stringify(partState.levelResult));
+            } else {
+              localStorage.removeItem(partKeys.levelResultKey);
+            }
+          } else if (!isMemoryNewer) {
             localStorage.removeItem(partKeys.levelResultKey);
             if (courseId === 'java-core' && pNum === 1) localStorage.removeItem('dopilot_java_level_result');
             if (courseId === 'python-core' && pNum === 1) localStorage.removeItem('dopilot_level_result');
@@ -1158,64 +1178,73 @@ export function useCourseQuestionResume(params: {
   setLevelResult?: (res: any) => void;
   setIsCourseComplete?: (complete: boolean) => void;
 }) {
-  const {
-    courseId,
-    partNum,
-    studentEmail,
-    setActiveSectionId,
-    setActiveQuestionIdx,
-    setSelectedAnswers,
-    setIsStudyPhase,
-    setIsTimeUpWaiting,
-    setTimeLeft,
-    setTargetEndTime,
-    validSectionIds,
-    setLevelResult,
-    setIsCourseComplete
-  } = params;
-
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
   const hasHydratedRef = useRef(false);
 
+  const cleanEmail = normalizeStudentEmail(params.studentEmail);
+
   useEffect(() => {
-    // Reset hydration flag on every effect run (e.g. section changes or remounts)
-    hasHydratedRef.current = false;
-    const cleanEmail = normalizeStudentEmail(studentEmail);
     if (!cleanEmail) return;
 
     const applyState = (saved: PartQuestionState) => {
-      if (saved.activeSectionId && validSectionIds.includes(saved.activeSectionId)) {
-        setActiveSectionId(saved.activeSectionId);
+      const p = paramsRef.current;
+      const validIds = p.validSectionIds || [];
+
+      if (saved.activeSectionId && validIds.includes(saved.activeSectionId)) {
+        if (p.activeSectionId !== saved.activeSectionId) {
+          p.setActiveSectionId(saved.activeSectionId);
+        }
       }
       if (typeof saved.activeQuestionIdx === 'number') {
-        setActiveQuestionIdx(saved.activeQuestionIdx);
+        p.setActiveQuestionIdx(saved.activeQuestionIdx);
       }
       if (saved.selectedAnswers) {
-        setSelectedAnswers(() => saved.selectedAnswers);
+        p.setSelectedAnswers((prev) => {
+          const prevKeys = Object.keys(prev || {});
+          const savedKeys = Object.keys(saved.selectedAnswers || {});
+          if (
+            prevKeys.length === savedKeys.length &&
+            prevKeys.every((k) => prev[k] === saved.selectedAnswers[k])
+          ) {
+            return prev;
+          }
+          return { ...saved.selectedAnswers };
+        });
       }
 
       if (saved.isFinishedPart || saved.isCompleted) {
-        setIsCourseComplete?.(true);
+        p.setIsCourseComplete?.(true);
       }
 
-      // 1. Result page state: If section exam was completed, restore result page immediately
-      if (saved.levelResult && saved.levelResult.isFinished) {
-        setLevelResult?.({
+      // 1. Result page state: ONLY restore levelResult if it matches the current/saved section!
+      // Stale levelResult from a previous level must NEVER be restored to a new section!
+      const targetSec = saved.activeSectionId || p.activeSectionId;
+      const resultSec = saved.levelResult?.sectionId;
+      if (
+        saved.levelResult &&
+        saved.levelResult.isFinished &&
+        resultSec &&
+        targetSec &&
+        resultSec === targetSec
+      ) {
+        p.setLevelResult?.({
           ...saved.levelResult,
-          sectionId: saved.levelResult.sectionId || saved.activeSectionId || undefined
+          sectionId: resultSec
         });
-        setIsStudyPhase(false);
-        setIsTimeUpWaiting(false);
-        setTimeLeft(30);
+        p.setIsStudyPhase(false);
+        p.setIsTimeUpWaiting(false);
+        p.setTimeLeft(30);
         return;
       } else {
-        setLevelResult?.(null);
+        p.setLevelResult?.(null);
       }
 
       // 2. Study Phase: Check if user already unlocked locally or already answered this specific question
-      const partKeys = getCourseStorageKeys(courseId, partNum);
+      const partKeys = getCourseStorageKeys(p.courseId, p.partNum);
       const curLocalStudy = localStorage.getItem(partKeys.studyPhaseKey);
       const qIdxStr = String(saved.activeQuestionIdx);
-      const secId = saved.activeSectionId;
+      const secId = saved.activeSectionId || p.activeSectionId;
       const exactKey = `${secId}-${qIdxStr}`;
       const answersMap = saved.selectedAnswers || {};
       const hasAnswer = Boolean(
@@ -1224,41 +1253,41 @@ export function useCourseQuestionResume(params: {
       );
 
       if (curLocalStudy === 'false' || hasAnswer) {
-        setIsStudyPhase(false);
+        p.setIsStudyPhase(false);
       } else if (saved.isStudyPhase) {
-        setIsStudyPhase(true);
-        setIsTimeUpWaiting(false);
-        setTimeLeft(30);
-        setTargetEndTime(0);
+        p.setIsStudyPhase(true);
+        p.setIsTimeUpWaiting(false);
+        p.setTimeLeft(30);
+        p.setTargetEndTime(0);
       } else {
         // 3. Question Phase (question was unlocked)
-        setIsStudyPhase(false);
+        p.setIsStudyPhase(false);
 
         if (hasAnswer) {
           // Question already answered: user is reviewing or on explanation screen. Do not show Time's Up!
-          setIsTimeUpWaiting(false);
+          p.setIsTimeUpWaiting(false);
         } else if (saved.isTimeUpWaiting) {
-          setIsTimeUpWaiting(true);
-          setTimeLeft(0);
+          p.setIsTimeUpWaiting(true);
+          p.setTimeLeft(0);
         } else if (saved.targetEndTime) {
           const diff = Math.ceil((saved.targetEndTime - Date.now()) / 1000);
           if (diff <= 0) {
             // Unlocked question whose 30s timer genuinely expired
-            setIsTimeUpWaiting(true);
-            setTimeLeft(0);
+            p.setIsTimeUpWaiting(true);
+            p.setTimeLeft(0);
           } else {
-            setIsTimeUpWaiting(false);
-            setTimeLeft(Math.min(30, diff));
-            setTargetEndTime(saved.targetEndTime);
+            p.setIsTimeUpWaiting(false);
+            p.setTimeLeft(Math.min(30, diff));
+            p.setTargetEndTime(saved.targetEndTime);
           }
         } else {
-          setIsTimeUpWaiting(false);
-          setTimeLeft(30);
+          p.setIsTimeUpWaiting(false);
+          p.setTimeLeft(30);
         }
       }
     };
 
-    getCloudPartQuestionState(courseId, partNum, cleanEmail).then((saved) => {
+    getCloudPartQuestionState(params.courseId, params.partNum, cleanEmail).then((saved) => {
       if (saved && !hasHydratedRef.current) {
         hasHydratedRef.current = true;
         applyState(saved);
@@ -1266,7 +1295,7 @@ export function useCourseQuestionResume(params: {
     });
 
     const handleRestored = () => {
-      getCloudPartQuestionState(courseId, partNum, cleanEmail).then((saved) => {
+      getCloudPartQuestionState(params.courseId, params.partNum, cleanEmail).then((saved) => {
         if (saved) {
           applyState(saved);
         }
@@ -1277,19 +1306,5 @@ export function useCourseQuestionResume(params: {
     return () => {
       window.removeEventListener('dopilot_progress_restored', handleRestored);
     };
-  }, [
-    courseId,
-    partNum,
-    studentEmail,
-    setActiveSectionId,
-    setActiveQuestionIdx,
-    setSelectedAnswers,
-    setIsStudyPhase,
-    setIsTimeUpWaiting,
-    setTimeLeft,
-    setTargetEndTime,
-    validSectionIds.join(','),
-    setLevelResult,
-    setIsCourseComplete
-  ]);
+  }, [params.courseId, params.partNum, cleanEmail]);
 }
