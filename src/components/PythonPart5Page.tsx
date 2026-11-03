@@ -1092,7 +1092,6 @@ export const PythonPart5Page: React.FC = () => {
               ) : (
                 /* 3+ CONSECUTIVE FAILURES: Locked */
                 <div className="flex items-center justify-center gap-2.5 px-5 py-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs sm:text-sm font-medium shadow-lg shadow-rose-500/10 text-center max-w-md mx-auto">
-                  <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse shrink-0" />
                   <span>Our team has been notified and will contact you shortly to assist you.</span>
                 </div>
               )}

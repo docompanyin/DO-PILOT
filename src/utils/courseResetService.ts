@@ -193,6 +193,52 @@ export const formatPythonSectionLabel = (partNum: number, sectionIdentifier?: st
 };
 
 /**
+ * Format clean Part and Section display, strictly: "Part X, Section X.Y"
+ * No topic descriptions, no titles, no underscores, no truncated text.
+ * Example: "Part 9, Section 9.2"
+ */
+export const formatCleanPartSection = (
+  partNum?: number,
+  sectionIdentifier?: string
+): string => {
+  const pNum = partNum && partNum >= 1 && partNum <= 14 ? partNum : 1;
+  if (!sectionIdentifier) {
+    return `Part ${pNum}, Section ${pNum}.1`;
+  }
+
+  const clean = sectionIdentifier.trim();
+  const catalog = PYTHON_SECTIONS_CATALOG[pNum] || [];
+
+  // 1. Check catalog match
+  const found = catalog.find(
+    (s) =>
+      s.id.toLowerCase() === clean.toLowerCase() ||
+      s.number === clean ||
+      clean.toLowerCase().includes(s.id.toLowerCase()) ||
+      clean.includes(`Section ${s.number}`) ||
+      clean.includes(`Level ${s.number}`)
+  );
+
+  if (found) {
+    return `Part ${pNum}, Section ${found.number}`;
+  }
+
+  // 2. Extract X.Y from string e.g. "9.2" or "Section 9.2: Objects..."
+  const matchDot = clean.match(/(\d+)\.(\d+)/);
+  if (matchDot) {
+    return `Part ${matchDot[1]}, Section ${matchDot[1]}.${matchDot[2]}`;
+  }
+
+  // 3. Extract X-Y from string e.g. "9-2" or "9-2-objects..."
+  const matchDash = clean.match(/(\d+)[\-_](\d+)/);
+  if (matchDash) {
+    return `Part ${matchDash[1]}, Section ${matchDash[1]}.${matchDash[2]}`;
+  }
+
+  return `Part ${pNum}, Section ${pNum}.1`;
+};
+
+/**
  * Determine exact next section and next part continuation across Parts 1-14.
  *
  * Example:
