@@ -102,7 +102,30 @@ export const PythonPart14Page: React.FC = () => {
         return memPart.levelResult;
       }
       const saved = localStorage.getItem('dopilot_part14_level_result');
-      return saved ? JSON.parse(saved) : null;
+      if (saved) return JSON.parse(saved);
+
+      const isLocked =
+        localStorage.getItem('dopilot_locked_' + studentId) === 'true' ||
+        localStorage.getItem('dopilot_part14_locked_' + studentId) === 'true' ||
+        Number(localStorage.getItem('dopilot_consecutive_failures_' + studentId)) >= 3 ||
+        Number(localStorage.getItem('dopilot_part14_consecutive_failures_' + studentId)) >= 3;
+
+      if (isLocked) {
+        return {
+          isFinished: true,
+          sectionId: activeSectionId,
+          isPassed: false,
+          correctCount: 0,
+          totalCount: 6,
+          percentage: 0,
+          streak: 3,
+          attemptCount: 2,
+          isSecondFailureInLevel: true,
+          isLocked: true,
+          hadPriorStreak: false
+        };
+      }
+      return null;
     } catch {
       return null;
     }
@@ -215,17 +238,6 @@ export const PythonPart14Page: React.FC = () => {
   // Whether user is currently in Study Phase (reading note with no timer pressure) or Question Phase (30s timer)
   const [isStudyPhase, setIsStudyPhase] = useState<boolean>(() => {
     if (isReviewMode) return false;
-
-  useCourseUnlockedListener({
-    partNum: 14,
-    studentId,
-    studentEmail: user?.email,
-    setLevelResult,
-    setConsecutiveFailures,
-    setActiveSectionId,
-    setActiveQuestionIdx,
-    setIsStudyPhase
-  });
     try {
       const email = user?.email?.toLowerCase().trim();
       const memPart = email ? memoryCourseState[email]?.courses?.['python-core']?.parts?.['14'] : null;
@@ -238,6 +250,17 @@ export const PythonPart14Page: React.FC = () => {
       if (savedPhase !== null) return savedPhase === 'true';
     } catch {}
     return true; // Read note first by default
+  });
+
+  useCourseUnlockedListener({
+    partNum: 14,
+    studentId,
+    studentEmail: user?.email,
+    setLevelResult,
+    setConsecutiveFailures,
+    setActiveSectionId,
+    setActiveQuestionIdx,
+    setIsStudyPhase
   });
 
   // Target End Timestamp for the 30-second question timer
