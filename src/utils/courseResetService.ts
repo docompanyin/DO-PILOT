@@ -341,12 +341,23 @@ export const isDemoOrTestUser = (studentEmail?: string, studentId?: string, reco
   const id = (studentId || '').toLowerCase().trim();
   const rid = (recordId || '').toLowerCase().trim();
 
-  // Strict safeguard: NEVER match real student Bimal Kumar / Bimal Jayakumar
+  // 1. Explicitly identify and filter corrupted key-derived test accounts or placeholders
+  if (
+    id.includes('locked') ||
+    id.startsWith('part') ||
+    e.includes('locked') ||
+    e.includes('part9_locked') ||
+    e.endsWith('@student.dopilot.io') ||
+    rid.startsWith('lc-live')
+  ) {
+    return true;
+  }
+
+  // 2. Strict safeguard: NEVER match real student Bimal Kumar / Bimal Jayakumar
   if (
     e === 'bimaljayakumar18@gmail.com' ||
-    e.includes('bimaljayakumar') ||
-    id === '108467813526729545413' ||
-    id.includes('10846781352672')
+    (e.includes('bimaljayakumar') && !e.includes('locked')) ||
+    id === '108467813526729545413'
   ) {
     return false;
   }
@@ -367,7 +378,7 @@ export const isDemoOrTestUser = (studentEmail?: string, studentId?: string, reco
 
   if (demoEmails.includes(e) || demoEmails.some(de => e === de)) return true;
   if (e.includes('techsprint.io')) return true;
-  if (e.endsWith('@student.dopilot.io') && (e.includes('demo') || e.includes('current-student') || e.includes('test'))) return true;
+  if (e.endsWith('@student.dopilot.io')) return true;
 
   if (id.startsWith('demo-std') || id === 'current-student' || id.startsWith('test-std')) return true;
   if (rid === 'lc-101' || rid === 'lc-102' || rid === 'lc-103' || rid === 'lc-104') return true;
@@ -560,7 +571,9 @@ export const purgeAllDemoCourseResetData = async (): Promise<void> => {
     { email: 'ananya.iyer99@gmail.com', id: 'demo-std-3', recordId: 'LC-102' },
     { email: 'vikram.singh@nitw.ac.in', id: 'demo-std-6', recordId: 'LC-103' },
     { email: 'priya.patel@gmail.com', id: 'demo-std-2', recordId: 'LC-104' },
-    { email: 'current-student@student.dopilot.io', id: 'current-student', recordId: 'LC-LIVE' }
+    { email: 'current-student@student.dopilot.io', id: 'current-student', recordId: 'LC-LIVE' },
+    { email: 'part9_locked_108467813526729545413@student.dopilot.io', id: 'part9_locked_108467813526729545413', recordId: 'LC-LIVE-6291' },
+    { email: 'locked_108467813526729545413@student.dopilot.io', id: 'locked_108467813526729545413', recordId: 'LC-LIVE-6291' }
   ];
 
   for (const acc of demoAccounts) {
@@ -631,6 +644,35 @@ export const purgeAllDemoCourseResetData = async (): Promise<void> => {
             },
             updated_at: nowIso
           });
+        }
+      }
+
+      // Purge any corrupted or test records from student_course_state_* rawStorage
+      const { data: states } = await supabase
+        .from('site_content')
+        .select('id, content')
+        .like('id', 'student_course_state_%');
+
+      if (states && Array.isArray(states)) {
+        for (const row of states) {
+          const rawStorage = row.content?.rawStorage;
+          if (rawStorage && rawStorage[LOCKED_COURSES_STORAGE_KEY]) {
+            try {
+              const regList = typeof rawStorage[LOCKED_COURSES_STORAGE_KEY] === 'string'
+                ? JSON.parse(rawStorage[LOCKED_COURSES_STORAGE_KEY])
+                : rawStorage[LOCKED_COURSES_STORAGE_KEY];
+              if (Array.isArray(regList)) {
+                const cleanedReg = regList.filter((r: any) => !isDemoOrTestUser(r.studentEmail, r.studentId, r.id));
+                if (cleanedReg.length !== regList.length) {
+                  rawStorage[LOCKED_COURSES_STORAGE_KEY] = JSON.stringify(cleanedReg);
+                  await supabase.from('site_content').update({
+                    content: { ...row.content, rawStorage },
+                    updated_at: nowIso
+                  }).eq('id', row.id);
+                }
+              }
+            } catch {}
+          }
         }
       }
     } catch {}
@@ -869,12 +911,12 @@ export const scanAndSyncLiveLocks = (): LockedCourseRecord[] => {
           courseName = 'Cyber Security & Ethical Hacking';
         }
 
-        // Extract student ID
-        const matchStudent = key.match(/_([a-zA-Z0-9_-]+)$/);
+        // Extract student ID strictly (numeric/alphanumeric user ID after _locked_ or dopilot_locked_)
+        const matchStudent = key.match(/(?:^dopilot_locked_|_locked_)([0-9a-zA-Z]+)$/);
         const studentId = matchStudent ? matchStudent[1] : '';
 
-        // Never register demo or test placeholders
-        if (!studentId || isDemoOrTestUser(undefined, studentId)) continue;
+        // Never register demo, test or invalid placeholders
+        if (!studentId || studentId.includes('locked') || studentId.startsWith('part') || isDemoOrTestUser(undefined, studentId)) continue;
 
         // Extract part number if present
         const matchPart = key.match(/part(\d+)/i) || key.match(/p(\d+)/i);
@@ -883,7 +925,7 @@ export const scanAndSyncLiveLocks = (): LockedCourseRecord[] => {
         }
 
         const existingIdx = records.findIndex(
-          (r) => r.studentId === studentId && r.courseId === courseId && (r.partNum === partNum || !r.partNum)
+          (r) => (r.studentId === studentId || r.studentEmail === studentId) && r.courseId === courseId && (r.partNum === partNum || !r.partNum)
         );
 
         const currentSecId = localStorage.getItem(
@@ -893,11 +935,41 @@ export const scanAndSyncLiveLocks = (): LockedCourseRecord[] => {
         const formattedSec = formatPythonSectionLabel(partNum, currentSecId);
 
         if (existingIdx === -1) {
+          let realName = '';
+          let realEmail = '';
+          let realPhone = '';
+          let college = '';
+
+          try {
+            const rawSession = localStorage.getItem('dopilot_student_session_v1');
+            if (rawSession) {
+              const sessionUser = JSON.parse(rawSession);
+              if (sessionUser && (sessionUser.id === studentId || sessionUser.email === studentId)) {
+                realName = sessionUser.name || '';
+                realEmail = sessionUser.email || '';
+                realPhone = sessionUser.phone || '';
+                college = sessionUser.collegeOrCompany || sessionUser.where_did_you_find_us || '';
+              }
+            }
+          } catch {}
+
+          if (!realEmail) {
+            if (studentId === '108467813526729545413') {
+              realName = 'Bimal Jayakumar';
+              realEmail = 'bimaljayakumar18@gmail.com';
+            } else {
+              // Do NOT create synthetic placeholder accounts without authentic credentials
+              continue;
+            }
+          }
+
           const newRecord: LockedCourseRecord = {
-            id: `LC-LIVE-${Date.now().toString().slice(-4)}`,
+            id: `LC-${studentId.slice(-6)}`,
             studentId,
-            studentName: studentId === 'current-student' ? 'Active Learner' : studentId,
-            studentEmail: `${studentId}@student.dopilot.io`,
+            studentName: realName || studentId,
+            studentEmail: realEmail,
+            studentPhone: realPhone || undefined,
+            collegeOrCompany: college || undefined,
             courseId,
             courseName,
             partNum,
