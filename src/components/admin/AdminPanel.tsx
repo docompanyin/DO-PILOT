@@ -47,7 +47,9 @@ import {
   getNextPythonSection,
   resetStudentCourse,
   getCourseResetAuditEntries,
-  formatCleanPartSection
+  formatCleanPartSection,
+  purgeStudentCourseResetData,
+  purgeAllDemoCourseResetData
 } from '../../utils/courseResetService';
 import {
   CoursePricing,
@@ -185,9 +187,12 @@ export const AdminPanel: React.FC = () => {
   const [isResettingCourse, setIsResettingCourse] = useState(false);
 
   useEffect(() => {
+    // Purge any demo or test accounts from Course Reset system
+    purgeAllDemoCourseResetData().catch(() => {});
+
     // Initial fetch of real locked database records from Supabase
     syncLockedCoursesFromCloud().then((cloudRecs) => {
-      if (cloudRecs && cloudRecs.length > 0) {
+      if (cloudRecs) {
         setLockedRecords(cloudRecs);
       }
     }).catch(() => {});
@@ -1355,16 +1360,17 @@ export const AdminPanel: React.FC = () => {
             }
           }
 
-          // B. student_leads (has email and id)
+          // B. student_leads and student_progress
           try {
             if (targetEmail) {
               await supabase.from('student_leads').delete().ilike('email', targetEmail);
+              await supabase.from('student_progress').delete().ilike('user_email', targetEmail);
             }
             if (targetId) {
               await supabase.from('student_leads').delete().eq('id', targetId);
             }
           } catch (leadErr) {
-            console.warn('Supabase student_leads delete notice:', leadErr);
+            console.warn('Supabase student_leads/progress delete notice:', leadErr);
           }
 
           // C. course_purchases, reward_requests, locked_courses, course_resets
@@ -1434,6 +1440,7 @@ export const AdminPanel: React.FC = () => {
       try {
         markStudentPermanentlyDeleted(targetEmail, targetId);
         purgeStudentLocalData(targetEmail, targetId);
+        await purgeStudentCourseResetData(targetEmail, targetId);
 
         // Update in-memory state for admin tabs
         const sTarget = targetEmail.toLowerCase();
@@ -1462,6 +1469,14 @@ export const AdminPanel: React.FC = () => {
             const le = (l.studentEmail || '').toLowerCase().trim();
             const li = (l.studentId || '').toLowerCase().trim();
             return (!sTarget || le !== sTarget) && (!sId || li !== sId);
+          })
+        );
+
+        setCourseResetAuditLogs((prev) =>
+          prev.filter((a) => {
+            const ae = (a.studentEmail || '').toLowerCase().trim();
+            const ai = (a.studentId || '').toLowerCase().trim();
+            return (!sTarget || ae !== sTarget) && (!sId || ai !== sId);
           })
         );
 
@@ -8039,6 +8054,8 @@ export const AdminPanel: React.FC = () => {
             <strong className="text-rose-300 font-semibold block">The following data will be permanently wiped:</strong>
             <ul className="list-disc list-inside space-y-1 text-rose-200/80">
               <li>Authentication profile and user credentials from database</li>
+              <li>Course Reset records, lock status, and consecutive failure records</li>
+              <li>Unlock and reset history logs</li>
               <li>Enrolled course progress and all test/quiz attempts</li>
               <li>Accumulated points ({deleteModalTarget.points} points) &amp; streak history</li>
               <li>Reward claims, milestone records, and support tickets</li>

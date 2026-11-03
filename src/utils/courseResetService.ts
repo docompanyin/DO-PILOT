@@ -327,6 +327,324 @@ let memoryLockedCoursesCache: LockedCourseRecord[] | null = null;
 let hasInitiatedCloudSync = false;
 
 /**
+ * Authoritative check to identify demo or test users created during testing:
+ * - Rahul Verma (rahul.verma@techsprint.io / demo-std-1 / LC-101)
+ * - Ananya Iyer (ananya.iyer99@gmail.com / demo-std-3 / LC-102)
+ * - Priya Patel (priya.patel@gmail.com / demo-std-2 / LC-104)
+ * - Vikramaditya Singh (vikram.singh@nitw.ac.in / demo-std-6 / LC-103)
+ * - Any demo-std-* or current-student placeholder.
+ * 
+ * IMPORTANT: NEVER matches authentic student accounts, especially Bimal Kumar (bimaljayakumar18@gmail.com).
+ */
+export const isDemoOrTestUser = (studentEmail?: string, studentId?: string, recordId?: string): boolean => {
+  const e = (studentEmail || '').toLowerCase().trim();
+  const id = (studentId || '').toLowerCase().trim();
+  const rid = (recordId || '').toLowerCase().trim();
+
+  // Strict safeguard: NEVER match real student Bimal Kumar / Bimal Jayakumar
+  if (
+    e === 'bimaljayakumar18@gmail.com' ||
+    e.includes('bimaljayakumar') ||
+    id === '108467813526729545413' ||
+    id.includes('10846781352672')
+  ) {
+    return false;
+  }
+
+  const demoEmails = [
+    'rahul.verma@techsprint.io',
+    'ananya.iyer99@gmail.com',
+    'priya.patel@gmail.com',
+    'vikram.singh@nitw.ac.in',
+    'karthik.raja@outlook.com',
+    'suresh.k@gmail.com',
+    'aditya.sharma@gmail.com',
+    'sneha.k@outlook.com',
+    'ananya.sharma@appscale.dev',
+    'current-student@student.dopilot.io',
+    'learner@gmail.com'
+  ];
+
+  if (demoEmails.includes(e) || demoEmails.some(de => e === de)) return true;
+  if (e.includes('techsprint.io')) return true;
+  if (e.endsWith('@student.dopilot.io') && (e.includes('demo') || e.includes('current-student') || e.includes('test'))) return true;
+
+  if (id.startsWith('demo-std') || id === 'current-student' || id.startsWith('test-std')) return true;
+  if (rid === 'lc-101' || rid === 'lc-102' || rid === 'lc-103' || rid === 'lc-104') return true;
+
+  return false;
+};
+
+/**
+ * Permanently purge all course reset, lock, failure, and audit data for a student.
+ * Cascades across localStorage and Supabase cloud registry.
+ */
+export const purgeStudentCourseResetData = async (
+  studentEmail?: string,
+  studentId?: string,
+  recordId?: string
+): Promise<{ success: boolean; purgedRecordsCount: number; purgedAuditCount: number }> => {
+  const cleanEmail = (studentEmail || '').toLowerCase().trim();
+  const cleanId = (studentId || '').trim();
+  const cleanIdLower = cleanId.toLowerCase();
+  const cleanRecordId = (recordId || '').toLowerCase().trim();
+
+  let purgedRecordsCount = 0;
+  let purgedAuditCount = 0;
+
+  // 1. Clear student lock keys from localStorage
+  if (cleanId) {
+    clearStudentCourseLockKeys(cleanId, 'all');
+  }
+  if (cleanEmail) {
+    clearStudentCourseLockKeys(cleanEmail, 'all');
+  }
+
+  // Also remove failure keys specifically
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      if (cleanEmail) {
+        localStorage.removeItem(`dopilot_consecutive_failures_${cleanEmail}`);
+      }
+      if (cleanId) {
+        localStorage.removeItem(`dopilot_consecutive_failures_${cleanId}`);
+        localStorage.removeItem(`dopilot_failed_levels_streak_${cleanId}`);
+        localStorage.removeItem(`dopilot_locked_${cleanId}`);
+        localStorage.removeItem(`dopilot_locked_progression_${cleanId}`);
+        for (let p = 1; p <= 20; p++) {
+          localStorage.removeItem(`dopilot_part${p}_consecutive_failures_${cleanId}`);
+          localStorage.removeItem(`dopilot_part${p}_failed_levels_streak_${cleanId}`);
+          localStorage.removeItem(`dopilot_part${p}_locked_${cleanId}`);
+          localStorage.removeItem(`dopilot_java_part${p}_consecutive_failures_${cleanId}`);
+          localStorage.removeItem(`dopilot_fullstack_p${p}_consecutive_failures_${cleanId}`);
+          localStorage.removeItem(`dopilot_cyber_part${p}_consecutive_failures_${cleanId}`);
+        }
+      }
+    } catch {}
+
+    // 2. Filter locked courses registry: LOCKED_COURSES_STORAGE_KEY
+    try {
+      const raw = localStorage.getItem(LOCKED_COURSES_STORAGE_KEY);
+      if (raw) {
+        const list: LockedCourseRecord[] = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          const beforeLen = list.length;
+          const filtered = list.filter((r) => {
+            const re = (r.studentEmail || '').toLowerCase().trim();
+            const ri = (r.studentId || '').toLowerCase().trim();
+            const rId = (r.id || '').toLowerCase().trim();
+            const matchesEmail = cleanEmail && (re === cleanEmail || ri === cleanEmail);
+            const matchesId = cleanIdLower && (ri === cleanIdLower || re === cleanIdLower);
+            const matchesRecord = cleanRecordId && rId === cleanRecordId;
+            return !(matchesEmail || matchesId || matchesRecord);
+          });
+          purgedRecordsCount = beforeLen - filtered.length;
+          localStorage.setItem(LOCKED_COURSES_STORAGE_KEY, JSON.stringify(filtered));
+          memoryLockedCoursesCache = filtered;
+        }
+      }
+    } catch (e) {
+      console.warn('Error purging from local locked courses registry:', e);
+    }
+
+    // 3. Filter course resets audit registry: COURSE_RESETS_AUDIT_KEY
+    try {
+      const rawAudit = localStorage.getItem(COURSE_RESETS_AUDIT_KEY);
+      if (rawAudit) {
+        const auditList: CourseResetAuditEntry[] = JSON.parse(rawAudit);
+        if (Array.isArray(auditList)) {
+          const beforeLen = auditList.length;
+          const filteredAudit = auditList.filter((a) => {
+            const ae = (a.studentEmail || '').toLowerCase().trim();
+            const ai = (a.studentId || '').toLowerCase().trim();
+            const aRecId = (a.recordId || '').toLowerCase().trim();
+            const aId = (a.id || '').toLowerCase().trim();
+            const matchesEmail = cleanEmail && (ae === cleanEmail || ai === cleanEmail);
+            const matchesId = cleanIdLower && (ai === cleanIdLower || ae === cleanIdLower);
+            const matchesRecord = cleanRecordId && (aRecId === cleanRecordId || aId === cleanRecordId);
+            return !(matchesEmail || matchesId || matchesRecord);
+          });
+          purgedAuditCount = beforeLen - filteredAudit.length;
+          localStorage.setItem(COURSE_RESETS_AUDIT_KEY, JSON.stringify(filteredAudit));
+        }
+      }
+    } catch (e) {
+      console.warn('Error purging from local course reset audit:', e);
+    }
+  }
+
+  // 4. Supabase cloud sync: update CLOUD_LOCKED_COURSES_ID and CLOUD_COURSE_RESETS_AUDIT_ID in site_content
+  if (isSupabaseConfigured()) {
+    try {
+      const nowIso = new Date().toISOString();
+
+      // Filter cloud locked courses registry
+      const { data: regDoc } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('id', CLOUD_LOCKED_COURSES_ID)
+        .maybeSingle();
+
+      if (regDoc?.content?.records && Array.isArray(regDoc.content.records)) {
+        const cloudFiltered = regDoc.content.records.filter((r: any) => {
+          const re = (r.studentEmail || '').toLowerCase().trim();
+          const ri = (r.studentId || '').toLowerCase().trim();
+          const rId = (r.id || '').toLowerCase().trim();
+          const matchesEmail = cleanEmail && (re === cleanEmail || ri === cleanEmail);
+          const matchesId = cleanIdLower && (ri === cleanIdLower || re === cleanIdLower);
+          const matchesRecord = cleanRecordId && rId === cleanRecordId;
+          return !(matchesEmail || matchesId || matchesRecord);
+        });
+
+        await supabase.from('site_content').upsert({
+          id: CLOUD_LOCKED_COURSES_ID,
+          content: {
+            records: cloudFiltered,
+            updatedAt: nowIso
+          },
+          updated_at: nowIso
+        });
+      }
+
+      // Filter cloud audit logs
+      const { data: auditDoc } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('id', CLOUD_COURSE_RESETS_AUDIT_ID)
+        .maybeSingle();
+
+      if (auditDoc?.content?.auditLogs && Array.isArray(auditDoc.content.auditLogs)) {
+        const cloudAuditFiltered = auditDoc.content.auditLogs.filter((a: any) => {
+          const ae = (a.studentEmail || '').toLowerCase().trim();
+          const ai = (a.studentId || '').toLowerCase().trim();
+          const aRecId = (a.recordId || '').toLowerCase().trim();
+          const aId = (a.id || '').toLowerCase().trim();
+          const matchesEmail = cleanEmail && (ae === cleanEmail || ai === cleanEmail);
+          const matchesId = cleanIdLower && (ai === cleanIdLower || ae === cleanIdLower);
+          const matchesRecord = cleanRecordId && (aRecId === cleanRecordId || aId === cleanRecordId);
+          return !(matchesEmail || matchesId || matchesRecord);
+        });
+
+        await supabase.from('site_content').upsert({
+          id: CLOUD_COURSE_RESETS_AUDIT_ID,
+          content: {
+            auditLogs: cloudAuditFiltered,
+            updatedAt: nowIso
+          },
+          updated_at: nowIso
+        });
+      }
+    } catch (supaErr) {
+      console.warn('Error updating cloud registries during course reset purge:', supaErr);
+    }
+  }
+
+  // 5. Notify open components
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('dopilot_locked_courses_updated'));
+      window.dispatchEvent(new Event('storage'));
+    } catch {}
+  }
+
+  return { success: true, purgedRecordsCount, purgedAuditCount };
+};
+
+/**
+ * Permanently remove all demo/test users and their test records from the Course Reset system.
+ * Removes both demo accounts (Rahul Verma, Ananya Iyer, and any other demo-std records).
+ */
+export const purgeAllDemoCourseResetData = async (): Promise<void> => {
+  const demoAccounts = [
+    { email: 'rahul.verma@techsprint.io', id: 'demo-std-1', recordId: 'LC-101' },
+    { email: 'ananya.iyer99@gmail.com', id: 'demo-std-3', recordId: 'LC-102' },
+    { email: 'vikram.singh@nitw.ac.in', id: 'demo-std-6', recordId: 'LC-103' },
+    { email: 'priya.patel@gmail.com', id: 'demo-std-2', recordId: 'LC-104' },
+    { email: 'current-student@student.dopilot.io', id: 'current-student', recordId: 'LC-LIVE' }
+  ];
+
+  for (const acc of demoAccounts) {
+    await purgeStudentCourseResetData(acc.email, acc.id, acc.recordId);
+  }
+
+  // Also filter any leftover records where isDemoOrTestUser evaluates to true
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const raw = localStorage.getItem(LOCKED_COURSES_STORAGE_KEY);
+      if (raw) {
+        const list: LockedCourseRecord[] = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          const clean = list.filter((r) => !isDemoOrTestUser(r.studentEmail, r.studentId, r.id));
+          localStorage.setItem(LOCKED_COURSES_STORAGE_KEY, JSON.stringify(clean));
+          memoryLockedCoursesCache = clean;
+        }
+      }
+
+      const rawAudit = localStorage.getItem(COURSE_RESETS_AUDIT_KEY);
+      if (rawAudit) {
+        const auditList: CourseResetAuditEntry[] = JSON.parse(rawAudit);
+        if (Array.isArray(auditList)) {
+          const cleanAudit = auditList.filter((a) => !isDemoOrTestUser(a.studentEmail, a.studentId, a.recordId));
+          localStorage.setItem(COURSE_RESETS_AUDIT_KEY, JSON.stringify(cleanAudit));
+        }
+      }
+    } catch {}
+  }
+
+  if (isSupabaseConfigured()) {
+    try {
+      const nowIso = new Date().toISOString();
+      const { data: regDoc } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('id', CLOUD_LOCKED_COURSES_ID)
+        .maybeSingle();
+
+      if (regDoc?.content?.records && Array.isArray(regDoc.content.records)) {
+        const cleanCloud = regDoc.content.records.filter((r: any) => !isDemoOrTestUser(r.studentEmail, r.studentId, r.id));
+        if (cleanCloud.length !== regDoc.content.records.length) {
+          await supabase.from('site_content').upsert({
+            id: CLOUD_LOCKED_COURSES_ID,
+            content: {
+              records: cleanCloud,
+              updatedAt: nowIso
+            },
+            updated_at: nowIso
+          });
+        }
+      }
+
+      const { data: auditDoc } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('id', CLOUD_COURSE_RESETS_AUDIT_ID)
+        .maybeSingle();
+
+      if (auditDoc?.content?.auditLogs && Array.isArray(auditDoc.content.auditLogs)) {
+        const cleanCloudAudit = auditDoc.content.auditLogs.filter((a: any) => !isDemoOrTestUser(a.studentEmail, a.studentId, a.recordId));
+        if (cleanCloudAudit.length !== auditDoc.content.auditLogs.length) {
+          await supabase.from('site_content').upsert({
+            id: CLOUD_COURSE_RESETS_AUDIT_ID,
+            content: {
+              auditLogs: cleanCloudAudit,
+              updatedAt: nowIso
+            },
+            updated_at: nowIso
+          });
+        }
+      }
+    } catch {}
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('dopilot_locked_courses_updated'));
+      window.dispatchEvent(new Event('storage'));
+    } catch {}
+  }
+};
+
+/**
  * Scan Supabase database (site_content and student_profiles) for real locked records
  * Replaces dummy placeholders with authentic student credentials.
  */
@@ -340,7 +658,7 @@ export const syncLockedCoursesFromCloud = async (): Promise<LockedCourseRecord[]
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         records = parsed.filter(
-          (r) => !r.studentId?.startsWith('demo-std') && !r.studentEmail?.includes('techsprint.io')
+          (r) => !isDemoOrTestUser(r.studentEmail, r.studentId, r.id)
         );
       }
     }
@@ -362,7 +680,7 @@ export const syncLockedCoursesFromCloud = async (): Promise<LockedCourseRecord[]
     if (regData?.content?.records && Array.isArray(regData.content.records)) {
       const cloudRecs: LockedCourseRecord[] = regData.content.records;
       for (const cr of cloudRecs) {
-        if (cr.studentId?.startsWith('demo-std') || cr.studentEmail?.includes('techsprint.io')) continue;
+        if (isDemoOrTestUser(cr.studentEmail, cr.studentId, cr.id)) continue;
         const existingIdx = records.findIndex((r) => r.id === cr.id || r.studentId === cr.studentId);
         if (existingIdx !== -1) {
           records[existingIdx] = { ...records[existingIdx], ...cr };
@@ -395,7 +713,7 @@ export const syncLockedCoursesFromCloud = async (): Promise<LockedCourseRecord[]
       for (const row of states) {
         const state = row.content || {};
         const email = (state.email || '').toLowerCase().trim();
-        if (!email || email.includes('techsprint.io')) continue;
+        if (!email || isDemoOrTestUser(email, state.rawStorage?.['dopilot_student_id'])) continue;
 
         const profile = profileMap.get(email) || null;
         const studentId = profile?.id || state.rawStorage?.['dopilot_student_id'] || email.replace(/[^a-z0-9]/g, '');
@@ -518,7 +836,7 @@ export const scanAndSyncLiveLocks = (): LockedCourseRecord[] => {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
         records = parsed.filter(
-          (r: any) => !r.studentId?.startsWith('demo-std') && !r.studentEmail?.includes('techsprint.io')
+          (r: any) => !isDemoOrTestUser(r.studentEmail, r.studentId, r.id)
         );
       }
     }
@@ -553,7 +871,10 @@ export const scanAndSyncLiveLocks = (): LockedCourseRecord[] => {
 
         // Extract student ID
         const matchStudent = key.match(/_([a-zA-Z0-9_-]+)$/);
-        const studentId = matchStudent ? matchStudent[1] : 'current-student';
+        const studentId = matchStudent ? matchStudent[1] : '';
+
+        // Never register demo or test placeholders
+        if (!studentId || isDemoOrTestUser(undefined, studentId)) continue;
 
         // Extract part number if present
         const matchPart = key.match(/part(\d+)/i) || key.match(/p(\d+)/i);
@@ -664,7 +985,7 @@ export const getCourseResetAuditEntries = (): CourseResetAuditEntry[] => {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       const realOnly = parsed.filter(
-        (a: any) => !a.studentId?.startsWith('demo-std') && !a.studentEmail?.includes('techsprint.io')
+        (a: any) => !isDemoOrTestUser(a.studentEmail, a.studentId, a.recordId)
       );
       if (realOnly.length !== parsed.length) {
         localStorage.setItem(COURSE_RESETS_AUDIT_KEY, JSON.stringify(realOnly));

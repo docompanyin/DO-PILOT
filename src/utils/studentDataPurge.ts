@@ -9,6 +9,7 @@
 
 import { clearMemoryCourseState } from './courseProgressSyncService';
 import { clearStudentTelemetryInMemory } from './studentTelemetryService';
+import { purgeStudentCourseResetData, purgeAllDemoCourseResetData } from './courseResetService';
 
 export const purgeStudentLocalData = (studentEmail?: string, studentId?: string): void => {
   if (typeof window === 'undefined' || !window.localStorage) return;
@@ -101,7 +102,7 @@ export const purgeStudentLocalData = (studentEmail?: string, studentId?: string)
     }
   } catch (e) {}
 
-  // 5. Filter locked courses registry: dopilot_locked_courses_registry_v1
+  // 5. Filter locked courses and reset audit registries
   try {
     const lRaw = localStorage.getItem('dopilot_locked_courses_registry_v1');
     if (lRaw) {
@@ -117,7 +118,25 @@ export const purgeStudentLocalData = (studentEmail?: string, studentId?: string)
         localStorage.setItem('dopilot_locked_courses_registry_v1', JSON.stringify(filtered));
       }
     }
+
+    const aRaw = localStorage.getItem('dopilot_course_resets_audit_v1');
+    if (aRaw) {
+      const aList = JSON.parse(aRaw);
+      if (Array.isArray(aList)) {
+        const filteredAudit = aList.filter((a: any) => {
+          const ae = (a?.studentEmail || '').toLowerCase().trim();
+          const ai = (a?.studentId || '').toLowerCase().trim();
+          const matchesEmail = cleanEmail && (ae === cleanEmail || ai === cleanEmail);
+          const matchesId = cleanIdLower && (ai === cleanIdLower || ae === cleanIdLower);
+          return !(matchesEmail || matchesId);
+        });
+        localStorage.setItem('dopilot_course_resets_audit_v1', JSON.stringify(filteredAudit));
+      }
+    }
   } catch (e) {}
+
+  // Trigger comprehensive cloud & local course reset purge
+  purgeStudentCourseResetData(cleanEmail, cleanId).catch(() => {});
 
   // 6. Filter student help messages registry: dopilot_student_help_messages_v1
   try {
@@ -295,7 +314,12 @@ export const purgeAllDummyDemoData = (): void => {
     'demo-std-3',
     'demo-std-4',
     'demo-std-5',
-    'demo-std-6'
+    'demo-std-6',
+    'LC-101',
+    'LC-102',
+    'LC-103',
+    'LC-104',
+    'current-student'
   ];
 
   dummyEmails.forEach((email, idx) => {
@@ -305,6 +329,9 @@ export const purgeAllDummyDemoData = (): void => {
   dummyIds.forEach((id) => {
     purgeStudentLocalData(undefined, id);
   });
+
+  // Permanently wipe all demo/test records from Course Reset system
+  purgeAllDemoCourseResetData().catch(() => {});
 
   localStorage.removeItem('dopilot_permanently_deleted_demos_v1');
 };
