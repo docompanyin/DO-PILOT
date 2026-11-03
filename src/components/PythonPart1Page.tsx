@@ -32,6 +32,7 @@ const TIMER_DURATION = 30; // 30 seconds
 
 interface LevelResultState {
   isFinished: boolean;
+  sectionId?: string;
   isPassed: boolean;
   correctCount: number;
   totalCount: number;
@@ -97,6 +98,11 @@ export const PythonPart1Page: React.FC = () => {
   // Track level failure / pass outcome state
   const [levelResult, setLevelResult] = useState<LevelResultState | null>(() => {
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['python-core']?.parts?.['1'] : null;
+      if (memPart?.levelResult?.isFinished) {
+        return memPart.levelResult;
+      }
       const keys = getCourseStorageKeys('python-core', 1);
       const saved = localStorage.getItem(keys.levelResultKey);
       return saved ? JSON.parse(saved) : null;
@@ -110,9 +116,66 @@ export const PythonPart1Page: React.FC = () => {
     return getConsecutiveFailedLevels(studentId);
   });
 
+  // Synchronize failure streak across parts and cloud updates
+  useEffect(() => {
+    const updateStreak = () => {
+      setConsecutiveFailures(getConsecutiveFailedLevels(studentId));
+    };
+    window.addEventListener('storage', updateStreak);
+    window.addEventListener('dopilot_progress_restored', updateStreak);
+    return () => {
+      window.removeEventListener('storage', updateStreak);
+      window.removeEventListener('dopilot_progress_restored', updateStreak);
+    };
+  }, [studentId]);
+
   // Disclaimer popup state when choosing "Continue to Next Set" on 2nd consecutive failure
-  const [disclaimerModalOpen, setDisclaimerModalOpen] = useState(false);
-  const [disclaimerConfirmed, setDisclaimerConfirmed] = useState(false);
+  const [disclaimerModalOpen, setDisclaimerModalOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('dopilot_part1_disclaimer_open') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [disclaimerConfirmed, setDisclaimerConfirmed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('dopilot_part1_disclaimer_confirmed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  // Persist the consecutive-failure disclaimer so a viewed warning is
+  // restored after refresh, cache clearing, logout/login and on another device.
+  const disclaimerPersistReadyRef = useRef(false);
+  useEffect(() => {
+    if (!disclaimerPersistReadyRef.current) {
+      disclaimerPersistReadyRef.current = true;
+      return;
+    }
+    try {
+      if (disclaimerModalOpen) {
+        localStorage.setItem('dopilot_part1_disclaimer_open', 'true');
+      } else {
+        localStorage.removeItem('dopilot_part1_disclaimer_open');
+      }
+      localStorage.setItem(
+        'dopilot_part1_disclaimer_confirmed',
+        disclaimerConfirmed ? 'true' : 'false'
+      );
+    } catch {}
+  }, [disclaimerModalOpen, disclaimerConfirmed]);
+  useEffect(() => {
+    const syncDisclaimer = () => {
+      try {
+        const open = localStorage.getItem('dopilot_part1_disclaimer_open');
+        if (open !== null) setDisclaimerModalOpen(open === 'true');
+        const confirmed = localStorage.getItem('dopilot_part1_disclaimer_confirmed');
+        if (confirmed !== null) setDisclaimerConfirmed(confirmed === 'true');
+      } catch {}
+    };
+    window.addEventListener('dopilot_progress_restored', syncDisclaimer);
+    return () => window.removeEventListener('dopilot_progress_restored', syncDisclaimer);
+  }, []);
 
   // Course access & purchase modal state
   const [hasPurchased, setHasPurchased] = useState<boolean>(() => {
@@ -227,11 +290,22 @@ export const PythonPart1Page: React.FC = () => {
     setLevelQuestions(qList);
     if (prevSectionIdRef.current !== activeSectionId) {
       prevSectionIdRef.current = activeSectionId;
-      setLevelResult(null);
-      try {
-        const keys = getCourseStorageKeys('python-core', 1);
-        localStorage.removeItem(keys.levelResultKey);
-      } catch {}
+      // Do not clear a result that was just restored for this exact section.
+      let currentResultSection = levelResult?.sectionId;
+      if (!currentResultSection) {
+        try {
+          const keys = getCourseStorageKeys('python-core', 1);
+          const raw = localStorage.getItem(keys.levelResultKey);
+          if (raw) currentResultSection = JSON.parse(raw)?.sectionId;
+        } catch {}
+      }
+      if (currentResultSection !== activeSectionId) {
+        setLevelResult(null);
+        try {
+          const keys = getCourseStorageKeys('python-core', 1);
+          localStorage.removeItem(keys.levelResultKey);
+        } catch {}
+      }
     }
   }, [activeSectionId, studentId]);
 
@@ -536,6 +610,7 @@ export const PythonPart1Page: React.FC = () => {
 
     const resultState: LevelResultState = {
       isFinished: true,
+      sectionId: activeSection.id,
       isPassed,
       correctCount,
       totalCount,
@@ -567,7 +642,8 @@ export const PythonPart1Page: React.FC = () => {
       targetEndTime,
       timeLeft,
       studentEmail: user?.email,
-      levelResult: resultState
+      levelResult: resultState,
+      forceImmediate: true
     });
   };
 
@@ -1414,7 +1490,7 @@ export const PythonPart1Page: React.FC = () => {
                 ) : levelResult.isLocked ? (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-xs font-semibold border bg-rose-500/15 border-rose-500/35 text-rose-300">
                     <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-                    <span>Progression Locked</span>
+                    <span>Level Progression Locked</span>
                   </span>
                 ) : levelResult.isSecondFailureInLevel ? (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-xs font-semibold border bg-amber-500/15 border-amber-500/35 text-amber-300">
@@ -1887,7 +1963,7 @@ export const PythonPart1Page: React.FC = () => {
       />
 
       {/* Disclaimer / Confirmation Popup for 2nd Consecutive Failure */}
-      {disclaimerModalOpen && (
+      {disclaimerModalOpen && levelResult?.isFinished && levelResult?.isSecondFailureInLevel && !levelResult?.isLocked && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-panel border border-amber-400/40 rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-5 shadow-2xl relative">
             <div className="flex items-center gap-2.5 text-amber-400 font-mono text-xs font-bold uppercase tracking-wider">

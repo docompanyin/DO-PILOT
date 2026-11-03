@@ -12,6 +12,8 @@ export interface LevelResultRecord {
   attemptCount?: number;
   isSecondFailureInLevel?: boolean;
   isLocked?: boolean;
+  /** Section this result belongs to, so a restored result page is not cleared. */
+  sectionId?: string;
 }
 
 export interface PartQuestionState {
@@ -131,6 +133,12 @@ let syncTimeout: any = null;
 // failure/lock data before the initial restore has merged it into memory.
 const initialRestorePromises: Record<string, Promise<StudentAllCoursesState | null>> = {};
 const initialRestoreCompleted: Record<string, boolean> = {};
+
+// Number of restores currently running for an email. A page mounts before its
+// cloud snapshot arrives, so any checkpoint it tries to write during that
+// window must be ignored. Otherwise the default/empty page state would erase
+// the restored question, result page, failure count or lock.
+const restoreInFlightCount: Record<string, number> = {};
 
 async function ensureInitialRestore(email: string): Promise<StudentAllCoursesState | null> {
   if (initialRestoreCompleted[email]) return null;
@@ -329,6 +337,7 @@ export function parseCourseStorageKey(key: string): { courseId: string; partNum:
  */
 let isInterceptorInitialized = false;
 let isRestoringFromCloud = false;
+let restoringFromCloudCount = 0;
 export const initCourseProgressSyncInterceptor = () => {
   if (typeof window === 'undefined' || !window.localStorage || isInterceptorInitialized) return;
   isInterceptorInitialized = true;
@@ -347,6 +356,8 @@ export const initCourseProgressSyncInterceptor = () => {
       const session = JSON.parse(sessionRaw);
       const email = normalizeStudentEmail(session?.email);
       if (!email) return;
+
+      if ((restoreInFlightCount[email] || 0) > 0) return;
 
       if (!memoryCourseState[email]) {
         memoryCourseState[email] = {
@@ -486,12 +497,16 @@ export const initCourseProgressSyncInterceptor = () => {
   window.localStorage.removeItem = (key: string) => {
     originalRemoveItem(key);
 
+    if (isRestoringFromCloud) return;
+
     try {
       const sessionRaw = window.localStorage.getItem('dopilot_student_session_v1');
       if (!sessionRaw) return;
       const session = JSON.parse(sessionRaw);
       const email = normalizeStudentEmail(session?.email);
       if (!email || !memoryCourseState[email]) return;
+
+      if ((restoreInFlightCount[email] || 0) > 0) return;
 
       const st = memoryCourseState[email];
 
@@ -583,6 +598,14 @@ export const saveQuestionProgressState = (params: {
     forceImmediate = false
   } = params;
 
+  const cleanEmail = normalizeStudentEmail(studentEmail);
+
+  // A page's mount-time checkpoint runs before the cloud snapshot has been
+  // applied. Ignore it so it cannot overwrite the restored page/result state.
+  if (cleanEmail && (restoreInFlightCount[cleanEmail] || 0) > 0) {
+    return;
+  }
+
   // 1. Immediately persist to localStorage
   const keys = getCourseStorageKeys(courseId, partNum);
   try {
@@ -613,7 +636,6 @@ export const saveQuestionProgressState = (params: {
   }
 
   // 2. Queue persistent sync to database if student has valid email
-  const cleanEmail = normalizeStudentEmail(studentEmail);
   if (!cleanEmail) return;
 
   if (!memoryCourseState[cleanEmail]) {
@@ -733,6 +755,8 @@ export const restoreAllStudentCourseProgressFromCloud = async (
   const cleanEmail = normalizeStudentEmail(studentEmail);
   if (!cleanEmail || !isSupabaseConfigured()) return null;
 
+  restoreInFlightCount[cleanEmail] = (restoreInFlightCount[cleanEmail] || 0) + 1;
+
   try {
     const docId = getStudentDocId(cleanEmail);
 
@@ -782,6 +806,7 @@ export const restoreAllStudentCourseProgressFromCloud = async (
     const cloudState = data.content as StudentAllCoursesState;
     if (!cloudState || !cloudState.courses) return null;
 
+    restoringFromCloudCount += 1;
     isRestoringFromCloud = true;
 
     // 0. Instant rawStorage hydration for all course keys, attempts, streaks & modals
@@ -829,6 +854,22 @@ export const restoreAllStudentCourseProgressFromCloud = async (
                 const memPart = memCourse.parts[pStr];
                 memPart.selectedAnswers = { ...(cPart.selectedAnswers || {}), ...(memPart.selectedAnswers || {}) };
                 memPart.activeQuestionIdx = Math.max(memPart.activeQuestionIdx || 0, cPart.activeQuestionIdx || 0);
+                // Fill in any page/result fields the in-memory part is missing.
+                // This keeps a result page, finished part or timer state from
+                // being dropped when memory was created before the restore.
+                if (!memPart.activeSectionId && cPart.activeSectionId) {
+                  memPart.activeSectionId = cPart.activeSectionId;
+                }
+                if (!memPart.levelResult && cPart.levelResult) {
+                  memPart.levelResult = cPart.levelResult;
+                }
+                if (cPart.isFinishedPart) memPart.isFinishedPart = true;
+                if (cPart.isCompleted) memPart.isCompleted = true;
+                if (typeof memPart.isTimeUpWaiting !== 'boolean') {
+                  memPart.isTimeUpWaiting = cPart.isTimeUpWaiting;
+                }
+                if (!memPart.targetEndTime) memPart.targetEndTime = cPart.targetEndTime;
+                if (!memPart.timeLeft) memPart.timeLeft = cPart.timeLeft;
                 if (memPart.isStudyPhase === false) {
                   // Keep unlocked!
                 } else {
@@ -866,12 +907,9 @@ export const restoreAllStudentCourseProgressFromCloud = async (
           const partKeys = getCourseStorageKeys(courseId, pNum);
 
           if (partState.activeSectionId) {
-            const curSec = localStorage.getItem(partKeys.sectionIdKey);
-            if (!curSec) {
-              localStorage.setItem(partKeys.sectionIdKey, partState.activeSectionId);
-              if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_active_section_id', partState.activeSectionId);
-              if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_active_section_id', partState.activeSectionId);
-            }
+            localStorage.setItem(partKeys.sectionIdKey, partState.activeSectionId);
+            if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_active_section_id', partState.activeSectionId);
+            if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_active_section_id', partState.activeSectionId);
           }
 
           // Merge answers: NEVER overwrite newer local answers with older cloud answers!
@@ -1072,7 +1110,9 @@ export const restoreAllStudentCourseProgressFromCloud = async (
     console.error('Failed to restore student course progress from cloud:', err);
     return null;
   } finally {
-    isRestoringFromCloud = false;
+    restoringFromCloudCount = Math.max(0, restoringFromCloudCount - 1);
+    isRestoringFromCloud = restoringFromCloudCount > 0;
+    restoreInFlightCount[cleanEmail] = Math.max(0, (restoreInFlightCount[cleanEmail] || 1) - 1);
   }
 };
 
@@ -1159,7 +1199,10 @@ export function useCourseQuestionResume(params: {
 
       // 1. Result page state: If section exam was completed, restore result page immediately
       if (saved.levelResult && saved.levelResult.isFinished) {
-        setLevelResult?.(saved.levelResult);
+        setLevelResult?.({
+          ...saved.levelResult,
+          sectionId: saved.levelResult.sectionId || saved.activeSectionId || undefined
+        });
         setIsStudyPhase(false);
         setIsTimeUpWaiting(false);
         setTimeLeft(30);

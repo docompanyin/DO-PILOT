@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getCourseStorageKeys, memoryCourseState } from './courseProgressSyncService';
 
 /**
  * Part introduction persistence helpers.
@@ -72,6 +73,71 @@ export const clearPythonPartIntroRequired = (partNum: number): void => {
 };
 
 /**
+ * True when Part N already contains real student progress, regardless of what
+ * an old `dopilot_python_intro_required_N` marker says.
+ *
+ * A stale "required" marker used to send a student who was halfway through a
+ * part (for example Part 9, question 9.3.5) back to that part's introduction
+ * after refresh / cache clearing / logout-login. The introduction must only be
+ * enforced when the part has no progress at all.
+ */
+const hasPartProgress = (partNum: number): boolean => {
+  const isProgressedPartState = (part: any): boolean => {
+    if (!part) return false;
+    if (part.isFinishedPart || part.isCompleted) return true;
+    if (part.levelResult?.isFinished) return true;
+    if (typeof part.activeQuestionIdx === 'number' && part.activeQuestionIdx > 0) return true;
+    if (
+      part.activeSectionId &&
+      !String(part.activeSectionId).startsWith(`${partNum}-1-`)
+    ) {
+      return true;
+    }
+    if (part.selectedAnswers && Object.keys(part.selectedAnswers).length > 0) {
+      return true;
+    }
+    return false;
+  };
+
+  try {
+    // 1. Check the in-memory cloud snapshot (covers a part whose state was
+    //    restored in this app session but not yet re-written to localStorage).
+    for (const state of Object.values(memoryCourseState)) {
+      const part = state?.courses?.['python-core']?.parts?.[String(partNum)];
+      if (isProgressedPartState(part)) return true;
+    }
+
+    // 2. Check the persisted keys used by the part page.
+    const keys = getCourseStorageKeys('python-core', partNum);
+
+    const sectionId = localStorage.getItem(keys.sectionIdKey) || '';
+    if (sectionId && !sectionId.startsWith(`${partNum}-1-`)) return true;
+
+    const qIdx = Number(localStorage.getItem(keys.questionIdxKey) || '0');
+    if (qIdx > 0) return true;
+
+    if (localStorage.getItem(keys.completedKey) === 'true') return true;
+    if (localStorage.getItem(keys.finishedKey) === 'true') return true;
+
+    const answersRaw = localStorage.getItem(keys.answersKey);
+    if (answersRaw) {
+      const answers = JSON.parse(answersRaw);
+      if (answers && Object.keys(answers).length > 0) return true;
+    }
+
+    const resultRaw = localStorage.getItem(keys.levelResultKey);
+    if (resultRaw) {
+      const result = JSON.parse(resultRaw);
+      if (result?.isFinished) return true;
+    }
+  } catch {
+    /* storage unavailable or malformed state */
+  }
+
+  return false;
+};
+
+/**
  * Re-opens the introduction modal if the durable marker arrives after mount
  * (for example when cloud progress is restored on a new device).
  */
@@ -81,7 +147,7 @@ export function usePythonPartIntroModal(
 ): void {
   useEffect(() => {
     const sync = () => {
-      if (isPythonPartIntroRequired(partNum)) setOpen(true);
+      if (isPythonPartIntroRequired(partNum) && !hasPartProgress(partNum)) setOpen(true);
     };
 
     sync();
@@ -109,7 +175,7 @@ export function usePythonPartIntroGuard(partNum: number): void {
         if (new URLSearchParams(window.location.search).get('review') === 'true') {
           return;
         }
-        if (isPythonPartIntroRequired(partNum)) {
+        if (isPythonPartIntroRequired(partNum) && !hasPartProgress(partNum)) {
           navigate(`/course/python-core/part-${partNum - 1}`, { replace: true });
         }
       } catch {
