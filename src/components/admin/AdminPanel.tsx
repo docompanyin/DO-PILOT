@@ -84,7 +84,8 @@ import {
   QuestionTelemetryRecord,
   restoreStudentTelemetryFromCloud,
   setStudentTelemetryInMemory,
-  getCourseCurriculumQuestions
+  getCourseCurriculumQuestions,
+  normalizeStudentEmail
 } from '../../utils/studentTelemetryService';
 import { COURSE_CERT_CONFIGS } from '../../utils/certificateGenerator';
 import { memoryCourseState } from '../../utils/courseProgressSyncService';
@@ -848,15 +849,63 @@ export const AdminPanel: React.FC = () => {
   const [mistakeSearch, setMistakeSearch] = useState('');
   const [inspectTelemetryVersion, setInspectTelemetryVersion] = useState<number>(0);
 
-  // Automatically hydrate student telemetry from cloud when inspect modal opens
+  // Automatically hydrate student telemetry from cloud when inspect modal opens & listen for live progress updates
   useEffect(() => {
     if (!selectedStudentForReport?.email) return;
+    let isDisposed = false;
     const email = selectedStudentForReport.email;
+    const cleanEmail = normalizeStudentEmail(email);
+    const docId = `telemetry_${cleanEmail.replace(/[^a-z0-9_]/g, '_')}`;
+
+    // 1. Initial hydration from central database
     restoreStudentTelemetryFromCloud(email).then((records) => {
-      if (records && records.length > 0) {
+      if (!isDisposed && records && records.length > 0) {
         setInspectTelemetryVersion((v) => v + 1);
       }
     }).catch(() => {});
+
+    // 2. Realtime listener & live polling while Inspect modal is open
+    let channel: any = null;
+    let pollInterval: any = null;
+
+    if (isSupabaseConfigured()) {
+      try {
+        channel = supabase
+          .channel(`inspect_telemetry_${cleanEmail}_${Date.now()}`)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'site_content', filter: `id=eq.${docId}` },
+            async (payload) => {
+              if (isDisposed) return;
+              const newContent = (payload?.new as any)?.content;
+              if (Array.isArray(newContent)) {
+                setStudentTelemetryInMemory(cleanEmail, newContent);
+                setInspectTelemetryVersion((v) => v + 1);
+              } else {
+                const refreshed = await restoreStudentTelemetryFromCloud(cleanEmail);
+                if (!isDisposed && refreshed) setInspectTelemetryVersion((v) => v + 1);
+              }
+            }
+          )
+          .subscribe();
+      } catch {}
+
+      pollInterval = setInterval(async () => {
+        if (isDisposed) return;
+        const refreshed = await restoreStudentTelemetryFromCloud(cleanEmail);
+        if (!isDisposed && refreshed && refreshed.length > 0) {
+          setInspectTelemetryVersion((v) => v + 1);
+        }
+      }, 3000);
+    }
+
+    return () => {
+      isDisposed = true;
+      if (channel) {
+        try { supabase.removeChannel(channel); } catch {}
+      }
+      if (pollInterval) clearInterval(pollInterval);
+    };
   }, [selectedStudentForReport]);
 
   // Permanent Delete State
@@ -6404,6 +6453,31 @@ export const AdminPanel: React.FC = () => {
                                     }
 
                                     sGroup.attempts.push(att);
+                                  });
+
+                                  // Strict part-wise ordering (Part 1 -> Part 14)
+                                  partGroups.sort((a, b) => a.partNum - b.partNum);
+
+                                  // Strict section-wise ordering & question-by-question activity flow
+                                  partGroups.forEach((pGroup) => {
+                                    pGroup.sections.sort((a, b) => {
+                                      const numA = parseFloat((a.sectionLabel.match(/([0-9.]+)/)?.[1] || '0'));
+                                      const numB = parseFloat((b.sectionLabel.match(/([0-9.]+)/)?.[1] || '0'));
+                                      return numA - numB;
+                                    });
+
+                                    // Retests appear directly underneath their corresponding original sections, in exact question order
+                                    pGroup.sections.forEach((sGroup) => {
+                                      sGroup.attempts.sort((a, b) => {
+                                        const attA = a.attemptNumber || (a.isRetest ? 2 : 1);
+                                        const attB = b.attemptNumber || (b.isRetest ? 2 : 1);
+                                        if (attA !== attB) return attA - attB;
+                                        const qA = a.questionNumber || 0;
+                                        const qB = b.questionNumber || 0;
+                                        if (qA !== qB) return qA - qB;
+                                        return new Date(a.attemptedAt).getTime() - new Date(b.attemptedAt).getTime();
+                                      });
+                                    });
                                   });
 
                                   return (

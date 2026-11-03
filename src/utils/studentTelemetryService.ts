@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { normalizeStudentEmail, memoryCourseState } from './courseProgressSyncService';
+export { normalizeStudentEmail };
 
 export interface QuestionTelemetryRecord {
   id: string;                    // e.g. "py-1.1-q1-att1-1719283749"
@@ -86,31 +87,36 @@ export const logQuestionAttempt = (
           memoryTelemetryCache[cleanEmail] = list;
         }
 
-        // Sync to cloud site_content under student telemetry document
+        // Sync to cloud site_content under student telemetry document for permanent cross-device persistence
         if (studentEmailOrId.includes('@')) {
           const cleanEmail = normalizeStudentEmail(studentEmailOrId);
-          // 1. Primary: Save via authenticated server-side sync endpoint
-          fetch('/api/student-sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: cleanEmail,
-              type: 'telemetry',
-              content: list
-            })
-          }).catch(() => {
-            // 2. Direct fallback
-            if (isSupabaseConfigured()) {
-              const docId = `telemetry_${cleanEmail.replace(/[^a-z0-9_]/g, '_')}`;
-              Promise.resolve(
-                supabase.from('site_content').upsert({
-                  id: docId,
-                  content: list,
-                  updated_at: new Date().toISOString()
-                })
-              ).catch(() => {});
-            }
-          });
+          const docId = `telemetry_${cleanEmail.replace(/[^a-z0-9_]/g, '_')}`;
+
+          // Direct client write to Supabase site_content for instant global persistence
+          if (isSupabaseConfigured()) {
+            Promise.resolve(
+              supabase.from('site_content').upsert({
+                id: docId,
+                content: list,
+                updated_at: new Date().toISOString()
+              })
+            ).catch((err) => {
+              console.warn('Error saving telemetry directly to Supabase:', err);
+            });
+          }
+
+          // Also trigger server-side sync endpoint if available
+          try {
+            fetch('/api/student-sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: cleanEmail,
+                type: 'telemetry',
+                content: list
+              })
+            }).catch(() => {});
+          } catch {}
         }
       }
     } catch (e) {
@@ -119,6 +125,48 @@ export const logQuestionAttempt = (
   }
 
   return newRecord;
+};
+
+/**
+ * Standardized telemetry logger for Python Course (Parts 1 - 14)
+ */
+export const logPythonPartQuestionAttempt = (params: {
+  studentEmailOrId: string;
+  partNum: number;
+  activeSection: { id: string; title: string };
+  activeIdx: number;
+  activeQuestionIdx: number;
+  currentMcq: { id?: string; question: string; correctAnswer: string; options: { id: string; text: string }[]; explanationNote?: string };
+  currentBlock?: { heading?: string; codeSnippet?: string };
+  optId: string;
+  isCorrect: boolean;
+  timeSpent: number;
+  timeLimitSeconds?: number;
+  isRetestAttempt?: boolean;
+  attemptNum?: number;
+}): QuestionTelemetryRecord => {
+  return logQuestionAttempt(params.studentEmailOrId, {
+    courseId: 'python-core',
+    partNum: params.partNum,
+    sectionId: params.activeSection.id,
+    sectionTitle: params.activeSection.title,
+    subQuestionLabel: `Part ${params.partNum} -> Sec ${params.partNum}.${params.activeIdx + 1} -> Q${params.activeQuestionIdx + 1}`,
+    questionIndex: params.activeQuestionIdx + 1,
+    questionTitle: params.currentBlock?.heading || `Question ${params.activeQuestionIdx + 1}`,
+    questionPrompt: params.currentMcq?.question || params.currentBlock?.heading || '',
+    codeSnippet: params.currentBlock?.codeSnippet,
+    studentOptionId: params.optId,
+    studentAnswer: params.currentMcq?.options.find((o) => o.id === params.optId)?.text || params.optId,
+    correctOptionId: params.currentMcq?.correctAnswer || 'A',
+    correctAnswer: params.currentMcq?.options.find((o) => o.id === params.currentMcq?.correctAnswer)?.text || 'Correct',
+    isCorrect: params.isCorrect,
+    timeTakenSeconds: params.timeSpent,
+    timeLimitSeconds: params.timeLimitSeconds || 30,
+    attemptNumber: params.attemptNum || (params.isRetestAttempt ? 2 : 1),
+    isRetest: Boolean(params.isRetestAttempt || (params.attemptNum && params.attemptNum > 1)),
+    status: params.isCorrect ? 'passed' : 'failed',
+    explanation: params.currentMcq?.explanationNote
+  });
 };
 
 // In-memory cache of student telemetry records to ensure instant retrieval even after cookie clearing
@@ -537,7 +585,8 @@ export const getCourseCurriculumQuestions = (courseId: string): CourseCurriculum
 };
 
 /**
- * Reconstructs accurate question-level attempts for a student without fabricating unattempted questions
+ * Reconstructs accurate question-level attempts for a student without fabricating unattempted questions.
+ * Preserves exact student activity flow: Part-wise, Section-wise, and Question-wise.
  */
 export const buildStudentActivitySequence = (
   student: any,
@@ -545,43 +594,40 @@ export const buildStudentActivitySequence = (
 ): QuestionTelemetryRecord[] => {
   const email = (student.email || '').toLowerCase().trim();
   const id = (student.id || '').trim();
+  const cleanEmail = normalizeStudentEmail(email);
   const loggedAttempts = getStudentLoggedTelemetry(email || id);
 
-  // If we have explicit logged telemetry for any course, return only matching attempts for the requested course.
-  // Crucial: If the student has logged attempts (e.g. Python), but 0 for Java, do NOT fall back to curriculum fabrication or ambient localStorage for Java!
-  if (loggedAttempts.length > 0) {
-    const targetNorm = (courseId || '').toLowerCase().trim().replace(/[\s_-]+/g, '');
-    const isTargetAll = !courseId || courseId === 'all';
-    const matching = loggedAttempts.filter((a) => {
-      if (isTargetAll) return true;
-      const aNorm = (a.courseId || '').toLowerCase().trim().replace(/[\s_-]+/g, '');
-      if (targetNorm.includes('python') && aNorm.includes('python')) return true;
-      if (targetNorm.includes('java') && aNorm.includes('java')) return true;
-      if (targetNorm.includes('fullstack') && aNorm.includes('fullstack')) return true;
-      if (targetNorm.includes('cyber') && aNorm.includes('cyber')) return true;
-      return a.courseId === courseId || aNorm === targetNorm;
-    });
-    return matching.sort(
-      (a, b) => new Date(a.attemptedAt).getTime() - new Date(b.attemptedAt).getTime()
-    );
-  }
+  const targetNorm = (courseId || '').toLowerCase().trim().replace(/[\s_-]+/g, '');
+  const isTargetAll = !courseId || courseId === 'all';
 
-  // Otherwise, reconstruct from saved answers & progress dictionaries
-  const curriculum = getCourseCurriculumQuestions(courseId);
-  const result: QuestionTelemetryRecord[] = [];
+  // 1. Get explicit logged attempts for the requested course
+  const matchingLogged = loggedAttempts.filter((a) => {
+    if (isTargetAll) return true;
+    const aNorm = (a.courseId || '').toLowerCase().trim().replace(/[\s_-]+/g, '');
+    if (targetNorm.includes('python') && aNorm.includes('python')) return true;
+    if (targetNorm.includes('java') && aNorm.includes('java')) return true;
+    if (targetNorm.includes('fullstack') && aNorm.includes('fullstack')) return true;
+    if (targetNorm.includes('cyber') && aNorm.includes('cyber')) return true;
+    return a.courseId === courseId || aNorm === targetNorm;
+  });
 
-  // Determine user answers across parts
+  // Track which (partNum, sectionId, questionIndex) already have logged attempts
+  const loggedKeys = new Set<string>();
+  matchingLogged.forEach((att) => {
+    loggedKeys.add(`${att.partNum}-${att.sectionId}-${att.questionIndex}`);
+    loggedKeys.add(`${att.courseId}-${att.partNum}-${att.sectionId}-${att.questionIndex}`);
+  });
+
+  // 2. Collect authentic student answers from in-memory / cloud course state across parts
   let answers: Record<string, string> = {};
   const norm = courseId.toLowerCase();
 
-  // 1. Read answers from in-memory / cloud course state if available for this student
-  const cleanEmail = normalizeStudentEmail(email);
+  // A. From in-memory / cloud course state
   if (cleanEmail && memoryCourseState[cleanEmail]?.courses) {
     const studentCourses = memoryCourseState[cleanEmail].courses;
-    // Find matching course or search all courses
     Object.entries(studentCourses).forEach(([cKey, cVal]) => {
       const cNorm = cKey.toLowerCase();
-      const isMatch = norm === 'all' ||
+      const isMatch = isTargetAll ||
         (norm.includes('java') && cNorm.includes('java')) ||
         (norm.includes('fullstack') && cNorm.includes('fullstack')) ||
         (norm.includes('cyber') && cNorm.includes('cyber')) ||
@@ -597,7 +643,27 @@ export const buildStudentActivitySequence = (
     });
   }
 
-  // 2. Also check localStorage ONLY if the inspected student is the current active local student session
+  // B. From student object if passed directly
+  if (student.courses && typeof student.courses === 'object') {
+    Object.entries(student.courses).forEach(([cKey, cVal]: [string, any]) => {
+      const cNorm = cKey.toLowerCase();
+      const isMatch = isTargetAll ||
+        (norm.includes('java') && cNorm.includes('java')) ||
+        (norm.includes('fullstack') && cNorm.includes('fullstack')) ||
+        (norm.includes('cyber') && cNorm.includes('cyber')) ||
+        (!norm.includes('java') && !norm.includes('fullstack') && !norm.includes('cyber') && !cNorm.includes('java') && !cNorm.includes('fullstack') && !cNorm.includes('cyber'));
+
+      if (isMatch && cVal && cVal.parts) {
+        Object.values(cVal.parts).forEach((partState: any) => {
+          if (partState?.selectedAnswers) {
+            answers = { ...answers, ...partState.selectedAnswers };
+          }
+        });
+      }
+    });
+  }
+
+  // C. Also check localStorage ONLY if the inspected student is the current active local student session
   try {
     const sessionRaw = localStorage.getItem('dopilot_student_session_v1');
     let isCurrentStudentSession = false;
@@ -633,12 +699,16 @@ export const buildStudentActivitySequence = (
     }
   } catch {}
 
-  // Check wrong attempts on file
+  // 3. For any answered question in curriculum that does not have an explicit logged attempt, reconstruct it
+  const curriculum = getCourseCurriculumQuestions(courseId);
+  const reconstructed: QuestionTelemetryRecord[] = [];
   const wrongList: any[] = Array.isArray(student.wrongAttempts) ? student.wrongAttempts : [];
 
-  // Iterate over curriculum questions in exact chronological order:
-  // Part -> Section -> Question
   curriculum.forEach((q) => {
+    const qKey = `${q.partNum}-${q.sectionId}-${q.questionIndex}`;
+    // If already recorded in explicit logged telemetry, DO NOT duplicate!
+    if (loggedKeys.has(qKey)) return;
+
     let chosenOption: string | undefined = undefined;
     for (const k of q.candidateTaskKeys) {
       if (answers[k]) {
@@ -647,13 +717,21 @@ export const buildStudentActivitySequence = (
       }
     }
 
+    // Also check generic taskId format
+    if (!chosenOption) {
+      const altKey = Object.keys(answers).find((k) =>
+        k.startsWith(`${q.sectionId}-`) && (k.endsWith(`-${q.questionIndex - 1}`) || k.includes(`-${q.questionIndex - 1}-v`))
+      );
+      if (altKey) chosenOption = answers[altKey];
+    }
+
     const matchingWrong = wrongList.find((w) =>
       w.taskTitle?.toLowerCase().includes(q.questionTitle.toLowerCase()) ||
       w.detail?.toLowerCase().includes(q.questionTitle.toLowerCase()) ||
       (w.section && q.sectionTitle && w.section.toLowerCase().includes(q.sectionTitle.toLowerCase()))
     );
 
-    // If never answered and no wrong attempt recorded, do NOT fabricate!
+    // CRITICAL REQUIREMENT: Do NOT display future questions, sections, or progress that the student has not attempted!
     if (!chosenOption && !matchingWrong) {
       return;
     }
@@ -662,7 +740,7 @@ export const buildStudentActivitySequence = (
     const finalChosenOpt = chosenOption || (matchingWrong ? (matchingWrong.detail?.match(/Option ([A-D])/)?.[1] || 'B') : q.correctOptionId);
     const chosenOptObj = q.options.find((o) => o.id === finalChosenOpt);
 
-    result.push({
+    reconstructed.push({
       id: `${q.courseId}-p${q.partNum}-${q.sectionId}-q${q.questionIndex}`,
       courseId: q.courseId,
       partNum: q.partNum,
@@ -678,7 +756,7 @@ export const buildStudentActivitySequence = (
       correctOptionId: q.correctOptionId,
       correctAnswer: q.correctAnswer,
       isCorrect,
-      timeTakenSeconds: 0, // 0 signifies answer was recorded without timing log
+      timeTakenSeconds: 0, // 0 signifies historical answer reconstructed from persistent state
       timeLimitSeconds: 30,
       attemptNumber: 1,
       isRetest: false,
@@ -689,5 +767,21 @@ export const buildStudentActivitySequence = (
     });
   });
 
-  return result;
+  // Combine logged attempts and reconstructed answers
+  const combined = [...matchingLogged, ...reconstructed];
+
+  // Sort strictly by Part -> Section -> Attempt (Originals first, Retests second) -> Question
+  return combined.sort((a, b) => {
+    if (a.partNum !== b.partNum) return a.partNum - b.partNum;
+    if (a.sectionId !== b.sectionId) {
+      const sA = parseFloat((a.subQuestionLabel || a.sectionId).match(/([0-9.]+)/)?.[1] || '0');
+      const sB = parseFloat((b.subQuestionLabel || b.sectionId).match(/([0-9.]+)/)?.[1] || '0');
+      if (sA !== sB) return sA - sB;
+      return a.sectionId.localeCompare(b.sectionId);
+    }
+    const attA = a.attemptNumber || (a.isRetest ? 2 : 1);
+    const attB = b.attemptNumber || (b.isRetest ? 2 : 1);
+    if (attA !== attB) return attA - attB;
+    return a.questionIndex - b.questionIndex;
+  });
 };

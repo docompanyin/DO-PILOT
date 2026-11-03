@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { PythonCompilerLauncherButton, TaskContext } from './compiler/PythonCompilerModal';
 import { useCoursePoints } from '../context/CoursePointsContext';
+import { logPythonPartQuestionAttempt } from '../utils/studentTelemetryService';
 import { getSavedCertificate } from '../utils/certificateGenerator';
 import { useUserAuth } from '../context/UserAuthContext';
 import { ContactModal } from './ContactModal';
@@ -41,7 +42,7 @@ interface LevelResultState {
 
 export const PythonPart12Page: React.FC = () => {
   const navigate = useNavigate();
-  const { points, isTaskSolved, awardPoint, resetProgress } = useCoursePoints();
+  const { points, isTaskSolved, awardPoint, recordWrongAttempt, resetProgress } = useCoursePoints();
   const { user } = useUserAuth();
 
   // Consistent student identifier for tracking seen questions and consecutive failure streaks
@@ -795,15 +796,47 @@ export const PythonPart12Page: React.FC = () => {
       studentEmail: user?.email,
       levelResult: null
     });
+    const timeSpent = (() => {
+      if (targetEndTime) {
+        const elapsed = (TIMER_DURATION * 1000 - Math.max(0, targetEndTime - Date.now())) / 1000;
+        return Math.max(0.1, Math.min(30, Number(elapsed.toFixed(1))));
+      }
+      return Math.max(0.1, Math.min(30, Number((TIMER_DURATION - timeLeft).toFixed(1))));
+    })();
+    const isRetestAttempt = (() => {
+      try {
+        const raw = localStorage.getItem(`dopilot_part12_attempt_${activeSection.id}_${studentId}`);
+        return raw ? Number(raw) > 1 : false;
+      } catch {
+        return false;
+      }
+    })();
+    const attemptNum = (() => {
+      try {
+        const raw = localStorage.getItem(`dopilot_part12_attempt_${activeSection.id}_${studentId}`);
+        return raw ? Math.max(1, Number(raw)) : (isRetestAttempt ? 2 : 1);
+      } catch {
+        return isRetestAttempt ? 2 : 1;
+      }
+    })();
+
+    // Log exact question telemetry for live Admin Panel inspection
+    logPythonPartQuestionAttempt({
+      studentEmailOrId: user?.email || studentId,
+      partNum: 12,
+      activeSection,
+      activeIdx,
+      activeQuestionIdx,
+      currentMcq,
+      currentBlock,
+      optId,
+      isCorrect,
+      timeSpent,
+      isRetestAttempt,
+      attemptNum
+    });
+
     if (isCorrect) {
-      const isRetestAttempt = (() => {
-        try {
-          const raw = localStorage.getItem(`dopilot_part12_attempt_${activeSection.id}_${studentId}`);
-          return raw ? Number(raw) > 1 : false;
-        } catch {
-          return false;
-        }
-      })();
       if (!isRetestAttempt) {
         awardPoint(tId, heading, optId);
       }
@@ -811,6 +844,13 @@ export const PythonPart12Page: React.FC = () => {
       if (!isReviewMode && activeQuestionIdx < levelQuestions.length - 1) {
         setCorrectCountdown(3);
       }
+    } else {
+      const chosenOpt = currentMcq?.options.find((o) => o.id === optId);
+      recordWrongAttempt(
+        heading,
+        activeSection.title,
+        `Selected Option ${optId}: "${chosenOpt?.text || ''}". Correct was Option ${currentMcq?.correctAnswer}.`
+      );
     }
   };
 
