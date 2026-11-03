@@ -8,6 +8,7 @@ import adminDeleteStudentHandler from "./api/admin-delete-student.js";
 import claimCourseHandler from "./api/claim-course.js";
 import adminCouponsHandler from "./api/admin-coupons.js";
 import studentSyncHandler from "./api/student-sync.js";
+import notifyLockedHandler from "./api/notify-locked.js";
 
 // Load .env into process.env for local Node dev middleware
 try {
@@ -231,6 +232,40 @@ export default defineConfig({
                 try {
                   req.body = body ? JSON.parse(body) : {};
                   await studentSyncHandler(req, res);
+                } catch (err) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ success: false, message: err.message }));
+                }
+              });
+              return;
+            }
+          }
+          if (req.url?.startsWith("/api/notify-locked")) {
+            if (!res.status) {
+              res.status = function(code) { res.statusCode = code; return res; };
+            }
+            if (!res.json) {
+              res.json = function(data) {
+                res.setHeader("Content-Type", "application/json");
+                res.end(JSON.stringify(data));
+                return res;
+              };
+            }
+            if (req.method === "OPTIONS") {
+              res.setHeader("Access-Control-Allow-Origin", "*");
+              res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+              res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Student-Email, X-Student-Id");
+              res.statusCode = 200;
+              res.end();
+              return;
+            }
+            if (req.method === "POST") {
+              let body = "";
+              req.on("data", (chunk) => { body += chunk; });
+              req.on("end", async () => {
+                try {
+                  req.body = body ? JSON.parse(body) : {};
+                  await notifyLockedHandler(req, res);
                 } catch (err) {
                   res.statusCode = 500;
                   res.end(JSON.stringify({ success: false, message: err.message }));

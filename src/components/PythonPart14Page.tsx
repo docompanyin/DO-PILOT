@@ -20,6 +20,7 @@ import {
   setLevelAttemptCountPart14
 } from '../data/pythonPart14Data';
 import { useCourseQuestionResume, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
+import { notifyCourseLocked } from '../utils/lockNotificationService';
 import { useCorrectAutoAdvance } from '../utils/useCorrectAutoAdvance';
 import { usePythonPartIntroGuard } from '../utils/pythonPartIntro';
 
@@ -438,6 +439,23 @@ export const PythonPart14Page: React.FC = () => {
     const result = recordLevelAttemptResultPart14(activeSection.id, studentId, isPassed);
     const hadPriorStreak = isPassed && prevStreak > 0;
     setConsecutiveFailures(result.consecutiveFailedLevels);
+    if (result.isLocked) {
+      notifyCourseLocked({
+        courseId: 'python-core',
+        courseName: 'Complete Python Programming',
+        partNum: 14,
+        sectionId: activeSection.id,
+        sectionTitle: `Level ${activeSection.number} — ${activeSection.title}`,
+        activeQuestionIdx,
+        totalQuestions: totalCount,
+        score: correctCount,
+        percentage,
+        streak: result.consecutiveFailedLevels,
+        attemptCount: result.attemptCount,
+        studentId,
+        studentEmail: user?.email
+      });
+    }
 
     const resultState = {
       isFinished: true,
@@ -1103,15 +1121,11 @@ export const PythonPart14Page: React.FC = () => {
 
                                   </>
               ) : (
-                /* 3+ CONSECUTIVE FAILURES: Locked! Only Contact Team Available */
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(true)}
-                  className="py-2.5 px-6 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-rose-500/25 cursor-pointer"
-                >
-                  <ShieldAlert className="w-4 h-4" />
-                  <span>Contact Team Now (Required)</span>
-                </button>
+                /* 3+ CONSECUTIVE FAILURES: Locked */
+                <div className="flex items-center justify-center gap-2.5 px-5 py-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs sm:text-sm font-medium shadow-lg shadow-rose-500/10 text-center max-w-md mx-auto">
+                  <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse shrink-0" />
+                  <span>Our team has been notified and will contact you shortly to assist you.</span>
+                </div>
               )}
             </div>
           </div>
