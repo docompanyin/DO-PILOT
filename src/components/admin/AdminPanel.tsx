@@ -44,6 +44,7 @@ import {
   getLockedCourseRecords,
   scanAndSyncLiveLocks,
   syncLockedCoursesFromCloud,
+  syncCourseResetAuditFromCloud,
   getNextPythonSection,
   resetStudentCourse,
   getCourseResetAuditEntries,
@@ -197,16 +198,25 @@ export const AdminPanel: React.FC = () => {
       }
     }).catch(() => {});
 
+    // Initial fetch of course reset audit logs from Supabase
+    syncCourseResetAuditFromCloud().then((cloudLogs) => {
+      if (cloudLogs) {
+        setCourseResetAuditLogs(cloudLogs);
+      }
+    }).catch(() => {});
+
     const handleCourseResetUpdate = () => {
       setLockedRecords(getLockedCourseRecords());
       setCourseResetAuditLogs(getCourseResetAuditEntries());
     };
     window.addEventListener('dopilot_locked_courses_updated', handleCourseResetUpdate);
     window.addEventListener('dopilot_course_unlocked', handleCourseResetUpdate);
+    window.addEventListener('dopilot_course_resets_audit_updated', handleCourseResetUpdate);
     window.addEventListener('storage', handleCourseResetUpdate);
     return () => {
       window.removeEventListener('dopilot_locked_courses_updated', handleCourseResetUpdate);
       window.removeEventListener('dopilot_course_unlocked', handleCourseResetUpdate);
+      window.removeEventListener('dopilot_course_resets_audit_updated', handleCourseResetUpdate);
       window.removeEventListener('storage', handleCourseResetUpdate);
     };
   }, []);
@@ -9736,7 +9746,7 @@ export const AdminPanel: React.FC = () => {
           confirmResetTarget.failedSectionId || confirmResetTarget.failedSection
         );
         const autoNote = `Admin unlocked course progression. Resuming at Part ${continuation.nextPart}, Section ${continuation.nextSectionNumber}`;
-        const res = resetStudentCourse(confirmResetTarget.id, adminName, autoNote);
+        const res = await resetStudentCourse(confirmResetTarget.id, adminName, autoNote);
         if (res.success) {
           const contMsg = res.nextPart && res.nextSectionNumber
             ? ` (Continues at Part ${res.nextPart}, Section ${res.nextSectionNumber}: ${res.nextSectionTitle})`
@@ -9943,10 +9953,13 @@ export const AdminPanel: React.FC = () => {
     });
 
     const handleRefresh = async () => {
-      const live = await syncLockedCoursesFromCloud();
-      setLockedRecords(live);
-      setCourseResetAuditLogs(getCourseResetAuditEntries());
-      showToast('Course lock records refreshed from database');
+      const [liveRecs, liveLogs] = await Promise.all([
+        syncLockedCoursesFromCloud(),
+        syncCourseResetAuditFromCloud()
+      ]);
+      setLockedRecords(liveRecs);
+      setCourseResetAuditLogs(liveLogs);
+      showToast('Course lock & audit records refreshed from database');
     };
 
     return (

@@ -47,8 +47,8 @@ export interface CourseResetAuditEntry {
 
 export const LOCKED_COURSES_STORAGE_KEY = 'dopilot_locked_courses_registry_v1';
 export const COURSE_RESETS_AUDIT_KEY = 'dopilot_course_resets_audit_v1';
-export const CLOUD_LOCKED_COURSES_ID = 'dopilot_locked_courses_registry_v1';
-export const CLOUD_COURSE_RESETS_AUDIT_ID = 'dopilot_course_resets_audit_v1';
+export const CLOUD_LOCKED_COURSES_ID = 'telemetry_dopilot_locked_courses_registry_v1';
+export const CLOUD_COURSE_RESETS_AUDIT_ID = 'telemetry_dopilot_course_resets_audit_v1';
 
 export interface PythonSectionMeta {
   id: string;
@@ -712,11 +712,13 @@ export const syncLockedCoursesFromCloud = async (): Promise<LockedCourseRecord[]
   }
 
   try {
-    // 2. Fetch existing cloud registry from site_content
+    // 2. Fetch existing cloud registry from site_content (supports both new telemetry_ and legacy doc IDs)
     const { data: regData } = await supabase
       .from('site_content')
       .select('content')
-      .eq('id', CLOUD_LOCKED_COURSES_ID)
+      .in('id', [CLOUD_LOCKED_COURSES_ID, 'dopilot_locked_courses_registry_v1'])
+      .order('updated_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (regData?.content?.records && Array.isArray(regData.content.records)) {
@@ -795,25 +797,53 @@ export const syncLockedCoursesFromCloud = async (): Promise<LockedCourseRecord[]
           }
         }
 
+        const existingIdx = records.findIndex(
+          (r) =>
+            (r.studentEmail && r.studentEmail.toLowerCase() === email) ||
+            r.studentId === studentId
+        );
+
+        // If the record exists and has been unlocked by admin, preserve the authoritative UNLOCKED status!
+        if (existingIdx !== -1 && records[existingIdx].lockStatus === 'unlocked') {
+          // Actively sanitize any stale residual lock keys or failure streaks in the student's cloud document
+          if (isGloballyLocked || isLevelLocked || maxFailureStreak > 0) {
+            try {
+              state.globalLockedKeys = {};
+              state.consecutiveFailures = {};
+              if (state.courses?.['python-core']?.parts) {
+                Object.values(state.courses['python-core'].parts).forEach((pt: any) => {
+                  if (pt && pt.levelResult) pt.levelResult = null;
+                });
+              }
+              if (state.rawStorage) {
+                Object.keys(state.rawStorage).forEach((k) => {
+                  if (k.includes('_locked_') || k.includes('consecutive_failures') || k.includes('failed_levels_streak')) {
+                    delete state.rawStorage[k];
+                  }
+                });
+              }
+              Promise.resolve(
+                supabase.from('site_content').upsert({
+                  id: row.id,
+                  content: state,
+                  updated_at: new Date().toISOString()
+                })
+              ).catch(() => {});
+            } catch {}
+          }
+          continue;
+        }
+
         if (isGloballyLocked || isLevelLocked || maxFailureStreak >= 3) {
           if (!lockedPartNum) lockedPartNum = state.courses?.['python-core']?.lastPart || 1;
           if (!lockedSectionId) {
             lockedSectionId = pyParts[String(lockedPartNum)]?.activeSectionId || `${lockedPartNum}-1`;
           }
 
-          const existingIdx = records.findIndex(
-            (r) =>
-              (r.studentEmail && r.studentEmail.toLowerCase() === email) ||
-              r.studentId === studentId
-          );
-
           const realName = profile?.name || (existingIdx !== -1 && records[existingIdx].studentName !== 'Active Learner' ? records[existingIdx].studentName : email.split('@')[0]);
           const realPhone = profile?.phone ? (profile.phone.startsWith('+91') ? profile.phone : `+91 ${profile.phone}`) : undefined;
           const college = profile?.college_or_company || profile?.where_did_you_find_us || undefined;
           const formattedSection = formatPythonSectionLabel(lockedPartNum, lockedSectionId);
-
-          // If record exists and is already unlocked by admin, don't revert to locked unless streak >= 3 in state
-          const currentlyUnlocked = existingIdx !== -1 && records[existingIdx].lockStatus === 'unlocked' && !isGloballyLocked && !isLevelLocked;
 
           const updatedRecord: LockedCourseRecord = {
             id: existingIdx !== -1 ? records[existingIdx].id : `LC-${studentId.slice(-6)}`,
@@ -829,10 +859,10 @@ export const syncLockedCoursesFromCloud = async (): Promise<LockedCourseRecord[]
             failedPart: `Part ${lockedPartNum}`,
             failedSection: formattedSection,
             failedSectionId: lockedSectionId,
-            consecutiveFailures: currentlyUnlocked ? 0 : (streak || maxFailureStreak || 3),
-            lockStatus: currentlyUnlocked ? 'unlocked' : 'locked',
+            consecutiveFailures: streak || maxFailureStreak || 3,
+            lockStatus: 'locked',
             lockedAt: existingIdx !== -1 ? records[existingIdx].lockedAt : new Date().toISOString(),
-            progressSummary: `Part ${lockedPartNum}: ${formattedSection} • ${currentlyUnlocked ? 'Progression Active' : 'Lock Active'}`,
+            progressSummary: `Part ${lockedPartNum}: ${formattedSection} • Lock Active`,
             earnedPoints: existingIdx !== -1 ? records[existingIdx].earnedPoints : 0
           };
 
@@ -985,8 +1015,10 @@ export const scanAndSyncLiveLocks = (): LockedCourseRecord[] => {
           };
           records.unshift(newRecord);
         } else if (records[existingIdx].lockStatus === 'unlocked') {
-          records[existingIdx].lockStatus = 'locked';
-          records[existingIdx].consecutiveFailures = 3;
+          // If record is already unlocked by admin, clean this stale local key instead of re-locking!
+          try {
+            localStorage.removeItem(key);
+          } catch {}
         }
       }
     }
@@ -1044,31 +1076,120 @@ export const getLockedCourseRecords = (): LockedCourseRecord[] => {
   return scanAndSyncLiveLocks();
 };
 
+let hasInitiatedAuditCloudSync = false;
+
+/**
+ * Fetch and merge course reset audit logs from Supabase site_content for global persistence across all devices
+ */
+export const syncCourseResetAuditFromCloud = async (): Promise<CourseResetAuditEntry[]> => {
+  let localEntries: CourseResetAuditEntry[] = [];
+  try {
+    const raw = localStorage.getItem(COURSE_RESETS_AUDIT_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        localEntries = parsed.filter(
+          (a: any) => !isDemoOrTestUser(a.studentEmail, a.studentId, a.recordId)
+        );
+      }
+    }
+  } catch {}
+
+  if (!isSupabaseConfigured()) {
+    return localEntries;
+  }
+
+  try {
+    const { data: auditDoc } = await supabase
+      .from('site_content')
+      .select('content')
+      .in('id', [CLOUD_COURSE_RESETS_AUDIT_ID, 'dopilot_course_resets_audit_v1'])
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const cloudLogs: CourseResetAuditEntry[] = auditDoc?.content?.auditLogs || [];
+
+    const realCloudLogs = cloudLogs.filter(
+      (a) => !isDemoOrTestUser(a.studentEmail, a.studentId, a.recordId)
+    );
+    const realLocalLogs = localEntries.filter(
+      (a) => !isDemoOrTestUser(a.studentEmail, a.studentId, a.recordId)
+    );
+
+    const logMap = new Map<string, CourseResetAuditEntry>();
+    // Local entries first
+    for (const log of realLocalLogs) {
+      const key = log.id || `${log.studentId}_${log.resetTimestamp}`;
+      logMap.set(key, log);
+    }
+    // Cloud entries take precedence
+    for (const log of realCloudLogs) {
+      const key = log.id || `${log.studentId}_${log.resetTimestamp}`;
+      logMap.set(key, log);
+    }
+
+    const merged = Array.from(logMap.values()).sort((a, b) => {
+      const timeA = new Date(a.resetTimestamp || 0).getTime();
+      const timeB = new Date(b.resetTimestamp || 0).getTime();
+      return timeB - timeA;
+    });
+
+    try {
+      localStorage.setItem(COURSE_RESETS_AUDIT_KEY, JSON.stringify(merged));
+    } catch {}
+
+    // Persist merged audit logs back to Supabase under telemetry_ prefix
+    try {
+      await supabase.from('site_content').upsert({
+        id: CLOUD_COURSE_RESETS_AUDIT_ID,
+        content: {
+          auditLogs: merged,
+          updatedAt: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString()
+      });
+    } catch {}
+
+    return merged;
+  } catch (err) {
+    console.warn('Error syncing course reset audit logs from cloud:', err);
+    return localEntries;
+  }
+};
+
 /**
  * Get all audit log entries of course resets
  */
 export const getCourseResetAuditEntries = (): CourseResetAuditEntry[] => {
+  let entries: CourseResetAuditEntry[] = [];
   try {
     const raw = localStorage.getItem(COURSE_RESETS_AUDIT_KEY);
     if (!raw) {
       localStorage.setItem(COURSE_RESETS_AUDIT_KEY, JSON.stringify([]));
-      return [];
-    }
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      const realOnly = parsed.filter(
-        (a: any) => !isDemoOrTestUser(a.studentEmail, a.studentId, a.recordId)
-      );
-      if (realOnly.length !== parsed.length) {
-        localStorage.setItem(COURSE_RESETS_AUDIT_KEY, JSON.stringify(realOnly));
+    } else {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        entries = parsed.filter(
+          (a: any) => !isDemoOrTestUser(a.studentEmail, a.studentId, a.recordId)
+        );
       }
-      return realOnly;
     }
-    return [];
   } catch (e) {
     console.error('Failed to get course reset audit entries:', e);
-    return [];
   }
+
+  // Trigger background cloud sync to ensure real database audit records from Supabase are loaded
+  if (!hasInitiatedAuditCloudSync && isSupabaseConfigured()) {
+    hasInitiatedAuditCloudSync = true;
+    syncCourseResetAuditFromCloud().then((cloudLogs) => {
+      if (cloudLogs && cloudLogs.length > 0) {
+        window.dispatchEvent(new CustomEvent('dopilot_course_resets_audit_updated', { detail: cloudLogs }));
+      }
+    }).catch(() => {});
+  }
+
+  return entries;
 };
 
 /**
@@ -1300,11 +1421,11 @@ export const clearStudentCourseLockKeys = (
  * 3. Locked state completely removed without user-facing popup.
  * 4. Global persistence synchronized across devices, browsers, and re-login via Supabase site_content.
  */
-export const resetStudentCourse = (
+export const resetStudentCourse = async (
   recordId: string,
   adminIdentifier: string = 'admin',
   adminNotes?: string
-): {
+): Promise<{
   success: boolean;
   record?: LockedCourseRecord;
   auditEntry?: CourseResetAuditEntry;
@@ -1313,7 +1434,7 @@ export const resetStudentCourse = (
   nextSectionNumber?: string;
   nextSectionTitle?: string;
   error?: string;
-} => {
+}> => {
   const records = getLockedCourseRecords();
   const targetRecord = records.find((r) => r.id === recordId);
 
@@ -1364,11 +1485,13 @@ export const resetStudentCourse = (
     pyCourse.lastPart = nextPart;
     if (!pyCourse.parts) pyCourse.parts = {};
 
-    // Clear levelResult on previous locked part
-    if (pyCourse.parts[String(lockedPart)]) {
-      pyCourse.parts[String(lockedPart)].levelResult = null;
-      pyCourse.parts[String(lockedPart)].isTimeUpWaiting = false;
-    }
+    // Clear levelResult and streak across all parts
+    Object.keys(pyCourse.parts).forEach((pStr) => {
+      if (pyCourse.parts[pStr]) {
+        pyCourse.parts[pStr].levelResult = null;
+        pyCourse.parts[pStr].isTimeUpWaiting = false;
+      }
+    });
 
     // Set progression on nextPart
     pyCourse.parts[String(nextPart)] = {
@@ -1451,110 +1574,118 @@ export const resetStudentCourse = (
   );
 
   window.dispatchEvent(
+    new CustomEvent('dopilot_course_resets_audit_updated', { detail: updatedAuditLogs })
+  );
+
+  window.dispatchEvent(
     new CustomEvent('dopilot_progress_restored', {
       detail: { courseId: 'python-core', studentId: targetRecord.studentId }
     })
   );
 
-  // 7. Authoritative Global Persistence to Supabase site_content
+  // 7. Authoritative Global Persistence to Supabase site_content (AWAITED for multi-device guarantee)
   if (isSupabaseConfigured()) {
-    // A. Update student course state document in site_content
-    const docId = getStudentDocId(cleanEmail);
-    Promise.resolve(
-      supabase
+    try {
+      const docId = getStudentDocId(cleanEmail);
+      const { data: existingDoc } = await supabase
         .from('site_content')
         .select('content')
         .eq('id', docId)
-        .maybeSingle()
-        .then(async ({ data: existingDoc }) => {
-          const cloudState = existingDoc?.content || memoryCourseState[cleanEmail] || {
-            email: cleanEmail,
-            courses: {},
+        .maybeSingle();
+
+      const cloudState = existingDoc?.content || memoryCourseState[cleanEmail] || {
+        email: cleanEmail,
+        courses: {},
+        updatedAt: nowIso
+      };
+
+      cloudState.globalLockedKeys = {};
+      cloudState.consecutiveFailures = {};
+
+      if (!cloudState.courses) cloudState.courses = {};
+      if (!cloudState.courses['python-core']) {
+        cloudState.courses['python-core'] = {
+          lastPart: nextPart,
+          completedParts: [],
+          parts: {}
+        };
+      }
+
+      const py = cloudState.courses['python-core'];
+      py.lastPart = nextPart;
+      if (!py.parts) py.parts = {};
+
+      // Clear locked levelResult across all parts
+      Object.keys(py.parts).forEach((pStr) => {
+        if (py.parts[pStr]) {
+          py.parts[pStr].levelResult = null;
+          py.parts[pStr].isTimeUpWaiting = false;
+        }
+      });
+
+      // Advance to next section
+      py.parts[String(nextPart)] = {
+        ...(py.parts[String(nextPart)] || {}),
+        activeSectionId: nextSectionId,
+        activeQuestionIdx: 0,
+        isStudyPhase: true,
+        levelResult: null,
+        isTimeUpWaiting: false,
+        timeLeft: 30,
+        targetEndTime: 0,
+        updatedAt: nowIso
+      };
+
+      if (!cloudState.rawStorage) cloudState.rawStorage = {};
+      // Wipe all residual failure streaks and lock keys
+      Object.keys(cloudState.rawStorage).forEach((k) => {
+        if (
+          k.includes('_locked_') ||
+          k.includes('consecutive_failures') ||
+          k.includes('failed_levels_streak') ||
+          k.includes('_level_result') ||
+          k === 'dopilot_level_result'
+        ) {
+          delete cloudState.rawStorage[k];
+        }
+      });
+
+      cloudState.rawStorage[`dopilot_part${nextPart}_active_section_id`] = nextSectionId;
+      cloudState.rawStorage[`dopilot_part${nextPart}_active_q_idx`] = '0';
+      cloudState.rawStorage[`dopilot_part${nextPart}_study_phase`] = 'true';
+      cloudState.rawStorage['dopilot_python_core_last_part'] = String(nextPart);
+      cloudState.rawStorage[`dopilot_python_intro_required_${nextPart}`] = 'false';
+      cloudState.rawStorage[`python_course_intro_started_${nextPart}`] = 'true';
+
+      cloudState.updatedAt = nowIso;
+
+      // Upsert student state, locked courses registry, and audit trail in parallel
+      await Promise.all([
+        supabase.from('site_content').upsert({
+          id: docId,
+          content: cloudState,
+          updated_at: nowIso
+        }),
+        supabase.from('site_content').upsert({
+          id: CLOUD_LOCKED_COURSES_ID,
+          content: {
+            records,
             updatedAt: nowIso
-          };
-
-          cloudState.globalLockedKeys = {};
-          cloudState.consecutiveFailures = {};
-
-          if (!cloudState.courses) cloudState.courses = {};
-          if (!cloudState.courses['python-core']) {
-            cloudState.courses['python-core'] = {
-              lastPart: nextPart,
-              completedParts: [],
-              parts: {}
-            };
-          }
-
-          const py = cloudState.courses['python-core'];
-          py.lastPart = nextPart;
-          if (!py.parts) py.parts = {};
-
-          // Clear locked levelResult
-          if (py.parts[String(lockedPart)]) {
-            py.parts[String(lockedPart)].levelResult = null;
-            py.parts[String(lockedPart)].isTimeUpWaiting = false;
-          }
-
-          // Advance to next section
-          py.parts[String(nextPart)] = {
-            ...(py.parts[String(nextPart)] || {}),
-            activeSectionId: nextSectionId,
-            activeQuestionIdx: 0,
-            isStudyPhase: true,
-            levelResult: null,
-            isTimeUpWaiting: false,
-            timeLeft: 30,
-            targetEndTime: 0,
+          },
+          updated_at: nowIso
+        }),
+        supabase.from('site_content').upsert({
+          id: CLOUD_COURSE_RESETS_AUDIT_ID,
+          content: {
+            auditLogs: updatedAuditLogs,
             updatedAt: nowIso
-          };
-
-          if (!cloudState.rawStorage) cloudState.rawStorage = {};
-          cloudState.rawStorage[`dopilot_part${nextPart}_active_section_id`] = nextSectionId;
-          cloudState.rawStorage[`dopilot_part${nextPart}_active_q_idx`] = '0';
-          cloudState.rawStorage[`dopilot_part${nextPart}_study_phase`] = 'true';
-          cloudState.rawStorage['dopilot_python_core_last_part'] = String(nextPart);
-          cloudState.rawStorage[`dopilot_python_intro_required_${nextPart}`] = 'false';
-          cloudState.rawStorage[`python_course_intro_started_${nextPart}`] = 'true';
-          delete cloudState.rawStorage[`dopilot_locked_${targetRecord.studentId}`];
-          delete cloudState.rawStorage[`dopilot_part${lockedPart}_locked_${targetRecord.studentId}`];
-          delete cloudState.rawStorage[`dopilot_part${lockedPart}_level_result`];
-          delete cloudState.rawStorage['dopilot_level_result'];
-
-          cloudState.updatedAt = nowIso;
-
-          await supabase.from('site_content').upsert({
-            id: docId,
-            content: cloudState,
-            updated_at: nowIso
-          });
+          },
+          updated_at: nowIso
         })
-    ).catch((err) => {
-      console.warn('Error syncing unlocked state to student document:', err);
-    });
-
-    // B. Persist locked courses registry to site_content
-    Promise.resolve(
-      supabase.from('site_content').upsert({
-        id: CLOUD_LOCKED_COURSES_ID,
-        content: {
-          records,
-          updatedAt: nowIso
-        },
-        updated_at: nowIso
-      })
-    ).catch(() => {});
-
-    // C. Persist reset audit logs to site_content
-    Promise.resolve(
-      supabase.from('site_content').upsert({
-        id: CLOUD_COURSE_RESETS_AUDIT_ID,
-        content: {
-          auditLogs: updatedAuditLogs,
-          updatedAt: nowIso
-        },
-        updated_at: nowIso
-      })
-    ).catch(() => {});
+      ]);
+    } catch (supaErr) {
+      console.warn('Error saving unlocked state to Supabase:', supaErr);
+    }
   }
 
   return {
@@ -1570,6 +1701,7 @@ export const resetStudentCourse = (
 
 /**
  * Reusable hook for Python Part pages to react immediately to admin unlocks without showing any popup.
+ * Supports both same-window instant dispatch and cross-device live database synchronization.
  */
 export function useCourseUnlockedListener(params: {
   partNum: number;
@@ -1584,43 +1716,142 @@ export function useCourseUnlockedListener(params: {
   const navigate = useNavigate();
 
   useEffect(() => {
+    let isDisposed = false;
+    const cleanStudent = String(params.studentId || '').trim();
+    const cleanEmail = normalizeStudentEmail(params.studentEmail);
+
+    const applyUnlock = (unlockInfo: {
+      nextPart?: number;
+      nextSectionId?: string;
+      nextSectionNumber?: string;
+    }) => {
+      // 1. Remove locked screen completely without showing any unlock alert or popup
+      params.setLevelResult(null);
+      params.setConsecutiveFailures(0);
+
+      // 2. Clear all local lock and levelResult markers
+      try {
+        localStorage.removeItem(`dopilot_part${params.partNum}_level_result`);
+        localStorage.removeItem('dopilot_level_result');
+        localStorage.removeItem(`dopilot_part${params.partNum}_locked_${cleanStudent}`);
+        localStorage.removeItem(`dopilot_locked_${cleanStudent}`);
+        localStorage.removeItem(`dopilot_part${params.partNum}_disclaimer_open`);
+        if (cleanEmail) {
+          localStorage.removeItem(`dopilot_part${params.partNum}_locked_${cleanEmail}`);
+          localStorage.removeItem(`dopilot_locked_${cleanEmail}`);
+        }
+      } catch {}
+
+      // 3. Clear intro required so no intro popup is shown
+      const targetPart = unlockInfo.nextPart || params.partNum;
+      clearPythonPartIntroRequired(targetPart);
+
+      // 4. Continue to exact next section
+      if (unlockInfo.nextPart === params.partNum && unlockInfo.nextSectionId) {
+        if (params.setActiveSectionId) params.setActiveSectionId(unlockInfo.nextSectionId);
+        if (params.setActiveQuestionIdx) params.setActiveQuestionIdx(0);
+        if (params.setIsStudyPhase) params.setIsStudyPhase(true);
+      } else if (unlockInfo.nextPart && unlockInfo.nextPart !== params.partNum) {
+        navigate(`/course/python-core/part-${unlockInfo.nextPart}`, { replace: true });
+      }
+    };
+
+    // A. Local window event listener (instant when triggered within same session)
     const handleCourseUnlocked = (e: any) => {
       const detail = e?.detail;
-      const cleanStudent = String(params.studentId || '').trim();
-      const cleanEmail = String(params.studentEmail || '').toLowerCase().trim();
-
       const isMatch =
         !detail ||
         detail.studentId === cleanStudent ||
-        (detail.studentEmail && detail.studentEmail.toLowerCase() === cleanEmail) ||
+        (detail.studentEmail && normalizeStudentEmail(detail.studentEmail) === cleanEmail) ||
         detail.courseId === 'python' ||
         detail.courseId === 'python-core' ||
         detail.courseId === 'all';
 
       if (isMatch) {
-        // Remove locked screen completely without showing any unlock alert or popup
-        params.setLevelResult(null);
-        params.setConsecutiveFailures(0);
-
-        try {
-          localStorage.removeItem(`dopilot_part${params.partNum}_level_result`);
-          localStorage.removeItem(`dopilot_part${params.partNum}_locked_${cleanStudent}`);
-          localStorage.removeItem(`dopilot_locked_${cleanStudent}`);
-          localStorage.removeItem(`dopilot_part${params.partNum}_disclaimer_open`);
-        } catch {}
-
-        // Continue to exact next section
-        if (detail?.nextPart === params.partNum && detail?.nextSectionId) {
-          if (params.setActiveSectionId) params.setActiveSectionId(detail.nextSectionId);
-          if (params.setActiveQuestionIdx) params.setActiveQuestionIdx(0);
-          if (params.setIsStudyPhase) params.setIsStudyPhase(true);
-        } else if (detail?.nextPart && detail.nextPart !== params.partNum) {
-          navigate(`/course/python-core/part-${detail.nextPart}`, { replace: true });
-        }
+        applyUnlock({
+          nextPart: detail?.nextPart,
+          nextSectionId: detail?.nextSectionId,
+          nextSectionNumber: detail?.nextSectionNumber
+        });
       }
     };
 
     window.addEventListener('dopilot_course_unlocked', handleCourseUnlocked);
-    return () => window.removeEventListener('dopilot_course_unlocked', handleCourseUnlocked);
+
+    // B. Live database sync for Situation A (Admin unlocks student from another device/browser)
+    let pollTimer: any = null;
+
+    const checkLiveUnlock = async () => {
+      if (isDisposed || !isSupabaseConfigured()) return;
+      try {
+        const { data: regDoc } = await supabase
+          .from('site_content')
+          .select('content')
+          .in('id', [CLOUD_LOCKED_COURSES_ID, 'dopilot_locked_courses_registry_v1'])
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const records: LockedCourseRecord[] = regDoc?.content?.records || [];
+        const myRecord = records.find(
+          (r) =>
+            r.studentId === cleanStudent ||
+            (cleanEmail && normalizeStudentEmail(r.studentEmail) === cleanEmail)
+        );
+
+        if (myRecord && myRecord.lockStatus === 'unlocked') {
+          // Admin unlocked from another device: automatically advance student!
+          const cont = getNextPythonSection(
+            myRecord.partNum || params.partNum,
+            myRecord.failedSectionId || myRecord.failedSection
+          );
+          applyUnlock({
+            nextPart: cont.nextPart,
+            nextSectionId: cont.nextSectionId,
+            nextSectionNumber: cont.nextSectionNumber
+          });
+          if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+          }
+        }
+      } catch (err) {
+        // Silent catch for live polling
+      }
+    };
+
+    // Initial check on mount
+    checkLiveUnlock();
+
+    // Check every 2 seconds while student is sitting on the locked page
+    pollTimer = setInterval(checkLiveUnlock, 2000);
+
+    // Realtime subscription for instant push
+    let channel: any = null;
+    try {
+      if (isSupabaseConfigured()) {
+        channel = supabase
+          .channel(`unlock_live_${cleanStudent || 'user'}_${Date.now()}`)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'site_content' },
+            () => {
+              checkLiveUnlock();
+            }
+          )
+          .subscribe();
+      }
+    } catch {}
+
+    return () => {
+      isDisposed = true;
+      window.removeEventListener('dopilot_course_unlocked', handleCourseUnlocked);
+      if (pollTimer) clearInterval(pollTimer);
+      if (channel) {
+        try {
+          supabase.removeChannel(channel);
+        } catch {}
+      }
+    };
   }, [params.partNum, params.studentId, params.studentEmail, navigate]);
 }

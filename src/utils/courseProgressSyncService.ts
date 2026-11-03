@@ -824,16 +824,25 @@ export const restoreAllStudentCourseProgressFromCloud = async (
     } else {
       const curMem = memoryCourseState[cleanEmail];
 
-      // Failure counters and lock flags must survive the merge; otherwise the
-      // next upload would erase them before they reach the page.
-      curMem.globalLockedKeys = {
-        ...(curMem.globalLockedKeys || {}),
-        ...(cloudState.globalLockedKeys || {})
-      };
-      curMem.consecutiveFailures = {
-        ...(curMem.consecutiveFailures || {}),
-        ...(cloudState.consecutiveFailures || {})
-      };
+      // Failure counters and lock flags: respect authoritative unlock from cloud!
+      if (!cloudState.globalLockedKeys || Object.keys(cloudState.globalLockedKeys).length === 0 || Object.values(cloudState.globalLockedKeys).every(v => !v)) {
+        curMem.globalLockedKeys = {};
+      } else {
+        curMem.globalLockedKeys = {
+          ...(curMem.globalLockedKeys || {}),
+          ...cloudState.globalLockedKeys
+        };
+      }
+
+      if (!cloudState.consecutiveFailures || Object.keys(cloudState.consecutiveFailures).length === 0 || Object.values(cloudState.consecutiveFailures).every(v => Number(v) === 0)) {
+        curMem.consecutiveFailures = {};
+      } else {
+        curMem.consecutiveFailures = {
+          ...(curMem.consecutiveFailures || {}),
+          ...cloudState.consecutiveFailures
+        };
+      }
+
       curMem.rawStorage = {
         ...(curMem.rawStorage || {}),
         ...(cloudState.rawStorage || {})
@@ -1097,7 +1106,8 @@ export const restoreAllStudentCourseProgressFromCloud = async (
     }
 
     // 7. Restore student locked status keys & consecutive failure counters
-    if (cloudState.globalLockedKeys) {
+    const hasAnyLock = cloudState.globalLockedKeys && Object.values(cloudState.globalLockedKeys).some(v => v === true);
+    if (cloudState.globalLockedKeys && hasAnyLock) {
       Object.entries(cloudState.globalLockedKeys).forEach(([k, isLocked]) => {
         if (isLocked) {
           localStorage.setItem(k, 'true');
@@ -1105,12 +1115,33 @@ export const restoreAllStudentCourseProgressFromCloud = async (
           localStorage.removeItem(k);
         }
       });
+    } else {
+      // Actively purge all local lock keys if cloud indicates student is unlocked
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('_locked_') || key.startsWith('dopilot_locked_'))) {
+          if (cleanEmail && (key.includes(cleanEmail) || key.includes('108467813526729545413'))) {
+            localStorage.removeItem(key);
+          }
+        }
+      }
     }
 
-    if (cloudState.consecutiveFailures) {
+    const hasAnyFailures = cloudState.consecutiveFailures && Object.values(cloudState.consecutiveFailures).some(v => Number(v) > 0);
+    if (cloudState.consecutiveFailures && hasAnyFailures) {
       Object.entries(cloudState.consecutiveFailures).forEach(([k, count]) => {
         localStorage.setItem(k, String(count));
       });
+    } else {
+      // Actively reset failure streak counters to 0 if unlocked in cloud
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('consecutive_failures') || key.includes('failed_levels_streak'))) {
+          if (cleanEmail && (key.includes(cleanEmail) || key.includes('108467813526729545413'))) {
+            localStorage.setItem(key, '0');
+          }
+        }
+      }
     }
 
     // 8. Restore student question answering telemetry from cloud
