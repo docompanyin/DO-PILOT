@@ -115,8 +115,9 @@ export default async function handler(req, res) {
       console.warn('Error checking existing lock notification in database:', e);
     }
 
-    // 2. Fetch official student profile from database
+    // 2. Fetch official student profile and progress state from database
     let profile = null;
+    let progressState = null;
     try {
       let query = supabase.from('student_profiles').select('*');
       if (cleanEmail) {
@@ -130,6 +131,18 @@ export default async function handler(req, res) {
       console.warn('Could not fetch student_profiles for locked notification:', err);
     }
 
+    try {
+      const stateDocId = `student_course_state_${safeKey}`;
+      const { data: stDoc } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('id', stateDocId)
+        .maybeSingle();
+      progressState = stDoc?.content || null;
+    } catch (err) {
+      console.warn('Could not fetch student_course_state for locked notification:', err);
+    }
+
     const studentName = profile?.name || 'Registered Student';
     const emailText = profile?.email || cleanEmail || 'Not provided';
     const phoneDigits = (profile?.phone || '').replace(/\D/g, '');
@@ -141,13 +154,20 @@ export default async function handler(req, res) {
       ? new Date(profile.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })
       : 'N/A';
 
+    const completedPartsList = progressState?.courses?.['python-core']?.completedParts || [];
+    const completedPartsText = completedPartsList.length > 0
+      ? completedPartsList.map((p) => `Part ${p}`).join(', ')
+      : 'None yet';
+
+    const lastQuestionNumber = Number(activeQuestionIdx) + 1;
+    const progressSummaryText = `Part ${partNum} Assessment • ${score}/${totalQuestions} answered (${percentage}%)`;
     const nowIST = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'full', timeStyle: 'medium' });
 
     // 3. Format clean, professional Telegram message
     let messageHtml =
       `🚨 <b>DO PILOT — PYTHON COURSE LOCKED</b> 🔒\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `👤 <b>USER DETAILS</b>\n` +
+      `👤 <b>STUDENT DETAILS</b>\n` +
       `• <b>Full Name:</b> ${escapeHtml(studentName)}\n` +
       `• <b>Email Address:</b> <code>${escapeHtml(emailText)}</code>\n` +
       `• <b>Phone Number:</b> ${phoneDigits ? `<a href="tel:${phoneFormatted}">${phoneFormatted}</a>` : 'Not provided'}\n` +
@@ -155,30 +175,34 @@ export default async function handler(req, res) {
       `• <b>College / Org:</b> ${escapeHtml(collegeOrCompany)}\n`;
 
     if (learningGoal) {
-      messageHtml += `• <b>Goal:</b> ${escapeHtml(learningGoal)}\n`;
+      messageHtml += `• <b>Learning Goal:</b> ${escapeHtml(learningGoal)}\n`;
     }
     messageHtml +=
-      `• <b>Account Registered:</b> ${escapeHtml(regDate)}\n\n` +
-      `📚 <b>COURSE DETAILS</b>\n` +
+      `• <b>Registration Date:</b> ${escapeHtml(regDate)}\n\n` +
+      `📚 <b>COURSE & PROGRESS DETAILS</b>\n` +
       `• <b>Course Name:</b> ${escapeHtml(courseName)}\n` +
-      `• <b>Location:</b> Part ${partNum} — ${escapeHtml(sectionTitle || sectionId || `Section ${partNum}.1`)}\n` +
-      `• <b>Current Position:</b> Level Evaluation (${totalQuestions} Questions)\n` +
-      `• <b>Latest Score:</b> ${score} / ${totalQuestions} (${percentage}%) [Passing: &gt; 80%]\n` +
+      `• <b>Current Part:</b> Part ${partNum} of 14\n` +
+      `• <b>Locked Section:</b> ${escapeHtml(sectionTitle || sectionId || `Section ${partNum}.1`)}\n` +
+      `• <b>Last Attempted Question:</b> Question ${lastQuestionNumber} of ${totalQuestions}\n` +
+      `• <b>Completed Parts:</b> ${escapeHtml(completedPartsText)}\n` +
+      `• <b>Current Course Progress:</b> ${escapeHtml(progressSummaryText)}\n` +
+      `• <b>Latest Score:</b> ${score} / ${totalQuestions} (${percentage}%) [Pass Mark: &gt; 80%]\n` +
       `• <b>Section Attempt:</b> Attempt ${attemptCount} of 2 (Failed Retest)\n\n` +
-      `⚠️ <b>LOCK STATUS &amp; REASON</b>\n` +
+      `⚠️ <b>LOCK STATUS & REASON</b>\n` +
       `• <b>Lock Status:</b> <b>LOCKED</b> (Level Progression Suspended)\n` +
-      `• <b>Consecutive Failed Levels:</b> ${streak} of 3\n` +
-      `• <b>Reason for Locking:</b> Student failed 3 consecutive levels in Python Course without passing their retests (&le; 80% scored).\n` +
-      `• <b>Locked Date &amp; Time:</b> ${escapeHtml(nowIST)}\n\n` +
+      `• <b>Consecutive Failure Count:</b> ${streak} of 3 Failed Levels\n` +
+      `• <b>Total Relevant Failed Attempts:</b> 3 consecutive levels failed on 2nd attempt\n` +
+      `• <b>Reason for Locking:</b> Student failed 3 consecutive levels in Python Course without meeting the passing requirement (&gt; 80% score).\n` +
+      `• <b>Locked Date & Time:</b> ${escapeHtml(nowIST)}\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `ℹ️ <i>Action Required: Please reach out to the student to review core concepts and assist with unlocking further levels.</i>`;
+      `ℹ️ <i>Action Required: Please reach out to assist the student and unlock their course from Admin Panel → Course Reset.</i>`;
 
-    // 4. Secure backend Telegram Bot API integration
-    const BOT_TOKEN = getEnvVar('TELEGRAM_BOT_TOKEN') || getEnvVar('VITE_TELEGRAM_BOT_TOKEN');
-    const CHAT_ID = getEnvVar('TELEGRAM_CHAT_ID') || getEnvVar('VITE_TELEGRAM_CHAT_ID');
+    // 4. Dedicated Telegram Bot API integration (@dopilot_lockeduser_bot)
+    const BOT_TOKEN = getEnvVar('TELEGRAM_LOCKED_BOT_TOKEN') || getEnvVar('TELEGRAM_BOT_TOKEN');
+    const CHAT_ID = getEnvVar('TELEGRAM_LOCKED_CHAT_ID') || getEnvVar('TELEGRAM_CHAT_ID');
 
     if (!BOT_TOKEN || !CHAT_ID || BOT_TOKEN === 'YOUR_BOT_TOKEN_HERE') {
-      console.warn('[Telegram Notification] TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured.');
+      console.warn('[Course Lock Telegram] TELEGRAM_LOCKED_BOT_TOKEN or TELEGRAM_LOCKED_CHAT_ID is not configured.');
       // Persist audit record in site_content
       try {
         await supabase.from('site_content').upsert({
@@ -202,7 +226,7 @@ export default async function handler(req, res) {
       return res.status(200).json({
         success: false,
         notConfigured: true,
-        message: 'Telegram Bot credentials not configured in environment (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID).'
+        message: 'Telegram Bot credentials not configured in environment (TELEGRAM_LOCKED_BOT_TOKEN, TELEGRAM_LOCKED_CHAT_ID).'
       });
     }
 
