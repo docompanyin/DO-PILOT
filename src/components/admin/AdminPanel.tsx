@@ -9763,20 +9763,20 @@ export const AdminPanel: React.FC = () => {
 
     return (
       <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
-        <div className="max-w-xl w-full max-h-[90vh] overflow-y-auto rounded-3xl bg-[#0c0d0e] border border-white/15 p-5 sm:p-6 space-y-4 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="max-w-2xl sm:max-w-3xl w-full max-h-[92vh] overflow-y-auto rounded-2xl bg-[#0c0d0e] border border-white/15 p-4 sm:p-5 space-y-3 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
           <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 blur-[90px] rounded-full pointer-events-none" />
 
           {/* Modal Header */}
-          <div className="flex items-start justify-between gap-4 relative z-10 pb-2 border-b border-white/10">
+          <div className="flex items-center justify-between gap-4 relative z-10 pb-2.5 border-b border-white/10">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
-                <RotateCcw className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+                <RotateCcw className="w-4 h-4" />
               </div>
               <div>
                 <h3 className="font-jakarta text-base font-bold text-paper">
                   Reset / Unlock Course
                 </h3>
-                <p className="font-mono text-xs text-slate mt-0.5">
+                <p className="font-mono text-[11px] text-slate mt-0.5">
                   Confirm reset of failure state and unlock course progression
                 </p>
               </div>
@@ -9787,7 +9787,7 @@ export const AdminPanel: React.FC = () => {
                 setConfirmResetTarget(null);
                 setAdminResetNotes('');
               }}
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper transition-all cursor-pointer"
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate hover:text-paper transition-all cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -9806,77 +9806,82 @@ export const AdminPanel: React.FC = () => {
             const cleanNextSection = `Part ${continuation.nextPart}, Section ${continuation.nextSectionNumber}`;
 
             return (
-              <div className="space-y-4 relative z-10">
-                {/* Vertically Aligned Student & Course Details List */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-black/60 border border-white/10 space-y-2.5 divide-y divide-white/5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 gap-1 sm:gap-4">
-                    <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Student Name</span>
-                    <span className="font-jakarta font-bold text-paper text-sm text-left sm:text-right">{confirmResetTarget.studentName}</span>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 gap-1 sm:gap-4">
-                    <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Student Email</span>
-                    <span className="font-mono text-xs text-paper truncate text-left sm:text-right">{confirmResetTarget.studentEmail}</span>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 gap-1 sm:gap-4">
-                    <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">User ID</span>
-                    <span className="font-mono text-xs text-paper text-left sm:text-right">{confirmResetTarget.studentId}</span>
-                  </div>
-
-                  {confirmResetTarget.studentPhone && (
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 gap-1 sm:gap-4">
-                      <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Phone Number</span>
-                      <span className="font-mono text-xs text-paper text-left sm:text-right">{confirmResetTarget.studentPhone}</span>
+              <div className="space-y-2.5 relative z-10">
+                {/* 2-Column Compact Student & Course Details Grid */}
+                <div className="p-3.5 sm:p-4 rounded-xl bg-black/60 border border-white/10">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+                    {/* Row 1: Student Name | Student Email */}
+                    <div className="flex items-center justify-between gap-3 py-1.5 border-b border-white/5">
+                      <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Student Name</span>
+                      <span className="font-jakarta font-bold text-paper text-xs sm:text-sm truncate text-right">{confirmResetTarget.studentName}</span>
                     </div>
-                  )}
+                    <div className="flex items-center justify-between gap-3 py-1.5 border-b border-white/5">
+                      <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Student Email</span>
+                      <span className="font-mono text-xs text-paper truncate text-right max-w-[200px] sm:max-w-[240px]" title={confirmResetTarget.studentEmail}>
+                        {confirmResetTarget.studentEmail}
+                      </span>
+                    </div>
 
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 gap-1 sm:gap-4">
-                    <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Course Name</span>
-                    <span className="font-jakarta font-bold text-xs sm:text-sm text-cyan-300 text-left sm:text-right">{confirmResetTarget.courseName}</span>
-                  </div>
+                    {/* Row 2: User ID | Phone Number */}
+                    <div className="flex items-center justify-between gap-3 py-1.5 border-b border-white/5">
+                      <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">User ID</span>
+                      <span className="font-mono text-xs text-paper truncate text-right">{confirmResetTarget.studentId}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 py-1.5 border-b border-white/5">
+                      <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Phone Number</span>
+                      <span className="font-mono text-xs text-paper text-right">{confirmResetTarget.studentPhone || '—'}</span>
+                    </div>
 
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 gap-1 sm:gap-4">
-                    <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Locked Part & Section</span>
-                    <span className="font-mono text-xs font-bold text-rose-300 text-left sm:text-right">
-                      {cleanLockedLocation}
-                    </span>
-                  </div>
+                    {/* Row 3: Course Name | Locked Part & Section */}
+                    <div className="flex items-center justify-between gap-3 py-1.5 border-b border-white/5 md:border-b-0">
+                      <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Course Name</span>
+                      <span className="font-jakarta font-bold text-xs sm:text-sm text-cyan-300 truncate text-right">{confirmResetTarget.courseName}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 py-1.5 border-b border-white/5 md:border-b-0">
+                      <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Locked Part & Section</span>
+                      <span className="font-mono text-xs font-bold text-rose-300 text-right">
+                        {cleanLockedLocation}
+                      </span>
+                    </div>
 
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 gap-1 sm:gap-4">
-                    <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Next Section After Unlock</span>
-                    <span className="font-mono text-xs font-bold text-cyan-300 text-left sm:text-right">
-                      {cleanNextSection}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 gap-1 sm:gap-4">
-                    <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Consecutive Failures</span>
-                    <span className="font-mono text-xs font-bold text-rose-400 text-left sm:text-right">3 of 3 (Locked)</span>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 gap-1 sm:gap-4">
-                    <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Progress & Lock Status</span>
-                    <span className="font-mono text-xs text-paper text-left sm:text-right">
-                      {confirmResetTarget.progressSummary || "Locked • Level Progression Suspended"}
-                    </span>
+                    {/* Row 4: Next Section After Unlock | Consecutive Failures */}
+                    <div className="flex items-center justify-between gap-3 py-1.5">
+                      <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Next Section After Unlock</span>
+                      <span className="font-mono text-xs font-bold text-cyan-300 text-right">
+                        {cleanNextSection}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 py-1.5">
+                      <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Consecutive Failures</span>
+                      <span className="font-mono text-xs font-bold text-rose-400 text-right">
+                        {confirmResetTarget.consecutiveFailures || 3} of 3 (Locked)
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Course Continuation Preview */}
-                <div className="p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/25 space-y-2">
+                {/* Progress & Lock Status - Compact Strip */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 px-3.5 py-2 rounded-xl bg-white/[0.03] border border-white/10">
+                  <span className="font-mono text-[11px] text-slate/70 uppercase tracking-wider shrink-0">Progress & Lock Status</span>
+                  <span className="font-mono text-xs text-paper text-left sm:text-right font-medium truncate">
+                    {confirmResetTarget.progressSummary || "Locked • Level Progression Suspended"}
+                  </span>
+                </div>
+
+                {/* Course Continuation After Unlock - Compact Box */}
+                <div className="p-3 sm:p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/25 space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-[10px] text-cyan-400 font-bold uppercase tracking-wider block">
                       Course Continuation After Unlock
                     </span>
-                    <span className="font-mono text-xs font-bold text-cyan-200 px-2.5 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-500/30">
+                    <span className="font-mono text-xs font-bold text-cyan-200 px-2 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-500/30 shrink-0">
                       {cleanNextSection}
                     </span>
                   </div>
-                  <p className="font-jakarta text-xs sm:text-sm text-paper font-bold">
-                    Resumes at: {cleanNextSection} — {continuation.nextSectionTitle}
+                  <p className="font-jakarta text-xs sm:text-sm text-paper font-bold leading-snug">
+                    Resumes at: <span className="text-cyan-300">{cleanNextSection} — {continuation.nextSectionTitle}</span>
                   </p>
-                  <p className="font-mono text-[11px] text-slate/80 leading-relaxed">
+                  <p className="font-mono text-[11px] text-slate/80 leading-normal">
                     Upon unlocking, the student will continue from this exact next section with all previously completed sections, valid answers, and points earned preserved.
                   </p>
                 </div>
@@ -9885,7 +9890,7 @@ export const AdminPanel: React.FC = () => {
           })()}
 
           {/* Modal Actions */}
-          <div className="flex items-center justify-end gap-3 pt-2 relative z-10">
+          <div className="flex items-center justify-end gap-3 pt-1 border-t border-white/5 relative z-10">
             <button
               type="button"
               onClick={() => {
@@ -9893,7 +9898,7 @@ export const AdminPanel: React.FC = () => {
                 setAdminResetNotes('');
               }}
               disabled={isResettingCourse}
-              className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper font-jakarta text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate hover:text-paper font-jakarta text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
             >
               Cancel
             </button>
@@ -9901,9 +9906,9 @@ export const AdminPanel: React.FC = () => {
               type="button"
               onClick={handleConfirmReset}
               disabled={isResettingCourse}
-              className="px-6 py-2.5 rounded-xl bg-primary hover:bg-white text-black font-jakarta font-black text-xs uppercase tracking-wider shadow-lg shadow-primary/30 border border-primary/50 flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50 opacity-100"
+              className="px-5 py-2 rounded-xl bg-primary hover:bg-white text-black font-jakarta font-black text-xs uppercase tracking-wider shadow-lg shadow-primary/30 border border-primary/50 flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
             >
-              <RotateCcw className={`w-4 h-4 text-black ${isResettingCourse ? 'animate-spin' : ''}`} />
+              <RotateCcw className={`w-3.5 h-3.5 text-black ${isResettingCourse ? 'animate-spin' : ''}`} />
               <span>{isResettingCourse ? 'Unlocking...' : 'Reset / Unlock Course'}</span>
             </button>
           </div>
