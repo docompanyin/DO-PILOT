@@ -720,7 +720,15 @@ export const buildStudentActivitySequence = (
     // Also check generic taskId format
     if (!chosenOption) {
       const altKey = Object.keys(answers).find((k) =>
-        k.startsWith(`${q.sectionId}-`) && (k.endsWith(`-${q.questionIndex - 1}`) || k.includes(`-${q.questionIndex - 1}-v`))
+        (k.startsWith(`${q.sectionId}-`) || k.includes(q.sectionId)) &&
+        (
+          k.endsWith(`-${q.questionIndex - 1}`) ||
+          k.includes(`-${q.questionIndex - 1}-v`) ||
+          k.includes(`.${q.questionIndex - 1}-v`) ||
+          k.endsWith(`-${q.questionIndex}`) ||
+          k.includes(`-${q.questionIndex}-v`) ||
+          k.includes(`.${q.questionIndex}-v`)
+        )
       );
       if (altKey) chosenOption = answers[altKey];
     }

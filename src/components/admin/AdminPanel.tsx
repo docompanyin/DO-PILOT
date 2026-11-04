@@ -723,6 +723,7 @@ export const AdminPanel: React.FC = () => {
           const curMatch = curriculum.find(
             (c) =>
               c.partNum === item.partNum &&
+              (!item.sectionId || c.sectionId === item.sectionId) &&
               (c.questionIndex === item.questionIndex ||
                c.questionTitle.toLowerCase().trim() === (item.questionTitle || '').toLowerCase().trim())
           );
@@ -5666,19 +5667,28 @@ export const AdminPanel: React.FC = () => {
 
     const student = selectedStudentForReport;
     const allAttempts = getStudentQuestionTelemetry(student, 'all');
-    const attempts = inspectCourseFilter === 'all'
+
+    // Filter courses strictly to those the student has genuinely started / attempted
+    const activeCoursesForStudent = ALL_INSPECT_COURSES.filter((crs) =>
+      allAttempts.some((a) => a.courseId === crs.id)
+    );
+    const effectiveCourseFilter = (inspectCourseFilter !== 'all' && activeCoursesForStudent.some((c) => c.id === inspectCourseFilter))
+      ? inspectCourseFilter
+      : 'all';
+
+    const attempts = effectiveCourseFilter === 'all'
       ? allAttempts
-      : allAttempts.filter((a) => a.courseId === inspectCourseFilter);
+      : allAttempts.filter((a) => a.courseId === effectiveCourseFilter);
     const metrics = computeTelemetryMetrics(attempts);
 
     // Compute actual mistake records from student attempts
     const actualMistakes = attempts.filter((att) => !att.isCorrect);
 
     // Compute dynamic Section Mastery across curriculum parts & sections
-    // Group mastery by course for multi-course support
-    const targetCoursesForMastery = inspectCourseFilter !== 'all'
-      ? ALL_INSPECT_COURSES.filter((c) => c.id === inspectCourseFilter)
-      : ALL_INSPECT_COURSES;
+    // Group mastery by course for multi-course support - strictly only genuine active courses
+    const targetCoursesForMastery = effectiveCourseFilter !== 'all'
+      ? activeCoursesForStudent.filter((c) => c.id === effectiveCourseFilter)
+      : activeCoursesForStudent;
 
     interface CoursePartMastery {
       courseId: string;
@@ -5803,13 +5813,13 @@ export const AdminPanel: React.FC = () => {
         });
 
       // Include this course ONLY if it has genuine student activity (answered questions or attempts)
-      const hasCourseActivity = courseAttempts.length > 0;
+      const hasCourseActivity = courseAttempts.length > 0 && courseAttempts.some(a => a.timeTakenSeconds > 0 || Boolean(a.studentOptionId));
 
-      if (hasCourseActivity || (inspectCourseFilter === crs.id && inspectCourseFilter !== 'all')) {
+      if (hasCourseActivity) {
         courseMasteryList.push({
           courseId: crs.id,
           courseName: crs.name,
-          parts
+          parts: parts.filter((p) => p.answeredCount > 0)
         });
       }
     });
@@ -6159,28 +6169,30 @@ export const AdminPanel: React.FC = () => {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {/* Course Filter Dropdown */}
-                    <div className="flex items-center gap-1.5 bg-[#0a0b0d] border border-white/15 px-2.5 py-1 rounded-lg">
-                      <BookOpen className="w-3.5 h-3.5 text-primary shrink-0" />
-                      <span className="text-[10px] font-mono text-slate/80 font-bold uppercase">Course:</span>
-                      <select
-                        value={inspectCourseFilter}
-                        onChange={(e) => setInspectCourseFilter(e.target.value)}
-                        className="bg-transparent text-paper font-jakarta text-xs font-bold focus:outline-none cursor-pointer pr-1"
-                      >
-                        <option value="all" className="bg-[#111215] text-paper">
-                          All Courses ({allAttempts.length})
-                        </option>
-                        {ALL_INSPECT_COURSES.map((crs) => {
-                          const count = allAttempts.filter((a) => a.courseId === crs.id).length;
-                          return (
-                            <option key={crs.id} value={crs.id} className="bg-[#111215] text-paper">
-                              {crs.name} ({count})
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
+                    {/* Course Filter Dropdown - Display genuine started courses only */}
+                    {activeCoursesForStudent.length > 0 && (
+                      <div className="flex items-center gap-1.5 bg-[#0a0b0d] border border-white/15 px-2.5 py-1 rounded-lg">
+                        <BookOpen className="w-3.5 h-3.5 text-primary shrink-0" />
+                        <span className="text-[10px] font-mono text-slate/80 font-bold uppercase">Course:</span>
+                        <select
+                          value={effectiveCourseFilter}
+                          onChange={(e) => setInspectCourseFilter(e.target.value)}
+                          className="bg-transparent text-paper font-jakarta text-xs font-bold focus:outline-none cursor-pointer pr-1"
+                        >
+                          <option value="all" className="bg-[#111215] text-paper">
+                            All Courses ({allAttempts.length})
+                          </option>
+                          {activeCoursesForStudent.map((crs) => {
+                            const count = allAttempts.filter((a) => a.courseId === crs.id).length;
+                            return (
+                              <option key={crs.id} value={crs.id} className="bg-[#111215] text-paper">
+                                {crs.name} ({count})
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    )}
 
                     {/* Activity Type Dropdown: All | Purchased Course Only | Free Trial Only */}
                     <div className="flex items-center gap-1.5 bg-[#0a0b0d] border border-white/15 px-2.5 py-1 rounded-lg">
@@ -6316,15 +6328,18 @@ export const AdminPanel: React.FC = () => {
                       cGrp.courseAttempts.push(att);
                     });
 
+                    // Filter out unstarted courses that have 0 attempts
+                    const validCourseGroups = courseGroups.filter((g) => g.courseAttempts && g.courseAttempts.length > 0);
+
                     return (
                       <div className="space-y-10">
-                        {courseGroups.map((cGrp) => {
-                          // Find course purchase if any
+                        {validCourseGroups.map((cGrp) => {
+                          // Find course purchase for this specific course only
                           const coursePurchase = studentPurchases.find((p) => {
                             const pNorm = (p.courseId || p.courseName || '').toLowerCase().replace(/[\s_-]+/g, '');
                             const cNorm = cGrp.courseId.toLowerCase().replace(/[\s_-]+/g, '');
                             return pNorm.includes(cNorm) || cNorm.includes(pNorm);
-                          }) || studentPurchases[0];
+                          });
 
                           const purchaseTime = coursePurchase ? new Date(coursePurchase.purchasedAt).getTime() : Infinity;
 
@@ -6676,28 +6691,30 @@ export const AdminPanel: React.FC = () => {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {/* Course Filter Dropdown in Mistake Log */}
-                    <div className="flex items-center gap-1.5 bg-[#121316] border border-white/15 px-2.5 py-1 rounded-lg">
-                      <BookOpen className="w-3.5 h-3.5 text-primary shrink-0" />
-                      <span className="text-[10px] font-mono text-slate/80 font-bold uppercase">Course:</span>
-                      <select
-                        value={inspectCourseFilter}
-                        onChange={(e) => setInspectCourseFilter(e.target.value)}
-                        className="bg-transparent text-paper font-jakarta text-xs font-bold focus:outline-none cursor-pointer pr-1"
-                      >
-                        <option value="all" className="bg-[#111215] text-paper">
-                          All Courses ({allAttempts.filter((a) => !a.isCorrect).length})
-                        </option>
-                        {ALL_INSPECT_COURSES.map((crs) => {
-                          const count = allAttempts.filter((a) => a.courseId === crs.id && !a.isCorrect).length;
-                          return (
-                            <option key={crs.id} value={crs.id} className="bg-[#111215] text-paper">
-                              {crs.name} ({count})
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
+                    {/* Course Filter Dropdown in Mistake Log - Display genuine started courses only */}
+                    {activeCoursesForStudent.length > 0 && (
+                      <div className="flex items-center gap-1.5 bg-[#121316] border border-white/15 px-2.5 py-1 rounded-lg">
+                        <BookOpen className="w-3.5 h-3.5 text-primary shrink-0" />
+                        <span className="text-[10px] font-mono text-slate/80 font-bold uppercase">Course:</span>
+                        <select
+                          value={effectiveCourseFilter}
+                          onChange={(e) => setInspectCourseFilter(e.target.value)}
+                          className="bg-transparent text-paper font-jakarta text-xs font-bold focus:outline-none cursor-pointer pr-1"
+                        >
+                          <option value="all" className="bg-[#111215] text-paper">
+                            All Courses ({allAttempts.filter((a) => !a.isCorrect).length})
+                          </option>
+                          {activeCoursesForStudent.map((crs) => {
+                            const count = allAttempts.filter((a) => a.courseId === crs.id && !a.isCorrect).length;
+                            return (
+                              <option key={crs.id} value={crs.id} className="bg-[#111215] text-paper">
+                                {crs.name} ({count})
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    )}
 
                     {/* Activity Type Dropdown: All | Purchased Course Only | Free Trial Only */}
                     <div className="flex items-center gap-1.5 bg-[#121316] border border-white/15 px-2.5 py-1 rounded-lg">
@@ -6821,14 +6838,17 @@ export const AdminPanel: React.FC = () => {
                       cGrp.courseMistakes.push(m);
                     });
 
+                    // Filter out unstarted courses that have 0 mistakes
+                    const validCourseMistakeGroups = courseMistakeGroups.filter((g) => g.courseMistakes && g.courseMistakes.length > 0);
+
                     return (
                       <div className="space-y-10">
-                        {courseMistakeGroups.map((cGrp) => {
+                        {validCourseMistakeGroups.map((cGrp) => {
                           const coursePurchase = studentPurchases.find((p) => {
                             const pNorm = (p.courseId || p.courseName || '').toLowerCase().replace(/[\s_-]+/g, '');
                             const cNorm = cGrp.courseId.toLowerCase().replace(/[\s_-]+/g, '');
                             return pNorm.includes(cNorm) || cNorm.includes(pNorm);
-                          }) || studentPurchases[0];
+                          });
 
                           const purchaseTime = coursePurchase ? new Date(coursePurchase.purchasedAt).getTime() : Infinity;
 
