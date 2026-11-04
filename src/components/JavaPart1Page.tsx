@@ -27,7 +27,11 @@ import {
   hasUsedPart1Restart, setPostPurchaseDecision, getPostPurchaseDecision,
   markTrialAttempted, hasAttemptedTrial 
 } from '../utils/part1ScoreService';
-import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState } from '../utils/courseProgressSyncService';
+import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
+import { notifyCourseLocked } from '../utils/lockNotificationService';
+import { useCourseUnlockedListener } from '../utils/courseResetService';
+import { useCorrectAutoAdvance } from '../utils/useCorrectAutoAdvance';
+import { markJavaPartIntroRequired, isJavaPartIntroRequired, useJavaPartIntroModal } from '../utils/javaPartIntro';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -341,10 +345,23 @@ export const JavaPart1Page: React.FC = () => {
     setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete)
   });
 
+  useCourseUnlockedListener({
+    partNum: 1,
+    studentId,
+    studentEmail: user?.email,
+    courseId: 'java-core',
+    setLevelResult,
+    setConsecutiveFailures,
+    setActiveSectionId,
+    setActiveQuestionIdx,
+    setIsStudyPhase
+  });
+
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
-  const [part2ModalOpen, setPart2ModalOpen] = useState(false);
+  const [part2ModalOpen, setPart2ModalOpen] = useState<boolean>(() => isJavaPartIntroRequired(2));
+  useJavaPartIntroModal(2, setPart2ModalOpen);
   const [compilerModalOpen, setCompilerModalOpen] = useState(false);
   const [, setActiveTask] = useState<JavaTaskContext | null>(null);
 
@@ -511,8 +528,31 @@ export const JavaPart1Page: React.FC = () => {
         courseName: 'Complete Java Course',
         partNum: 1,
         partTitle: 'Part 1: Getting Started & Syntax',
+        failedPart: 'Part 1',
+        failedSection: `Section ${activeSection.number}: ${activeSection.title}`,
+        failedSectionId: activeSection.id,
         consecutiveFailures: result.consecutiveFailedLevels,
         progressSummary: `Part 1: Failed Level ${activeSection.number} • ${points} Points`,
+        earnedPoints: points
+      });
+
+      notifyCourseLocked({
+        courseId: 'java-core',
+        courseName: 'Complete Java Course',
+        partNum: 1,
+        sectionId: activeSection.id,
+        sectionTitle: `Level ${activeSection.number} — ${activeSection.title}`,
+        activeQuestionIdx,
+        totalQuestions: totalCount,
+        score: correctCount,
+        percentage,
+        streak: result.consecutiveFailedLevels,
+        attemptCount: result.attemptCount,
+        studentId,
+        studentEmail: user?.email,
+        studentName: user?.name,
+        studentPhone: user?.phone,
+        collegeOrCompany: user?.collegeOrCompany,
         earnedPoints: points
       });
     }
@@ -743,22 +783,22 @@ export const JavaPart1Page: React.FC = () => {
         isFinishedPart: true,
         levelResult: null
       });
+
+      if (hasPurchased) {
+        markJavaPartIntroRequired(2);
+        setPart2ModalOpen(true);
+      }
     }
   };
 
-  // Auto-skip after exactly 3 seconds when answered correctly
-  useEffect(() => {
-    if (correctCountdown === null) return;
-    if (correctCountdown <= 0) {
-      setCorrectCountdown(null);
-      advanceToNextQuestion();
-      return;
-    }
-    const t = setTimeout(() => {
-      setCorrectCountdown(prev => (prev !== null ? prev - 1 : null));
-    }, 1000);
-    return () => clearTimeout(t);
-  }, [correctCountdown]);
+  // Advance automatically 3 seconds after a correct answer (not on the final question of a section)
+  const isPendingCorrectAdvance = Boolean(
+    candidateCurrentKeys.some(k => selectedAnswers[k] && selectedAnswers[k] === currentMcq?.correctAnswer) &&
+    !isReviewMode &&
+    activeQuestionIdx < levelQuestions.length - 1 &&
+    !levelResult?.isFinished
+  );
+  useCorrectAutoAdvance(correctCountdown, advanceToNextQuestion, setCorrectCountdown, isPendingCorrectAdvance);
 
   // Real-time listener for Admin Course Reset / Unlock
   useEffect(() => {
@@ -842,6 +882,20 @@ export const JavaPart1Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'java-core',
+      partNum: 1,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers: updated,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime,
+      timeLeft,
+      studentEmail: user?.email,
+      levelResult: null
+    });
 
     const timeSpent = (() => {
       if (targetEndTime) {
@@ -983,15 +1037,18 @@ export const JavaPart1Page: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Consecutive failure indicator if student has an active failure streak */}
-          {hasPurchased && consecutiveFailures > 0 && (
-            <span className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-mono text-[11px] border ${
-              consecutiveFailures >= 3
-                ? 'bg-rose-500/20 border-rose-500/50 text-rose-300 font-bold'
-                : 'bg-amber-400/10 border-amber-400/30 text-amber-300'
-            }`}>
-              <AlertTriangle className="w-3 h-3" />
-              <span>Consecutive Failures: {consecutiveFailures}</span>
+          {/* Live Points Counter Pill with smooth spring pop and floating +1 particle */}
+          {consecutiveFailures > 0 && (
+            <span
+              title="Consecutive Failures"
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-mono text-xs font-bold border transition-all shadow-sm ${
+                consecutiveFailures >= 3
+                  ? 'bg-rose-500/20 border-rose-500/50 text-rose-300 shadow-rose-500/20 animate-pulse'
+                  : 'bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-amber-500/15'
+              }`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span>{consecutiveFailures}</span>
             </span>
           )}
 

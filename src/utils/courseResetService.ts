@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { normalizeStudentEmail, getStudentDocId, memoryCourseState } from './courseProgressSyncService';
 import { clearPythonPartIntroRequired } from './pythonPartIntro';
+import { clearJavaPartIntroRequired } from './javaPartIntro';
 
 export interface LockedCourseRecord {
   id: string;
@@ -154,6 +155,85 @@ export const PYTHON_SECTIONS_CATALOG: Record<number, PythonSectionMeta[]> = {
     { id: '14-2-robot-obstacles-mechanics', number: '14.2', title: 'Player Control, Obstacles & Movement Physics' },
     { id: '14-3-collision-rules-scoring', number: '14.3', title: 'Win/Loss Rules, Health & Persistence' },
     { id: '14-4-custom-game-project', number: '14.4', title: 'Game Polish, Optimization & Capstone Synthesis' }
+  ]
+};
+
+export const JAVA_SECTIONS_CATALOG: Record<number, PythonSectionMeta[]> = {
+  1: [
+    { id: '1-1-getting-started', number: '1.1', title: 'Getting Started & Java Execution' },
+    { id: '1-2-printing-output', number: '1.2', title: 'Printing & Output Formatting' },
+    { id: '1-3-reading-input', number: '1.3', title: 'Reading Input with Scanner' },
+    { id: '1-4-variables-types', number: '1.4', title: 'Variables & Fundamental Data Types' },
+    { id: '1-5-calculating-numbers', number: '1.5', title: 'Calculating with Numbers & Division' },
+    { id: '1-6-conditional-logic', number: '1.6', title: 'Conditional Statements & Logic' }
+  ],
+  2: [
+    { id: '2-1-recurring-problems', number: '2.1', title: 'Recurring Problems & Patterns' },
+    { id: '2-2-repeating-functionality', number: '2.2', title: 'Repeating Functionality & While Loops' },
+    { id: '2-3-more-loops', number: '2.3', title: 'More Loops & The For Loop' },
+    { id: '2-4-methods', number: '2.4', title: 'Methods & Modular Program Design' }
+  ],
+  3: [
+    { id: '3-1-lists', number: '3.1', title: 'Lists (ArrayList)' },
+    { id: '3-2-arrays', number: '3.2', title: 'Fixed-Size Arrays' },
+    { id: '3-3-using-strings', number: '3.3', title: 'Using Strings & Text Processing' }
+  ],
+  4: [
+    { id: '4-1-oop-basics', number: '4.1', title: 'Introduction to Object-Oriented Programming' },
+    { id: '4-2-objects-in-list', number: '4.2', title: 'Objects in a List' },
+    { id: '4-3-files-and-reading-data', number: '4.3', title: 'Files & Reading Data' }
+  ],
+  5: [
+    { id: '5-1-learning-oop', number: '5.1', title: 'Learning Object-Oriented Programming' },
+    { id: '5-2-removing-repetitive-code', number: '5.2', title: 'Removing Repetitive Code' },
+    { id: '5-3-primitive-and-reference', number: '5.3', title: 'Primitive and Reference Variables' },
+    { id: '5-4-objects-and-references', number: '5.4', title: 'Objects and References' }
+  ],
+  6: [
+    { id: '6-1-list-on-object', number: '6.1', title: 'Objects on a List and a List on an Object' },
+    { id: '6-2-separating-ui', number: '6.2', title: 'Separating the User Interface from Program Logic' },
+    { id: '6-3-intro-to-testing', number: '6.3', title: 'Introduction to Testing & Testable Code' }
+  ],
+  7: [
+    { id: '7-1-searching', number: '7.1', title: 'Searching Algorithms' },
+    { id: '7-2-sorting', number: '7.2', title: 'Sorting Algorithms' },
+    { id: '7-3-larger-projects', number: '7.3', title: 'Larger Systems & Architecture' }
+  ],
+  8: [
+    { id: '8-1-recap', number: '8.1', title: 'Short Recap of Theory' },
+    { id: '8-2-hashmap', number: '8.2', title: 'Hash Map (HashMap<K, V>)' },
+    { id: '8-3-similarity', number: '8.3', title: 'Similarity of Objects' },
+    { id: '8-4-grouping', number: '8.4', title: 'Grouping Data Using HashMaps' }
+  ],
+  9: [
+    { id: '9-1-class-inheritance', number: '9.1', title: 'Class Inheritance' },
+    { id: '9-2-interfaces', number: '9.2', title: 'Interfaces' },
+    { id: '9-3-polymorphism', number: '9.3', title: 'Polymorphism' }
+  ],
+  10: [
+    { id: '10-1-streams', number: '10.1', title: 'Handling Collections as Streams' },
+    { id: '10-2-lambdas', number: '10.2', title: 'Lambda Expressions & Method References' },
+    { id: '10-3-other-techniques', number: '10.3', title: 'Other Useful Techniques' }
+  ],
+  11: [
+    { id: '11-1-diagrams-packages', number: '11.1', title: 'Class Diagrams and Packages' },
+    { id: '11-2-exceptions', number: '11.2', title: 'Exceptions and Error Handling' },
+    { id: '11-3-processing-files', number: '11.3', title: 'Processing Files' }
+  ],
+  12: [
+    { id: '12-1-generics', number: '12.1', title: 'Type Parameters (Generics)' },
+    { id: '12-2-collections-internals', number: '12.2', title: 'Array Lists and Hash Tables Under The Hood' },
+    { id: '12-3-randomness-2d-arrays', number: '12.3', title: 'Randomness and Multidimensional Arrays' }
+  ],
+  13: [
+    { id: '13-1-javafx-components', number: '13.1', title: 'JavaFX GUI Overview and Components' },
+    { id: '13-2-layouts-structure', number: '13.2', title: 'Layouts and UI Structure' },
+    { id: '13-3-events-multiview', number: '13.3', title: 'Event Handling and Multi-View Applications' }
+  ],
+  14: [
+    { id: '14-1-data-visualization', number: '14.1', title: 'Data Visualization and Charts' },
+    { id: '14-2-multimedia', number: '14.2', title: 'Multimedia and Audio in JavaFX' },
+    { id: '14-3-capstone-architecture', number: '14.3', title: 'Capstone Project and Real-World Java Architecture' }
   ]
 };
 
@@ -320,6 +400,114 @@ export const getNextPythonSection = (
     nextSectionId: finalSec?.id || '14-4-custom-game-project',
     nextSectionNumber: finalSec?.number || '14.4',
     nextSectionTitle: finalSec?.title || 'Game Polish, Optimization & Capstone Synthesis'
+  };
+};
+
+export const formatJavaSectionLabel = (
+  partNum: number,
+  sectionIdentifier?: string
+): string => {
+  if (!sectionIdentifier) return `Section ${partNum}.1`;
+  const catalog = JAVA_SECTIONS_CATALOG[partNum] || [];
+  const clean = sectionIdentifier.trim();
+
+  const found = catalog.find(
+    (s) =>
+      s.id.toLowerCase() === clean.toLowerCase() ||
+      s.number === clean ||
+      clean.toLowerCase().includes(s.id.toLowerCase()) ||
+      clean.includes(`Section ${s.number}`) ||
+      clean.includes(`Level ${s.number}`)
+  );
+
+  if (found) {
+    return `Section ${found.number}: ${found.title}`;
+  }
+
+  if (clean.includes(':')) {
+    return clean;
+  }
+
+  const matchNum = clean.match(/(\d+\.\d+)/);
+  if (matchNum) {
+    const numFound = catalog.find((s) => s.number === matchNum[1]);
+    if (numFound) return `Section ${numFound.number}: ${numFound.title}`;
+    return `Section ${matchNum[1]}`;
+  }
+
+  return clean;
+};
+
+export const getNextJavaSection = (
+  currentPart: number,
+  currentSectionIdentifier?: string
+): {
+  nextPart: number;
+  nextSectionId: string;
+  nextSectionNumber: string;
+  nextSectionTitle: string;
+} => {
+  const partNum = Math.max(1, Math.min(14, currentPart || 1));
+  const sections = JAVA_SECTIONS_CATALOG[partNum] || [];
+
+  let currentIdx = -1;
+  const rawTarget = String(currentSectionIdentifier || '').trim().toLowerCase();
+
+  if (rawTarget) {
+    currentIdx = sections.findIndex((s) => {
+      const sId = s.id.toLowerCase();
+      const sNum = s.number.toLowerCase();
+      return (
+        sId === rawTarget ||
+        sNum === rawTarget ||
+        rawTarget.includes(sId) ||
+        rawTarget.includes(`section ${sNum}`) ||
+        rawTarget.includes(`level ${sNum}`) ||
+        rawTarget.startsWith(sNum)
+      );
+    });
+  }
+
+  if (currentIdx === -1 && rawTarget) {
+    const matchNum = rawTarget.match(/(\d+\.\d+)/);
+    if (matchNum) {
+      currentIdx = sections.findIndex((s) => s.number === matchNum[1]);
+    }
+  }
+
+  if (currentIdx === -1) {
+    currentIdx = 0;
+  }
+
+  if (currentIdx + 1 < sections.length) {
+    const nextSec = sections[currentIdx + 1];
+    return {
+      nextPart: partNum,
+      nextSectionId: nextSec.id,
+      nextSectionNumber: nextSec.number,
+      nextSectionTitle: nextSec.title
+    };
+  }
+
+  if (partNum < 14) {
+    const nextPartSections = JAVA_SECTIONS_CATALOG[partNum + 1] || [];
+    const firstNextSec = nextPartSections[0];
+    if (firstNextSec) {
+      return {
+        nextPart: partNum + 1,
+        nextSectionId: firstNextSec.id,
+        nextSectionNumber: firstNextSec.number,
+        nextSectionTitle: firstNextSec.title
+      };
+    }
+  }
+
+  const finalSec = sections[currentIdx] || sections[sections.length - 1];
+  return {
+    nextPart: 14,
+    nextSectionId: finalSec?.id || '14-3-capstone-architecture',
+    nextSectionNumber: finalSec?.number || '14.3',
+    nextSectionTitle: finalSec?.title || 'Capstone Project and Real-World Java Architecture'
   };
 };
 
@@ -1057,16 +1245,18 @@ export const getRecordFailedPart = (r: LockedCourseRecord): string => {
  * Helper to get clean failed section display
  */
 export const getRecordFailedSection = (r: LockedCourseRecord): string => {
+  const isJava = (r.courseId || '').toLowerCase().includes('java');
+  const formatter = isJava ? formatJavaSectionLabel : formatPythonSectionLabel;
   if (r.failedSection) {
-    return formatPythonSectionLabel(r.partNum || 1, r.failedSection);
+    return formatter(r.partNum || 1, r.failedSection);
   }
   if (r.failedSectionId) {
-    return formatPythonSectionLabel(r.partNum || 1, r.failedSectionId);
+    return formatter(r.partNum || 1, r.failedSectionId);
   }
   if (r.partTitle && r.partTitle.includes(':')) {
     return r.partTitle.split(':')[1].trim();
   }
-  return formatPythonSectionLabel(r.partNum || 1, `Section ${r.partNum || 1}.1`);
+  return formatter(r.partNum || 1, `Section ${r.partNum || 1}.1`);
 };
 
 /**
@@ -1221,7 +1411,10 @@ export const recordCourseLock = (params: {
 
   const cleanPart = params.partNum || 1;
   const cleanSectionId = params.failedSectionId || params.failedSection;
-  const formattedSection = formatPythonSectionLabel(cleanPart, cleanSectionId);
+  const isJava = (params.courseId || '').toLowerCase().includes('java');
+  const formattedSection = isJava
+    ? formatJavaSectionLabel(cleanPart, cleanSectionId)
+    : formatPythonSectionLabel(cleanPart, cleanSectionId);
 
   let record: LockedCourseRecord;
 
@@ -1375,6 +1568,22 @@ export const clearStudentCourseLockKeys = (
         }
       });
       localStorage.removeItem('dopilot_java_level_result');
+      if (nextSectionId && nextPart) {
+        localStorage.setItem('dopilot_java_active_section_id', nextSectionId);
+        localStorage.setItem(`dopilot_java_part${nextPart}_active_section_id`, nextSectionId);
+        localStorage.setItem('dopilot_java_active_question_idx', '0');
+        localStorage.setItem(`dopilot_java_part${nextPart}_active_q_idx`, '0');
+        localStorage.setItem(`dopilot_java_part${nextPart}_study_phase`, 'true');
+        localStorage.removeItem(`dopilot_java_part${nextPart}_time_up`);
+        localStorage.removeItem(`dopilot_java_part${nextPart}_level_result`);
+        clearJavaPartIntroRequired(nextPart);
+      }
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('dopilot_java_part') || key.startsWith('dopilot_java_attempt_')) && idList.some(id => key.includes(id)) && key.includes('attempt')) {
+          localStorage.setItem(key, '1');
+        }
+      }
     } else if (normCourse.includes('fullstack')) {
       idList.forEach(id => {
         localStorage.removeItem(`dopilot_fullstack_locked_${id}`);
@@ -1445,7 +1654,10 @@ export const resetStudentCourse = async (
   // 1. Calculate exact next section for continuation
   const lockedPart = targetRecord.partNum || 1;
   const lockedSection = targetRecord.failedSectionId || targetRecord.failedSection;
-  const continuation = getNextPythonSection(lockedPart, lockedSection);
+  const isJava = (targetRecord.courseId || '').toLowerCase().includes('java');
+  const continuation = isJava
+    ? getNextJavaSection(lockedPart, lockedSection)
+    : getNextPythonSection(lockedPart, lockedSection);
 
   const { nextPart, nextSectionId, nextSectionNumber, nextSectionTitle } = continuation;
   const cleanEmail = normalizeStudentEmail(targetRecord.studentEmail);
@@ -1473,29 +1685,30 @@ export const resetStudentCourse = async (
     mem.consecutiveFailures = {};
 
     if (!mem.courses) mem.courses = {};
-    if (!mem.courses['python-core']) {
-      mem.courses['python-core'] = {
+    const courseKey = isJava ? 'java-core' : 'python-core';
+    if (!mem.courses[courseKey]) {
+      mem.courses[courseKey] = {
         lastPart: nextPart,
         completedParts: [],
         parts: {}
       };
     }
 
-    const pyCourse = mem.courses['python-core'];
-    pyCourse.lastPart = nextPart;
-    if (!pyCourse.parts) pyCourse.parts = {};
+    const crs = mem.courses[courseKey];
+    crs.lastPart = nextPart;
+    if (!crs.parts) crs.parts = {};
 
     // Clear levelResult and streak across all parts
-    Object.keys(pyCourse.parts).forEach((pStr) => {
-      if (pyCourse.parts[pStr]) {
-        pyCourse.parts[pStr].levelResult = null;
-        pyCourse.parts[pStr].isTimeUpWaiting = false;
+    Object.keys(crs.parts).forEach((pStr) => {
+      if (crs.parts[pStr]) {
+        crs.parts[pStr].levelResult = null;
+        crs.parts[pStr].isTimeUpWaiting = false;
       }
     });
 
     // Set progression on nextPart
-    pyCourse.parts[String(nextPart)] = {
-      ...(pyCourse.parts[String(nextPart)] || {}),
+    crs.parts[String(nextPart)] = {
+      ...(crs.parts[String(nextPart)] || {}),
       activeSectionId: nextSectionId,
       activeQuestionIdx: 0,
       isStudyPhase: true,
@@ -1603,29 +1816,30 @@ export const resetStudentCourse = async (
       cloudState.consecutiveFailures = {};
 
       if (!cloudState.courses) cloudState.courses = {};
-      if (!cloudState.courses['python-core']) {
-        cloudState.courses['python-core'] = {
+      const courseKey = isJava ? 'java-core' : 'python-core';
+      if (!cloudState.courses[courseKey]) {
+        cloudState.courses[courseKey] = {
           lastPart: nextPart,
           completedParts: [],
           parts: {}
         };
       }
 
-      const py = cloudState.courses['python-core'];
-      py.lastPart = nextPart;
-      if (!py.parts) py.parts = {};
+      const crs = cloudState.courses[courseKey];
+      crs.lastPart = nextPart;
+      if (!crs.parts) crs.parts = {};
 
       // Clear locked levelResult across all parts
-      Object.keys(py.parts).forEach((pStr) => {
-        if (py.parts[pStr]) {
-          py.parts[pStr].levelResult = null;
-          py.parts[pStr].isTimeUpWaiting = false;
+      Object.keys(crs.parts).forEach((pStr) => {
+        if (crs.parts[pStr]) {
+          crs.parts[pStr].levelResult = null;
+          crs.parts[pStr].isTimeUpWaiting = false;
         }
       });
 
       // Advance to next section
-      py.parts[String(nextPart)] = {
-        ...(py.parts[String(nextPart)] || {}),
+      crs.parts[String(nextPart)] = {
+        ...(crs.parts[String(nextPart)] || {}),
         activeSectionId: nextSectionId,
         activeQuestionIdx: 0,
         isStudyPhase: true,
@@ -1644,18 +1858,28 @@ export const resetStudentCourse = async (
           k.includes('consecutive_failures') ||
           k.includes('failed_levels_streak') ||
           k.includes('_level_result') ||
-          k === 'dopilot_level_result'
+          k === 'dopilot_level_result' ||
+          k === 'dopilot_java_level_result'
         ) {
           delete cloudState.rawStorage[k];
         }
       });
 
-      cloudState.rawStorage[`dopilot_part${nextPart}_active_section_id`] = nextSectionId;
-      cloudState.rawStorage[`dopilot_part${nextPart}_active_q_idx`] = '0';
-      cloudState.rawStorage[`dopilot_part${nextPart}_study_phase`] = 'true';
-      cloudState.rawStorage['dopilot_python_core_last_part'] = String(nextPart);
-      cloudState.rawStorage[`dopilot_python_intro_required_${nextPart}`] = 'false';
-      cloudState.rawStorage[`python_course_intro_started_${nextPart}`] = 'true';
+      if (isJava) {
+        cloudState.rawStorage[`dopilot_java_part${nextPart}_active_section_id`] = nextSectionId;
+        cloudState.rawStorage[`dopilot_java_part${nextPart}_active_q_idx`] = '0';
+        cloudState.rawStorage[`dopilot_java_part${nextPart}_study_phase`] = 'true';
+        cloudState.rawStorage['dopilot_java_core_last_part'] = String(nextPart);
+        cloudState.rawStorage[`dopilot_java_intro_required_${nextPart}`] = 'false';
+        cloudState.rawStorage[`java_course_intro_started_${nextPart}`] = 'true';
+      } else {
+        cloudState.rawStorage[`dopilot_part${nextPart}_active_section_id`] = nextSectionId;
+        cloudState.rawStorage[`dopilot_part${nextPart}_active_q_idx`] = '0';
+        cloudState.rawStorage[`dopilot_part${nextPart}_study_phase`] = 'true';
+        cloudState.rawStorage['dopilot_python_core_last_part'] = String(nextPart);
+        cloudState.rawStorage[`dopilot_python_intro_required_${nextPart}`] = 'false';
+        cloudState.rawStorage[`python_course_intro_started_${nextPart}`] = 'true';
+      }
 
       cloudState.updatedAt = nowIso;
 
@@ -1707,6 +1931,7 @@ export function useCourseUnlockedListener(params: {
   partNum: number;
   studentId: string;
   studentEmail?: string;
+  courseId?: string;
   setLevelResult: (val: any) => void;
   setConsecutiveFailures: (val: number) => void;
   setActiveSectionId?: (val: string) => void;
@@ -1714,6 +1939,7 @@ export function useCourseUnlockedListener(params: {
   setIsStudyPhase?: (val: boolean) => void;
 }): void {
   const navigate = useNavigate();
+  const isJava = (params.courseId || '').toLowerCase().includes('java');
 
   useEffect(() => {
     let isDisposed = false;
@@ -1731,20 +1957,36 @@ export function useCourseUnlockedListener(params: {
 
       // 2. Clear all local lock and levelResult markers
       try {
-        localStorage.removeItem(`dopilot_part${params.partNum}_level_result`);
-        localStorage.removeItem('dopilot_level_result');
-        localStorage.removeItem(`dopilot_part${params.partNum}_locked_${cleanStudent}`);
-        localStorage.removeItem(`dopilot_locked_${cleanStudent}`);
-        localStorage.removeItem(`dopilot_part${params.partNum}_disclaimer_open`);
-        if (cleanEmail) {
-          localStorage.removeItem(`dopilot_part${params.partNum}_locked_${cleanEmail}`);
-          localStorage.removeItem(`dopilot_locked_${cleanEmail}`);
+        if (isJava) {
+          localStorage.removeItem(`dopilot_java_part${params.partNum}_level_result`);
+          localStorage.removeItem('dopilot_java_level_result');
+          localStorage.removeItem(`dopilot_java_part${params.partNum}_locked_${cleanStudent}`);
+          localStorage.removeItem(`dopilot_java_locked_${cleanStudent}`);
+          localStorage.removeItem(`dopilot_java_part${params.partNum}_disclaimer_open`);
+          if (cleanEmail) {
+            localStorage.removeItem(`dopilot_java_part${params.partNum}_locked_${cleanEmail}`);
+            localStorage.removeItem(`dopilot_java_locked_${cleanEmail}`);
+          }
+        } else {
+          localStorage.removeItem(`dopilot_part${params.partNum}_level_result`);
+          localStorage.removeItem('dopilot_level_result');
+          localStorage.removeItem(`dopilot_part${params.partNum}_locked_${cleanStudent}`);
+          localStorage.removeItem(`dopilot_locked_${cleanStudent}`);
+          localStorage.removeItem(`dopilot_part${params.partNum}_disclaimer_open`);
+          if (cleanEmail) {
+            localStorage.removeItem(`dopilot_part${params.partNum}_locked_${cleanEmail}`);
+            localStorage.removeItem(`dopilot_locked_${cleanEmail}`);
+          }
         }
       } catch {}
 
       // 3. Clear intro required so no intro popup is shown
       const targetPart = unlockInfo.nextPart || params.partNum;
-      clearPythonPartIntroRequired(targetPart);
+      if (isJava) {
+        clearJavaPartIntroRequired(targetPart);
+      } else {
+        clearPythonPartIntroRequired(targetPart);
+      }
 
       // 4. Continue to exact next section
       if (unlockInfo.nextPart === params.partNum && unlockInfo.nextSectionId) {
@@ -1752,20 +1994,27 @@ export function useCourseUnlockedListener(params: {
         if (params.setActiveQuestionIdx) params.setActiveQuestionIdx(0);
         if (params.setIsStudyPhase) params.setIsStudyPhase(true);
       } else if (unlockInfo.nextPart && unlockInfo.nextPart !== params.partNum) {
-        navigate(`/course/python-core/part-${unlockInfo.nextPart}`, { replace: true });
+        const route = isJava
+          ? `/course/complete-java-programming/part-${unlockInfo.nextPart}`
+          : `/course/python-core/part-${unlockInfo.nextPart}`;
+        navigate(route, { replace: true });
       }
     };
 
     // A. Local window event listener (instant when triggered within same session)
     const handleCourseUnlocked = (e: any) => {
       const detail = e?.detail;
+      const eventCourseId = String(detail?.courseId || '').toLowerCase();
+      const courseMatches = isJava
+        ? !eventCourseId || eventCourseId.includes('java') || eventCourseId === 'all'
+        : !eventCourseId || eventCourseId.includes('python') || eventCourseId === 'all';
+
       const isMatch =
         !detail ||
-        detail.studentId === cleanStudent ||
-        (detail.studentEmail && normalizeStudentEmail(detail.studentEmail) === cleanEmail) ||
-        detail.courseId === 'python' ||
-        detail.courseId === 'python-core' ||
-        detail.courseId === 'all';
+        (courseMatches && (
+          detail.studentId === cleanStudent ||
+          (detail.studentEmail && normalizeStudentEmail(detail.studentEmail) === cleanEmail)
+        ));
 
       if (isMatch) {
         applyUnlock({
@@ -1795,16 +2044,22 @@ export function useCourseUnlockedListener(params: {
         const records: LockedCourseRecord[] = regDoc?.content?.records || [];
         const myRecord = records.find(
           (r) =>
-            r.studentId === cleanStudent ||
-            (cleanEmail && normalizeStudentEmail(r.studentEmail) === cleanEmail)
+            (r.studentId === cleanStudent ||
+              (cleanEmail && normalizeStudentEmail(r.studentEmail) === cleanEmail)) &&
+            (isJava ? (r.courseId || '').toLowerCase().includes('java') : !(r.courseId || '').toLowerCase().includes('java'))
         );
 
         if (myRecord && myRecord.lockStatus === 'unlocked') {
           // Admin unlocked from another device: automatically advance student!
-          const cont = getNextPythonSection(
-            myRecord.partNum || params.partNum,
-            myRecord.failedSectionId || myRecord.failedSection
-          );
+          const cont = isJava
+            ? getNextJavaSection(
+                myRecord.partNum || params.partNum,
+                myRecord.failedSectionId || myRecord.failedSection
+              )
+            : getNextPythonSection(
+                myRecord.partNum || params.partNum,
+                myRecord.failedSectionId || myRecord.failedSection
+              );
           applyUnlock({
             nextPart: cont.nextPart,
             nextSectionId: cont.nextSectionId,

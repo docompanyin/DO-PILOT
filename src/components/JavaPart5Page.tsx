@@ -15,7 +15,12 @@ import {
   recordLevelAttemptResultPart5, resetConsecutiveFailuresPart5,
   setLevelAttemptCountPart5
 } from '../data/javaPart5Data';
-import { useCourseQuestionResume } from '../utils/courseProgressSyncService';
+import { logJavaPartQuestionAttempt } from '../utils/studentTelemetryService';
+import { useCourseQuestionResume, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
+import { notifyCourseLocked } from '../utils/lockNotificationService';
+import { useCourseUnlockedListener } from '../utils/courseResetService';
+import { useCorrectAutoAdvance } from '../utils/useCorrectAutoAdvance';
+import { markJavaPartIntroRequired, clearJavaPartIntroRequired, isJavaPartIntroRequired, useJavaPartIntroModal, useJavaPartIntroGuard } from '../utils/javaPartIntro';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -40,17 +45,30 @@ export const JavaPart5Page: React.FC = () => {
   const [searchParams] = useSearchParams();
   const isReviewMode = searchParams.get('review') === 'true' && Boolean(getSavedCertificate('java-core') || getSavedCertificate('complete-java-programming'));
 
+  // Keep the Part 5 introduction as the resume point until Start Part 5 is clicked
+  useJavaPartIntroGuard(5);
+
   const [activeSectionId, setActiveSectionId] = useState<string>(() => {
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['java-core']?.parts?.[String(5)] : null;
+      if (memPart?.activeSectionId && PART_5_SECTIONS.some(s => s.id === memPart.activeSectionId)) {
+        return memPart.activeSectionId;
+      }
       const saved = localStorage.getItem('dopilot_java_part5_active_section_id');
-      return saved || '5-1-learning-oop';
+      return saved || PART_5_SECTIONS[0].id;
     } catch {
-      return '5-1-learning-oop';
+      return PART_5_SECTIONS[0].id;
     }
   });
 
   const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(() => {
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['java-core']?.parts?.[String(5)] : null;
+      if (typeof memPart?.activeQuestionIdx === 'number') {
+        return memPart.activeQuestionIdx;
+      }
       const saved = localStorage.getItem('dopilot_java_part5_active_q_idx');
       return saved !== null ? Number(saved) : 0;
     } catch {
@@ -67,8 +85,36 @@ export const JavaPart5Page: React.FC = () => {
 
   const [levelResult, setLevelResult] = useState<LevelResultState | null>(() => {
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['java-core']?.parts?.[String(5)] : null;
+      if (memPart?.levelResult?.isFinished) {
+        return memPart.levelResult;
+      }
       const saved = localStorage.getItem('dopilot_java_part5_level_result');
-      return saved ? JSON.parse(saved) : null;
+      if (saved) return JSON.parse(saved);
+
+      const isLocked =
+        localStorage.getItem('dopilot_java_locked_' + studentId) === 'true' ||
+        localStorage.getItem('dopilot_java_part5_locked_' + studentId) === 'true' ||
+        Number(localStorage.getItem('dopilot_java_consecutive_failures_' + studentId)) >= 3 ||
+        Number(localStorage.getItem('dopilot_java_part5_consecutive_failures_' + studentId)) >= 3;
+
+      if (isLocked) {
+        return {
+          isFinished: true,
+          sectionId: activeSectionId,
+          isPassed: false,
+          correctCount: 0,
+          totalCount: 6,
+          percentage: 0,
+          streak: 3,
+          attemptCount: 2,
+          isSecondFailureInLevel: true,
+          isLocked: true,
+          hadPriorStreak: false
+        };
+      }
+      return null;
     } catch {
       return null;
     }
@@ -78,8 +124,63 @@ export const JavaPart5Page: React.FC = () => {
     return getConsecutiveFailedLevelsPart5(studentId);
   });
 
-  const [disclaimerModalOpen, setDisclaimerModalOpen] = useState(false);
-  const [disclaimerConfirmed, setDisclaimerConfirmed] = useState(false);
+  // Synchronize failure streak across parts and cloud updates
+  useEffect(() => {
+    const updateStreak = () => {
+      setConsecutiveFailures(getConsecutiveFailedLevelsPart5(studentId));
+    };
+    window.addEventListener('storage', updateStreak);
+    window.addEventListener('dopilot_progress_restored', updateStreak);
+    return () => {
+      window.removeEventListener('storage', updateStreak);
+      window.removeEventListener('dopilot_progress_restored', updateStreak);
+    };
+  }, [studentId]);
+
+  const [disclaimerModalOpen, setDisclaimerModalOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('dopilot_java_part5_disclaimer_open') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [disclaimerConfirmed, setDisclaimerConfirmed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('dopilot_java_part5_disclaimer_confirmed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const disclaimerPersistReadyRef = useRef(false);
+  useEffect(() => {
+    if (!disclaimerPersistReadyRef.current) {
+      disclaimerPersistReadyRef.current = true;
+      return;
+    }
+    try {
+      if (disclaimerModalOpen) {
+        localStorage.setItem('dopilot_java_part5_disclaimer_open', 'true');
+      } else {
+        localStorage.removeItem('dopilot_java_part5_disclaimer_open');
+      }
+      localStorage.setItem(
+        'dopilot_java_part5_disclaimer_confirmed',
+        disclaimerConfirmed ? 'true' : 'false'
+      );
+    } catch {}
+  }, [disclaimerModalOpen, disclaimerConfirmed]);
+  useEffect(() => {
+    const syncDisclaimer = () => {
+      try {
+        const open = localStorage.getItem('dopilot_java_part5_disclaimer_open');
+        if (open !== null) setDisclaimerModalOpen(open === 'true');
+        const confirmed = localStorage.getItem('dopilot_java_part5_disclaimer_confirmed');
+        if (confirmed !== null) setDisclaimerConfirmed(confirmed === 'true');
+      } catch {}
+    };
+    window.addEventListener('dopilot_progress_restored', syncDisclaimer);
+    return () => window.removeEventListener('dopilot_progress_restored', syncDisclaimer);
+  }, []);
 
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>(() => {
     try {
@@ -118,6 +219,18 @@ export const JavaPart5Page: React.FC = () => {
     return true;
   });
 
+  useCourseUnlockedListener({
+    partNum: 5,
+    studentId,
+    studentEmail: user?.email,
+    courseId: 'java-core',
+    setLevelResult,
+    setConsecutiveFailures,
+    setActiveSectionId,
+    setActiveQuestionIdx,
+    setIsStudyPhase
+  });
+
   const [targetEndTime, setTargetEndTime] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('dopilot_java_part5_q_target_end_time');
@@ -149,22 +262,7 @@ export const JavaPart5Page: React.FC = () => {
     return false;
   });
 
-  useCourseQuestionResume({
-    courseId: 'java-core',
-    partNum: 5,
-    studentEmail: user?.email,
-    activeSectionId,
-    setActiveSectionId,
-    activeQuestionIdx,
-    setActiveQuestionIdx,
-    setSelectedAnswers,
-    setIsStudyPhase,
-    setIsTimeUpWaiting,
-    setTimeLeft,
-    setTargetEndTime,
-    validSectionIds: PART_5_SECTIONS.map(s => s.id)
-  });
-
+  
   const [isCourseComplete, setIsCourseComplete] = useState<boolean>(() => {
     try {
       return localStorage.getItem('dopilot_java_part5_completed') === 'true';
@@ -176,7 +274,8 @@ export const JavaPart5Page: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
-  const [part6ModalOpen, setPart6ModalOpen] = useState(false);
+  const [part6ModalOpen, setPart6ModalOpen] = useState<boolean>(() => isJavaPartIntroRequired(6));
+  useJavaPartIntroModal(6, setPart6ModalOpen);
   const [compilerModalOpen, setCompilerModalOpen] = useState(false);
   const [, setActiveTask] = useState<JavaTaskContext | null>(null);
 
@@ -204,11 +303,39 @@ export const JavaPart5Page: React.FC = () => {
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    document.title = `Do Pilot - ${activeSection.title}`;
     try {
       localStorage.setItem('dopilot_java_core_last_part', '5');
     } catch {}
-  }, [activeSectionId, activeQuestionIdx]);
+    document.title = `Do Pilot - ${activeSection.title}`;
+
+    if (user?.email && !levelResult?.isFinished && !isCourseComplete) {
+      saveQuestionProgressState({
+        courseId: 'java-core',
+        partNum: 5,
+        activeSectionId,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase,
+        isTimeUpWaiting,
+        targetEndTime,
+        timeLeft,
+        studentEmail: user?.email,
+        levelResult: null,
+        forceImmediate: true
+      });
+    }
+
+    try {
+      const curState = window.history.state || {};
+      if (curState.qIdx !== activeQuestionIdx || curState.secId !== activeSectionId) {
+        window.history.pushState(
+          { partNum: 5, secId: activeSectionId, qIdx: activeQuestionIdx },
+          '',
+          window.location.pathname
+        );
+      }
+    } catch {}
+  }, [activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
 
   const stateRef = useRef({
     activeSectionId,
@@ -256,6 +383,20 @@ export const JavaPart5Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'java-core',
+      partNum: 5,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime: freshEnd,
+      timeLeft: TIMER_DURATION,
+      studentEmail: user?.email,
+      levelResult: null
+    });
   };
 
   const evaluateLevelScore = () => {
@@ -267,21 +408,64 @@ export const JavaPart5Page: React.FC = () => {
     const totalCount = qList.length;
 
     qList.forEach((q, idx) => {
-      const qTaskId = `java-part5-${secId}-${q.id || idx}`;
-      const chosen = currentAnswers[qTaskId];
-      if (chosen === q.correctAnswer) {
+      const candidateKeys = [
+        `java-part5-${secId}-${q.id || idx}`,
+        `java-part5-${secId}-${idx}`,
+        q.id ? `java-part5-${secId}-${q.id}` : '',
+        `java-${secId}-${q.id || idx}`,
+        `java-${secId}-${idx}`,
+        `${secId}-${q.id || idx}`,
+        `${secId}-${idx}`
+      ].filter(Boolean);
+
+      let userChoice = undefined;
+      for (const k of candidateKeys) {
+        if (currentAnswers[k]) {
+          userChoice = currentAnswers[k];
+          break;
+        }
+      }
+
+      if (userChoice === q.correctAnswer) {
         correctCount += 1;
       }
     });
 
     const percentage = Math.round((correctCount / totalCount) * 100);
+    // Passing score rule: MORE than 80% (i.e. > 80%, so 5 or 6 out of 6 correct)
     const isPassed = percentage > 80;
 
+    // Record attempt result in persistent consecutive failure history
+    const prevStreak = getConsecutiveFailedLevelsPart5(studentId);
     const result = recordLevelAttemptResultPart5(activeSection.id, studentId, isPassed);
+    const hadPriorStreak = isPassed && prevStreak > 0;
     setConsecutiveFailures(result.consecutiveFailedLevels);
+
+    if (result.isLocked) {
+      notifyCourseLocked({
+        courseId: 'java-core',
+        courseName: 'Complete Java Course',
+        partNum: 5,
+        sectionId: activeSection.id,
+        sectionTitle: `Level ${activeSection.number} — ${activeSection.title}`,
+        activeQuestionIdx,
+        totalQuestions: totalCount,
+        score: correctCount,
+        percentage,
+        streak: result.consecutiveFailedLevels,
+        attemptCount: result.attemptCount,
+        studentId,
+        studentEmail: user?.email,
+        studentName: user?.name,
+        studentPhone: user?.phone,
+        collegeOrCompany: user?.collegeOrCompany,
+        earnedPoints: points
+      });
+    }
 
     const resultState = {
       isFinished: true,
+      sectionId: activeSection.id,
       isPassed,
       correctCount,
       totalCount,
@@ -289,12 +473,28 @@ export const JavaPart5Page: React.FC = () => {
       streak: result.consecutiveFailedLevels,
       attemptCount: result.attemptCount,
       isSecondFailureInLevel: result.isSecondFailureInLevel,
-      isLocked: result.isLocked
+      isLocked: result.isLocked,
+      hadPriorStreak
     };
     setLevelResult(resultState);
     try {
       localStorage.setItem('dopilot_java_part5_level_result', JSON.stringify(resultState));
     } catch {}
+
+    saveQuestionProgressState({
+      courseId: 'java-core',
+      partNum: 5,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers: currentAnswers,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime: 0,
+      timeLeft: 30,
+      studentEmail: user?.email,
+      levelResult: resultState,
+      forceImmediate: true
+    });
   };
 
   const advanceToNextQuestion = () => {
@@ -329,7 +529,6 @@ export const JavaPart5Page: React.FC = () => {
       }
     }
 
-
     if (nextQ < qList.length) {
       setActiveQuestionIdx(nextQ);
       setTimeLeft(TIMER_DURATION);
@@ -338,6 +537,21 @@ export const JavaPart5Page: React.FC = () => {
       } catch (e) {
         console.error(e);
       }
+
+      saveQuestionProgressState({
+        courseId: 'java-core',
+        partNum: 5,
+        activeSectionId: activeSection.id,
+        activeQuestionIdx: nextQ,
+        selectedAnswers: stateRef.current.selectedAnswers,
+        isStudyPhase: true,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: TIMER_DURATION,
+        studentEmail: user?.email,
+        levelResult: null,
+        forceImmediate: true
+      });
     } else {
       evaluateLevelScore();
     }
@@ -376,7 +590,7 @@ export const JavaPart5Page: React.FC = () => {
   };
 
   const handleProceedToNextLevel = () => {
-    if (localStorage.getItem(`dopilot_java_part5_locked_${studentId}`) === 'true') {
+    if (localStorage.getItem('dopilot_java_part5_locked_' + studentId) === 'true') {
       setModalOpen(true);
       return;
     }
@@ -404,30 +618,61 @@ export const JavaPart5Page: React.FC = () => {
         localStorage.setItem('dopilot_java_part5_study_phase', 'true');
         localStorage.setItem('dopilot_java_part5_q_target_end_time', String(fresh));
         localStorage.removeItem('dopilot_java_part5_time_up');
-      localStorage.removeItem('dopilot_java_part5_level_result');
+        localStorage.removeItem('dopilot_java_part5_level_result');
       } catch (e) {
         console.error(e);
       }
+
+      saveQuestionProgressState({
+        courseId: 'java-core',
+        partNum: 5,
+        activeSectionId: nextSec.id,
+        activeQuestionIdx: 0,
+        selectedAnswers,
+        isStudyPhase: true,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: TIMER_DURATION,
+        studentEmail: user?.email,
+        levelResult: null,
+        forceImmediate: true
+      });
     } else {
+      // Finished all sections of Part 5!
+      markJavaPartIntroRequired(6);
+      setPart6ModalOpen(true);
       setIsCourseComplete(true);
       try {
         localStorage.setItem('dopilot_java_part5_completed', 'true');
       } catch {}
+
+      saveQuestionProgressState({
+        courseId: 'java-core',
+        partNum: 5,
+        activeSectionId: activeSection.id,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase: false,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: 30,
+        studentEmail: user?.email,
+        isCompleted: true,
+        isFinishedPart: true,
+        levelResult: null
+      });
     }
   };
 
-  useEffect(() => {
-    if (correctCountdown === null) return;
-    if (correctCountdown <= 0) {
-      setCorrectCountdown(null);
-      advanceToNextQuestion();
-      return;
-    }
-    const t = setTimeout(() => {
-      setCorrectCountdown(prev => (prev !== null ? prev - 1 : null));
-    }, 1000);
-    return () => clearTimeout(t);
-  }, [correctCountdown]);
+  // Advance automatically 3 seconds after a correct answer (not on the final question of a section)
+  const isPendingCorrectAdvance = Boolean(
+    selectedAnswers[taskId] &&
+    selectedAnswers[taskId] === currentMcq?.correctAnswer &&
+    !isReviewMode &&
+    activeQuestionIdx < levelQuestions.length - 1 &&
+    !levelResult?.isFinished
+  );
+  useCorrectAutoAdvance(correctCountdown, advanceToNextQuestion, setCorrectCountdown, isPendingCorrectAdvance);
 
   useEffect(() => {
     if (isReviewMode || isCourseComplete || isStudyPhase || levelResult?.isFinished) return;
@@ -482,15 +727,62 @@ export const JavaPart5Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'java-core',
+      partNum: 5,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers: updated,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime,
+      timeLeft,
+      studentEmail: user?.email,
+      levelResult: null
+    });
+
+    const timeSpent = (() => {
+      if (targetEndTime) {
+        const elapsed = (TIMER_DURATION * 1000 - Math.max(0, targetEndTime - Date.now())) / 1000;
+        return Math.max(0.1, Math.min(30, Number(elapsed.toFixed(1))));
+      }
+      return Math.max(0.1, Math.min(30, Number((TIMER_DURATION - timeLeft).toFixed(1))));
+    })();
+    const isRetestAttempt = (() => {
+      try {
+        const raw = localStorage.getItem(`dopilot_java_part5_attempt_${activeSection.id}_${studentId}`);
+        return raw ? Number(raw) > 1 : false;
+      } catch {
+        return false;
+      }
+    })();
+    const attemptNum = (() => {
+      try {
+        const raw = localStorage.getItem(`dopilot_java_part5_attempt_${activeSection.id}_${studentId}`);
+        return raw ? Math.max(1, Number(raw)) : (isRetestAttempt ? 2 : 1);
+      } catch {
+        return isRetestAttempt ? 2 : 1;
+      }
+    })();
+
+    // Log exact question telemetry for live Admin Panel inspection
+    logJavaPartQuestionAttempt({
+      studentEmailOrId: user?.email || studentId,
+      partNum: 5,
+      activeSection,
+      activeIdx,
+      activeQuestionIdx,
+      currentMcq,
+      currentBlock,
+      optId,
+      isCorrect,
+      timeSpent,
+      isRetestAttempt,
+      attemptNum
+    });
+
     if (isCorrect) {
-      const isRetestAttempt = (() => {
-        try {
-          const raw = localStorage.getItem(`dopilot_java_part5_attempt_${studentId}_${activeSection.id}`);
-          return raw ? Number(raw) > 1 : false;
-        } catch {
-          return false;
-        }
-      })();
       if (!isRetestAttempt) {
         awardPoint(tId, heading, optId);
       }
@@ -775,8 +1067,8 @@ export const JavaPart5Page: React.FC = () => {
                   ? 'You have reached 3 consecutive failed levels. Progression is locked. Please reach out to our team to review your concepts and unlock further levels.'
                   : levelResult.isSecondFailureInLevel
                   ? levelResult.streak === 1
-                    ? 'You have failed Level 5.1 twice. You have 2 more warnings remaining before course progression is locked.'
-                    : 'Warning: You failed Level 5.2 twice. Only 1 more warning remaining! If you fail the next level twice, your course progression will be completely locked.'
+                    ? 'You have failed Level ${activeSection.number} twice. You have 2 more warnings remaining before course progression is locked.'
+                    : 'Warning: You failed Level ${activeSection.number} twice. Only 1 more warning remaining! If you fail the next level twice, your course progression will be completely locked.'
                   : 'Your score was 80% or below. The passing requirement is more than 80%. Click "Reset Questions" to receive a completely new set of questions testing the same concepts with no duplicates.'}
               </p>
             </div>
@@ -1211,7 +1503,7 @@ export const JavaPart5Page: React.FC = () => {
               <p className="text-amber-300 font-medium text-xs sm:text-sm leading-relaxed">
                 {levelResult?.streak === 1
                   ? 'Warning: You failed Level 5.1 twice. You have 2 more warnings remaining before course progression is locked.'
-                  : 'Warning: You failed Level 5.2 twice. Only 1 more warning remaining! If you fail the next level twice, your course progression will be completely locked.'}
+                  : 'Warning: You failed Level ${activeSection.number} twice. Only 1 more warning remaining! If you fail the next level twice, your course progression will be completely locked.'}
               </p>
               <p className="text-slate text-xs leading-relaxed pt-1">
                 {levelResult?.streak === 1
@@ -1291,6 +1583,7 @@ export const JavaPart5Page: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
+                  clearJavaPartIntroRequired(6);
                   setPart6ModalOpen(false);
                   navigate('/course/complete-java-programming/part-6');
                 }}

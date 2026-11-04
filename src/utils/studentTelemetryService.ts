@@ -169,6 +169,45 @@ export const logPythonPartQuestionAttempt = (params: {
   });
 };
 
+export const logJavaPartQuestionAttempt = (params: {
+  studentEmailOrId: string;
+  partNum: number;
+  activeSection: { id: string; title: string };
+  activeIdx: number;
+  activeQuestionIdx: number;
+  currentMcq: { id?: string; question: string; correctAnswer: string; options: { id: string; text: string }[]; explanationNote?: string };
+  currentBlock?: { heading?: string; codeSnippet?: string };
+  optId: string;
+  isCorrect: boolean;
+  timeSpent: number;
+  timeLimitSeconds?: number;
+  isRetestAttempt?: boolean;
+  attemptNum?: number;
+}): QuestionTelemetryRecord => {
+  return logQuestionAttempt(params.studentEmailOrId, {
+    courseId: 'java-core',
+    partNum: params.partNum,
+    sectionId: params.activeSection.id,
+    sectionTitle: params.activeSection.title,
+    subQuestionLabel: `Part ${params.partNum} -> Sec ${params.partNum}.${params.activeIdx + 1} -> Q${params.activeQuestionIdx + 1}`,
+    questionIndex: params.activeQuestionIdx + 1,
+    questionTitle: params.currentBlock?.heading || `Question ${params.activeQuestionIdx + 1}`,
+    questionPrompt: params.currentMcq?.question || params.currentBlock?.heading || '',
+    codeSnippet: params.currentBlock?.codeSnippet,
+    studentOptionId: params.optId,
+    studentAnswer: params.currentMcq?.options.find((o) => o.id === params.optId)?.text || params.optId,
+    correctOptionId: params.currentMcq?.correctAnswer || 'A',
+    correctAnswer: params.currentMcq?.options.find((o) => o.id === params.currentMcq?.correctAnswer)?.text || 'Correct',
+    isCorrect: params.isCorrect,
+    timeTakenSeconds: params.timeSpent,
+    timeLimitSeconds: params.timeLimitSeconds || 30,
+    attemptNumber: params.attemptNum || (params.isRetestAttempt ? 2 : 1),
+    isRetest: Boolean(params.isRetestAttempt || (params.attemptNum && params.attemptNum > 1)),
+    status: params.isCorrect ? 'passed' : 'failed',
+    explanation: params.currentMcq?.explanationNote
+  });
+};
+
 // In-memory cache of student telemetry records to ensure instant retrieval even after cookie clearing
 export const memoryTelemetryCache: Record<string, QuestionTelemetryRecord[]> = {};
 
