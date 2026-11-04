@@ -14,10 +14,18 @@ import { useEffect, useRef } from 'react';
 export function useCorrectAutoAdvance(
   countdown: number | null,
   onAdvance: () => void,
-  setCountdown?: (value: number | null) => void
+  setCountdown?: (value: number | null) => void,
+  isCorrectAnswerPendingAdvance?: boolean
 ): void {
   const onAdvanceRef = useRef(onAdvance);
   onAdvanceRef.current = onAdvance;
+
+  // Auto-initiate the 3-second countdown if resuming a correctly answered question that has not advanced yet
+  useEffect(() => {
+    if (isCorrectAnswerPendingAdvance && countdown === null && setCountdown) {
+      setCountdown(3);
+    }
+  }, [isCorrectAnswerPendingAdvance, countdown, setCountdown]);
 
   const isActive = countdown !== null;
 

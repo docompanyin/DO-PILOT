@@ -596,7 +596,14 @@ export const PythonPart14Page: React.FC = () => {
   };
 
   // Advance automatically 3 seconds after a correct answer (not on the final question of a section)
-  useCorrectAutoAdvance(correctCountdown, advanceToNextQuestion, setCorrectCountdown);
+  const isPendingCorrectAdvance = Boolean(
+    selectedAnswers[taskId] &&
+    selectedAnswers[taskId] === currentMcq?.correctAnswer &&
+    !isReviewMode &&
+    activeQuestionIdx < levelQuestions.length - 1 &&
+    !levelResult?.isFinished
+  );
+  useCorrectAutoAdvance(correctCountdown, advanceToNextQuestion, setCorrectCountdown, isPendingCorrectAdvance);
 
   // Reset Questions for Current Level (generates brand-new, unseen questions for the same concepts)
   const handleResetQuestions = () => {

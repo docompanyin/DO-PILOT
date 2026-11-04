@@ -191,6 +191,9 @@ const hydrateFailureAndLockState = (st: StudentAllCoursesState): void => {
 };
 
 export const flushCloudSync = async (email: string) => {
+  if (typeof window !== 'undefined' && (window as any).__dopilot_session_invalidated === true) {
+    return null;
+  }
   if (syncTimeout) {
     clearTimeout(syncTimeout);
     syncTimeout = null;
@@ -600,6 +603,10 @@ export const saveQuestionProgressState = (params: {
 
   const cleanEmail = normalizeStudentEmail(studentEmail);
 
+  if (typeof window !== 'undefined' && (window as any).__dopilot_session_invalidated === true) {
+    return null;
+  }
+
   // A page's mount-time checkpoint runs before the cloud snapshot has been
   // applied. Ignore it so it cannot overwrite the restored page/result state.
   if (cleanEmail && (restoreInFlightCount[cleanEmail] || 0) > 0) {
@@ -715,6 +722,10 @@ export const saveCoursePartCompletion = (
   } catch {}
 
   const cleanEmail = normalizeStudentEmail(studentEmail);
+
+  if (typeof window !== 'undefined' && (window as any).__dopilot_session_invalidated === true) {
+    return null;
+  }
   if (!cleanEmail) return;
 
   if (!memoryCourseState[cleanEmail]) {
@@ -753,6 +764,10 @@ export const restoreAllStudentCourseProgressFromCloud = async (
   studentEmail?: string
 ): Promise<StudentAllCoursesState | null> => {
   const cleanEmail = normalizeStudentEmail(studentEmail);
+
+  if (typeof window !== 'undefined' && (window as any).__dopilot_session_invalidated === true) {
+    return null;
+  }
   if (!cleanEmail || !isSupabaseConfigured()) return null;
 
   restoreInFlightCount[cleanEmail] = (restoreInFlightCount[cleanEmail] || 0) + 1;
@@ -1176,6 +1191,10 @@ export const getCloudPartQuestionState = async (
   studentEmail?: string
 ): Promise<PartQuestionState | null> => {
   const cleanEmail = normalizeStudentEmail(studentEmail);
+
+  if (typeof window !== 'undefined' && (window as any).__dopilot_session_invalidated === true) {
+    return null;
+  }
   if (!cleanEmail) return null;
 
   // Check memory cache first

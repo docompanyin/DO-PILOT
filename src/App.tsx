@@ -71,6 +71,7 @@ import { CoursePaidGuard } from './components/checkout/CoursePaidGuard';
 import { CourseAuthGuard } from './components/auth/CourseAuthGuard';
 import { ScrollManager } from './components/ScrollManager';
 import { NavigationManager } from './components/NavigationManager';
+import { SessionReplacedModal } from './components/auth/SessionReplacedModal';
 import './App.css';
 
 // Module-scoped state: resets to false ONLY on manual page refresh (F5 / reload) or cold browser load.
@@ -333,6 +334,16 @@ const Part14RouteWrapper: React.FC = () => {
   return <CoursePaidGuard partNum={14} courseId={courseId}>{content}</CoursePaidGuard>;
 };
 
+const SessionReplacedModalHost: React.FC = () => {
+  const { isSessionReplaced, dismissSessionReplacedModal } = useUserAuth();
+  return (
+    <SessionReplacedModal
+      isOpen={isSessionReplaced}
+      onClose={dismissSessionReplacedModal}
+    />
+  );
+};
+
 export const App: React.FC = () => {
   return (
     <UserAuthProvider>
@@ -341,6 +352,7 @@ export const App: React.FC = () => {
           <PointTwinkleEffect />
           <ScrollManager />
           <NavigationManager />
+          <SessionReplacedModalHost />
           <Routes>
             <Route path="/" element={<MainHome />} />
             <Route path="/login" element={<AuthPage mode="login" />} />

@@ -4,6 +4,17 @@ import { purgeStudentLocalData } from '../utils/studentDataPurge';
 import { restoreAllStudentCourseProgressFromCloud } from '../utils/courseProgressSyncService';
 import { restoreStudentTelemetryFromCloud } from '../utils/studentTelemetryService';
 import { syncUserPurchasesFromCloud, normalizeCourseId } from '../utils/coursePricingService';
+import {
+  generateDeviceSessionId,
+  getLocalDeviceSessionId,
+  setLocalDeviceSessionId,
+  clearLocalDeviceSessionId,
+  registerActiveDeviceSessionOnServer,
+  checkServerActiveSession,
+  subscribeToActiveSessionChanges,
+  terminateReplacedSession,
+  isDeviceSessionInvalidated
+} from '../utils/userSessionService';
 
 export interface UserProfile {
   id: string;
@@ -26,6 +37,8 @@ interface UserAuthContextType {
   pendingUser: UserProfile | null;
   isLoggedIn: boolean;
   isPendingRegistration: boolean;
+  isSessionReplaced: boolean;
+  dismissSessionReplacedModal: () => void;
   setPendingUser: (profile: UserProfile | null) => void;
   loginWithGoogleCredential: (credential: string) => Promise<UserProfile | null>;
   loginWithGoogleDirect: (profileData?: { name?: string; email?: string; avatar?: string; id?: string }) => Promise<UserProfile | null>;
@@ -126,6 +139,11 @@ const getInitialPendingSession = (): UserProfile | null => {
 export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(getInitialUserSession);
   const [pendingUser, setPendingUserState] = useState<UserProfile | null>(getInitialPendingSession);
+  const [isSessionReplaced, setIsSessionReplaced] = useState(false);
+
+  const dismissSessionReplacedModal = useCallback(() => {
+    setIsSessionReplaced(false);
+  }, []);
 
   const setPendingUser = useCallback((profile: UserProfile | null) => {
     setPendingUserState(profile);
@@ -279,6 +297,87 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, []);
 
+  // Real-time Single Active Device Session synchronization
+  useEffect(() => {
+    if (!user?.email || !user.hasCompletedDetails) return;
+
+    const email = user.email;
+    let localSessionId = getLocalDeviceSessionId();
+
+    // If an authenticated session has no local device session ID, generate and register one
+    if (!localSessionId) {
+      localSessionId = generateDeviceSessionId();
+      setLocalDeviceSessionId(localSessionId);
+      registerActiveDeviceSessionOnServer(email, localSessionId);
+    }
+
+    const handleDeviceReplaced = async () => {
+      if (isDeviceSessionInvalidated()) return;
+      console.info('[SingleSession] Another device logged into this account. Terminating local session...');
+
+      // 1. Flush any pending course progress and telemetry to Supabase FIRST
+      await terminateReplacedSession(email);
+
+      // 2. Clear credentials locally
+      clearAuthCookie();
+      localStorage.removeItem(USER_SESSION_KEY);
+      localStorage.removeItem(USER_PENDING_KEY);
+
+      // 3. Update React state
+      setUser(null);
+      setPendingUserState(null);
+      setIsSessionReplaced(true);
+
+      // 4. Dispatch events so all components and guards immediately transition
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('dopilot_user_logged_out'));
+        window.dispatchEvent(new CustomEvent('dopilot_session_replaced'));
+        window.dispatchEvent(new Event('storage'));
+      }
+    };
+
+    // Real-time subscription via Supabase Realtime channel + postgres changes
+    const unsubscribe = subscribeToActiveSessionChanges(
+      email,
+      localSessionId,
+      handleDeviceReplaced
+    );
+
+    // Heartbeat: periodic fast verification against Supabase source of truth
+    const heartbeat = setInterval(async () => {
+      const curId = getLocalDeviceSessionId();
+      if (!curId) return;
+      const { isValid } = await checkServerActiveSession(email, curId);
+      if (!isValid) {
+        handleDeviceReplaced();
+      }
+    }, 3000);
+
+    // Visibility & tab focus handler (handles wake from sleep, tab switching)
+    const handleVisibility = async () => {
+      if (document.visibilityState === 'visible') {
+        const curId = getLocalDeviceSessionId();
+        if (!curId) return;
+        const { isValid } = await checkServerActiveSession(email, curId);
+        if (!isValid) {
+          handleDeviceReplaced();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+    window.addEventListener('pageshow', handleVisibility);
+
+    return () => {
+      unsubscribe();
+      clearInterval(heartbeat);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+      window.removeEventListener('pageshow', handleVisibility);
+    };
+  }, [user?.email, user?.hasCompletedDetails]);
+
   // Google One-Tap / Identity Services token login with real credential
   const loginWithGoogleCredential = async (credential: string): Promise<UserProfile | null> => {
     const payload = parseGoogleJwt(credential);
@@ -329,6 +428,12 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             createdAt: data.created_at || new Date().toISOString()
           };
           saveUserSession(fullProfile);
+          // Single Active Device Session: Generate new session ID for this newly logged-in device
+          const newSessionId = generateDeviceSessionId();
+          setLocalDeviceSessionId(newSessionId);
+          setIsSessionReplaced(false);
+          await registerActiveDeviceSessionOnServer(fullProfile.email, newSessionId);
+
           await Promise.all([
             restoreAllStudentCourseProgressFromCloud(fullProfile.email),
             restoreStudentTelemetryFromCloud(fullProfile.email),
@@ -516,6 +621,10 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // 5. Save completed session locally
     saveUserSession(finalized);
+    const newSessionId = generateDeviceSessionId();
+    setLocalDeviceSessionId(newSessionId);
+    setIsSessionReplaced(false);
+    await registerActiveDeviceSessionOnServer(finalized.email, newSessionId);
     return { success: true };
   };
 
@@ -586,9 +695,11 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (currentEmail) {
       purgeStudentLocalData(currentEmail, currentId);
     }
+    clearLocalDeviceSessionId();
     clearAuthCookie();
     setUser(null);
     setPendingUserState(null);
+    setIsSessionReplaced(false);
     localStorage.removeItem(USER_SESSION_KEY);
     localStorage.removeItem(USER_PENDING_KEY);
     if (typeof window !== 'undefined') {
@@ -619,6 +730,8 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         pendingUser: isPendingRegistration ? pendingUser : null,
         isLoggedIn,
         isPendingRegistration,
+        isSessionReplaced,
+        dismissSessionReplacedModal,
         setPendingUser,
         loginWithGoogleCredential,
         loginWithGoogleDirect,
