@@ -589,6 +589,7 @@ export const AdminPanel: React.FC = () => {
     questionNumber: number;
     subQuestionLabel?: string;
     partNum: number;
+    sectionId?: string;
     section: string;
     levelTitle: string;
     questionTitle: string;
@@ -735,6 +736,7 @@ export const AdminPanel: React.FC = () => {
             questionNumber: item.questionIndex || (idx + 1),
             subQuestionLabel: item.subQuestionLabel || `Part ${item.partNum} → Sec ${item.sectionId} → Q${item.questionIndex}`,
             partNum: item.partNum,
+            sectionId: item.sectionId || curMatch?.sectionId,
             section: item.sectionTitle || curMatch?.sectionTitle || `Part ${item.partNum}`,
             levelTitle: item.subQuestionLabel ? `Level ${item.subQuestionLabel}` : `Question ${idx + 1}`,
             questionTitle: item.questionTitle || curMatch?.questionTitle || `Question ${item.questionIndex || idx + 1}`,
@@ -5510,7 +5512,7 @@ export const AdminPanel: React.FC = () => {
 
         const answeredQuestionKeys = new Set<string>();
         crsAttempts.forEach((att) => {
-          const qKey = `${att.partNum}-${att.questionNumber}`;
+          const qKey = `${att.partNum}-${att.sectionId || att.subQuestionLabel || att.section}-${att.questionNumber}`;
           if (!answeredQuestionKeys.has(qKey)) {
             answeredQuestionKeys.add(qKey);
             const partObj = partQuestionMap.get(att.partNum);
@@ -5521,9 +5523,11 @@ export const AdminPanel: React.FC = () => {
 
               for (const secObj of partObj.sections.values()) {
                 if (
+                  (att.sectionId && secObj.sectionId === att.sectionId) ||
                   att.section.toLowerCase().includes(secObj.sectionTitle.toLowerCase()) ||
                   att.section.toLowerCase().includes(secObj.sectionId.toLowerCase()) ||
-                  (att.subQuestionLabel && att.subQuestionLabel.toLowerCase().includes(secObj.sectionTitle.toLowerCase()))
+                  (att.subQuestionLabel && att.subQuestionLabel.toLowerCase().includes(secObj.sectionTitle.toLowerCase())) ||
+                  (att.subQuestionLabel && att.subQuestionLabel.toLowerCase().includes(secObj.sectionId.toLowerCase()))
                 ) {
                   secObj.answeredCount += 1;
                   if (att.isCorrect) secObj.passedCount += 1;
@@ -5763,7 +5767,7 @@ export const AdminPanel: React.FC = () => {
 
       const answeredQuestionKeys = new Set<string>();
       courseAttempts.forEach((att) => {
-        const qKey = `${att.partNum}-${att.questionNumber}`;
+        const qKey = `${att.partNum}-${att.sectionId || att.subQuestionLabel || att.section}-${att.questionNumber}`;
         if (!answeredQuestionKeys.has(qKey)) {
           answeredQuestionKeys.add(qKey);
           const partObj = partQuestionMap.get(att.partNum);
@@ -5777,9 +5781,11 @@ export const AdminPanel: React.FC = () => {
 
             for (const secObj of partObj.sections.values()) {
               if (
+                (att.sectionId && secObj.sectionId === att.sectionId) ||
                 att.section.toLowerCase().includes(secObj.sectionTitle.toLowerCase()) ||
                 att.section.toLowerCase().includes(secObj.sectionId.toLowerCase()) ||
-                (att.subQuestionLabel && att.subQuestionLabel.toLowerCase().includes(secObj.sectionTitle.toLowerCase()))
+                (att.subQuestionLabel && att.subQuestionLabel.toLowerCase().includes(secObj.sectionTitle.toLowerCase())) ||
+                (att.subQuestionLabel && att.subQuestionLabel.toLowerCase().includes(secObj.sectionId.toLowerCase()))
               ) {
                 secObj.answeredCount += 1;
                 if (att.isCorrect) secObj.passedCount += 1;

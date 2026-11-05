@@ -442,7 +442,9 @@ export const getCourseCurriculumQuestions = (courseId: string): CourseCurriculum
             `java-${sec.id}-${qId}`,
             `java-${sec.id}-${qIdx}`,
             `java-part${part}-${sec.id}-${qId}`,
-            `java-part${part}-${sec.id}-${qIdx}`
+            `java-part${part}-${sec.id}-${qIdx}`,
+            `${sec.id}-${qId}`,
+            `${sec.id}-${qIdx}`
           ];
           const correctOpt = mcq.options?.find(o => o.id === mcq.correctAnswer);
 
