@@ -26,7 +26,8 @@ import {
   markPart1RestartUsed, clearPart1ScoresOnRestart,
   hasUsedPart1Restart, setPostPurchaseDecision, getPostPurchaseDecision,
   markTrialAttempted, hasAttemptedTrial,
-  isPart1Finished, markPart1Finished
+  isPart1Finished, markPart1Finished,
+  markSectionStartedInTrial, setPurchaseInProgressExemptSection, isSectionExemptFromRetest, clearPurchaseInProgressExemptSection
 } from '../utils/part1ScoreService';
 import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
 import { notifyCourseLocked } from '../utils/lockNotificationService';
@@ -147,6 +148,13 @@ export const JavaPart1Page: React.FC = () => {
     return () => window.removeEventListener('dopilot_user_logged_out', handleLogout);
   }, [navigate]);
 
+  // Track section started under free trial to ensure Scenario 3 exemption if purchased mid-section
+  useEffect(() => {
+    if (!hasPurchased && activeSection?.id) {
+      markSectionStartedInTrial('java-core', activeSection.id, studentId);
+    }
+  }, [hasPurchased, activeSection?.id, studentId]);
+
   // Scenario 1: If the student completely finished Part 1 during free trial and has purchased,
   // redirect them directly to Part 2. Do not send back to Part 1, do not require retest.
   useEffect(() => {
@@ -178,7 +186,8 @@ export const JavaPart1Page: React.FC = () => {
       navigate('/course/complete-java-programming/part-2');
     } else {
       // Scenario 3: Partial Part 1 during free trial, purchased mid-way
-      // Retain exact active section and enable purchased rules (retests & failure streak)
+      // The current in-progress section remains exempt from retests and consecutive failures!
+      setPurchaseInProgressExemptSection('java-core', activeSection.id, studentId);
       setPurchaseModalOpen(false);
     }
   };
@@ -510,9 +519,12 @@ export const JavaPart1Page: React.FC = () => {
       } catch {}
     }
 
+    // Scenario 3: Check if this section was in progress at the moment of purchase
+    const isExempt = !hasPurchased || isSectionExemptFromRetest('java-core', activeSection.id, studentId);
+
     // Free-trial failure flow: Only track/increment consecutive failures if user has purchased the course!
-    // Free trial users who fail do not build consecutive lock streaks or get locked.
-    const result = hasPurchased
+    // Free trial users and exempt in-progress sections do not build consecutive lock streaks or get locked.
+    const result = (hasPurchased && !isExempt)
       ? recordLevelAttemptResult(activeSection.id, studentId, isPassed)
       : {
           consecutiveFailedLevels: 0,
@@ -523,7 +535,7 @@ export const JavaPart1Page: React.FC = () => {
 
     setConsecutiveFailures(result.consecutiveFailedLevels);
 
-    if (hasPurchased && result.isLocked) {
+    if (hasPurchased && !isExempt && result.isLocked) {
       recordCourseLock({
         studentId,
         studentName: user?.name || user?.email?.split('@')[0] || 'Enrolled Student',
@@ -724,6 +736,9 @@ export const JavaPart1Page: React.FC = () => {
 
   // Progress to the next level (after Passing or after confirming Disclaimer)
   const handleProceedToNextLevel = () => {
+    // Clear in-progress exemption for the completed section so subsequent sections follow purchased rules
+    clearPurchaseInProgressExemptSection('java-core', activeSection.id, studentId);
+
     // If student is locked due to consecutive failures, prevent progression (purchased users only)
     if (hasPurchased && localStorage.getItem(`dopilot_java_locked_${studentId}`) === 'true') {
       setModalOpen(true);
@@ -1282,8 +1297,8 @@ export const JavaPart1Page: React.FC = () => {
             );
           }
         })() : levelResult?.isFinished ? (
-          !hasPurchased ? (
-            /* SCENARIO 2A: Clean, Minimal Free-Trial Pass & Fail Page */
+          (!hasPurchased || isSectionExemptFromRetest('java-core', activeSection.id, studentId)) ? (
+            /* Free-Trial or In-Progress Exempt Section: Clean Pass & Fail Page without Retest or Streak */
             <div className="bg-[#0f1117] border border-white/10 rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center space-y-5 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative">
               <div className="flex items-center justify-center">
                 {levelResult.isPassed ? (
@@ -1331,25 +1346,48 @@ export const JavaPart1Page: React.FC = () => {
               </div>
 
               {activeIdx === PART_1_SECTIONS.length - 1 ? (
-                /* Section 1.6 Final Level Buttons for Free Trial: Buy Course & Back to Dashboard */
+                /* Section 1.6 Final Level Buttons: Buy Course & Back to Dashboard (if trial) or Continue to Part 2 (if purchased) */
                 <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setPurchaseModalOpen(true)}
-                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
-                  >
-                    <ShoppingBag className="w-4 h-4" />
-                    <span>Buy Course</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+                  {!hasPurchased ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setPurchaseModalOpen(true)}
+                        className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                      >
+                        <ShoppingBag className="w-4 h-4" />
+                        <span>Buy Course</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => navigate('/course/complete-java-programming')}
-                    className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <span>Back to Dashboard</span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/course/complete-java-programming')}
+                        className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <span>Back to Dashboard</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleContinueToPart2}
+                        className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                      >
+                        <span>Continue to Part 2</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => navigate('/course/complete-java-programming')}
+                        className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <span>Back to Dashboard</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               ) : (
                 /* Sections 1.1 - 1.5: Continue to Next Level */

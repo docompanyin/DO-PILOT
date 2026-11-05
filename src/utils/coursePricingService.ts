@@ -1,3 +1,4 @@
+import { setPurchaseInProgressExemptSection, isPart1Finished, hasAttemptedTrial } from './part1ScoreService';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export interface CoursePricing {
@@ -933,6 +934,24 @@ export const recordCoursePurchase = (
       persistCouponsToCloud(coupons).catch(() => {});
     }
   }
+
+  // Record in-progress exempt section if purchasing mid-way through free trial
+  try {
+    const studentIdent = data.studentEmail || data.studentId;
+    if (normalizedCourse === 'python-core') {
+      const isFin = isPart1Finished('python-core', studentIdent);
+      if (!isFin && hasAttemptedTrial('python-core', studentIdent)) {
+        const activeSec = localStorage.getItem('dopilot_active_section_id') || '1-1-getting-started';
+        setPurchaseInProgressExemptSection('python-core', activeSec, studentIdent);
+      }
+    } else if (normalizedCourse === 'java-core') {
+      const isFin = isPart1Finished('java-core', studentIdent);
+      if (!isFin && hasAttemptedTrial('java-core', studentIdent)) {
+        const activeSec = localStorage.getItem('dopilot_java_active_section_id') || 'java-1-1-getting-started';
+        setPurchaseInProgressExemptSection('java-core', activeSec, studentIdent);
+      }
+    }
+  } catch {}
 
   // 5. Dispatch global events for instant reactivity in all open components
   window.dispatchEvent(new CustomEvent('dopilot_course_purchased', { detail: newRecord }));

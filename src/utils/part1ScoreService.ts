@@ -439,3 +439,134 @@ export const clearPart1ScoresOnRestart = (courseId: string, studentId?: string):
     localStorage.removeItem('dopilot_part1_finished');
   } catch {}
 };
+
+/**
+ * Mark a section as started under free trial.
+ * Used to identify sections in progress when a student purchases mid-way through Part 1.
+ */
+export const markSectionStartedInTrial = (
+  courseId: string,
+  sectionId: string,
+  studentId?: string
+): void => {
+  try {
+    const track = normalizeTrackId(courseId);
+    const prefix = getStoragePrefix(track);
+    const key = `${prefix}_trial_section_${sectionId}${studentId ? `_${studentId}` : ''}`;
+    localStorage.setItem(key, 'true');
+    localStorage.setItem(`${prefix}_trial_section_${sectionId}`, 'true');
+  } catch {}
+};
+
+/**
+ * Record which section was in-progress at the moment the student purchased the course.
+ * That section is granted full exemption from retests and consecutive-failure counting.
+ */
+export const setPurchaseInProgressExemptSection = (
+  courseId: string,
+  sectionId: string,
+  studentId?: string
+): void => {
+  try {
+    if (!sectionId) return;
+    const track = normalizeTrackId(courseId);
+    const prefix = getStoragePrefix(track);
+    const key = `${prefix}_exempt_in_progress_section${studentId ? `_${studentId}` : ''}`;
+    localStorage.setItem(key, sectionId);
+    localStorage.setItem(`${prefix}_exempt_in_progress_section`, sectionId);
+
+    // Sync to backend student state
+    const cleanEmail = normalizeStudentEmail(studentId && studentId.includes('@') ? studentId : undefined);
+    if (cleanEmail) {
+      if (!memoryCourseState[cleanEmail]) {
+        memoryCourseState[cleanEmail] = {
+          email: cleanEmail,
+          courses: {},
+          updatedAt: new Date().toISOString()
+        };
+      }
+      const st = memoryCourseState[cleanEmail];
+      if (!st.exemptSections) st.exemptSections = {};
+      st.exemptSections[track] = sectionId;
+      st.exemptSections[track.replace('-core', '')] = sectionId;
+      st.updatedAt = new Date().toISOString();
+      queueCloudSync(cleanEmail);
+    }
+  } catch {}
+};
+
+/**
+ * Check whether a section is exempt from retests and consecutive-failure counting.
+ * A section is exempt if:
+ * 1. It was explicitly recorded as in-progress at the moment of purchase.
+ * 2. OR it was started under free trial and has not yet been passed/finished under purchased rules.
+ */
+export const isSectionExemptFromRetest = (
+  courseId: string,
+  sectionId: string,
+  studentId?: string
+): boolean => {
+  try {
+    if (!sectionId) return false;
+    const track = normalizeTrackId(courseId);
+    const prefix = getStoragePrefix(track);
+
+    // 1. Direct explicit in-progress exempt section key
+    const studentKey = `${prefix}_exempt_in_progress_section${studentId ? `_${studentId}` : ''}`;
+    const exemptSec = localStorage.getItem(studentKey) || localStorage.getItem(`${prefix}_exempt_in_progress_section`);
+    if (exemptSec && exemptSec === sectionId) {
+      return true;
+    }
+
+    // 2. Direct cloud memory state check
+    const cleanEmail = normalizeStudentEmail(studentId && studentId.includes('@') ? studentId : undefined);
+    if (cleanEmail) {
+      const memEx = memoryCourseState[cleanEmail]?.exemptSections?.[track] ||
+                    memoryCourseState[cleanEmail]?.exemptSections?.[track.replace('-core', '')];
+      if (memEx && memEx === sectionId) {
+        return true;
+      }
+    }
+
+    // 3. Check if section was started during free trial and not yet completed
+    const trialSecKey = `${prefix}_trial_section_${sectionId}${studentId ? `_${studentId}` : ''}`;
+    const startedInTrial = localStorage.getItem(trialSecKey) === 'true' || localStorage.getItem(`${prefix}_trial_section_${sectionId}`) === 'true';
+    if (startedInTrial) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Clear the exempt section once the student proceeds past it into the next section.
+ */
+export const clearPurchaseInProgressExemptSection = (
+  courseId: string,
+  sectionId: string,
+  studentId?: string
+): void => {
+  try {
+    const track = normalizeTrackId(courseId);
+    const prefix = getStoragePrefix(track);
+    const studentKey = `${prefix}_exempt_in_progress_section${studentId ? `_${studentId}` : ''}`;
+    localStorage.removeItem(studentKey);
+    localStorage.removeItem(`${prefix}_exempt_in_progress_section`);
+
+    // Remove trial section marker for this completed section
+    const trialSecKey = `${prefix}_trial_section_${sectionId}${studentId ? `_${studentId}` : ''}`;
+    localStorage.removeItem(trialSecKey);
+    localStorage.removeItem(`${prefix}_trial_section_${sectionId}`);
+
+    const cleanEmail = normalizeStudentEmail(studentId && studentId.includes('@') ? studentId : undefined);
+    if (cleanEmail && memoryCourseState[cleanEmail]?.exemptSections) {
+      delete memoryCourseState[cleanEmail].exemptSections[track];
+      delete memoryCourseState[cleanEmail].exemptSections[track.replace('-core', '')];
+      memoryCourseState[cleanEmail].updatedAt = new Date().toISOString();
+      queueCloudSync(cleanEmail);
+    }
+  } catch {}
+};

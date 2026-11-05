@@ -24,7 +24,8 @@ import {
   recordPart1SectionScore, getPart1OverallScore, 
   markPart1RestartUsed, clearPart1ScoresOnRestart,
   hasUsedPart1Restart, setPostPurchaseDecision, getPostPurchaseDecision,
-  markTrialAttempted, hasAttemptedTrial, isPart1Finished, markPart1Finished
+  markTrialAttempted, hasAttemptedTrial, isPart1Finished, markPart1Finished,
+  markSectionStartedInTrial, setPurchaseInProgressExemptSection, isSectionExemptFromRetest, clearPurchaseInProgressExemptSection
 } from '../utils/part1ScoreService';
 import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
 import { notifyCourseLocked } from '../utils/lockNotificationService';
@@ -241,6 +242,13 @@ export const PythonPart1Page: React.FC = () => {
     return () => window.removeEventListener('dopilot_user_logged_out', handleLogout);
   }, [navigate]);
 
+  // Track section started under free trial to ensure Scenario 3 exemption if purchased mid-section
+  useEffect(() => {
+    if (!hasPurchased && activeSection?.id) {
+      markSectionStartedInTrial('python-core', activeSection.id, studentId);
+    }
+  }, [hasPurchased, activeSection?.id, studentId]);
+
   // Scenario 1: If the student completely finished Part 1 during free trial and has purchased,
   // redirect them directly to Part 2. Do not send back to Part 1, do not require retest.
   useEffect(() => {
@@ -270,7 +278,8 @@ export const PythonPart1Page: React.FC = () => {
       navigate('/course/python-core/part-2');
     } else {
       // Scenario 3: Partial Part 1 during free trial, purchased mid-way
-      // Retain exact active section and enable purchased rules (retests & failure streak)
+      // The current in-progress section remains exempt from retests and consecutive failures!
+      setPurchaseInProgressExemptSection('python-core', activeSection.id, studentId);
       setPurchaseModalOpen(false);
     }
   };
@@ -648,14 +657,18 @@ export const PythonPart1Page: React.FC = () => {
       } catch {}
     }
 
+    // Scenario 3: Check if this section was in progress at the moment of purchase
+    const isExempt = !hasPurchased || isSectionExemptFromRetest('python-core', activeSection.id, studentId);
+
     // Consecutive failures: Apply existing consecutive failure tracking, reset, and retest rules ONLY to purchased users
+    // If the section was in progress at purchase time, it remains exempt from retests and consecutive failures!
     let streak = 0;
     let attemptCount = 1;
     let isSecondFailureInLevel = false;
     let isLocked = false;
     let hadPriorStreak = false;
 
-    if (hasPurchased) {
+    if (hasPurchased && !isExempt) {
       const prevStreak = getConsecutiveFailedLevels(studentId);
       const result = recordLevelAttemptResult(activeSection.id, studentId, isPassed);
       hadPriorStreak = isPassed && prevStreak > 0;
@@ -686,7 +699,7 @@ export const PythonPart1Page: React.FC = () => {
         });
       }
     } else {
-      // Free trial users: do not track consecutive failure streak
+      // Free trial or in-progress exempt section: do not track consecutive failure streak
       setConsecutiveFailures(0);
     }
 
@@ -842,6 +855,9 @@ export const PythonPart1Page: React.FC = () => {
 
   // Progress to the next level (after Passing or after confirming Disclaimer)
   const handleProceedToNextLevel = () => {
+    // Clear in-progress exemption for the completed section so subsequent sections follow purchased rules
+    clearPurchaseInProgressExemptSection('python-core', activeSection.id, studentId);
+
     // If student is locked due to consecutive failures, prevent progression (purchased users only)
     if (hasPurchased && localStorage.getItem(`dopilot_locked_${studentId}`) === 'true') {
       setModalOpen(true);
@@ -1402,8 +1418,8 @@ export const PythonPart1Page: React.FC = () => {
             );
           }
         })() : levelResult?.isFinished ? (
-          !hasPurchased ? (
-            /* SCENARIO 2A: Clean, Minimal Free-Trial Pass & Fail Page */
+          (!hasPurchased || isSectionExemptFromRetest('python-core', activeSection.id, studentId)) ? (
+            /* Free-Trial or In-Progress Exempt Section: Clean Pass & Fail Page without Retest or Streak */
             <div className="bg-[#0f1117] border border-white/10 rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center space-y-5 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative">
               <div className="flex items-center justify-center">
                 {levelResult.isPassed ? (
@@ -1451,25 +1467,48 @@ export const PythonPart1Page: React.FC = () => {
               </div>
 
               {activeIdx === PART_1_SECTIONS.length - 1 ? (
-                /* Section 1.5 Final Level Buttons for Free Trial: Buy Course & Back to Dashboard */
+                /* Section 1.5 Final Level Buttons: Buy Course & Back to Dashboard (if trial) or Continue to Part 2 (if purchased) */
                 <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setPurchaseModalOpen(true)}
-                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
-                  >
-                    <ShoppingBag className="w-4 h-4" />
-                    <span>Buy Course</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+                  {!hasPurchased ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setPurchaseModalOpen(true)}
+                        className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                      >
+                        <ShoppingBag className="w-4 h-4" />
+                        <span>Buy Course</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => navigate('/course/python-core')}
-                    className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <span>Back to Dashboard</span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/course/python-core')}
+                        className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <span>Back to Dashboard</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleContinueToPart2}
+                        className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                      >
+                        <span>Continue to Part 2</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => navigate('/course/python-core')}
+                        className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <span>Back to Dashboard</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               ) : (
                 /* Sections 1.1 - 1.4: Continue to Next Level */

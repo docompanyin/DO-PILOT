@@ -47,6 +47,7 @@ export interface StudentAllCoursesState {
   trialAttempted?: Record<string, boolean>;
   postPurchaseDecisions?: Record<string, string>;
   part1RestartUsed?: Record<string, boolean>;
+  exemptSections?: Record<string, string>;
   certificates?: Record<string, any>;
   rawStorage?: Record<string, string>;
   updatedAt: string;
@@ -414,6 +415,21 @@ export const initCourseProgressSyncInterceptor = () => {
         return;
       }
 
+      if (key.includes('_exempt_in_progress_section')) {
+        if (!st.exemptSections) st.exemptSections = {};
+        const matchedCourse = ['python', 'java', 'fullstack', 'cyber'].find(c => key.includes(c)) || 'python';
+        if (value) {
+          st.exemptSections[matchedCourse] = value;
+          st.exemptSections[`${matchedCourse}-core`] = value;
+        } else {
+          delete st.exemptSections[matchedCourse];
+          delete st.exemptSections[`${matchedCourse}-core`];
+        }
+        st.updatedAt = new Date().toISOString();
+        queueCloudSync(email);
+        return;
+      }
+
       if (key.includes('_part1_restart_used')) {
         if (!st.part1RestartUsed) st.part1RestartUsed = {};
         const matchedCourse = ['python', 'java', 'fullstack', 'cyber'].find(c => key.includes(c)) || 'python';
@@ -699,6 +715,14 @@ export const saveQuestionProgressState = (params: {
       const rst = localStorage.getItem(`dopilot_${c}_part1_restart_used`) ||
                   localStorage.getItem(`dopilot_${c}_core_part1_restart_used`);
       if (rst === 'true') studentState.part1RestartUsed![c] = true;
+
+      const ex = localStorage.getItem(`dopilot_${c}_exempt_in_progress_section`) ||
+                 localStorage.getItem(`dopilot_${c}_core_exempt_in_progress_section`);
+      if (ex) {
+        if (!studentState.exemptSections) studentState.exemptSections = {};
+        studentState.exemptSections[c] = ex;
+        studentState.exemptSections[`${c}-core`] = ex;
+      }
     });
   } catch {}
 
@@ -1104,6 +1128,15 @@ export const restoreAllStudentCourseProgressFromCloud = async (
           localStorage.setItem(`dopilot_${c}_core_part1_restart_used`, 'true');
           localStorage.setItem(`dopilot_${c}_part1_restart_used_${cleanEmail}`, 'true');
           localStorage.setItem(`dopilot_${c}_core_part1_restart_used_${cleanEmail}`, 'true');
+        }
+      });
+    }
+
+    if (cloudState.exemptSections) {
+      Object.entries(cloudState.exemptSections).forEach(([c, secId]) => {
+        if (secId) {
+          localStorage.setItem(`dopilot_${c}_exempt_in_progress_section`, secId);
+          localStorage.setItem(`dopilot_${c}_exempt_in_progress_section_${cleanEmail}`, secId);
         }
       });
     }
