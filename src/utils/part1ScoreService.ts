@@ -1,3 +1,4 @@
+import { normalizeStudentEmail, memoryCourseState, queueCloudSync } from './courseProgressSyncService';
 /**
  * Service to record and calculate overall Part 1 scores across sections 1.1–1.6
  * for Python, Java, Full Stack, and Cyber Security tracks.
@@ -192,9 +193,102 @@ export const getPart1OverallScore = (
 };
 
 /**
- * Determine the starting part after purchase based on overall Part 1 score:
- * - Apply this 50% rule ONLY to users who attempted the free trial and then purchased the course.
- * - Do not apply it to users who purchased before starting or to later parts.
+ * Check whether Part 1 was completely finished (all sections completed during free trial or previously).
+ */
+export const isPart1Finished = (courseId: string, studentId?: string): boolean => {
+  try {
+    const track = normalizeTrackId(courseId);
+    const prefix = getStoragePrefix(track);
+
+    // 1. Direct finished flags
+    if (track === 'python-core') {
+      if (
+        localStorage.getItem('dopilot_part1_finished') === 'true' ||
+        localStorage.getItem('dopilot_python_part1_finished') === 'true' ||
+        localStorage.getItem('dopilot_part1_completed') === 'true'
+      ) {
+        return true;
+      }
+    } else if (track === 'java-core') {
+      if (
+        localStorage.getItem('dopilot_java_part1_finished') === 'true' ||
+        localStorage.getItem('dopilot_java_part1_completed') === 'true'
+      ) {
+        return true;
+      }
+    } else {
+      if (
+        localStorage.getItem(`${prefix}_part1_finished`) === 'true' ||
+        localStorage.getItem(`${prefix}_part1_completed`) === 'true'
+      ) {
+        return true;
+      }
+    }
+
+    // 2. Check memoryCourseState / backend student state
+    const cleanEmail = normalizeStudentEmail(studentId && studentId.includes('@') ? studentId : undefined);
+    if (cleanEmail && memoryCourseState[cleanEmail]) {
+      const p1 = memoryCourseState[cleanEmail].courses?.[track]?.parts?.['1'];
+      if (p1?.isFinishedPart || p1?.isCompleted) {
+        return true;
+      }
+    }
+
+    // 3. Check section scores count: if all expected sections are recorded (5 for Python, 6 for Java)
+    const expectedCount = getExpectedPart1SectionCount(track);
+    let raw = studentId ? localStorage.getItem(`${prefix}_part1_section_scores_${studentId}`) : null;
+    if (!raw) raw = localStorage.getItem(`${prefix}_part1_section_scores`);
+    if (raw) {
+      const scores = JSON.parse(raw);
+      if (scores && typeof scores === 'object') {
+        const recordedSections = Object.keys(scores).filter(k => scores[k] && scores[k].total > 0);
+        if (recordedSections.length >= expectedCount) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Mark Part 1 as completely finished
+ */
+export const markPart1Finished = (courseId: string, studentId?: string): void => {
+  try {
+    const track = normalizeTrackId(courseId);
+    const prefix = getStoragePrefix(track);
+    if (track === 'python-core') {
+      localStorage.setItem('dopilot_part1_finished', 'true');
+      localStorage.setItem('dopilot_python_part1_finished', 'true');
+    } else {
+      localStorage.setItem(`${prefix}_part1_finished`, 'true');
+    }
+
+    const cleanEmail = normalizeStudentEmail(studentId && studentId.includes('@') ? studentId : undefined);
+    if (cleanEmail && memoryCourseState[cleanEmail]) {
+      const st = memoryCourseState[cleanEmail];
+      if (st.courses?.[track]?.parts?.['1']) {
+        st.courses[track].parts['1'].isFinishedPart = true;
+      }
+      st.updatedAt = new Date().toISOString();
+      queueCloudSync(cleanEmail);
+    }
+  } catch {}
+};
+
+/**
+ * Determine the starting part after purchase:
+ * - Scenario 1: Student completely finished Part 1 during free trial.
+ *   Purchasing takes them DIRECTLY to Part 2, regardless of their Part 1 result.
+ *   No pass/fail check, no retest required.
+ * - Scenario 2: Direct purchase without using free trial.
+ *   Starts at Part 1.
+ * - Scenario 3: Partial Part 1 during free trial, purchase afterwards.
+ *   Stays at Part 1 and resumes at the saved in-progress section.
  */
 export const getPostPurchaseStartingPart = (
   courseId: string,
@@ -217,19 +311,13 @@ export const getPostPurchaseStartingPart = (
     return 1;
   }
 
-  // Check if student attempted the free trial before purchase
-  const trialAttempted = hasAttemptedTrial(track, studentId);
-  if (!trialAttempted) {
-    // Purchased before starting / without completing trial: ALWAYS start from Part 1
-    return 1;
+  // Scenario 1: Completely finished Part 1 during free trial -> directly start Part 2!
+  if (isPart1Finished(track, studentId)) {
+    return 2;
   }
 
-  const { isAbove50 } = getPart1OverallScore(track, studentId);
-
-  // For users who attempted the free trial and then purchased:
-  // Total score >= 50% across all Part 1 questions -> start directly from Part 2
-  // Total score < 50% across all Part 1 questions -> start again from Part 1
-  return isAbove50 ? 2 : 1;
+  // Scenario 2 (direct purchase) & Scenario 3 (partial trial): start / continue Part 1
+  return 1;
 };
 
 export type PostPurchaseDecision = 'retry_part1' | 'continue_to_part2';
@@ -252,7 +340,6 @@ export const getPostPurchaseDecision = (courseId: string, studentId?: string): P
   }
 };
 
-import { normalizeStudentEmail, memoryCourseState, queueCloudSync } from './courseProgressSyncService';
 
 /**
  * Save the user's explicit choice so the Course Unlocked page appears only once

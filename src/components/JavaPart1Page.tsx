@@ -25,7 +25,8 @@ import {
   recordPart1SectionScore, getPart1OverallScore,
   markPart1RestartUsed, clearPart1ScoresOnRestart,
   hasUsedPart1Restart, setPostPurchaseDecision, getPostPurchaseDecision,
-  markTrialAttempted, hasAttemptedTrial 
+  markTrialAttempted, hasAttemptedTrial,
+  isPart1Finished, markPart1Finished
 } from '../utils/part1ScoreService';
 import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
 import { notifyCourseLocked } from '../utils/lockNotificationService';
@@ -146,40 +147,39 @@ export const JavaPart1Page: React.FC = () => {
     return () => window.removeEventListener('dopilot_user_logged_out', handleLogout);
   }, [navigate]);
 
+  // Scenario 1: If the student completely finished Part 1 during free trial and has purchased,
+  // redirect them directly to Part 2. Do not send back to Part 1, do not require retest.
+  useEffect(() => {
+    if (!isReviewMode && hasPurchased && isPart1Finished('java-core', studentId)) {
+      navigate('/course/complete-java-programming/part-2', { replace: true });
+    }
+  }, [hasPurchased, isReviewMode, studentId, navigate]);
+
+
   const handlePostPurchaseUnlock = () => {
     setHasPurchased(true);
     resetConsecutiveFailures(studentId);
     try {
       localStorage.removeItem(`dopilot_locked_${studentId}`);
       localStorage.removeItem(`dopilot_locked_progression_${studentId}`);
+      localStorage.removeItem(`dopilot_java_locked_${studentId}`);
+      localStorage.removeItem(`dopilot_java_locked_progression_${studentId}`);
     } catch {}
 
-    const overallScore = getPart1OverallScore('java-core', studentId);
-    const savedDecision = getPostPurchaseDecision('java-core', studentId);
-
-    if (savedDecision === 'continue_to_part2') {
+    const isFinished = isPart1Finished('java-core', studentId) || activeIdx === PART_1_SECTIONS.length - 1;
+    if (isFinished) {
+      // Scenario 1: Completely finished Part 1 during free trial -> redirect directly to Part 2!
       try {
         localStorage.setItem('dopilot_java_part1_completed', 'true');
+        localStorage.setItem('dopilot_java_part1_finished', 'true');
         localStorage.setItem('dopilot_java_core_last_part', '2');
       } catch {}
-      navigate('/course/complete-java-programming/part-2');
-      return;
-    }
-    if (savedDecision === 'retry_part1') {
-      setIsCourseComplete(false);
-      return;
-    }
-    // Users who passed the free trial (50% or higher) redirect directly to Part 2:
-    if (overallScore.isAbove50) {
-      try {
-        localStorage.setItem('dopilot_java_part1_completed', 'true');
-        localStorage.setItem('dopilot_java_core_last_part', '2');
-      } catch {}
+      setPostPurchaseDecision('java-core', 'continue_to_part2', studentId);
       navigate('/course/complete-java-programming/part-2');
     } else {
-      // Below 50% following a failed trial:
-      // Keep isCourseComplete = true and hasPurchased = true so user gets exactly one additional attempt at Part 1
-      setIsCourseComplete(true);
+      // Scenario 3: Partial Part 1 during free trial, purchased mid-way
+      // Retain exact active section and enable purchased rules (retests & failure streak)
+      setPurchaseModalOpen(false);
     }
   };
 
@@ -502,6 +502,12 @@ export const JavaPart1Page: React.FC = () => {
     recordPart1SectionScore('java-core', activeSection.id, correctCount, totalCount, studentId);
     if (!hasPurchased) {
       markTrialAttempted('java-core', studentId);
+    }
+    if (activeIdx === PART_1_SECTIONS.length - 1) {
+      markPart1Finished('java-core', studentId);
+      try {
+        localStorage.setItem('dopilot_java_part1_finished', 'true');
+      } catch {}
     }
 
     // Free-trial failure flow: Only track/increment consecutive failures if user has purchased the course!
@@ -1234,10 +1240,7 @@ export const JavaPart1Page: React.FC = () => {
             );
           } else {
             // PURCHASED USER:
-            const hasUsedRetry = hasUsedPart1Restart('java-core', studentId);
-            const savedDecision = getPostPurchaseDecision('java-core', studentId);
-            return (overall.isAbove50 || hasUsedRetry || overall.allSectionsPassed || savedDecision === 'continue_to_part2') ? (
-              /* Passed free trial OR overall score >= 50%: continue directly to Part 2 */
+            return (
               <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
 
@@ -1271,67 +1274,6 @@ export const JavaPart1Page: React.FC = () => {
                     type="button"
                     onClick={() => navigate('/course/complete-java-programming')}
                     className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <span>Back to Dashboard</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* After purchase following a failed trial with < 50%: provide option to retry Part 1 before continuing */
-              <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-primary to-amber-400" />
-
-                <div className="flex items-center justify-center pt-2">
-                  <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-amber-500/20">
-                    <RotateCcw className="w-4 h-4 text-amber-400" />
-                    <span>Option to Retry Part 1</span>
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
-                    Course Unlocked
-                  </h2>
-                  <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                    Your overall score was {overall.percentage}% ({overall.totalCorrect}/{overall.totalQuestions} correct), which is below 50%. You can retry Part 1 with fresh questions under purchased course rules before continuing, or proceed directly to Part 2.
-                  </p>
-                </div>
-
-                {/* Scorecard */}
-                <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto py-2">
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
-                    <div className="text-[11px] font-mono text-slate">Overall Score</div>
-                    <div className="text-xl font-bold font-mono text-rose-400 mt-0.5">{overall.percentage}%</div>
-                  </div>
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
-                    <div className="text-[11px] font-mono text-slate">Questions</div>
-                    <div className="text-xl font-bold font-mono text-paper mt-0.5">{overall.totalCorrect}/{overall.totalQuestions}</div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
-                  <button
-                    type="button"
-                    onClick={handleRetryPart1}
-                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    <span>Retry Part 1</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleContinueToPart2}
-                    className="py-2.5 px-6 rounded-xl bg-white/[0.08] hover:bg-white/15 border border-white/20 text-paper font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer"
-                  >
-                    <span>Continue to Part 2</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => navigate('/course/complete-java-programming')}
-                    className="py-2.5 px-5 rounded-xl bg-white/[0.04] hover:bg-white/10 border border-white/10 text-white hover:text-white font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>Back to Dashboard</span>
                   </button>
@@ -1388,16 +1330,40 @@ export const JavaPart1Page: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pt-2 flex justify-center">
-                <button
-                  type="button"
-                  onClick={handleProceedToNextLevel}
-                  className="py-2.5 px-8 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 cursor-pointer"
-                >
-                  <span>Continue to Next Level</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
+              {activeIdx === PART_1_SECTIONS.length - 1 ? (
+                /* Section 1.6 Final Level Buttons for Free Trial: Buy Course & Back to Dashboard */
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setPurchaseModalOpen(true)}
+                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>Buy Course</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/course/complete-java-programming')}
+                    className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Back to Dashboard</span>
+                  </button>
+                </div>
+              ) : (
+                /* Sections 1.1 - 1.5: Continue to Next Level */
+                <div className="pt-2 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleProceedToNextLevel}
+                    className="py-2.5 px-8 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 cursor-pointer"
+                  >
+                    <span>Continue to Next Level</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             /* SCENARIO 2B: Clean, Professional Exam Result for Purchased Students */

@@ -14,7 +14,7 @@ import { NeedHelpModal } from './NeedHelpModal';
 import { CoursePurchaseModal } from './checkout/CoursePurchaseModal';
 import { hasCourseAccess, getCoursePricing, CoursePricing, syncUserPurchasesFromCloud } from '../utils/coursePricingService';
 import { getUserInitials } from '../utils/userInitials';
-import { getPostPurchaseStartingPart, getPart1OverallScore, getPostPurchaseDecision, hasAttemptedTrial } from '../utils/part1ScoreService';
+import { getPostPurchaseStartingPart, getPart1OverallScore, getPostPurchaseDecision, hasAttemptedTrial, isPart1Finished } from '../utils/part1ScoreService';
 import { restoreAllStudentCourseProgressFromCloud, memoryCourseState } from '../utils/courseProgressSyncService';
 import { getSavedCertificate } from '../utils/certificateGenerator';
 import { navigateBackOrFallback } from '../utils/navigationHelper';
@@ -34,14 +34,7 @@ const getPythonResumeInfo = (isPurchased = false, studentId?: string): PythonRes
     for (let i = 1; i <= 14; i++) {
       let isComp = false;
       if (i === 1) {
-        const trialAttempted = hasAttemptedTrial('python-core', studentId);
-        if (!trialAttempted && isPurchased) {
-          isComp = false;
-        } else {
-          const stored = localStorage.getItem('dopilot_part1_completed') === 'true' || localStorage.getItem('dopilot_completed') === 'true';
-          const decision = getPostPurchaseDecision('python-core', studentId);
-          isComp = stored && (getPart1OverallScore('python-core', studentId).isAbove50 || decision === 'continue_to_part2');
-        }
+        isComp = isPart1Finished('python-core', studentId);
       } else {
         isComp = localStorage.getItem(`dopilot_part${i}_completed`) === 'true';
       }
@@ -113,14 +106,13 @@ const getJavaResumeInfo = (isPurchased = false, studentId?: string): JavaResumeI
   try {
     const completedParts: number[] = [];
     for (let i = 1; i <= 14; i++) {
-      if (localStorage.getItem(`dopilot_java_part${i}_completed`) === 'true') {
-        const decision = getPostPurchaseDecision('java-core', studentId);
-        if (i === 1 && !getPart1OverallScore('java-core', studentId).isAbove50 && decision !== 'continue_to_part2') {
-          // Score is below 50% and user hasn't chosen to continue to Part 2, not completed
-        } else {
-          completedParts.push(i);
-        }
+      let isComp = false;
+      if (i === 1) {
+        isComp = isPart1Finished('java-core', studentId);
+      } else {
+        isComp = localStorage.getItem(`dopilot_java_part${i}_completed`) === 'true';
       }
+      if (isComp) completedParts.push(i);
     }
 
     const allParts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -528,9 +520,19 @@ export const CourseDetailPage: React.FC = () => {
       localStorage.setItem('dopilot_python_core_last_part', String(target));
       navigate(`/course/python-core/part-${target}`);
     } else if (isCourseJava) {
-      const target = isPurchased 
+      let target = isPurchased 
         ? getPostPurchaseStartingPart('java-core', javaResumeInfo.targetPart, studentId) 
         : (javaResumeInfo.targetPart || 1);
+
+      if (user?.email) {
+        const mem = memoryCourseState[user.email.toLowerCase().trim()]?.courses?.['java-core'];
+        if (mem && mem.lastPart) {
+          if (!isPurchased || mem.lastPart >= target) {
+            target = mem.lastPart;
+          }
+        }
+      }
+
       localStorage.setItem('dopilot_java_core_last_part', String(target));
       navigate(`/course/complete-java-programming/part-${target}`);
     } else if (isCourseFullstack) {
