@@ -33,7 +33,7 @@ import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressStat
 import { notifyCourseLocked } from '../utils/lockNotificationService';
 import { useCourseUnlockedListener } from '../utils/courseResetService';
 import { useCorrectAutoAdvance } from '../utils/useCorrectAutoAdvance';
-import { markJavaPartIntroRequired, isJavaPartIntroRequired, useJavaPartIntroModal } from '../utils/javaPartIntro';
+import { markJavaPartIntroRequired, clearJavaPartIntroRequired, isJavaPartIntroRequired, useJavaPartIntroModal } from '../utils/javaPartIntro';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -65,6 +65,11 @@ export const JavaPart1Page: React.FC = () => {
   // Persistent Active Section ID (Defaults to Section 1.1)
   const [activeSectionId, setActiveSectionId] = useState<string>(() => {
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['java-core']?.parts?.['1'] : null;
+      if (memPart?.activeSectionId && PART_1_SECTIONS.some(s => s.id === memPart.activeSectionId)) {
+        return memPart.activeSectionId;
+      }
       const saved = localStorage.getItem('dopilot_java_active_section_id');
       return saved || '1-1-getting-started';
     } catch {
@@ -75,6 +80,11 @@ export const JavaPart1Page: React.FC = () => {
   // Persistent Question Index
   const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(() => {
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['java-core']?.parts?.['1'] : null;
+      if (typeof memPart?.activeQuestionIdx === 'number') {
+        return memPart.activeQuestionIdx;
+      }
       const saved = localStorage.getItem('dopilot_java_active_q_idx');
       return saved !== null ? Number(saved) : 0;
     } catch {
@@ -226,6 +236,7 @@ export const JavaPart1Page: React.FC = () => {
 
   const handleContinueToPart2 = () => {
     setPostPurchaseDecision('java-core', 'continue_to_part2', studentId);
+    clearJavaPartIntroRequired(2);
     try {
       localStorage.setItem('dopilot_java_part1_completed', 'true');
       localStorage.setItem('dopilot_java_core_last_part', '2');
@@ -806,7 +817,7 @@ export const JavaPart1Page: React.FC = () => {
       });
 
       if (hasPurchased) {
-        markJavaPartIntroRequired(2);
+        clearJavaPartIntroRequired(2);
         setPart2ModalOpen(true);
       }
     }
@@ -2020,6 +2031,7 @@ export const JavaPart1Page: React.FC = () => {
                 onClick={() => {
                   setPart2ModalOpen(false);
                   if (hasPurchased) {
+                    clearJavaPartIntroRequired(2);
                     navigate('/course/complete-java-programming/part-2');
                   } else {
                     setPurchaseModalOpen(true);

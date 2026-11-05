@@ -22,7 +22,7 @@ import { useCourseQuestionResume, saveQuestionProgressState, memoryCourseState }
 import { notifyCourseLocked } from '../utils/lockNotificationService';
 import { useCourseUnlockedListener } from '../utils/courseResetService';
 import { useCorrectAutoAdvance } from '../utils/useCorrectAutoAdvance';
-import { markJavaPartIntroRequired, clearJavaPartIntroRequired, isJavaPartIntroRequired, useJavaPartIntroModal, useJavaPartIntroGuard } from '../utils/javaPartIntro';
+import { markJavaPartIntroRequired, clearJavaPartIntroRequired, isJavaPartIntroRequired, useJavaPartIntroModal } from '../utils/javaPartIntro';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -48,8 +48,6 @@ export const JavaPart2Page: React.FC = () => {
   const [searchParams] = useSearchParams();
   const isReviewMode = searchParams.get('review') === 'true' && Boolean(getSavedCertificate('java-core') || getSavedCertificate('complete-java-programming'));
 
-  // Keep the Part 2 introduction as the resume point until Start Part 2 is clicked
-  useJavaPartIntroGuard(2);
 
   // Persistent Active Section ID (Defaults to Section 2.1)
   const [activeSectionId, setActiveSectionId] = useState<string>(() => {

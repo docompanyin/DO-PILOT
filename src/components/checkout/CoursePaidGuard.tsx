@@ -34,7 +34,7 @@ export const CoursePaidGuard: React.FC<CoursePaidGuardProps> = ({
 
   const [hasAccess, setHasAccess] = useState<boolean>(() => {
     if (isDevTestCert) return true;
-    return hasCourseAccess(normalizedCourseId, user?.id || user?.email);
+    return hasCourseAccess(normalizedCourseId, user?.email || user?.id);
   });
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
   const [pricing, setPricing] = useState<CoursePricing | undefined>(() => getCoursePricing(normalizedCourseId));
@@ -44,7 +44,7 @@ export const CoursePaidGuard: React.FC<CoursePaidGuardProps> = ({
   useEffect(() => {
     const check = () => {
       const isDevTestCertNow = typeof window !== 'undefined' && sessionStorage.getItem('dopilot_dev_test_cert_mode') === 'true';
-      const accessGranted = isDevTestCertNow || hasCourseAccess(normalizedCourseId, user?.id || user?.email);
+      const accessGranted = isDevTestCertNow || hasCourseAccess(normalizedCourseId, user?.email || user?.id);
       setHasAccess(accessGranted);
       setPricing(getCoursePricing(normalizedCourseId));
       if (accessGranted) {

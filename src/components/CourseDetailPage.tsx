@@ -18,6 +18,8 @@ import { getPostPurchaseStartingPart, getPart1OverallScore, getPostPurchaseDecis
 import { restoreAllStudentCourseProgressFromCloud, memoryCourseState } from '../utils/courseProgressSyncService';
 import { getSavedCertificate } from '../utils/certificateGenerator';
 import { navigateBackOrFallback } from '../utils/navigationHelper';
+import { clearPythonPartIntroRequired } from '../utils/pythonPartIntro';
+import { clearJavaPartIntroRequired } from '../utils/javaPartIntro';
 
 interface PythonResumeInfo {
   targetPart: number;
@@ -503,34 +505,44 @@ export const CourseDetailPage: React.FC = () => {
       return;
     }
 
+    const currentPurchased = isPurchased || hasCourseAccess(safeCourseId, studentId);
+
     if (isCoursePython) {
-      let target = isPurchased 
+      let target = currentPurchased 
         ? getPostPurchaseStartingPart('python-core', resumeInfo.targetPart, studentId) 
         : (resumeInfo.targetPart || 1);
 
       if (user?.email) {
         const mem = memoryCourseState[user.email.toLowerCase().trim()]?.courses?.['python-core'];
         if (mem && mem.lastPart) {
-          if (!isPurchased || mem.lastPart >= target) {
+          if (!currentPurchased || mem.lastPart >= target) {
             target = mem.lastPart;
           }
         }
       }
 
+      if (target >= 2) {
+        clearPythonPartIntroRequired(target);
+      }
+
       localStorage.setItem('dopilot_python_core_last_part', String(target));
       navigate(`/course/python-core/part-${target}`);
     } else if (isCourseJava) {
-      let target = isPurchased 
+      let target = currentPurchased 
         ? getPostPurchaseStartingPart('java-core', javaResumeInfo.targetPart, studentId) 
         : (javaResumeInfo.targetPart || 1);
 
       if (user?.email) {
         const mem = memoryCourseState[user.email.toLowerCase().trim()]?.courses?.['java-core'];
         if (mem && mem.lastPart) {
-          if (!isPurchased || mem.lastPart >= target) {
+          if (!currentPurchased || mem.lastPart >= target) {
             target = mem.lastPart;
           }
         }
+      }
+
+      if (target >= 2) {
+        clearJavaPartIntroRequired(target);
       }
 
       localStorage.setItem('dopilot_java_core_last_part', String(target));

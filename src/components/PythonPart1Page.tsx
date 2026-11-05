@@ -30,6 +30,7 @@ import {
 import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
 import { notifyCourseLocked } from '../utils/lockNotificationService';
 import { useCourseUnlockedListener } from '../utils/courseResetService';
+import { clearPythonPartIntroRequired } from '../utils/pythonPartIntro';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -319,6 +320,7 @@ export const PythonPart1Page: React.FC = () => {
 
   const handleContinueToPart2 = () => {
     setPostPurchaseDecision('python-core', 'continue_to_part2', studentId);
+    clearPythonPartIntroRequired(2);
     try {
       localStorage.setItem('dopilot_part1_completed', 'true');
       localStorage.setItem('dopilot_python_core_last_part', '2');
@@ -2114,6 +2116,7 @@ export const PythonPart1Page: React.FC = () => {
                 onClick={() => {
                   setPart2ModalOpen(false);
                   if (hasPurchased) {
+                    clearPythonPartIntroRequired(2);
                     navigate('/course/python-core/part-2');
                   } else {
                     setPurchaseModalOpen(true);

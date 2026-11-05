@@ -810,10 +810,20 @@ export const hasCourseAccess = (
       const sessionId = (session.id || '').toLowerCase().trim();
       if (
         (sessionEmail && (sessionEmail === targetIdentifier || targetIdentifier.includes(sessionEmail))) ||
-        (sessionId && (sessionId === targetIdentifier || targetIdentifier.includes(sessionId)))
+        (sessionId && (sessionId === targetIdentifier || targetIdentifier.includes(sessionId))) ||
+        !studentIdOrEmail
       ) {
         if (Array.isArray(session.enrolledCourses) && session.enrolledCourses.some((c: string) => courseMatches(c))) {
           return true;
+        }
+      }
+
+      // Also check direct purchases under session email if present
+      if (sessionEmail && sessionEmail !== targetIdentifier) {
+        const rawEmailPurchases = localStorage.getItem(`dopilot_purchased_courses_${sessionEmail}`);
+        if (rawEmailPurchases) {
+          const list: string[] = JSON.parse(rawEmailPurchases);
+          if (Array.isArray(list) && list.some(id => courseMatches(id))) return true;
         }
       }
     }
@@ -835,10 +845,17 @@ export const hasCourseAccess = (
 
   // 2. Check global purchases registry
   const purchases = getCoursePurchases();
+  let sessionEmail = '';
+  try {
+    const s = localStorage.getItem('dopilot_student_session_v1');
+    if (s) sessionEmail = (JSON.parse(s)?.email || '').toLowerCase().trim();
+  } catch {}
+
   const hasCompletedPurchase = purchases.some(
     p =>
       ((p.studentId && p.studentId.toLowerCase().trim() === targetIdentifier) ||
-        (p.studentEmail && p.studentEmail.toLowerCase().trim() === targetIdentifier)) &&
+        (p.studentEmail && p.studentEmail.toLowerCase().trim() === targetIdentifier) ||
+        (sessionEmail && p.studentEmail && p.studentEmail.toLowerCase().trim() === sessionEmail)) &&
       courseMatches(p.courseId) &&
       p.status === 'completed' &&
       p.accessGranted
