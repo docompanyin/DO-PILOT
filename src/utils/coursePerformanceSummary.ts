@@ -146,7 +146,12 @@ export const getCourseOverallSummary = (courseId: string): CourseOverallSummary 
           const taskId = part === 1
             ? `java-${sec.id}-${q?.id || qIdx}`
             : `java-part${part}-${sec.id}-${q?.id || qIdx}`;
-          const choice = answers[taskId];
+          const choice = answers[taskId] ||
+            (q?.id ? answers[`java-part${part}-${sec.id}-${q.id}`] : undefined) ||
+            answers[`java-part${part}-${sec.id}-${qIdx}`] ||
+            answers[`java-${sec.id}-${qIdx}`] ||
+            answers[`${sec.id}-${q?.id || qIdx}`] ||
+            answers[`${sec.id}-${qIdx}`];
 
           if (choice) {
             answeredCount += 1;

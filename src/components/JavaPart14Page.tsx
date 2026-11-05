@@ -1014,16 +1014,6 @@ export const JavaPart14Page: React.FC = () => {
 
           
 
-          {/* [DEV_TEST_CERTIFICATE_WORKFLOW] Temporary testing button - safe to remove */}
-          <button
-            type="button"
-            onClick={handleJumpToLastQuestion}
-            className="py-1 px-2.5 rounded-full bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 font-mono text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-sm"
-            title="Temporary Test Button: Jump to Part 14 Last Question"
-          >
-            <span>⚡ Test: Last Q</span>
-          </button>
-
           <button
             type="button"
             onClick={() => setHelpModalOpen(true)}
