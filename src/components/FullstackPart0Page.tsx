@@ -3,8 +3,16 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, BookOpen, Clock, ArrowRight, Trophy, RotateCcw,
-  CheckCircle2, AlertCircle, Shuffle, Sparkles, AlertTriangle, ShieldAlert
+  CheckCircle2, AlertCircle, Shuffle, Sparkles, AlertTriangle, ShieldAlert, ShoppingBag
 } from 'lucide-react';
+import { logQuestionAttempt } from '../utils/studentTelemetryService';
+import { useCourseUnlockedListener } from '../utils/courseResetService';
+import { notifyCourseLocked } from '../utils/lockNotificationService';
+import { CoursePurchaseModal } from './checkout/CoursePurchaseModal';
+import { 
+  markSectionStartedInTrial, isSectionExemptFromRetest, 
+  isPart1Finished, recordPart1SectionScore, getPart1OverallScore 
+} from '../utils/part1ScoreService';
 import { FullstackCompilerLauncherButton, FullstackWebModal, FullstackTaskContext } from './compiler/FullstackWebModal';
 import { useCoursePoints } from '../context/CoursePointsContext';
 import { getSavedCertificate } from '../utils/certificateGenerator';
@@ -48,7 +56,8 @@ export const FullstackPart0Page: React.FC = () => {
   const [hasPurchased, setHasPurchased] = useState<boolean>(() => {
     return hasCourseAccess('fullstack-open', user?.id || user?.email);
   });
-  const [, setPricing] = useState<CoursePricing | undefined>(() => getCoursePricing('fullstack-open'));
+  const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
+  const [pricing, setPricing] = useState<CoursePricing | undefined>(() => getCoursePricing('fullstack-open'));
 
   useEffect(() => {
     const check = () => {
@@ -113,7 +122,12 @@ export const FullstackPart0Page: React.FC = () => {
   const [levelResult, setLevelResult] = useState<LevelResultState | null>(() => {
     try {
       const saved = localStorage.getItem('dopilot_fullstack_part0_level_result');
-      return saved ? JSON.parse(saved) : null;
+      if (saved) return JSON.parse(saved);
+
+      const savedFinal = localStorage.getItem(`dopilot_fullstack_part0_final_exam_result_${studentId}`) ||
+                         localStorage.getItem('dopilot_fullstack_part0_final_exam_result');
+      if (savedFinal) return JSON.parse(savedFinal);
+      return null;
     } catch {
       return null;
     }
@@ -204,11 +218,57 @@ export const FullstackPart0Page: React.FC = () => {
 
   const [isCourseComplete, setIsCourseComplete] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('dopilot_fullstack_part0_completed') === 'true';
+      return localStorage.getItem('dopilot_fullstack_part0_completed') === 'true' ||
+             localStorage.getItem('dopilot_fullstack_part0_finished') === 'true';
     } catch {
       return false;
     }
   });
+
+  // Track section started under free trial to ensure Scenario 3 exemption if purchased mid-section
+  useEffect(() => {
+    if (!hasPurchased && activeSection?.id) {
+      markSectionStartedInTrial('fullstack-open', activeSection.id, studentId);
+    }
+  }, [hasPurchased, activeSection?.id, studentId]);
+
+  // Scenario 1: If student completely finished Part 0 during free trial and has purchased, redirect directly to Part 1
+  useEffect(() => {
+    if (!isReviewMode && hasPurchased && isPart1Finished('fullstack-open', studentId)) {
+      navigate('/course/fullstack-open/part-1', { replace: true });
+    }
+  }, [hasPurchased, isReviewMode, studentId, navigate]);
+
+  useCourseUnlockedListener({
+    partNum: 0,
+    studentId,
+    studentEmail: user?.email,
+    courseId: 'fullstack-open',
+    setLevelResult,
+    setConsecutiveFailures,
+    setActiveSectionId,
+    setActiveQuestionIdx,
+    setIsStudyPhase
+  });
+
+  // Auto-checkpoint active location & notes phase to Supabase
+  useEffect(() => {
+    if (user?.email && !levelResult?.isFinished && !isCourseComplete) {
+      saveQuestionProgressState({
+        courseId: 'fullstack-open',
+        partNum: 0,
+        activeSectionId,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase,
+        isTimeUpWaiting,
+        targetEndTime,
+        timeLeft,
+        studentEmail: user?.email,
+        levelResult: null
+      });
+    }
+  }, [activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
 
   useCourseQuestionResume({
     courseId: 'fullstack-open',
@@ -359,9 +419,56 @@ export const FullstackPart0Page: React.FC = () => {
       playTwinkleSound();
     }
 
-    // Record attempt result in persistent consecutive failure history
-    const result = recordLevelAttemptResultFullstackPart0(activeSection.id, studentId, isPassed);
-    setConsecutiveFailures(result.consecutiveFailedLevels);
+    // Record section score for overall score calculation
+    recordPart1SectionScore('fullstack-open', activeSection.id, correctCount, totalCount, studentId);
+
+    const isFinalSection = activeIdx === FULLSTACK_PART_0_SECTIONS.length - 1;
+    if (isFinalSection) {
+      try {
+        localStorage.setItem('dopilot_fullstack_part0_finished', 'true');
+        localStorage.setItem('dopilot_fullstack_part0_completed', 'true');
+      } catch {}
+    }
+
+    // Retest & consecutive failures exemption check
+    const isExempt = !hasPurchased || isSectionExemptFromRetest('fullstack-open', activeSection.id, studentId);
+
+    let streak = 0;
+    let attemptCount = 1;
+    let isSecondFailureInLevel = false;
+    let isLocked = false;
+
+    if (hasPurchased && !isExempt) {
+      const result = recordLevelAttemptResultFullstackPart0(activeSection.id, studentId, isPassed);
+      streak = result.consecutiveFailedLevels;
+      attemptCount = result.attemptCount;
+      isSecondFailureInLevel = result.isSecondFailureInLevel;
+      isLocked = result.isLocked;
+      setConsecutiveFailures(result.consecutiveFailedLevels);
+      if (result.isLocked) {
+        notifyCourseLocked({
+          courseId: 'fullstack-open',
+          courseName: 'Full Stack Open',
+          partNum: 0,
+          sectionId: activeSection.id,
+          sectionTitle: `Level ${activeSection.number} — ${activeSection.title}`,
+          activeQuestionIdx,
+          totalQuestions: totalCount,
+          score: correctCount,
+          percentage,
+          streak: result.consecutiveFailedLevels,
+          attemptCount: result.attemptCount,
+          studentId,
+          studentEmail: user?.email,
+          studentName: user?.name,
+          studentPhone: user?.phone,
+          collegeOrCompany: user?.collegeOrCompany,
+          earnedPoints: points
+        });
+      }
+    } else {
+      setConsecutiveFailures(0);
+    }
 
     const resultState = {
       isFinished: true,
@@ -369,14 +476,18 @@ export const FullstackPart0Page: React.FC = () => {
       correctCount,
       totalCount,
       percentage,
-      streak: result.consecutiveFailedLevels,
-      attemptCount: result.attemptCount,
-      isSecondFailureInLevel: result.isSecondFailureInLevel,
-      isLocked: result.isLocked
+      streak,
+      attemptCount,
+      isSecondFailureInLevel,
+      isLocked
     };
     setLevelResult(resultState);
     try {
       localStorage.setItem('dopilot_fullstack_part0_level_result', JSON.stringify(resultState));
+      if (isFinalSection) {
+        localStorage.setItem(`dopilot_fullstack_part0_final_exam_result_${studentId}`, JSON.stringify(resultState));
+        localStorage.setItem('dopilot_fullstack_part0_final_exam_result', JSON.stringify(resultState));
+      }
     } catch {}
 
     saveQuestionProgressState({
@@ -641,15 +752,48 @@ export const FullstackPart0Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+    const timeSpent = (() => {
+      if (targetEndTime && targetEndTime > 0) {
+        const elapsed = (TIMER_DURATION * 1000 - Math.max(0, targetEndTime - Date.now())) / 1000;
+        return Math.max(0.1, Math.min(30, Number(elapsed.toFixed(1))));
+      }
+      return Math.max(0.1, Math.min(30, Number((TIMER_DURATION - timeLeft).toFixed(1))));
+    })();
+    const isRetestAttempt = (() => {
+      try {
+        const raw = localStorage.getItem(`dopilot_fullstack_attempt_${activeSection.id}_${studentId}`);
+        return raw ? Number(raw) > 1 : false;
+      } catch {
+        return false;
+      }
+    })();
+    const attemptNum = isRetestAttempt ? 2 : 1;
+
+    // Log exact question telemetry for Admin Panel
+    logQuestionAttempt(user?.email || studentId, {
+      courseId: 'fullstack-open',
+      partNum: 0,
+      sectionId: activeSection.id,
+      sectionTitle: activeSection.title,
+      subQuestionLabel: `Part 0 -> Sec 0.${activeIdx + 1} -> Q${activeQuestionIdx + 1}`,
+      questionIndex: activeQuestionIdx + 1,
+      questionTitle: heading,
+      questionPrompt: currentMcq?.question || heading,
+      codeSnippet: currentBlock?.codeSnippet,
+      studentOptionId: optId,
+      studentAnswer: currentMcq?.options?.find(o => o.id === optId)?.text || optId,
+      correctOptionId: currentMcq?.correctAnswer || 'A',
+      correctAnswer: currentMcq?.options?.find(o => o.id === currentMcq?.correctAnswer)?.text || 'Correct',
+      isCorrect,
+      timeTakenSeconds: timeSpent,
+      timeLimitSeconds: 30,
+      attemptNumber: attemptNum,
+      isRetest: isRetestAttempt,
+      status: isCorrect ? 'passed' : 'failed',
+      explanation: currentMcq?.explanationNote
+    });
+
     if (isCorrect) {
-      const isRetestAttempt = (() => {
-        try {
-          const raw = localStorage.getItem(`dopilot_fullstack_attempt_${activeSection.id}_${studentId}`);
-          return raw ? Number(raw) > 1 : false;
-        } catch {
-          return false;
-        }
-      })();
       if (!isRetestAttempt) {
         awardPoint(tId, heading, optId);
       }
@@ -801,47 +945,157 @@ export const FullstackPart0Page: React.FC = () => {
       <main className={`flex-1 flex flex-col items-center justify-center ${!isCourseComplete && !levelResult?.isFinished ? 'max-w-7xl' : 'max-w-5xl'} w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto transition-all`}>
         
         {/* SCENARIO 1: Entire Part 0 Course Completed */}
-        {isCourseComplete ? (
-          <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
+        {isCourseComplete ? (() => {
+          if (!hasPurchased) {
+            // FREE TRIAL USER: Always display the preserved final Exam Result page (Screenshot 1)
+            const finalResult = (() => {
+              if (levelResult && levelResult.isFinished) return levelResult;
+              try {
+                const saved = localStorage.getItem(`dopilot_fullstack_part0_final_exam_result_${studentId}`) ||
+                              localStorage.getItem('dopilot_fullstack_part0_final_exam_result');
+                if (saved) return JSON.parse(saved);
+              } catch {}
+              const finalSec = FULLSTACK_PART_0_SECTIONS[FULLSTACK_PART_0_SECTIONS.length - 1];
+              const qList = getActiveQuestionsForLevelFullstackPart0(finalSec, studentId, false);
+              let correctCount = 0;
+              const totalCount = qList.length || 6;
+              qList.forEach((q, idx) => {
+                const candKeys = [
+                  `fullstack-0-${finalSec.id}-${q.id || idx}`,
+                  `fullstack-0-${finalSec.id}-${idx}`,
+                  q.id
+                ].filter((k): k is string => Boolean(k));
+                const ans = candKeys.map(k => selectedAnswers[k]).find(Boolean);
+                if (ans && ans === q.correctAnswer) correctCount++;
+              });
+              const percentage = Math.round((correctCount / totalCount) * 100);
+              return {
+                isFinished: true,
+                sectionId: finalSec.id,
+                isPassed: percentage > 80,
+                correctCount,
+                totalCount,
+                percentage,
+                attemptCount: 1,
+                streak: 0,
+                isSecondFailureInLevel: false,
+                isLocked: false
+              };
+            })();
 
-            <div className="flex items-center justify-center pt-2">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Part 0 Fully Certified</span>
-              </span>
-            </div>
+            return (
+              <div className="bg-[#0f1117] border border-white/10 rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center space-y-5 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative">
+                <div className="flex items-center justify-center">
+                  {finalResult.isPassed ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-xs font-semibold border bg-emerald-500/10 border-emerald-500/30 text-emerald-300">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Exam Passed</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-xs font-semibold border bg-rose-500/10 border-rose-500/30 text-rose-300">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Exam Result</span>
+                    </span>
+                  )}
+                </div>
 
-            <div className="space-y-2">
-              <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
-                Part 0 Complete! 🎉
-              </h2>
-              <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                You have mastered all 6 foundational levels of Full Stack Open Part 0. You scored &gt; 80% across all sections and earned {points} course points!
-              </p>
-            </div>
+                <div className="space-y-1.5">
+                  <h2 className="font-jakarta text-2xl font-bold text-paper tracking-tight">
+                    {finalResult.isPassed ? 'Exam Passed' : 'Exam Not Passed'}
+                  </h2>
+                  <p className="text-slate text-xs sm:text-sm max-w-md mx-auto leading-relaxed">
+                    {finalResult.isPassed
+                      ? `You scored ${finalResult.percentage}%, successfully meeting the passing benchmark of more than 80%.`
+                      : `You scored ${finalResult.percentage}%. The passing benchmark is more than 80%. You can proceed directly to the next level in your free trial.`}
+                  </p>
+                </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
-              <button
-                type="button"
-                onClick={() => navigate('/course/fullstack-open/part-1')}
-                className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
-              >
-                <span>Continue to Part 1: React</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+                <div className="grid grid-cols-2 gap-3 pt-1 max-w-xs mx-auto">
+                  <div className={`p-3.5 rounded-xl border flex flex-col items-center justify-center ${
+                    finalResult.isPassed ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-white/[0.03] border-white/10'
+                  }`}>
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Score</span>
+                    <span className={`font-mono text-2xl sm:text-3xl font-bold mt-0.5 ${
+                      finalResult.isPassed ? 'text-emerald-400' : 'text-rose-400'
+                    }`}>
+                      {finalResult.percentage}%
+                    </span>
+                  </div>
 
-              <button
-                type="button"
-                onClick={() => navigate('/course/fullstack-open')}
-                className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>Back to Curriculum</span>
-              </button>
-            </div>
-          </div>
-        ) : levelResult?.isFinished ? (
-          !hasPurchased ? (
+                  <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col items-center justify-center">
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Correct Answers</span>
+                    <span className="font-mono text-2xl sm:text-3xl font-bold text-paper mt-0.5">
+                      {finalResult.correctCount} <span className="text-slate/50 text-base font-normal">/ {finalResult.totalCount}</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setPurchaseModalOpen(true)}
+                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>Buy Course</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/course/fullstack-open')}
+                    className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Back to Dashboard</span>
+                  </button>
+                </div>
+              </div>
+            );
+          } else {
+            // PURCHASED USER:
+            return (
+              <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
+
+                <div className="flex items-center justify-center pt-2">
+                  <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>Part 0 Fully Certified</span>
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
+                    Part 0 Complete! 🎉
+                  </h2>
+                  <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
+                    You have mastered all 6 foundational levels of Full Stack Open Part 0. You scored &gt; 80% across all sections and earned {points} course points!
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/course/fullstack-open/part-1')}
+                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                  >
+                    <span>Continue to Part 1: React</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/course/fullstack-open')}
+                    className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Back to Curriculum</span>
+                  </button>
+                </div>
+              </div>
+            );
+          }
+        })() : levelResult?.isFinished ? (
+          (!hasPurchased || isSectionExemptFromRetest('fullstack-open', activeSection.id, studentId)) ? (
             /* SCENARIO 2A: Clean, Minimal Free-Trial Pass & Fail Page (Identical to Python, Java & Cyber Security) */
             <div className="bg-[#0f1117] border border-white/10 rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center space-y-5 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative">
               <div className="flex items-center justify-center">
@@ -889,16 +1143,51 @@ export const FullstackPart0Page: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pt-2 flex justify-center">
-                <button
-                  type="button"
-                  onClick={handleProceedToNextLevel}
-                  className="py-2.5 px-8 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 cursor-pointer"
-                >
-                  <span>Continue to Next Level</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
+              {activeIdx === FULLSTACK_PART_0_SECTIONS.length - 1 ? (
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  {!hasPurchased ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setPurchaseModalOpen(true)}
+                        className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                      >
+                        <ShoppingBag className="w-4 h-4" />
+                        <span>Buy Course</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => navigate('/course/fullstack-open')}
+                        className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <span>Back to Dashboard</span>
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/course/fullstack-open/part-1')}
+                      className="py-2.5 px-8 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 cursor-pointer"
+                    >
+                      <span>Continue to Part 1: React</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="pt-2 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleProceedToNextLevel}
+                    className="py-2.5 px-8 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 cursor-pointer"
+                  >
+                    <span>Continue to Next Level</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             /* SCENARIO 2B: Clean, Professional Exam Result for Purchased Students (Identical to Python, Java & Cyber Security) */
@@ -1519,6 +1808,18 @@ export const FullstackPart0Page: React.FC = () => {
         onClose={() => setHelpModalOpen(false)}
         courseTitle="Full Stack Open Course"
         courseId="fullstack-open"
+      />
+
+      {/* Course Purchase Modal for Free Trial Completion */}
+      <CoursePurchaseModal
+        isOpen={purchaseModalOpen}
+        onClose={() => setPurchaseModalOpen(false)}
+        courseId="fullstack-open"
+        courseName="Full Stack Open Course"
+        onSuccess={() => {
+          setHasPurchased(true);
+          setPurchaseModalOpen(false);
+        }}
       />
     </div>
   );

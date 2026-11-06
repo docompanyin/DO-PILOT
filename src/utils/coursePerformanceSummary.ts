@@ -193,12 +193,16 @@ export const getCourseOverallSummary = (courseId: string): CourseOverallSummary 
         sec.theoryBlocks.forEach((tb, qIdx) => {
           totalQuestions += 1;
           const q = tb.mcq;
-          const taskId = part === 0
-            ? `fs-p0-${sec.id}-${q?.id || qIdx}`
-            : part === 1
-            ? `fullstack-${sec.id}-${q?.id || qIdx}`
-            : `fs-p${part}-${sec.id}-${q?.id || qIdx}`;
-          const choice = answers[taskId];
+          const candKeys = [
+            `fullstack-${part}-${sec.id}-${q?.id || qIdx}`,
+            `fullstack-${part}-${sec.id}-${qIdx}`,
+            `fullstack-${sec.id}-${q?.id || qIdx}`,
+            `fullstack-${sec.id}-${qIdx}`,
+            `fs-p${part}-${sec.id}-${q?.id || qIdx}`,
+            `fs-p${part}-${sec.id}-${qIdx}`,
+            q?.id || ''
+          ].filter(Boolean);
+          const choice = candKeys.map(k => answers[k]).find(Boolean);
 
           if (choice) {
             answeredCount += 1;

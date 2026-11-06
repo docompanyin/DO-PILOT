@@ -4,6 +4,20 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { normalizeStudentEmail, getStudentDocId, memoryCourseState } from './courseProgressSyncService';
 import { clearPythonPartIntroRequired } from './pythonPartIntro';
 import { clearJavaPartIntroRequired } from './javaPartIntro';
+import { FULLSTACK_PART_0_SECTIONS } from '../data/fullstackPart0Data';
+import { FULLSTACK_PART_1_SECTIONS } from '../data/fullstackPart1Data';
+import { FULLSTACK_PART_2_SECTIONS } from '../data/fullstackPart2Data';
+import { FULLSTACK_PART_3_SECTIONS } from '../data/fullstackPart3Data';
+import { FULLSTACK_PART_4_SECTIONS } from '../data/fullstackPart4Data';
+import { FULLSTACK_PART_5_SECTIONS } from '../data/fullstackPart5Data';
+import { FULLSTACK_PART_6_SECTIONS } from '../data/fullstackPart6Data';
+import { FULLSTACK_PART_7_SECTIONS } from '../data/fullstackPart7Data';
+import { FULLSTACK_PART_8_SECTIONS } from '../data/fullstackPart8Data';
+import { FULLSTACK_PART_9_SECTIONS } from '../data/fullstackPart9Data';
+import { FULLSTACK_PART_10_SECTIONS } from '../data/fullstackPart10Data';
+import { FULLSTACK_PART_11_SECTIONS } from '../data/fullstackPart11Data';
+import { FULLSTACK_PART_12_SECTIONS } from '../data/fullstackPart12Data';
+import { FULLSTACK_PART_13_SECTIONS } from '../data/fullstackPart13Data';
 
 export interface LockedCourseRecord {
   id: string;
@@ -436,6 +450,97 @@ export const formatJavaSectionLabel = (
   }
 
   return clean;
+};
+
+
+export const FULLSTACK_SECTIONS_CATALOG: Record<number, { id: string; number: string; title: string }[]> = {
+  0: FULLSTACK_PART_0_SECTIONS.map((s, idx) => ({ id: s.id, number: `0.${idx + 1}`, title: s.title })),
+  1: FULLSTACK_PART_1_SECTIONS.map((s, idx) => ({ id: s.id, number: `1.${idx + 1}`, title: s.title })),
+  2: FULLSTACK_PART_2_SECTIONS.map((s, idx) => ({ id: s.id, number: `2.${idx + 1}`, title: s.title })),
+  3: FULLSTACK_PART_3_SECTIONS.map((s, idx) => ({ id: s.id, number: `3.${idx + 1}`, title: s.title })),
+  4: FULLSTACK_PART_4_SECTIONS.map((s, idx) => ({ id: s.id, number: `4.${idx + 1}`, title: s.title })),
+  5: FULLSTACK_PART_5_SECTIONS.map((s, idx) => ({ id: s.id, number: `5.${idx + 1}`, title: s.title })),
+  6: FULLSTACK_PART_6_SECTIONS.map((s, idx) => ({ id: s.id, number: `6.${idx + 1}`, title: s.title })),
+  7: FULLSTACK_PART_7_SECTIONS.map((s, idx) => ({ id: s.id, number: `7.${idx + 1}`, title: s.title })),
+  8: FULLSTACK_PART_8_SECTIONS.map((s, idx) => ({ id: s.id, number: `8.${idx + 1}`, title: s.title })),
+  9: FULLSTACK_PART_9_SECTIONS.map((s, idx) => ({ id: s.id, number: `9.${idx + 1}`, title: s.title })),
+  10: FULLSTACK_PART_10_SECTIONS.map((s, idx) => ({ id: s.id, number: `10.${idx + 1}`, title: s.title })),
+  11: FULLSTACK_PART_11_SECTIONS.map((s, idx) => ({ id: s.id, number: `11.${idx + 1}`, title: s.title })),
+  12: FULLSTACK_PART_12_SECTIONS.map((s, idx) => ({ id: s.id, number: `12.${idx + 1}`, title: s.title })),
+  13: FULLSTACK_PART_13_SECTIONS.map((s, idx) => ({ id: s.id, number: `13.${idx + 1}`, title: s.title }))
+};
+
+export const getNextFullstackSection = (
+  currentPart: number,
+  currentSectionIdentifier?: string
+): {
+  nextPart: number;
+  nextSectionId: string;
+  nextSectionNumber: string;
+  nextSectionTitle: string;
+} => {
+  const partNum = Math.max(0, Math.min(13, currentPart ?? 0));
+  const sections = FULLSTACK_SECTIONS_CATALOG[partNum] || [];
+
+  let currentIdx = -1;
+  const rawTarget = String(currentSectionIdentifier || '').trim().toLowerCase();
+
+  if (rawTarget) {
+    currentIdx = sections.findIndex((s) => {
+      const sId = s.id.toLowerCase();
+      const sNum = s.number.toLowerCase();
+      return (
+        sId === rawTarget ||
+        sNum === rawTarget ||
+        rawTarget.includes(sId) ||
+        rawTarget.includes(`section ${sNum}`) ||
+        rawTarget.includes(`level ${sNum}`) ||
+        rawTarget.startsWith(sNum)
+      );
+    });
+  }
+
+  if (currentIdx === -1 && rawTarget) {
+    const matchNum = rawTarget.match(/(\d+\.\d+)/);
+    if (matchNum) {
+      currentIdx = sections.findIndex((s) => s.number === matchNum[1]);
+    }
+  }
+
+  if (currentIdx === -1) {
+    currentIdx = 0;
+  }
+
+  if (currentIdx + 1 < sections.length) {
+    const nextSec = sections[currentIdx + 1];
+    return {
+      nextPart: partNum,
+      nextSectionId: nextSec.id,
+      nextSectionNumber: nextSec.number,
+      nextSectionTitle: nextSec.title
+    };
+  }
+
+  if (partNum < 13) {
+    const nextPartSections = FULLSTACK_SECTIONS_CATALOG[partNum + 1] || [];
+    const firstNextSec = nextPartSections[0];
+    if (firstNextSec) {
+      return {
+        nextPart: partNum + 1,
+        nextSectionId: firstNextSec.id,
+        nextSectionNumber: firstNextSec.number,
+        nextSectionTitle: firstNextSec.title
+      };
+    }
+  }
+
+  const finalSec = sections[currentIdx] || sections[sections.length - 1];
+  return {
+    nextPart: 13,
+    nextSectionId: finalSec?.id || '13-1',
+    nextSectionNumber: finalSec?.number || '13.1',
+    nextSectionTitle: finalSec?.title || 'Relational Databases'
+  };
 };
 
 export const getNextJavaSection = (
@@ -1600,6 +1705,13 @@ export const clearStudentCourseLockKeys = (
           localStorage.removeItem(`dopilot_fullstack_part${p}_level_result`);
         }
       });
+      if (nextSectionId && nextPart !== undefined) {
+        localStorage.setItem(`dopilot_fullstack_part${nextPart}_active_section_id`, nextSectionId);
+        localStorage.setItem(`dopilot_fullstack_part${nextPart}_active_q_idx`, '0');
+        localStorage.setItem(`dopilot_fullstack_part${nextPart}_study_phase`, 'true');
+        localStorage.removeItem(`dopilot_fullstack_part${nextPart}_time_up`);
+        localStorage.removeItem(`dopilot_fullstack_part${nextPart}_level_result`);
+      }
     } else if (normCourse.includes('cyber')) {
       idList.forEach(id => {
         localStorage.removeItem(`dopilot_cyber_locked_${id}`);
@@ -1652,10 +1764,13 @@ export const resetStudentCourse = async (
   }
 
   // 1. Calculate exact next section for continuation
-  const lockedPart = targetRecord.partNum || 1;
+  const lockedPart = targetRecord.partNum !== undefined ? targetRecord.partNum : 0;
   const lockedSection = targetRecord.failedSectionId || targetRecord.failedSection;
+  const isFullstack = (targetRecord.courseId || '').toLowerCase().includes('fullstack');
   const isJava = (targetRecord.courseId || '').toLowerCase().includes('java');
-  const continuation = isJava
+  const continuation = isFullstack
+    ? getNextFullstackSection(lockedPart, lockedSection)
+    : isJava
     ? getNextJavaSection(lockedPart, lockedSection)
     : getNextPythonSection(lockedPart, lockedSection);
 
@@ -1685,7 +1800,7 @@ export const resetStudentCourse = async (
     mem.consecutiveFailures = {};
 
     if (!mem.courses) mem.courses = {};
-    const courseKey = isJava ? 'java-core' : 'python-core';
+    const courseKey = isFullstack ? 'fullstack-open' : isJava ? 'java-core' : 'python-core';
     if (!mem.courses[courseKey]) {
       mem.courses[courseKey] = {
         lastPart: nextPart,
@@ -1939,6 +2054,7 @@ export function useCourseUnlockedListener(params: {
   setIsStudyPhase?: (val: boolean) => void;
 }): void {
   const navigate = useNavigate();
+  const isFullstack = (params.courseId || '').toLowerCase().includes('fullstack');
   const isJava = (params.courseId || '').toLowerCase().includes('java');
 
   useEffect(() => {
@@ -1957,7 +2073,17 @@ export function useCourseUnlockedListener(params: {
 
       // 2. Clear all local lock and levelResult markers
       try {
-        if (isJava) {
+        if (isFullstack) {
+          localStorage.removeItem(`dopilot_fullstack_part${params.partNum}_level_result`);
+          localStorage.removeItem('dopilot_fullstack_level_result');
+          localStorage.removeItem(`dopilot_fullstack_part${params.partNum}_locked_${cleanStudent}`);
+          localStorage.removeItem(`dopilot_fullstack_locked_${cleanStudent}`);
+          localStorage.removeItem(`dopilot_fullstack_part${params.partNum}_disclaimer_open`);
+          if (cleanEmail) {
+            localStorage.removeItem(`dopilot_fullstack_part${params.partNum}_locked_${cleanEmail}`);
+            localStorage.removeItem(`dopilot_fullstack_locked_${cleanEmail}`);
+          }
+        } else if (isJava) {
           localStorage.removeItem(`dopilot_java_part${params.partNum}_level_result`);
           localStorage.removeItem('dopilot_java_level_result');
           localStorage.removeItem(`dopilot_java_part${params.partNum}_locked_${cleanStudent}`);
@@ -1994,7 +2120,9 @@ export function useCourseUnlockedListener(params: {
         if (params.setActiveQuestionIdx) params.setActiveQuestionIdx(0);
         if (params.setIsStudyPhase) params.setIsStudyPhase(true);
       } else if (unlockInfo.nextPart && unlockInfo.nextPart !== params.partNum) {
-        const route = isJava
+        const route = isFullstack
+          ? `/course/fullstack-open/part-${unlockInfo.nextPart}`
+          : isJava
           ? `/course/complete-java-programming/part-${unlockInfo.nextPart}`
           : `/course/python-core/part-${unlockInfo.nextPart}`;
         navigate(route, { replace: true });
@@ -2005,7 +2133,9 @@ export function useCourseUnlockedListener(params: {
     const handleCourseUnlocked = (e: any) => {
       const detail = e?.detail;
       const eventCourseId = String(detail?.courseId || '').toLowerCase();
-      const courseMatches = isJava
+      const courseMatches = isFullstack
+        ? !eventCourseId || eventCourseId.includes('fullstack') || eventCourseId === 'all'
+        : isJava
         ? !eventCourseId || eventCourseId.includes('java') || eventCourseId === 'all'
         : !eventCourseId || eventCourseId.includes('python') || eventCourseId === 'all';
 

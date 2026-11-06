@@ -216,6 +216,15 @@ export const isPart1Finished = (courseId: string, studentId?: string): boolean =
       ) {
         return true;
       }
+    } else if (track === 'fullstack-open') {
+      if (
+        localStorage.getItem('dopilot_fullstack_part0_finished') === 'true' ||
+        localStorage.getItem('dopilot_fullstack_part0_completed') === 'true' ||
+        localStorage.getItem('dopilot_fullstack_part1_finished') === 'true' ||
+        localStorage.getItem('dopilot_fullstack_part1_completed') === 'true'
+      ) {
+        return true;
+      }
     } else {
       if (
         localStorage.getItem(`${prefix}_part1_finished`) === 'true' ||
@@ -308,6 +317,20 @@ export const getPostPurchaseStartingPart = (
     return 2;
   }
   if (savedDecision === 'retry_part1') {
+    return 1;
+  }
+
+  // Full Stack Open: Part 0 is trial, Part 1 is first paid part
+  if (track === 'fullstack-open') {
+    const isPart0Finished =
+      localStorage.getItem('dopilot_fullstack_part0_completed') === 'true' ||
+      localStorage.getItem('dopilot_fullstack_part0_finished') === 'true';
+    if (isPart0Finished) {
+      return Math.max(1, currentUncompletedPart);
+    }
+    if (currentUncompletedPart === 0) {
+      return 0;
+    }
     return 1;
   }
 

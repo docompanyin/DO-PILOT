@@ -17,7 +17,10 @@ import {
   recordLevelAttemptResultFullstackPart5, resetConsecutiveFailuresFullstackPart5,
   setLevelAttemptCountFullstackPart5
 } from '../data/fullstackPart5Data';
-import { useCourseQuestionResume } from '../utils/courseProgressSyncService';
+import { useCourseQuestionResume, saveQuestionProgressState } from '../utils/courseProgressSyncService';
+import { logFullstackPartQuestionAttempt } from '../utils/studentTelemetryService';
+import { notifyCourseLocked } from '../utils/lockNotificationService';
+import { useCourseUnlockedListener } from '../utils/courseResetService';
 import { playTwinkleSound } from '../utils/audioEffects';
 
 const TIMER_DURATION = 30; // 30 seconds
@@ -318,8 +321,41 @@ export const FullstackPart5Page: React.FC = () => {
 
     setConsecutiveFailures(outcome.consecutiveFailedLevels);
 
+    saveQuestionProgressState({
+      courseId: 'fullstack-open',
+      partNum: 5,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers: currentAnswers,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime,
+      timeLeft,
+      studentEmail: user?.email,
+      levelResult: resultState
+    });
+
     if (outcome.isLocked) {
       setModalOpen(true);
+      notifyCourseLocked({
+        courseId: 'fullstack-open',
+        courseName: 'Full Stack Open',
+        partNum: 5,
+        sectionId: activeSection.id,
+        sectionTitle: `Level ${activeSection.number || activeIdx + 1} — ${activeSection.title}`,
+        activeQuestionIdx,
+        totalQuestions: totalCount,
+        score: correctCount,
+        percentage,
+        streak: outcome.consecutiveFailedLevels,
+        attemptCount: outcome.attemptCount,
+        studentId,
+        studentEmail: user?.email,
+        studentName: user?.name,
+        studentPhone: user?.phone,
+        collegeOrCompany: user?.collegeOrCompany,
+        earnedPoints: points
+      });
     }
   };
 
@@ -365,6 +401,19 @@ export const FullstackPart5Page: React.FC = () => {
       } catch (e) {
         console.error(e);
       }
+      saveQuestionProgressState({
+        courseId: 'fullstack-open',
+        partNum: 5,
+        activeSectionId: activeSection.id,
+        activeQuestionIdx: nextQ,
+        selectedAnswers: stateRef.current.selectedAnswers,
+        isStudyPhase: true,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: TIMER_DURATION,
+        studentEmail: user?.email,
+        levelResult: null
+      });
     } else {
       evaluateLevelScore();
     }
@@ -513,15 +562,51 @@ export const FullstackPart5Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+    const timeSpent = (() => {
+      if (targetEndTime && targetEndTime > 0) {
+        const elapsed = (TIMER_DURATION * 1000 - Math.max(0, targetEndTime - Date.now())) / 1000;
+        return Math.max(0.1, Math.min(30, Number(elapsed.toFixed(1))));
+      }
+      return Math.max(0.1, Math.min(30, Number((TIMER_DURATION - timeLeft).toFixed(1))));
+    })();
+    const isRetestAttempt = (() => {
+      try {
+        const raw = localStorage.getItem(`dopilot_fullstack_p5_attempt_${activeSection.id}_${studentId}`) ||
+                    localStorage.getItem(`dopilot_fullstack_part5_attempt_${activeSection.id}_${studentId}`) ||
+                    localStorage.getItem(`dopilot_fullstack_p5_attempt_${studentId}_${activeSection.id}`);
+        return raw ? Number(raw) > 1 : false;
+      } catch {
+        return false;
+      }
+    })();
+    const attemptNum = (() => {
+      try {
+        const raw = localStorage.getItem(`dopilot_fullstack_p5_attempt_${activeSection.id}_${studentId}`) ||
+                    localStorage.getItem(`dopilot_fullstack_part5_attempt_${activeSection.id}_${studentId}`) ||
+                    localStorage.getItem(`dopilot_fullstack_p5_attempt_${studentId}_${activeSection.id}`);
+        return raw ? Math.max(1, Number(raw)) : (isRetestAttempt ? 2 : 1);
+      } catch {
+        return isRetestAttempt ? 2 : 1;
+      }
+    })();
+
+    // Log exact question telemetry for live Admin Panel inspection
+    logFullstackPartQuestionAttempt({
+      studentEmailOrId: user?.email || studentId,
+      partNum: 5,
+      activeSection,
+      activeIdx,
+      activeQuestionIdx,
+      currentMcq,
+      currentBlock,
+      optId,
+      isCorrect,
+      timeSpent,
+      isRetestAttempt,
+      attemptNum
+    });
+
     if (isCorrect) {
-      const isRetestAttempt = (() => {
-        try {
-          const raw = localStorage.getItem(`dopilot_fullstack_p5_attempt_${activeSection.id}_${studentId}`);
-          return raw ? Number(raw) > 1 : false;
-        } catch {
-          return false;
-        }
-      })();
       if (!isRetestAttempt) {
         awardPoint(tId, heading, optId);
       }
@@ -530,11 +615,10 @@ export const FullstackPart5Page: React.FC = () => {
       const chosenOpt = currentMcq.options.find(o => o.id === optId);
       recordWrongAttempt(
         heading,
-        activeSection.title,
+        `Part 5 • ${activeSection.title}`,
         `Selected Option ${optId}: "${chosenOpt?.text || ''}". Correct was Option ${currentMcq.correctAnswer}.`
       );
-    }
-  };
+    }  };
 
   // Reset entire Part 5 progress completely
   const handleResetAll = () => {

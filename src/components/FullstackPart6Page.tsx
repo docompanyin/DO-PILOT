@@ -18,6 +18,10 @@ import {
   setLevelAttemptCountFullstackPart6
 } from '../data/fullstackPart6Data';
 import { playTwinkleSound } from '../utils/audioEffects';
+import { useCourseQuestionResume, saveQuestionProgressState } from '../utils/courseProgressSyncService';
+import { logFullstackPartQuestionAttempt } from '../utils/studentTelemetryService';
+import { notifyCourseLocked } from '../utils/lockNotificationService';
+import { useCourseUnlockedListener } from '../utils/courseResetService';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -170,6 +174,56 @@ export const FullstackPart6Page: React.FC = () => {
     }
   });
 
+  useCourseQuestionResume({
+    courseId: 'fullstack-open',
+    partNum: 6,
+    studentEmail: user?.email,
+    activeSectionId,
+    setActiveSectionId,
+    activeQuestionIdx,
+    setActiveQuestionIdx,
+    setSelectedAnswers,
+    setIsStudyPhase,
+    setIsTimeUpWaiting,
+    setTimeLeft,
+    setTargetEndTime,
+    validSectionIds: FULLSTACK_PART_6_SECTIONS.map(s => s.id),
+    levelResult,
+    setLevelResult,
+    setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete)
+  });
+
+  useCourseUnlockedListener({
+    partNum: 6,
+    studentId,
+    studentEmail: user?.email,
+    courseId: 'fullstack-open',
+    setLevelResult,
+    setConsecutiveFailures,
+    setActiveSectionId,
+    setActiveQuestionIdx,
+    setIsStudyPhase
+  });
+
+  // Auto-checkpoint active location & notes phase to Supabase
+  useEffect(() => {
+    if (user?.email && !levelResult?.isFinished && !isCourseComplete) {
+      saveQuestionProgressState({
+        courseId: 'fullstack-open',
+        partNum: 6,
+        activeSectionId,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase,
+        isTimeUpWaiting,
+        targetEndTime,
+        timeLeft,
+        studentEmail: user?.email,
+        levelResult: null
+      });
+    }
+  }, [activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
+
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
@@ -301,8 +355,41 @@ export const FullstackPart6Page: React.FC = () => {
 
     setConsecutiveFailures(outcome.consecutiveFailedLevels);
 
+    saveQuestionProgressState({
+      courseId: 'fullstack-open',
+      partNum: 6,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers: currentAnswers,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime,
+      timeLeft,
+      studentEmail: user?.email,
+      levelResult: resultState
+    });
+
     if (outcome.isLocked) {
       setModalOpen(true);
+      notifyCourseLocked({
+        courseId: 'fullstack-open',
+        courseName: 'Full Stack Open',
+        partNum: 6,
+        sectionId: activeSection.id,
+        sectionTitle: `Level ${activeSection.number || activeIdx + 1} — ${activeSection.title}`,
+        activeQuestionIdx,
+        totalQuestions: totalCount,
+        score: correctCount,
+        percentage,
+        streak: outcome.consecutiveFailedLevels,
+        attemptCount: outcome.attemptCount,
+        studentId,
+        studentEmail: user?.email,
+        studentName: user?.name,
+        studentPhone: user?.phone,
+        collegeOrCompany: user?.collegeOrCompany,
+        earnedPoints: points
+      });
     }
   };
 
@@ -348,6 +435,19 @@ export const FullstackPart6Page: React.FC = () => {
       } catch (e) {
         console.error(e);
       }
+      saveQuestionProgressState({
+        courseId: 'fullstack-open',
+        partNum: 6,
+        activeSectionId: activeSection.id,
+        activeQuestionIdx: nextQ,
+        selectedAnswers: stateRef.current.selectedAnswers,
+        isStudyPhase: true,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: TIMER_DURATION,
+        studentEmail: user?.email,
+        levelResult: null
+      });
     } else {
       evaluateLevelScore();
     }
@@ -496,15 +596,51 @@ export const FullstackPart6Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+    const timeSpent = (() => {
+      if (targetEndTime && targetEndTime > 0) {
+        const elapsed = (TIMER_DURATION * 1000 - Math.max(0, targetEndTime - Date.now())) / 1000;
+        return Math.max(0.1, Math.min(30, Number(elapsed.toFixed(1))));
+      }
+      return Math.max(0.1, Math.min(30, Number((TIMER_DURATION - timeLeft).toFixed(1))));
+    })();
+    const isRetestAttempt = (() => {
+      try {
+        const raw = localStorage.getItem(`dopilot_fullstack_p6_attempt_${activeSection.id}_${studentId}`) ||
+                    localStorage.getItem(`dopilot_fullstack_part6_attempt_${activeSection.id}_${studentId}`) ||
+                    localStorage.getItem(`dopilot_fullstack_p6_attempt_${studentId}_${activeSection.id}`);
+        return raw ? Number(raw) > 1 : false;
+      } catch {
+        return false;
+      }
+    })();
+    const attemptNum = (() => {
+      try {
+        const raw = localStorage.getItem(`dopilot_fullstack_p6_attempt_${activeSection.id}_${studentId}`) ||
+                    localStorage.getItem(`dopilot_fullstack_part6_attempt_${activeSection.id}_${studentId}`) ||
+                    localStorage.getItem(`dopilot_fullstack_p6_attempt_${studentId}_${activeSection.id}`);
+        return raw ? Math.max(1, Number(raw)) : (isRetestAttempt ? 2 : 1);
+      } catch {
+        return isRetestAttempt ? 2 : 1;
+      }
+    })();
+
+    // Log exact question telemetry for live Admin Panel inspection
+    logFullstackPartQuestionAttempt({
+      studentEmailOrId: user?.email || studentId,
+      partNum: 6,
+      activeSection,
+      activeIdx,
+      activeQuestionIdx,
+      currentMcq,
+      currentBlock,
+      optId,
+      isCorrect,
+      timeSpent,
+      isRetestAttempt,
+      attemptNum
+    });
+
     if (isCorrect) {
-      const isRetestAttempt = (() => {
-        try {
-          const raw = localStorage.getItem(`dopilot_fullstack_p6_attempt_${activeSection.id}_${studentId}`);
-          return raw ? Number(raw) > 1 : false;
-        } catch {
-          return false;
-        }
-      })();
       if (!isRetestAttempt) {
         awardPoint(tId, heading, optId);
       }
@@ -513,11 +649,10 @@ export const FullstackPart6Page: React.FC = () => {
       const chosenOpt = currentMcq.options.find(o => o.id === optId);
       recordWrongAttempt(
         heading,
-        activeSection.title,
+        `Part 6 • ${activeSection.title}`,
         `Selected Option ${optId}: "${chosenOpt?.text || ''}". Correct was Option ${currentMcq.correctAnswer}.`
       );
-    }
-  };
+    }  };
 
   // Reset entire Part 6 progress completely
   const handleResetAll = () => {

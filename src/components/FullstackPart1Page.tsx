@@ -8,6 +8,8 @@ import {
 import { FullstackCompilerLauncherButton, FullstackWebModal, FullstackTaskContext } from './compiler/FullstackWebModal';
 import { useCoursePoints } from '../context/CoursePointsContext';
 import { logQuestionAttempt } from '../utils/studentTelemetryService';
+import { useCourseUnlockedListener } from '../utils/courseResetService';
+import { notifyCourseLocked } from '../utils/lockNotificationService';
 import { getSavedCertificate } from '../utils/certificateGenerator';
 import { useUserAuth } from '../context/UserAuthContext';
 import { ContactModal } from './ContactModal';
@@ -345,6 +347,18 @@ export const FullstackPart1Page: React.FC = () => {
     setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete)
   });
 
+  useCourseUnlockedListener({
+    partNum: 1,
+    studentId,
+    studentEmail: user?.email,
+    courseId: 'fullstack-open',
+    setLevelResult,
+    setConsecutiveFailures,
+    setActiveSectionId,
+    setActiveQuestionIdx,
+    setIsStudyPhase
+  });
+
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
@@ -543,6 +557,25 @@ export const FullstackPart1Page: React.FC = () => {
 
     if (hasPurchased && outcome.isLocked) {
       setModalOpen(true);
+      notifyCourseLocked({
+        courseId: 'fullstack-open',
+        courseName: 'Full Stack Open',
+        partNum: 1,
+        sectionId: activeSection.id,
+        sectionTitle: `Level ${activeSection.number || activeIdx + 1} — ${activeSection.title}`,
+        activeQuestionIdx,
+        totalQuestions: totalCount,
+        score: correctCount,
+        percentage,
+        streak: outcome.consecutiveFailedLevels,
+        attemptCount: outcome.attemptCount,
+        studentId,
+        studentEmail: user?.email,
+        studentName: user?.name,
+        studentPhone: user?.phone,
+        collegeOrCompany: user?.collegeOrCompany,
+        earnedPoints: points
+      });
     }
   };
 
