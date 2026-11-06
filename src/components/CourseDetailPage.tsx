@@ -1169,7 +1169,7 @@ export const CourseDetailPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setCertModalOpen(true)}
-                      className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-gradient-to-r from-cyan-400 via-primary to-emerald-400 text-black font-jakarta font-black text-xs sm:text-sm hover:opacity-95 hover:shadow-xl hover:shadow-cyan-500/25 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-cyan-500/20 group"
+                      className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-jakarta font-black text-xs sm:text-sm hover:opacity-95 hover:shadow-xl hover:shadow-amber-500/25 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-amber-500/20 group"
                     >
                       <Award className="w-5 h-5 text-black shrink-0" />
                       <span>{hasClaimedCert ? 'View Certificate' : 'Claim Cyber Security Certificate'}</span>
@@ -1181,7 +1181,7 @@ export const CourseDetailPage: React.FC = () => {
                       onClick={() => navigate(hasClaimedCert ? '/course/cyber-security/part-1?review=true' : '/course/cyber-security/part-1')}
                       className="w-full sm:w-auto px-5 py-3.5 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
-                      <RotateCcw className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                      <RotateCcw className="w-3.5 h-3.5 text-primary shrink-0" />
                       <span>{hasClaimedCert ? 'Review Answers' : 'Review Course'}</span>
                     </button>
                   </div>
@@ -1189,7 +1189,7 @@ export const CourseDetailPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleStartOrResume}
-                    className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-cyan-500 text-ink font-jakarta font-black text-xs sm:text-sm hover:bg-white hover:shadow-xl hover:shadow-cyan-500/30 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-cyan-500/20 group"
+                    className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs sm:text-sm hover:bg-white hover:shadow-xl hover:shadow-primary/30 transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg shadow-primary/20 group"
                   >
                     {cyberResumeInfo.status === 'in_progress' ? (
                       <RotateCcw className="w-4 h-4 transition-transform group-hover:-rotate-45 shrink-0" />
@@ -1583,7 +1583,7 @@ export const CourseDetailPage: React.FC = () => {
                           handleStartOrResume();
                         }
                       }}
-                      className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1.5 rounded-full bg-cyan-500 text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-cyan-500/20"
+                      className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1.5 rounded-full bg-primary text-ink font-jakarta font-black text-xs hover:bg-white transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-primary/20"
                     >
                       {cyberResumeInfo.status === 'in_progress' ? (
                         <RotateCcw className="w-3.5 h-3.5 shrink-0" />
