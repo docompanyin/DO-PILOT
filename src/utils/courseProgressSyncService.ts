@@ -191,6 +191,88 @@ const hydrateFailureAndLockState = (st: StudentAllCoursesState): void => {
   }
 };
 
+/**
+ * Authoritative deep merger to ensure incoming partial snapshots NEVER
+ * overwrite valid questions, answers, or part progressions in cloud.
+ */
+export function mergeStudentProgressDocs(
+  existing: StudentAllCoursesState | null | undefined,
+  incoming: StudentAllCoursesState
+): StudentAllCoursesState {
+  if (!existing || !existing.courses) return incoming;
+
+  const merged: StudentAllCoursesState = {
+    ...existing,
+    ...incoming,
+    courses: { ...(existing.courses || {}) },
+    rawStorage: { ...(existing.rawStorage || {}), ...(incoming.rawStorage || {}) },
+    globalLockedKeys: { ...(existing.globalLockedKeys || {}), ...(incoming.globalLockedKeys || {}) },
+    consecutiveFailures: { ...(existing.consecutiveFailures || {}), ...(incoming.consecutiveFailures || {}) },
+    part1SectionScores: { ...(existing.part1SectionScores || {}), ...(incoming.part1SectionScores || {}) },
+    trialAttempted: { ...(existing.trialAttempted || {}), ...(incoming.trialAttempted || {}) },
+    postPurchaseDecisions: { ...(existing.postPurchaseDecisions || {}), ...(incoming.postPurchaseDecisions || {}) },
+    part1RestartUsed: { ...(existing.part1RestartUsed || {}), ...(incoming.part1RestartUsed || {}) },
+    exemptSections: { ...(existing.exemptSections || {}), ...(incoming.exemptSections || {}) },
+    certificates: { ...(existing.certificates || {}), ...(incoming.certificates || {}) },
+    updatedAt: incoming.updatedAt || new Date().toISOString()
+  };
+
+  if (incoming.courses) {
+    Object.entries(incoming.courses).forEach(([courseId, inCourse]) => {
+      const exCourse = merged.courses[courseId];
+      if (!exCourse) {
+        merged.courses[courseId] = inCourse;
+        return;
+      }
+
+      const mergedLastPart = Math.max(exCourse.lastPart || 1, inCourse.lastPart || 1);
+      const mergedCompletedParts = Array.from(new Set([
+        ...(exCourse.completedParts || []),
+        ...(inCourse.completedParts || [])
+      ]));
+
+      const mergedParts: Record<string, PartQuestionState> = { ...(exCourse.parts || {}) };
+      if (inCourse.parts) {
+        Object.entries(inCourse.parts).forEach(([pStr, inPart]) => {
+          const exPart = mergedParts[pStr];
+          if (!exPart) {
+            mergedParts[pStr] = inPart;
+            return;
+          }
+
+          const inAnswersCount = Object.keys(inPart.selectedAnswers || {}).length;
+          const exAnswersCount = Object.keys(exPart.selectedAnswers || {}).length;
+          const inHasProgress = inPart.activeQuestionIdx > 0 || inAnswersCount > 0 || inPart.isCompleted || inPart.isFinishedPart;
+          const exHasProgress = exPart.activeQuestionIdx > 0 || exAnswersCount > 0 || exPart.isCompleted || exPart.isFinishedPart;
+
+          if (!inHasProgress && exHasProgress) {
+            return;
+          }
+
+          mergedParts[pStr] = {
+            ...exPart,
+            ...inPart,
+            selectedAnswers: {
+              ...(exPart.selectedAnswers || {}),
+              ...(inPart.selectedAnswers || {})
+            }
+          };
+        });
+      }
+
+      merged.courses[courseId] = {
+        ...exCourse,
+        ...inCourse,
+        lastPart: mergedLastPart,
+        completedParts: mergedCompletedParts,
+        parts: mergedParts
+      };
+    });
+  }
+
+  return merged;
+}
+
 export const flushCloudSync = async (email: string) => {
   if (typeof window !== 'undefined' && (window as any).__dopilot_session_invalidated === true) {
     return null;
@@ -233,11 +315,23 @@ export const flushCloudSync = async (email: string) => {
       // Fallback for offline dev
     }
 
-    // 2. Direct fallback
+    // 2. Direct fallback with authoritative merge
     const docId = getStudentDocId(cleanEmail);
+    let finalPayload = state;
+    try {
+      const { data: exDoc } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('id', docId)
+        .maybeSingle();
+      if (exDoc?.content) {
+        finalPayload = mergeStudentProgressDocs(exDoc.content as StudentAllCoursesState, state);
+      }
+    } catch {}
+
     await supabase.from('site_content').upsert({
       id: docId,
-      content: state,
+      content: finalPayload,
       updated_at: new Date().toISOString()
     });
   } catch (e) {
@@ -342,6 +436,10 @@ export function parseCourseStorageKey(key: string): { courseId: string; partNum:
 let isInterceptorInitialized = false;
 let isRestoringFromCloud = false;
 let restoringFromCloudCount = 0;
+let isPurgingData = false;
+export const setPurgeInProgress = (val: boolean) => {
+  isPurgingData = val;
+};
 export const initCourseProgressSyncInterceptor = () => {
   if (typeof window === 'undefined' || !window.localStorage || isInterceptorInitialized) return;
   isInterceptorInitialized = true;
@@ -352,7 +450,7 @@ export const initCourseProgressSyncInterceptor = () => {
   window.localStorage.setItem = (key: string, value: string) => {
     originalSetItem(key, value);
 
-    if (isRestoringFromCloud) return;
+    if (isRestoringFromCloud || isPurgingData) return;
 
     try {
       const sessionRaw = window.localStorage.getItem('dopilot_student_session_v1');
@@ -516,7 +614,7 @@ export const initCourseProgressSyncInterceptor = () => {
   window.localStorage.removeItem = (key: string) => {
     originalRemoveItem(key);
 
-    if (isRestoringFromCloud) return;
+    if (isRestoringFromCloud || isPurgingData) return;
 
     try {
       const sessionRaw = window.localStorage.getItem('dopilot_student_session_v1');
@@ -599,6 +697,7 @@ export const saveQuestionProgressState = (params: {
   isFinishedPart?: boolean;
   levelResult?: LevelResultRecord | null;
   forceImmediate?: boolean;
+  isExplicitReset?: boolean;
 }) => {
   const {
     courseId,
@@ -614,7 +713,8 @@ export const saveQuestionProgressState = (params: {
     isCompleted = false,
     isFinishedPart = false,
     levelResult = null,
-    forceImmediate = false
+    forceImmediate = false,
+    isExplicitReset = false
   } = params;
 
   const cleanEmail = normalizeStudentEmail(studentEmail);
@@ -626,6 +726,21 @@ export const saveQuestionProgressState = (params: {
   // A page's mount-time checkpoint runs before the cloud snapshot has been
   // applied. Ignore it so it cannot overwrite the restored page/result state.
   if (cleanEmail && (restoreInFlightCount[cleanEmail] || 0) > 0) {
+    return;
+  }
+
+  // OVERWRITE PROTECTION:
+  // If the component is passing default 0 and empty selectedAnswers, BUT existing
+  // in-memory / cloud state has real progress and this is NOT an explicit user reset:
+  // DO NOT overwrite real progress with empty mount default!
+  const pKey = String(partNum);
+  const memCourse = cleanEmail ? memoryCourseState[cleanEmail]?.courses?.[courseId] : null;
+  const existingPart = memCourse?.parts?.[pKey];
+  const hasExistingAnswers = Object.keys(existingPart?.selectedAnswers || {}).length > 0;
+  const hasExistingProgress = Boolean(existingPart && (existingPart.activeQuestionIdx > 0 || hasExistingAnswers || existingPart.isCompleted || existingPart.isFinishedPart));
+
+  if (!isExplicitReset && activeQuestionIdx === 0 && Object.keys(selectedAnswers || {}).length === 0 && hasExistingProgress) {
+    console.warn(`[SyncGuard] Blocked premature overwrite of ${courseId} Part ${partNum} progress at Q${(existingPart?.activeQuestionIdx ?? 0) + 1}`);
     return;
   }
 
@@ -969,8 +1084,20 @@ export const restoreAllStudentCourseProgressFromCloud = async (
 
           if (!isMemoryNewer && partState.activeSectionId) {
             localStorage.setItem(partKeys.sectionIdKey, partState.activeSectionId);
-            if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_active_section_id', partState.activeSectionId);
-            if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_active_section_id', partState.activeSectionId);
+            if (courseId === 'java-core' && pNum === 1) {
+              localStorage.setItem('dopilot_java_active_section_id', partState.activeSectionId);
+              localStorage.setItem('dopilot_java_part1_active_section_id', partState.activeSectionId);
+            }
+            if (courseId === 'python-core' && pNum === 1) {
+              localStorage.setItem('dopilot_active_section_id', partState.activeSectionId);
+              localStorage.setItem('dopilot_part1_active_section_id', partState.activeSectionId);
+            }
+            if (courseId === 'fullstack-open') {
+              localStorage.setItem(`dopilot_fullstack_part${pNum}_active_section_id`, partState.activeSectionId);
+            }
+            if (courseId === 'cyber-security') {
+              localStorage.setItem(`dopilot_cyber_part${pNum}_active_section_id`, partState.activeSectionId);
+            }
           }
 
           // Merge answers: NEVER overwrite newer local answers with older cloud answers!
@@ -981,16 +1108,40 @@ export const restoreAllStudentCourseProgressFromCloud = async (
           } catch {}
           const mergedAnswers = { ...(partState.selectedAnswers || {}), ...localAnswers };
           localStorage.setItem(partKeys.answersKey, JSON.stringify(mergedAnswers));
-          if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_mcq_answers', JSON.stringify(mergedAnswers));
-          if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_mcq_answers_v2', JSON.stringify(mergedAnswers));
+          if (courseId === 'java-core' && pNum === 1) {
+            localStorage.setItem('dopilot_java_mcq_answers', JSON.stringify(mergedAnswers));
+            localStorage.setItem('dopilot_java_part1_mcq_answers', JSON.stringify(mergedAnswers));
+          }
+          if (courseId === 'python-core' && pNum === 1) {
+            localStorage.setItem('dopilot_mcq_answers_v2', JSON.stringify(mergedAnswers));
+            localStorage.setItem('dopilot_part1_mcq_answers_v2', JSON.stringify(mergedAnswers));
+          }
+          if (courseId === 'fullstack-open') {
+            localStorage.setItem(`dopilot_fullstack_part${pNum}_mcq_answers`, JSON.stringify(mergedAnswers));
+          }
+          if (courseId === 'cyber-security') {
+            localStorage.setItem(`dopilot_cyber_part${pNum}_mcq_answers`, JSON.stringify(mergedAnswers));
+          }
 
           // Question Index: Always use the cloud value on login restore, unless memory is newer
           const targetIdx = isMemoryNewer
             ? (curMemPart?.activeQuestionIdx ?? partState.activeQuestionIdx ?? 0)
             : (partState.activeQuestionIdx || 0);
           localStorage.setItem(partKeys.questionIdxKey, String(targetIdx));
-          if (courseId === 'java-core' && pNum === 1) localStorage.setItem('dopilot_java_part1_active_q_idx', String(targetIdx));
-          if (courseId === 'python-core' && pNum === 1) localStorage.setItem('dopilot_part1_active_q_idx', String(targetIdx));
+          if (courseId === 'java-core' && pNum === 1) {
+            localStorage.setItem('dopilot_java_active_q_idx', String(targetIdx));
+            localStorage.setItem('dopilot_java_part1_active_q_idx', String(targetIdx));
+          }
+          if (courseId === 'python-core' && pNum === 1) {
+            localStorage.setItem('dopilot_active_q_idx', String(targetIdx));
+            localStorage.setItem('dopilot_part1_active_q_idx', String(targetIdx));
+          }
+          if (courseId === 'fullstack-open') {
+            localStorage.setItem(`dopilot_fullstack_part${pNum}_active_q_idx`, String(targetIdx));
+          }
+          if (courseId === 'cyber-security') {
+            localStorage.setItem(`dopilot_cyber_part${pNum}_active_q_idx`, String(targetIdx));
+          }
 
           // Study Phase: NEVER relock if already unlocked locally or if target question is answered!
           const curPhase = localStorage.getItem(partKeys.studyPhaseKey);
@@ -1023,6 +1174,12 @@ export const restoreAllStudentCourseProgressFromCloud = async (
           if (courseId === 'python-core' && pNum === 1) {
             localStorage.setItem('dopilot_study_phase', String(targetStudyPhase));
             localStorage.setItem('dopilot_part1_study_phase', String(targetStudyPhase));
+          }
+          if (courseId === 'fullstack-open') {
+            localStorage.setItem(`dopilot_fullstack_part${pNum}_study_phase`, String(targetStudyPhase));
+          }
+          if (courseId === 'cyber-security') {
+            localStorage.setItem(`dopilot_cyber_part${pNum}_study_phase`, String(targetStudyPhase));
           }
 
           if (partState.targetEndTime && !targetStudyPhase) {
@@ -1232,11 +1389,13 @@ export const getCloudPartQuestionState = async (
 
   // Check memory cache first
   const cached = memoryCourseState[cleanEmail]?.courses?.[courseId]?.parts?.[String(partNum)];
-  if (cached) return cached;
+  if (cached && (cached.activeQuestionIdx > 0 || Object.keys(cached.selectedAnswers || {}).length > 0)) {
+    return cached;
+  }
 
   // Fetch full state from cloud
   const full = await restoreAllStudentCourseProgressFromCloud(cleanEmail);
-  return full?.courses?.[courseId]?.parts?.[String(partNum)] || null;
+  return full?.courses?.[courseId]?.parts?.[String(partNum)] || cached || null;
 };
 
 /**
@@ -1260,6 +1419,7 @@ export function useCourseQuestionResume(params: {
   levelResult?: any;
   setLevelResult?: (res: any) => void;
   setIsCourseComplete?: (complete: boolean) => void;
+  onHydrated?: () => void;
 }) {
   const paramsRef = useRef(params);
   paramsRef.current = params;
@@ -1381,6 +1541,7 @@ export function useCourseQuestionResume(params: {
         hasHydratedRef.current = true;
         applyState(saved);
       }
+      paramsRef.current.onHydrated?.();
     });
 
     const handleRestored = () => {
@@ -1388,6 +1549,7 @@ export function useCourseQuestionResume(params: {
         if (saved) {
           applyState(saved);
         }
+        paramsRef.current.onHydrated?.();
       });
     };
 

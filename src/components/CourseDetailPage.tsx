@@ -469,7 +469,7 @@ export const CourseDetailPage: React.FC = () => {
   const isCourseFullstack = course?.id === 'fullstack-open' || course?.slug === 'fullstack-open' || safeCourseId === 'fullstack-open' || safeCourseId === 'full-stack-web';
   const isCourseCyber = course?.id === 'cyber-security' || course?.slug === 'cyber-security-core' || safeCourseId === 'cyber-security' || safeCourseId === 'cyber-security-core';
 
-  const handleTryPart1 = () => {
+  const handleTryPart1 = async () => {
     // If not logged in, take the student to login with a clean return redirect
     const raw = localStorage.getItem(USER_SESSION_KEY);
     const hasCookie = hasAuthCookie();
@@ -481,6 +481,11 @@ export const CourseDetailPage: React.FC = () => {
     if (isPurchased) {
       handleStartOrResume();
       return;
+    }
+
+    // Ensure cloud progress is restored before navigating if not already hydrated
+    if (user?.email) {
+      await restoreAllStudentCourseProgressFromCloud(user.email);
     }
 
     if (isCoursePython) {
@@ -500,7 +505,7 @@ export const CourseDetailPage: React.FC = () => {
     }
   };
 
-  const handleStartOrResume = () => {
+  const handleStartOrResume = async () => {
     const studentId = user?.id || user?.email;
 
     // If not logged in, cleanly direct to login
@@ -509,6 +514,11 @@ export const CourseDetailPage: React.FC = () => {
     if (!isLoggedIn || !hasCookie || !raw || !user?.email) {
       navigate(`/login?redirect=/course/${course?.id || safeCourseId}`);
       return;
+    }
+
+    // Ensure cloud progress is restored before navigating if not already hydrated
+    if (user?.email) {
+      await restoreAllStudentCourseProgressFromCloud(user.email);
     }
 
     const currentPurchased = isPurchased || hasCourseAccess(safeCourseId, studentId);

@@ -20,7 +20,7 @@ import { useUserAuth } from '../context/UserAuthContext';
 import { ContactModal } from './ContactModal';
 import { NeedHelpModal } from './NeedHelpModal';
 import { hasCourseAccess, getCoursePricing, CoursePricing } from '../utils/coursePricingService';
-import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState } from '../utils/courseProgressSyncService';
+import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
 import { 
   FULLSTACK_PART_0_SECTIONS, TheoryBlock, McqQuestion,
   getActiveQuestionsForLevelFullstackPart0, getConsecutiveFailedLevelsFullstackPart0,
@@ -247,9 +247,23 @@ export const FullstackPart0Page: React.FC = () => {
     setIsStudyPhase
   });
 
-  // Auto-checkpoint active location & notes phase to Supabase
+  // Track whether initial mount state has been hydrated from cloud/local storage
+  const hasHydratedRef = useRef<boolean>(false);
   useEffect(() => {
-    if (user?.email && !levelResult?.isFinished && !isCourseComplete) {
+    try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['fullstack-open']?.parts?.['0'] : null;
+      if (memPart && (memPart.activeQuestionIdx > 0 || Object.keys(memPart.selectedAnswers || {}).length > 0)) {
+        hasHydratedRef.current = true;
+      } else if (localStorage.getItem('dopilot_fullstack_part0_active_q_idx') !== null) {
+        hasHydratedRef.current = true;
+      }
+    } catch {}
+  }, [user?.email]);
+
+  // Auto-checkpoint active location & notes phase to Supabase once hydrated
+  useEffect(() => {
+    if (hasHydratedRef.current && user?.email && !levelResult?.isFinished && !isCourseComplete) {
       saveQuestionProgressState({
         courseId: 'fullstack-open',
         partNum: 0,
@@ -282,7 +296,10 @@ export const FullstackPart0Page: React.FC = () => {
     validSectionIds: FULLSTACK_PART_0_SECTIONS.map(s => s.id),
     levelResult,
     setLevelResult,
-    setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete)
+    setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete),
+    onHydrated: () => {
+      hasHydratedRef.current = true;
+    }
   });
 
   const [copiedId, setCopiedId] = useState<string | null>(null);

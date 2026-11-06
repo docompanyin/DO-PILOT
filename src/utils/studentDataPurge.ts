@@ -7,12 +7,14 @@
  * - Rewards, certificates, and session state
  */
 
-import { clearMemoryCourseState } from './courseProgressSyncService';
+import { clearMemoryCourseState, setPurgeInProgress } from './courseProgressSyncService';
 import { clearStudentTelemetryInMemory } from './studentTelemetryService';
 import { purgeStudentCourseResetData, purgeAllDemoCourseResetData } from './courseResetService';
 
 export const purgeStudentLocalData = (studentEmail?: string, studentId?: string): void => {
   if (typeof window === 'undefined' || !window.localStorage) return;
+  setPurgeInProgress(true);
+  try {
 
   const cleanEmail = (studentEmail || '').toLowerCase().trim();
   const cleanId = (studentId || '').trim();
@@ -288,6 +290,9 @@ export const purgeStudentLocalData = (studentEmail?: string, studentId?: string)
       window.dispatchEvent(new CustomEvent('dopilot_user_logged_out'));
     }
   } catch (e) {}
+  } finally {
+    setPurgeInProgress(false);
+  }
 };
 
 /**

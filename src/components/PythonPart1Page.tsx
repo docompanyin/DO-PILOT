@@ -472,7 +472,10 @@ export const PythonPart1Page: React.FC = () => {
     validSectionIds: PART_1_SECTIONS.map(s => s.id),
     levelResult,
     setLevelResult,
-    setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete)
+    setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete),
+    onHydrated: () => {
+      hasHydratedRef.current = true;
+    }
   });
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -506,6 +509,20 @@ export const PythonPart1Page: React.FC = () => {
   const currentLevelQuestionNumber = activeQuestionIdx + 1;
   const remainingLevelQuestions = Math.max(0, totalLevelQuestions - currentLevelQuestionNumber);
 
+  // Track whether initial mount state has been hydrated from cloud/local storage
+  const hasHydratedRef = useRef<boolean>(false);
+  useEffect(() => {
+    try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['python-core']?.parts?.['1'] : null;
+      if (memPart && (memPart.activeQuestionIdx > 0 || Object.keys(memPart.selectedAnswers || {}).length > 0)) {
+        hasHydratedRef.current = true;
+      } else if (localStorage.getItem('dopilot_active_q_idx') !== null) {
+        hasHydratedRef.current = true;
+      }
+    } catch {}
+  }, [user?.email]);
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     document.title = `Do Pilot - ${activeSection.title}`;
@@ -513,8 +530,8 @@ export const PythonPart1Page: React.FC = () => {
       localStorage.setItem('dopilot_python_core_last_part', '1');
     } catch {}
 
-    // Auto-checkpoint active location & notes phase to Supabase so clearing cookies preserves exact step
-    if (user?.email && !levelResult?.isFinished && !isCourseComplete) {
+    // Auto-checkpoint active location & notes phase to Supabase once hydrated
+    if (hasHydratedRef.current && user?.email && !levelResult?.isFinished && !isCourseComplete) {
       saveQuestionProgressState({
         courseId: 'python-core',
         partNum: 1,
@@ -860,6 +877,22 @@ export const PythonPart1Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'python-core',
+      partNum: 1,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx: 0,
+      selectedAnswers: updatedAnswers,
+      isStudyPhase: true,
+      isTimeUpWaiting: false,
+      targetEndTime: fresh,
+      timeLeft: TIMER_DURATION,
+      studentEmail: user?.email,
+      levelResult: null,
+      forceImmediate: true,
+      isExplicitReset: true
+    });
   };
 
   // Progress to the next level (after Passing or after confirming Disclaimer)

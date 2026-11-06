@@ -297,6 +297,12 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, []);
 
+  useEffect(() => {
+    if (user?.email) {
+      restoreAllStudentCourseProgressFromCloud(user.email);
+    }
+  }, [user?.email]);
+
   // Real-time Single Active Device Session synchronization
   useEffect(() => {
     if (!user?.email || !user.hasCompletedDetails) return;
@@ -625,6 +631,12 @@ export const UserAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setLocalDeviceSessionId(newSessionId);
     setIsSessionReplaced(false);
     await registerActiveDeviceSessionOnServer(finalized.email, newSessionId);
+
+    await Promise.all([
+      restoreAllStudentCourseProgressFromCloud(finalized.email),
+      restoreStudentTelemetryFromCloud(finalized.email),
+      syncUserPurchasesFromCloud(finalized.email, finalized.id)
+    ]);
     return { success: true };
   };
 

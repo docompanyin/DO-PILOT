@@ -147,11 +147,98 @@ export default async function handler(req, res) {
     const safeKey = sanitizeEmail(cleanEmail || cleanId);
     const docId = type === 'telemetry' ? `telemetry_${safeKey}` : `student_course_state_${safeKey}`;
 
+    // Safeguard for progress: Merge with existing cloud document so empty/partial uploads never erase saved progress
+    let finalPayload = content;
+    if (type === 'progress' && content && typeof content === 'object') {
+      try {
+        const { data: existingDoc } = await supabase
+          .from('site_content')
+          .select('content')
+          .eq('id', docId)
+          .maybeSingle();
+
+        if (existingDoc && existingDoc.content && typeof existingDoc.content === 'object') {
+          const ex = existingDoc.content;
+          finalPayload = {
+            ...ex,
+            ...content,
+            courses: { ...(ex.courses || {}) },
+            rawStorage: { ...(ex.rawStorage || {}), ...(content.rawStorage || {}) },
+            globalLockedKeys: { ...(ex.globalLockedKeys || {}), ...(content.globalLockedKeys || {}) },
+            consecutiveFailures: { ...(ex.consecutiveFailures || {}), ...(content.consecutiveFailures || {}) },
+            part1SectionScores: { ...(ex.part1SectionScores || {}), ...(content.part1SectionScores || {}) },
+            trialAttempted: { ...(ex.trialAttempted || {}), ...(content.trialAttempted || {}) },
+            postPurchaseDecisions: { ...(ex.postPurchaseDecisions || {}), ...(content.postPurchaseDecisions || {}) },
+            part1RestartUsed: { ...(ex.part1RestartUsed || {}), ...(content.part1RestartUsed || {}) },
+            exemptSections: { ...(ex.exemptSections || {}), ...(content.exemptSections || {}) },
+            certificates: { ...(ex.certificates || {}), ...(content.certificates || {}) },
+            updatedAt: content.updatedAt || new Date().toISOString()
+          };
+
+          if (content.courses) {
+            Object.entries(content.courses).forEach(([cId, inCourse]) => {
+              const exCourse = finalPayload.courses[cId];
+              if (!exCourse) {
+                finalPayload.courses[cId] = inCourse;
+                return;
+              }
+
+              const mergedLastPart = Math.max(exCourse.lastPart || 1, inCourse.lastPart || 1);
+              const mergedCompletedParts = Array.from(new Set([
+                ...(exCourse.completedParts || []),
+                ...(inCourse.completedParts || [])
+              ]));
+
+              const mergedParts = { ...(exCourse.parts || {}) };
+              if (inCourse.parts) {
+                Object.entries(inCourse.parts).forEach(([pStr, inPart]) => {
+                  const exPart = mergedParts[pStr];
+                  if (!exPart) {
+                    mergedParts[pStr] = inPart;
+                    return;
+                  }
+
+                  const inAnswersCount = Object.keys(inPart.selectedAnswers || {}).length;
+                  const exAnswersCount = Object.keys(exPart.selectedAnswers || {}).length;
+                  const inHasProgress = inPart.activeQuestionIdx > 0 || inAnswersCount > 0 || inPart.isCompleted || inPart.isFinishedPart;
+                  const exHasProgress = exPart.activeQuestionIdx > 0 || exAnswersCount > 0 || exPart.isCompleted || exPart.isFinishedPart;
+
+                  // Never overwrite real progress with empty mount default
+                  if (!inHasProgress && exHasProgress) {
+                    return;
+                  }
+
+                  mergedParts[pStr] = {
+                    ...exPart,
+                    ...inPart,
+                    selectedAnswers: {
+                      ...(exPart.selectedAnswers || {}),
+                      ...(inPart.selectedAnswers || {})
+                    }
+                  };
+                });
+              }
+
+              finalPayload.courses[cId] = {
+                ...exCourse,
+                ...inCourse,
+                lastPart: mergedLastPart,
+                completedParts: mergedCompletedParts,
+                parts: mergedParts
+              };
+            });
+          }
+        }
+      } catch (mergeErr) {
+        console.warn('Sync merge error (proceeding with incoming):', mergeErr);
+      }
+    }
+
     const { error } = await supabase
       .from('site_content')
       .upsert({
         id: docId,
-        content,
+        content: finalPayload,
         updated_at: new Date().toISOString()
       });
 

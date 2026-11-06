@@ -412,6 +412,20 @@ export const JavaPart1Page: React.FC = () => {
   const currentLevelQuestionNumber = activeQuestionIdx + 1;
   const remainingLevelQuestions = Math.max(0, totalLevelQuestions - currentLevelQuestionNumber);
 
+  // Track whether initial mount state has been hydrated from cloud/local storage
+  const hasHydratedRef = useRef<boolean>(false);
+  useEffect(() => {
+    try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['java-core']?.parts?.['1'] : null;
+      if (memPart && (memPart.activeQuestionIdx > 0 || Object.keys(memPart.selectedAnswers || {}).length > 0)) {
+        hasHydratedRef.current = true;
+      } else if (localStorage.getItem('dopilot_java_active_q_idx') !== null) {
+        hasHydratedRef.current = true;
+      }
+    } catch {}
+  }, [user?.email]);
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     document.title = `Do Pilot - ${activeSection.title}`;
@@ -419,8 +433,8 @@ export const JavaPart1Page: React.FC = () => {
       localStorage.setItem('dopilot_java_core_last_part', '1');
     } catch {}
 
-    // Auto-checkpoint active location & notes phase to Supabase so clearing cookies preserves exact step
-    if (user?.email && !levelResult?.isFinished && !isCourseComplete) {
+    // Auto-checkpoint active location & notes phase to Supabase once hydrated
+    if (hasHydratedRef.current && user?.email && !levelResult?.isFinished && !isCourseComplete) {
       saveQuestionProgressState({
         courseId: 'java-core',
         partNum: 1,
