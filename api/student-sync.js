@@ -190,8 +190,9 @@ export default async function handler(req, res) {
               ]));
 
               const mergedParts = { ...(exCourse.parts || {}) };
-              if (inCourse.parts) {
+              if (inCourse.parts && Object.keys(inCourse.parts).length > 0) {
                 Object.entries(inCourse.parts).forEach(([pStr, inPart]) => {
+                  if (!inPart) return;
                   const exPart = mergedParts[pStr];
                   if (!exPart) {
                     mergedParts[pStr] = inPart;
@@ -206,14 +207,14 @@ export default async function handler(req, res) {
                   const inAnswersCount = Object.keys(inPart.selectedAnswers || {}).length;
                   const exAnswersCount = Object.keys(exPart.selectedAnswers || {}).length;
 
-                  const inIsInitialSec = !inPart.activeSectionId || inPart.activeSectionId === '1-1-getting-started' || inPart.activeSectionId === '0-1-http-protocol' || inPart.activeSectionId === '1-1-overview' || inPart.activeSectionId.endsWith('-1') || inPart.activeSectionId.endsWith('.1');
-                  const inHasRealProgress = !inIsInitialSec || (inPart.activeQuestionIdx || 0) > 0 || inAnswersCount > 0 || inPart.isCompleted || inPart.isFinishedPart;
+                  const exHasAnswersOrExam = exAnswersCount > 0 || exPart.isCompleted || exPart.isFinishedPart;
 
-                  const exIsInitialSec = !exPart.activeSectionId || exPart.activeSectionId === '1-1-getting-started' || exPart.activeSectionId === '0-1-http-protocol' || exPart.activeSectionId === '1-1-overview' || exPart.activeSectionId.endsWith('-1') || exPart.activeSectionId.endsWith('.1');
-                  const exHasRealProgress = !exIsInitialSec || (exPart.activeQuestionIdx || 0) > 0 || exAnswersCount > 0 || exPart.isCompleted || exPart.isFinishedPart;
+                  const inIsDefaultMount = (inPart.activeQuestionIdx === 0 || inPart.activeQuestionIdx === undefined) &&
+                    (!inPart.activeSectionId || inPart.activeSectionId.endsWith('-1') || inPart.activeSectionId.endsWith('.1') || inPart.activeSectionId.includes('1-1') || inPart.activeSectionId.includes('0-1')) &&
+                    inAnswersCount === 0 &&
+                    inPart.isStudyPhase !== false;
 
-                  // Never overwrite real saved progress with an unhydrated mount default
-                  if (!inHasRealProgress && exHasRealProgress) {
+                  if (inIsDefaultMount && exHasAnswersOrExam) {
                     mergedParts[pStr] = {
                       ...exPart,
                       selectedAnswers: mergedAnswers

@@ -462,16 +462,7 @@ export const JavaPart1Page: React.FC = () => {
       });
     }
 
-    try {
-      const curState = window.history.state || {};
-      if (curState.qIdx !== activeQuestionIdx || curState.secId !== activeSectionId) {
-        window.history.pushState(
-          { partNum: 1, secId: activeSectionId, qIdx: activeQuestionIdx },
-          '',
-          window.location.pathname
-        );
-      }
-    } catch {}
+
   }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
 
   // Unmount checkpoint: flush progress immediately when student navigates away or presses Back

@@ -247,8 +247,9 @@ export function mergeStudentProgressDocs(
       ]));
 
       const mergedParts: Record<string, PartQuestionState> = { ...(exCourse.parts || {}) };
-      if (inCourse.parts) {
+      if (inCourse.parts && Object.keys(inCourse.parts).length > 0) {
         Object.entries(inCourse.parts).forEach(([pStr, inPart]) => {
+          if (!inPart) return;
           const exPart = mergedParts[pStr];
           if (!exPart) {
             mergedParts[pStr] = inPart;
@@ -263,14 +264,15 @@ export function mergeStudentProgressDocs(
           const inAnswersCount = Object.keys(inPart.selectedAnswers || {}).length;
           const exAnswersCount = Object.keys(exPart.selectedAnswers || {}).length;
 
-          const inIsInitialSec = !inPart.activeSectionId || inPart.activeSectionId === '1-1-getting-started' || inPart.activeSectionId === '0-1-http-protocol' || inPart.activeSectionId === '1-1-overview' || inPart.activeSectionId.endsWith('-1') || inPart.activeSectionId.endsWith('.1');
-          const inHasRealProgress = !inIsInitialSec || (inPart.activeQuestionIdx || 0) > 0 || inAnswersCount > 0 || inPart.isCompleted || inPart.isFinishedPart;
+          const exHasAnswersOrExam = exAnswersCount > 0 || exPart.isCompleted || exPart.isFinishedPart;
 
-          const exIsInitialSec = !exPart.activeSectionId || exPart.activeSectionId === '1-1-getting-started' || exPart.activeSectionId === '0-1-http-protocol' || exPart.activeSectionId === '1-1-overview' || exPart.activeSectionId.endsWith('-1') || exPart.activeSectionId.endsWith('.1');
-          const exHasRealProgress = !exIsInitialSec || (exPart.activeQuestionIdx || 0) > 0 || exAnswersCount > 0 || exPart.isCompleted || exPart.isFinishedPart;
+          const inIsDefaultMount = (inPart.activeQuestionIdx === 0 || inPart.activeQuestionIdx === undefined) &&
+            (!inPart.activeSectionId || inPart.activeSectionId.endsWith('-1') || inPart.activeSectionId.endsWith('.1') || inPart.activeSectionId.includes('1-1') || inPart.activeSectionId.includes('0-1')) &&
+            inAnswersCount === 0 &&
+            inPart.isStudyPhase !== false;
 
-          // Never overwrite real saved progress with an unhydrated mount default
-          if (!inHasRealProgress && exHasRealProgress) {
+          // Never overwrite real saved questions/answers with an unhydrated mount default
+          if (inIsDefaultMount && exHasAnswersOrExam) {
             mergedParts[pStr] = {
               ...exPart,
               selectedAnswers: mergedAnswers
@@ -340,26 +342,26 @@ export const flushCloudSync = async (email: string) => {
       }
     } catch {}
 
+    // Broadcast to server endpoint with keepalive: true immediately so mobile unmount/navigation cannot kill it
+    const syncEndpoint = typeof window !== 'undefined' ? `${window.location.origin}/api/student-sync` : '/api/student-sync';
+    const keepaliveSyncPromise = fetch(syncEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: cleanEmail,
+        type: 'progress',
+        content: finalPayload
+      }),
+      keepalive: true
+    }).catch(() => {});
+
     await supabase.from('site_content').upsert({
       id: docId,
       content: finalPayload,
       updated_at: new Date().toISOString()
     });
 
-    // 2. Secondary: Also broadcast to server endpoint if available
-    try {
-      const syncEndpoint = typeof window !== 'undefined' ? `${window.location.origin}/api/student-sync` : '/api/student-sync';
-      await fetch(syncEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: cleanEmail,
-          type: 'progress',
-          content: finalPayload
-        }),
-        keepalive: true
-      });
-    } catch {}
+    await keepaliveSyncPromise;
   } catch (e) {
     console.warn('Background course progress cloud sync error:', e);
   }
@@ -592,6 +594,8 @@ export const initCourseProgressSyncInterceptor = () => {
       const cRec = st.courses[parsed.courseId];
       if (parsed.field === 'lastPart') {
         cRec.lastPart = parseInt(value, 10) || parsed.partNum;
+        // Setting lastPart alone (e.g. entering course overview) should not overwrite course parts in cloud
+        return;
       } else if (parsed.field === 'completed') {
         if (!cRec.completedParts.includes(parsed.partNum)) {
           cRec.completedParts.push(parsed.partNum);
@@ -760,37 +764,35 @@ export const saveQuestionProgressState = (params: {
     return null;
   }
 
-  // A page's mount-time checkpoint runs before the cloud snapshot has been
-  // applied. Ignore it so it cannot overwrite the restored page/result state.
-  if (cleanEmail && (restoreInFlightCount[cleanEmail] || 0) > 0) {
+  const hydKey = cleanEmail ? `${cleanEmail}_${courseId}_${partNum}` : '';
+  const isHydrated = !cleanEmail || Boolean(partHydratedMap[hydKey]);
+
+  // A page's mount-time checkpoint runs before the cloud snapshot has been applied.
+  // Only drop if not hydrated and not an immediate explicit save.
+  if (cleanEmail && (restoreInFlightCount[cleanEmail] || 0) > 0 && !isHydrated && !forceImmediate) {
     return;
   }
 
   // OVERWRITE PROTECTION:
-  // If the component is passing default 0 and empty selectedAnswers, BUT existing
-  // in-memory / cloud state has real progress and this is NOT an explicit user reset:
-  // DO NOT overwrite real progress with empty mount default!
+  // If the component is passing default 0 and empty selectedAnswers on Section 1.1,
+  // BUT existing in-memory / cloud state already has answered questions or exam completion:
+  // DO NOT overwrite real progress with unhydrated mount default!
   const pKey = String(partNum);
   const memCourse = cleanEmail ? memoryCourseState[cleanEmail]?.courses?.[courseId] : null;
   const existingPart = memCourse?.parts?.[pKey];
-  const hasExistingAnswers = Object.keys(existingPart?.selectedAnswers || {}).length > 0;
-  const hasExistingProgress = Boolean(existingPart && (existingPart.activeQuestionIdx > 0 || hasExistingAnswers || existingPart.isCompleted || existingPart.isFinishedPart || (existingPart.activeSectionId && existingPart.activeSectionId !== activeSectionId)));
+  const exAnswersCount = Object.keys(existingPart?.selectedAnswers || {}).length;
+  const inAnswersCount = Object.keys(selectedAnswers || {}).length;
+  const exHasAnswersOrExam = exAnswersCount > 0 || Boolean(existingPart?.isCompleted) || Boolean(existingPart?.isFinishedPart);
 
-  const hydKey = cleanEmail ? `${cleanEmail}_${courseId}_${partNum}` : '';
-  const isHydrated = !cleanEmail || Boolean(partHydratedMap[hydKey]);
+  const isDefaultMount = (activeQuestionIdx === 0) &&
+    (!activeSectionId || activeSectionId.endsWith('-1') || activeSectionId.endsWith('.1') || activeSectionId.includes('1-1') || activeSectionId.includes('0-1')) &&
+    inAnswersCount === 0 &&
+    isStudyPhase !== false;
 
-  // If this part has not yet finished cloud hydration for this user, and this is NOT an explicit user reset:
-  // Any save with 0 index and empty answers on the INITIAL section is an unhydrated component mount effect.
-  // BLOCK IT from overwriting localStorage and Supabase!
-  const isInitialSec = !activeSectionId || activeSectionId === '1-1-getting-started' || activeSectionId === '0-1-http-protocol' || activeSectionId === '1-1-overview' || activeSectionId.endsWith('-1') || activeSectionId.endsWith('.1');
-  const exIsInitialSec = !existingPart?.activeSectionId || existingPart.activeSectionId === '1-1-getting-started' || existingPart.activeSectionId === '0-1-http-protocol' || existingPart.activeSectionId === '1-1-overview' || existingPart.activeSectionId.endsWith('-1') || existingPart.activeSectionId.endsWith('.1');
-  const hasExistingRealProgress = Boolean(existingPart && (!exIsInitialSec || existingPart.activeQuestionIdx > 0 || hasExistingAnswers || existingPart.isCompleted || existingPart.isFinishedPart));
-
-  if (!isExplicitReset && isInitialSec && activeQuestionIdx === 0 && Object.keys(selectedAnswers || {}).length === 0 && hasExistingRealProgress) {
+  if (!isExplicitReset && isDefaultMount && exHasAnswersOrExam) {
     console.warn(`[SyncGuard] Blocked premature overwrite of ${courseId} Part ${partNum} saved progress (${existingPart?.activeSectionId} Q${(existingPart?.activeQuestionIdx ?? 0) + 1}) with initial default`);
     return;
   }
-
   // 1. Immediately persist to localStorage
   const keys = getCourseStorageKeys(courseId, partNum);
   try {

@@ -1219,18 +1219,7 @@ export const PythonPart1Page: React.FC = () => {
     }
   }, [activeSectionId, activeQuestionIdx, taskId]);
 
-  useEffect(() => {
-    const handlePopState = (e: PopStateEvent) => {
-      if (e.state && typeof e.state.qIdx === 'number' && e.state.secId) {
-        if (e.state.partNum === 1) {
-          setActiveSectionId(e.state.secId);
-          setActiveQuestionIdx(e.state.qIdx);
-        }
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+
 
   return (
     <div className="min-h-screen bg-black text-paper selection:bg-primary selection:text-ink relative overflow-x-hidden font-sans flex flex-col">
