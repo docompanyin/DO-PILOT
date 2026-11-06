@@ -36,6 +36,7 @@ const TIMER_DURATION = 30; // 30 seconds
 
 interface LevelResultState {
   isFinished: boolean;
+  sectionId?: string;
   isPassed: boolean;
   correctCount: number;
   totalCount: number;
@@ -337,7 +338,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
       }
       const finished = localStorage.getItem('dopilot_cyber_part1_finished') === 'true';
       const saved = localStorage.getItem('dopilot_cyber_part1_completed') === 'true';
-      if (saved || finished || isPart1Finished('cyber-security', studentId)) return true;
+      if (saved || finished) return true;
       return false;
     } catch {
       return false;
@@ -630,6 +631,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
 
     const resultState: LevelResultState = {
       isFinished: true,
+      sectionId: activeSection.id,
       isPassed,
       correctCount,
       totalCount,

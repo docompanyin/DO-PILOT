@@ -273,7 +273,6 @@ export const isPart1Finished = (courseId: string, studentId?: string): boolean =
       const cRec = st.courses?.[track];
       if (cRec) {
         if (cRec.completedParts?.includes(trialPartNum)) return true;
-        if (cRec.lastPart && cRec.lastPart > trialPartNum) return true;
         if (cRec.parts?.[trialPartKey]?.isFinishedPart || cRec.parts?.[trialPartKey]?.isCompleted) return true;
       }
       if (st.rawStorage) {

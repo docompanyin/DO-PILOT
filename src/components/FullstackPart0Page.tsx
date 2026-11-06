@@ -33,6 +33,7 @@ const TIMER_DURATION = 30; // 30 seconds
 
 interface LevelResultState {
   isFinished: boolean;
+  sectionId?: string;
   isPassed: boolean;
   correctCount: number;
   totalCount: number;
@@ -122,11 +123,13 @@ export const FullstackPart0Page: React.FC = () => {
   const [levelResult, setLevelResult] = useState<LevelResultState | null>(() => {
     try {
       const saved = localStorage.getItem('dopilot_fullstack_part0_level_result');
-      if (saved) return JSON.parse(saved);
-
-      const savedFinal = localStorage.getItem(`dopilot_fullstack_part0_final_exam_result_${studentId}`) ||
-                         localStorage.getItem('dopilot_fullstack_part0_final_exam_result');
-      if (savedFinal) return JSON.parse(savedFinal);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const curSec = localStorage.getItem('dopilot_fullstack_part0_active_section_id');
+        if (parsed?.isFinished && (!parsed.sectionId || !curSec || parsed.sectionId === curSec)) {
+          return parsed;
+        }
+      }
       return null;
     } catch {
       return null;
@@ -219,8 +222,7 @@ export const FullstackPart0Page: React.FC = () => {
   const [isCourseComplete, setIsCourseComplete] = useState<boolean>(() => {
     try {
       return localStorage.getItem('dopilot_fullstack_part0_completed') === 'true' ||
-             localStorage.getItem('dopilot_fullstack_part0_finished') === 'true' ||
-             isPart1Finished('fullstack-open', studentId);
+             localStorage.getItem('dopilot_fullstack_part0_finished') === 'true';
     } catch {
       return false;
     }
@@ -484,8 +486,9 @@ export const FullstackPart0Page: React.FC = () => {
       setConsecutiveFailures(0);
     }
 
-    const resultState = {
+    const resultState: LevelResultState = {
       isFinished: true,
+      sectionId: activeSection.id,
       isPassed,
       correctCount,
       totalCount,
@@ -976,13 +979,29 @@ export const FullstackPart0Page: React.FC = () => {
         {isCourseComplete ? (() => {
           if (!hasPurchased) {
             // FREE TRIAL USER: Always display the preserved final Exam Result page (Screenshot 1)
-            const finalResult = (() => {
-              if (levelResult && levelResult.isFinished) return levelResult;
+            const savedFinalObj = (() => {
               try {
                 const saved = localStorage.getItem(`dopilot_fullstack_part0_final_exam_result_${studentId}`) ||
                               localStorage.getItem('dopilot_fullstack_part0_final_exam_result');
                 if (saved) return JSON.parse(saved);
               } catch {}
+              return null;
+            })();
+
+            if (!savedFinalObj && (!levelResult || !levelResult.isFinished)) {
+              setTimeout(() => {
+                setIsCourseComplete(false);
+                try {
+                  localStorage.removeItem('dopilot_fullstack_part0_completed');
+                  localStorage.removeItem('dopilot_fullstack_part0_finished');
+                } catch {}
+              }, 0);
+              return null;
+            }
+
+            const finalResult = (() => {
+              if (levelResult && levelResult.isFinished) return levelResult;
+              if (savedFinalObj) return savedFinalObj;
               const finalSec = FULLSTACK_PART_0_SECTIONS[FULLSTACK_PART_0_SECTIONS.length - 1];
               const qList = getActiveQuestionsForLevelFullstackPart0(finalSec, studentId, false);
               let correctCount = 0;

@@ -392,6 +392,7 @@ export const PythonPart1Page: React.FC = () => {
   });
 
   useCourseUnlockedListener({
+    courseId: 'python-core',
     partNum: 1,
     studentId,
     studentEmail: user?.email,
@@ -1040,6 +1041,20 @@ export const PythonPart1Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'python-core',
+      partNum: 1,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers: updated,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime,
+      timeLeft,
+      studentEmail: user?.email,
+      levelResult: null
+    });
 
     const timeSpent = (() => {
       if (targetEndTime) {

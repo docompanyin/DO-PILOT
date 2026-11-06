@@ -39,6 +39,7 @@ const TIMER_DURATION = 30; // 30 seconds
 
 interface LevelResultState {
   isFinished: boolean;
+  sectionId?: string;
   isPassed: boolean;
   correctCount: number;
   totalCount: number;
@@ -652,6 +653,7 @@ export const JavaPart1Page: React.FC = () => {
 
     const resultState: LevelResultState = {
       isFinished: true,
+      sectionId: activeSection.id,
       isPassed,
       correctCount,
       totalCount,

@@ -664,6 +664,17 @@ export const initCourseProgressSyncInterceptor = () => {
         }
       }
 
+      if (key.includes('level_result')) {
+        if (st.rawStorage) delete st.rawStorage[key];
+        Object.values(st.courses || {}).forEach(c => {
+          Object.values(c.parts || {}).forEach(p => {
+            p.levelResult = null;
+          });
+        });
+        st.updatedAt = new Date().toISOString();
+        queueCloudSync(email);
+      }
+
       const parsed = parseCourseStorageKey(key);
       if (!parsed) return;
 
@@ -758,13 +769,14 @@ export const saveQuestionProgressState = (params: {
   const isHydrated = !cleanEmail || Boolean(partHydratedMap[hydKey]);
 
   // If this part has not yet finished cloud hydration for this user, and this is NOT an explicit user reset:
-  // Any save with 0 index and empty answers is an unhydrated component mount effect.
+  // Any save with 0 index and empty answers on the INITIAL section is an unhydrated component mount effect.
   // BLOCK IT from overwriting localStorage and Supabase!
-  if (!isExplicitReset && !isHydrated && activeQuestionIdx === 0 && Object.keys(selectedAnswers || {}).length === 0) {
+  const isInitialSec = !activeSectionId || activeSectionId === '1-1-getting-started' || activeSectionId === '0-1-http-protocol' || activeSectionId === '1-1-overview' || activeSectionId.endsWith('-1') || activeSectionId.endsWith('.1');
+  if (!isExplicitReset && !isHydrated && activeQuestionIdx === 0 && Object.keys(selectedAnswers || {}).length === 0 && isInitialSec && hasExistingProgress) {
     return;
   }
 
-  if (!isExplicitReset && activeQuestionIdx === 0 && Object.keys(selectedAnswers || {}).length === 0 && hasExistingProgress) {
+  if (!isExplicitReset && activeQuestionIdx === 0 && Object.keys(selectedAnswers || {}).length === 0 && isInitialSec && hasExistingProgress) {
     console.warn(`[SyncGuard] Blocked premature overwrite of ${courseId} Part ${partNum} progress at Q${(existingPart?.activeQuestionIdx ?? 0) + 1}`);
     return;
   }
@@ -1017,6 +1029,8 @@ export const restoreAllStudentCourseProgressFromCloud = async (
     if (cloudState.rawStorage && typeof cloudState.rawStorage === 'object') {
       Object.entries(cloudState.rawStorage).forEach(([k, v]) => {
         if (typeof v === 'string' && k.startsWith('dopilot_') && !k.includes('session') && !k.includes('pending_')) {
+          // Never blindly hydrate level_result from rawStorage; level results are verified per-section in step 3
+          if (k.includes('level_result')) return;
           localStorage.setItem(k, v);
         }
       });
@@ -1604,7 +1618,7 @@ export function useCourseQuestionResume(params: {
     };
 
     getCloudPartQuestionState(params.courseId, params.partNum, cleanEmail).then((saved) => {
-      if (saved && !hasHydratedRef.current) {
+      if (saved) {
         hasHydratedRef.current = true;
         applyState(saved);
       }
