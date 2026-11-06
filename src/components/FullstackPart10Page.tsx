@@ -511,8 +511,7 @@ export const FullstackPart10Page: React.FC = () => {
       timeLeft: TIMER_DURATION,
       studentEmail: user?.email,
       levelResult: null,
-      forceImmediate: true
-    });
+          });
   };
 
   // Progress to the next level

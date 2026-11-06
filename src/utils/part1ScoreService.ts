@@ -193,69 +193,124 @@ export const getPart1OverallScore = (
 };
 
 /**
+ * Helper to resolve the student's email from studentId, localStorage, or memoryCourseState
+ */
+export const resolveStudentEmail = (studentId?: string): string => {
+  if (studentId && studentId.includes('@')) {
+    return normalizeStudentEmail(studentId);
+  }
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('dopilot_student_session_v1') : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.email) return normalizeStudentEmail(parsed.email);
+    }
+  } catch {}
+  if (typeof memoryCourseState !== 'undefined') {
+    const memEmails = Object.keys(memoryCourseState);
+    if (memEmails.length > 0) return memEmails[0];
+  }
+  return '';
+};
+
+/**
  * Check whether Part 1 was completely finished (all sections completed during free trial or previously).
  */
 export const isPart1Finished = (courseId: string, studentId?: string): boolean => {
   try {
     const track = normalizeTrackId(courseId);
     const prefix = getStoragePrefix(track);
+    const trialPartNum = track === 'fullstack-open' ? 0 : 1;
+    const trialPartKey = String(trialPartNum);
 
-    // 1. Direct finished flags
-    if (track === 'python-core') {
-      if (
-        localStorage.getItem('dopilot_part1_finished') === 'true' ||
-        localStorage.getItem('dopilot_python_part1_finished') === 'true' ||
-        localStorage.getItem('dopilot_part1_completed') === 'true'
-      ) {
-        return true;
-      }
-    } else if (track === 'java-core') {
-      if (
-        localStorage.getItem('dopilot_java_part1_finished') === 'true' ||
-        localStorage.getItem('dopilot_java_part1_completed') === 'true'
-      ) {
-        return true;
-      }
-    } else if (track === 'fullstack-open') {
-      if (
-        localStorage.getItem('dopilot_fullstack_part0_finished') === 'true' ||
-        localStorage.getItem('dopilot_fullstack_part0_completed') === 'true' ||
-        localStorage.getItem('dopilot_fullstack_part1_finished') === 'true' ||
-        localStorage.getItem('dopilot_fullstack_part1_completed') === 'true'
-      ) {
-        return true;
-      }
-    } else {
-      if (
-        localStorage.getItem(`${prefix}_part1_finished`) === 'true' ||
-        localStorage.getItem(`${prefix}_part1_completed`) === 'true'
-      ) {
-        return true;
-      }
-    }
-
-    // 2. Check memoryCourseState / backend student state
-    const cleanEmail = normalizeStudentEmail(studentId && studentId.includes('@') ? studentId : undefined);
-    if (cleanEmail && memoryCourseState[cleanEmail]) {
-      const trialPartKey = track === 'fullstack-open' ? '0' : '1';
-      const p1 = memoryCourseState[cleanEmail].courses?.[track]?.parts?.[trialPartKey];
-      if (p1?.isFinishedPart || p1?.isCompleted) {
-        return true;
-      }
-    }
-
-    // 3. Check section scores count: if all expected sections are recorded (5 for Python, 6 for Java)
-    const expectedCount = getExpectedPart1SectionCount(track);
-    let raw = studentId ? localStorage.getItem(`${prefix}_part1_section_scores_${studentId}`) : null;
-    if (!raw) raw = localStorage.getItem(`${prefix}_part1_section_scores`);
-    if (raw) {
-      const scores = JSON.parse(raw);
-      if (scores && typeof scores === 'object') {
-        const recordedSections = Object.keys(scores).filter(k => scores[k] && scores[k].total > 0);
-        if (recordedSections.length >= expectedCount) {
+    // 1. Direct localStorage flags
+    if (typeof localStorage !== 'undefined') {
+      if (track === 'python-core') {
+        if (
+          localStorage.getItem('dopilot_part1_finished') === 'true' ||
+          localStorage.getItem('dopilot_python_part1_finished') === 'true' ||
+          localStorage.getItem('dopilot_part1_completed') === 'true'
+        ) {
+          return true;
+        }
+      } else if (track === 'java-core') {
+        if (
+          localStorage.getItem('dopilot_java_part1_finished') === 'true' ||
+          localStorage.getItem('dopilot_java_part1_completed') === 'true'
+        ) {
+          return true;
+        }
+      } else if (track === 'fullstack-open') {
+        if (
+          localStorage.getItem('dopilot_fullstack_part0_finished') === 'true' ||
+          localStorage.getItem('dopilot_fullstack_part0_completed') === 'true' ||
+          localStorage.getItem('dopilot_fullstack_part1_finished') === 'true' ||
+          localStorage.getItem('dopilot_fullstack_part1_completed') === 'true'
+        ) {
+          return true;
+        }
+      } else if (track === 'cyber-security') {
+        if (
+          localStorage.getItem('dopilot_cyber_part1_finished') === 'true' ||
+          localStorage.getItem('dopilot_cyber_part1_completed') === 'true'
+        ) {
+          return true;
+        }
+      } else {
+        if (
+          localStorage.getItem(`${prefix}_part1_finished`) === 'true' ||
+          localStorage.getItem(`${prefix}_part1_completed`) === 'true'
+        ) {
           return true;
         }
       }
+    }
+
+    // 2. Check memoryCourseState / cloud snapshot
+    const cleanEmail = resolveStudentEmail(studentId);
+    if (cleanEmail && memoryCourseState[cleanEmail]) {
+      const st = memoryCourseState[cleanEmail];
+      const cRec = st.courses?.[track];
+      if (cRec) {
+        if (cRec.completedParts?.includes(trialPartNum)) return true;
+        if (cRec.lastPart && cRec.lastPart > trialPartNum) return true;
+        if (cRec.parts?.[trialPartKey]?.isFinishedPart || cRec.parts?.[trialPartKey]?.isCompleted) return true;
+      }
+      if (st.rawStorage) {
+        if (
+          st.rawStorage[`${prefix}_part1_finished`] === 'true' ||
+          st.rawStorage[`${prefix}_part1_completed`] === 'true' ||
+          st.rawStorage['dopilot_part1_finished'] === 'true' ||
+          st.rawStorage['dopilot_part1_completed'] === 'true' ||
+          st.rawStorage['dopilot_fullstack_part0_finished'] === 'true' ||
+          st.rawStorage['dopilot_fullstack_part0_completed'] === 'true' ||
+          st.rawStorage['dopilot_cyber_part1_finished'] === 'true' ||
+          st.rawStorage['dopilot_cyber_part1_completed'] === 'true' ||
+          st.rawStorage['dopilot_java_part1_finished'] === 'true' ||
+          st.rawStorage['dopilot_java_part1_completed'] === 'true'
+        ) {
+          return true;
+        }
+      }
+    }
+
+    // 3. Check section scores count: if all expected sections are recorded with total > 0
+    const expectedCount = getExpectedPart1SectionCount(track);
+    let raw: string | null = null;
+    if (typeof localStorage !== 'undefined') {
+      if (studentId) raw = localStorage.getItem(`${prefix}_part1_section_scores_${studentId}`);
+      if (!raw) raw = localStorage.getItem(`${prefix}_part1_section_scores`);
+    }
+    if (raw) {
+      try {
+        const scores = JSON.parse(raw);
+        if (scores && typeof scores === 'object') {
+          const recordedSections = Object.keys(scores).filter(k => scores[k] && scores[k].total > 0);
+          if (recordedSections.length >= expectedCount) {
+            return true;
+          }
+        }
+      } catch {}
     }
 
     return false;
@@ -271,21 +326,88 @@ export const markPart1Finished = (courseId: string, studentId?: string): void =>
   try {
     const track = normalizeTrackId(courseId);
     const prefix = getStoragePrefix(track);
-    if (track === 'python-core') {
-      localStorage.setItem('dopilot_part1_finished', 'true');
-      localStorage.setItem('dopilot_python_part1_finished', 'true');
-    } else {
-      localStorage.setItem(`${prefix}_part1_finished`, 'true');
+    const trialPartNum = track === 'fullstack-open' ? 0 : 1;
+    const nextPartNum = trialPartNum + 1;
+    const trialPartKey = String(trialPartNum);
+
+    if (typeof localStorage !== 'undefined') {
+      if (track === 'python-core') {
+        localStorage.setItem('dopilot_part1_finished', 'true');
+        localStorage.setItem('dopilot_python_part1_finished', 'true');
+        localStorage.setItem('dopilot_part1_completed', 'true');
+        localStorage.setItem('dopilot_python_core_last_part', '2');
+      } else if (track === 'java-core') {
+        localStorage.setItem('dopilot_java_part1_finished', 'true');
+        localStorage.setItem('dopilot_java_part1_completed', 'true');
+        localStorage.setItem('dopilot_java_core_last_part', '2');
+      } else if (track === 'fullstack-open') {
+        localStorage.setItem('dopilot_fullstack_part0_finished', 'true');
+        localStorage.setItem('dopilot_fullstack_part0_completed', 'true');
+        localStorage.setItem('dopilot_fullstack_core_last_part', '1');
+      } else if (track === 'cyber-security') {
+        localStorage.setItem('dopilot_cyber_part1_finished', 'true');
+        localStorage.setItem('dopilot_cyber_part1_completed', 'true');
+        localStorage.setItem('dopilot_cyber_core_last_part', '2');
+      } else {
+        localStorage.setItem(`${prefix}_part1_finished`, 'true');
+        localStorage.setItem(`${prefix}_part1_completed`, 'true');
+      }
     }
 
-    const cleanEmail = normalizeStudentEmail(studentId && studentId.includes('@') ? studentId : undefined);
-    if (cleanEmail && memoryCourseState[cleanEmail]) {
-      const st = memoryCourseState[cleanEmail];
-      if (st.courses?.[track]?.parts?.['1']) {
-        st.courses[track].parts['1'].isFinishedPart = true;
+    const cleanEmail = resolveStudentEmail(studentId);
+    if (cleanEmail) {
+      if (!memoryCourseState[cleanEmail]) {
+        memoryCourseState[cleanEmail] = {
+          email: cleanEmail,
+          courses: {},
+          updatedAt: new Date().toISOString()
+        };
       }
+      const st = memoryCourseState[cleanEmail];
+      if (!st.courses[track]) {
+        st.courses[track] = {
+          lastPart: nextPartNum,
+          completedParts: [trialPartNum],
+          parts: {}
+        };
+      } else {
+        st.courses[track].lastPart = Math.max(st.courses[track].lastPart || 1, nextPartNum);
+        if (!st.courses[track].completedParts.includes(trialPartNum)) {
+          st.courses[track].completedParts.push(trialPartNum);
+        }
+      }
+
+      if (!st.courses[track].parts) {
+        st.courses[track].parts = {};
+      }
+      if (!st.courses[track].parts[trialPartKey]) {
+        st.courses[track].parts[trialPartKey] = {
+          activeSectionId: '',
+          activeQuestionIdx: 0,
+          selectedAnswers: {},
+          isStudyPhase: true,
+          isTimeUpWaiting: false,
+          targetEndTime: 0,
+          timeLeft: 30,
+          updatedAt: new Date().toISOString()
+        };
+      }
+      st.courses[track].parts[trialPartKey].isFinishedPart = true;
+      st.courses[track].parts[trialPartKey].isCompleted = true;
+
+      if (!st.rawStorage) st.rawStorage = {};
+      if (track === 'fullstack-open') {
+        st.rawStorage['dopilot_fullstack_part0_completed'] = 'true';
+        st.rawStorage['dopilot_fullstack_part0_finished'] = 'true';
+        st.rawStorage['dopilot_fullstack_core_last_part'] = '1';
+      } else {
+        st.rawStorage[`${prefix}_part1_finished`] = 'true';
+        st.rawStorage[`${prefix}_part1_completed`] = 'true';
+        st.rawStorage[`${prefix}_core_last_part`] = '2';
+      }
+
       st.updatedAt = new Date().toISOString();
-      queueCloudSync(cleanEmail);
+      queueCloudSync(cleanEmail, true);
     }
   } catch {}
 };

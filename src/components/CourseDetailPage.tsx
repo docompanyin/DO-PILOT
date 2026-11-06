@@ -15,12 +15,49 @@ import { CoursePurchaseModal } from './checkout/CoursePurchaseModal';
 import { hasCourseAccess, getCoursePricing, CoursePricing, syncUserPurchasesFromCloud } from '../utils/coursePricingService';
 import { getUserInitials } from '../utils/userInitials';
 import { getPostPurchaseStartingPart, getPart1OverallScore, getPostPurchaseDecision, hasAttemptedTrial, isPart1Finished } from '../utils/part1ScoreService';
-import { restoreAllStudentCourseProgressFromCloud, memoryCourseState } from '../utils/courseProgressSyncService';
+import { restoreAllStudentCourseProgressFromCloud, memoryCourseState, saveCoursePartCompletion, getCourseStorageKeys } from '../utils/courseProgressSyncService';
 import { getSavedCertificate } from '../utils/certificateGenerator';
 import { navigateBackOrFallback } from '../utils/navigationHelper';
 import { clearPythonPartIntroRequired } from '../utils/pythonPartIntro';
 import { clearJavaPartIntroRequired } from '../utils/javaPartIntro';
 
+
+const resolveStudentEmail = (studentId?: string): string => {
+  if (studentId && studentId.includes('@')) return studentId.toLowerCase().trim();
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('dopilot_student_session_v1') : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.email) return parsed.email.toLowerCase().trim();
+    }
+  } catch {}
+  if (typeof memoryCourseState !== 'undefined') {
+    const keys = Object.keys(memoryCourseState);
+    if (keys.length > 0) return keys[0];
+  }
+  return '';
+};
+
+const isPartCompleteInStorageOrCloud = (
+  trackId: string,
+  partNum: number,
+  studentId?: string
+): boolean => {
+  const email = resolveStudentEmail(studentId);
+  const trialPart = trackId === 'fullstack-open' ? 0 : 1;
+  if (partNum === trialPart) {
+    if (isPart1Finished(trackId, studentId || email)) return true;
+  }
+  const keys = getCourseStorageKeys(trackId, partNum);
+  if (typeof localStorage !== 'undefined' && localStorage.getItem(keys.completedKey) === 'true') return true;
+  if (email && memoryCourseState[email]) {
+    const cRec = memoryCourseState[email].courses?.[trackId];
+    if (cRec?.completedParts?.includes(partNum)) return true;
+    if (cRec?.parts?.[String(partNum)]?.isCompleted) return true;
+    if (memoryCourseState[email].rawStorage?.[keys.completedKey] === 'true') return true;
+  }
+  return false;
+};
 interface PythonResumeInfo {
   targetPart: number;
   status: 'not_started' | 'in_progress' | 'all_completed';
@@ -34,13 +71,9 @@ const getPythonResumeInfo = (isPurchased = false, studentId?: string): PythonRes
   try {
     const completedParts: number[] = [];
     for (let i = 1; i <= 14; i++) {
-      let isComp = false;
-      if (i === 1) {
-        isComp = isPart1Finished('python-core', studentId);
-      } else {
-        isComp = localStorage.getItem(`dopilot_part${i}_completed`) === 'true';
+      if (isPartCompleteInStorageOrCloud('python-core', i, studentId)) {
+        completedParts.push(i);
       }
-      if (isComp) completedParts.push(i);
     }
 
     const firstUncompletedPart = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].find(
@@ -110,13 +143,9 @@ const getJavaResumeInfo = (isPurchased = false, studentId?: string): JavaResumeI
   try {
     const completedParts: number[] = [];
     for (let i = 1; i <= 14; i++) {
-      let isComp = false;
-      if (i === 1) {
-        isComp = isPart1Finished('java-core', studentId);
-      } else {
-        isComp = localStorage.getItem(`dopilot_java_part${i}_completed`) === 'true';
+      if (isPartCompleteInStorageOrCloud('java-core', i, studentId)) {
+        completedParts.push(i);
       }
-      if (isComp) completedParts.push(i);
     }
 
     const allParts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -183,13 +212,9 @@ const getFullStackResumeInfo = (isPurchased = false, studentId?: string): FullSt
   try {
     const completedParts: number[] = [];
     for (let i = 0; i <= 13; i++) {
-      let isComp = false;
-      if (i === 0) {
-        isComp = isPart1Finished('fullstack-open', studentId);
-      } else {
-        isComp = localStorage.getItem(`dopilot_fullstack_part${i}_completed`) === 'true';
+      if (isPartCompleteInStorageOrCloud('fullstack-open', i, studentId)) {
+        completedParts.push(i);
       }
-      if (isComp) completedParts.push(i);
     }
 
     const allParts = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -257,13 +282,9 @@ const getCyberSecurityResumeInfo = (isPurchased = false, studentId?: string): Cy
   try {
     const completedParts: number[] = [];
     for (let i = 1; i <= 14; i++) {
-      let isComp = false;
-      if (i === 1) {
-        isComp = isPart1Finished('cyber-security', studentId);
-      } else {
-        isComp = localStorage.getItem(`dopilot_cyber_part${i}_completed`) === 'true';
+      if (isPartCompleteInStorageOrCloud('cyber-security', i, studentId)) {
+        completedParts.push(i);
       }
-      if (isComp) completedParts.push(i);
     }
 
     const allParts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -1714,6 +1735,16 @@ export const CourseDetailPage: React.FC = () => {
           onSuccess={() => {
             setIsPurchased(true);
             enrollInCourse(course.title);
+            const email = user?.email || resolveStudentEmail();
+            if (isCoursePython && isPart1Finished('python-core', email)) {
+              saveCoursePartCompletion('python-core', 1, 2, email);
+            } else if (isCourseJava && isPart1Finished('java-core', email)) {
+              saveCoursePartCompletion('java-core', 1, 2, email);
+            } else if (isCourseFullstack && isPart1Finished('fullstack-open', email)) {
+              saveCoursePartCompletion('fullstack-open', 0, 1, email);
+            } else if (isCourseCyber && isPart1Finished('cyber-security', email)) {
+              saveCoursePartCompletion('cyber-security', 1, 2, email);
+            }
           }}
         />
       )}

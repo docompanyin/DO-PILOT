@@ -335,8 +335,7 @@ export const JavaPart2Page: React.FC = () => {
         timeLeft,
         studentEmail: user?.email,
         levelResult: null,
-        forceImmediate: true
-      });
+              });
     }
 
     try {
@@ -568,8 +567,7 @@ export const JavaPart2Page: React.FC = () => {
         timeLeft: TIMER_DURATION,
         studentEmail: user?.email,
         levelResult: null,
-        forceImmediate: true
-      });
+              });
     } else {
       evaluateLevelScore();
     }
@@ -619,8 +617,7 @@ export const JavaPart2Page: React.FC = () => {
       timeLeft: TIMER_DURATION,
       studentEmail: user?.email,
       levelResult: null,
-      forceImmediate: true
-    });
+          });
   };
 
   // Progress to the next level (after Passing or after confirming Disclaimer)
@@ -670,8 +667,7 @@ export const JavaPart2Page: React.FC = () => {
         timeLeft: TIMER_DURATION,
         studentEmail: user?.email,
         levelResult: null,
-        forceImmediate: true
-      });
+              });
     } else {
       // Finished all sections of Part 2!
       markJavaPartIntroRequired(3);

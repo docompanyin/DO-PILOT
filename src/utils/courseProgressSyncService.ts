@@ -134,6 +134,21 @@ let syncTimeout: any = null;
 // failure/lock data before the initial restore has merged it into memory.
 const initialRestorePromises: Record<string, Promise<StudentAllCoursesState | null>> = {};
 const initialRestoreCompleted: Record<string, boolean> = {};
+// Tracks which (email, courseId, partNum) has completed hydration from cloud/memory
+export const partHydratedMap: Record<string, boolean> = {};
+
+export const markPartHydrated = (email?: string, courseId?: string, partNum?: number) => {
+  const clean = normalizeStudentEmail(email);
+  if (clean && courseId && typeof partNum === 'number') {
+    partHydratedMap[`${clean}_${courseId}_${partNum}`] = true;
+  }
+};
+
+export const isPartHydrated = (email?: string, courseId?: string, partNum?: number): boolean => {
+  const clean = normalizeStudentEmail(email);
+  if (!clean || !courseId || typeof partNum !== 'number') return true;
+  return Boolean(partHydratedMap[`${clean}_${courseId}_${partNum}`]);
+};
 
 // Number of restores currently running for an email. A page mounts before its
 // cloud snapshot arrives, so any checkpoint it tries to write during that
@@ -739,6 +754,16 @@ export const saveQuestionProgressState = (params: {
   const hasExistingAnswers = Object.keys(existingPart?.selectedAnswers || {}).length > 0;
   const hasExistingProgress = Boolean(existingPart && (existingPart.activeQuestionIdx > 0 || hasExistingAnswers || existingPart.isCompleted || existingPart.isFinishedPart || (existingPart.activeSectionId && existingPart.activeSectionId !== activeSectionId)));
 
+  const hydKey = cleanEmail ? `${cleanEmail}_${courseId}_${partNum}` : '';
+  const isHydrated = !cleanEmail || Boolean(partHydratedMap[hydKey]);
+
+  // If this part has not yet finished cloud hydration for this user, and this is NOT an explicit user reset:
+  // Any save with 0 index and empty answers is an unhydrated component mount effect.
+  // BLOCK IT from overwriting localStorage and Supabase!
+  if (!isExplicitReset && !isHydrated && activeQuestionIdx === 0 && Object.keys(selectedAnswers || {}).length === 0) {
+    return;
+  }
+
   if (!isExplicitReset && activeQuestionIdx === 0 && Object.keys(selectedAnswers || {}).length === 0 && hasExistingProgress) {
     console.warn(`[SyncGuard] Blocked premature overwrite of ${courseId} Part ${partNum} progress at Q${(existingPart?.activeQuestionIdx ?? 0) + 1}`);
     return;
@@ -857,6 +882,7 @@ export const saveCoursePartCompletion = (
   const keys = getCourseStorageKeys(courseId, partNum);
   try {
     localStorage.setItem(keys.completedKey, 'true');
+    localStorage.setItem(keys.finishedKey, 'true');
     localStorage.setItem(keys.lastPartKey, String(nextPart));
   } catch {}
 
@@ -884,11 +910,35 @@ export const saveCoursePartCompletion = (
     };
   } else {
     const courseRec = studentState.courses[courseId];
-    courseRec.lastPart = nextPart;
+    courseRec.lastPart = Math.max(courseRec.lastPart || 1, nextPart);
     if (!courseRec.completedParts.includes(partNum)) {
       courseRec.completedParts.push(partNum);
     }
   }
+
+  const pKey = String(partNum);
+  if (!studentState.courses[courseId].parts) {
+    studentState.courses[courseId].parts = {};
+  }
+  if (!studentState.courses[courseId].parts[pKey]) {
+    studentState.courses[courseId].parts[pKey] = {
+      activeSectionId: '',
+      activeQuestionIdx: 0,
+      selectedAnswers: {},
+      isStudyPhase: true,
+      isTimeUpWaiting: false,
+      targetEndTime: 0,
+      timeLeft: 30,
+      updatedAt: new Date().toISOString()
+    };
+  }
+  studentState.courses[courseId].parts[pKey].isCompleted = true;
+  studentState.courses[courseId].parts[pKey].isFinishedPart = true;
+
+  if (!studentState.rawStorage) studentState.rawStorage = {};
+  studentState.rawStorage[keys.completedKey] = 'true';
+  studentState.rawStorage[keys.finishedKey] = 'true';
+  studentState.rawStorage[keys.lastPartKey] = String(nextPart);
 
   hydrateFailureAndLockState(studentState);
 
@@ -1558,6 +1608,9 @@ export function useCourseQuestionResume(params: {
         hasHydratedRef.current = true;
         applyState(saved);
       }
+      if (cleanEmail) {
+        partHydratedMap[`${cleanEmail}_${params.courseId}_${params.partNum}`] = true;
+      }
       paramsRef.current.onHydrated?.();
     });
 
@@ -1565,6 +1618,9 @@ export function useCourseQuestionResume(params: {
       getCloudPartQuestionState(params.courseId, params.partNum, cleanEmail).then((saved) => {
         if (saved) {
           applyState(saved);
+        }
+        if (cleanEmail) {
+          partHydratedMap[`${cleanEmail}_${params.courseId}_${params.partNum}`] = true;
         }
         paramsRef.current.onHydrated?.();
       });

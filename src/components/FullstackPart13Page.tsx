@@ -435,8 +435,7 @@ export const FullstackPart13Page: React.FC = () => {
         timeLeft: TIMER_DURATION,
         studentEmail: user?.email,
         levelResult: null,
-        forceImmediate: true
-      });
+              });
     } else {
       evaluateLevelScore();
     }

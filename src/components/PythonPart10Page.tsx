@@ -377,8 +377,7 @@ export const PythonPart10Page: React.FC = () => {
         timeLeft,
         studentEmail: user?.email,
         levelResult: null,
-        forceImmediate: true
-      });
+              });
     }
 
     try {

@@ -30,7 +30,7 @@ import {
   isPart1Finished, markSectionStartedInTrial,
   setPurchaseInProgressExemptSection, isSectionExemptFromRetest
 } from '../utils/part1ScoreService';
-import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
+import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState, saveCoursePartCompletion } from '../utils/courseProgressSyncService';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -191,6 +191,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
         localStorage.setItem('dopilot_cyber_part1_finished', 'true');
         localStorage.setItem('dopilot_cyber_core_last_part', '2');
       } catch {}
+      saveCoursePartCompletion('cyber-security', 1, 2, user?.email);
       setPostPurchaseDecision('cyber-security', 'continue_to_part2', studentId);
     } else {
       // Scenario 3: Partial Part 1 during free trial, purchased mid-way
@@ -798,8 +799,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
       timeLeft: TIMER_DURATION,
       studentEmail: user?.email,
       levelResult: null,
-      forceImmediate: true
-    });
+          });
   };
 
   // Progress to next level

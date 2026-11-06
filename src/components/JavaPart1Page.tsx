@@ -29,7 +29,7 @@ import {
   isPart1Finished, markPart1Finished,
   markSectionStartedInTrial, setPurchaseInProgressExemptSection, isSectionExemptFromRetest, clearPurchaseInProgressExemptSection
 } from '../utils/part1ScoreService';
-import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
+import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState, saveCoursePartCompletion } from '../utils/courseProgressSyncService';
 import { notifyCourseLocked } from '../utils/lockNotificationService';
 import { useCourseUnlockedListener } from '../utils/courseResetService';
 import { useCorrectAutoAdvance } from '../utils/useCorrectAutoAdvance';
@@ -197,6 +197,7 @@ export const JavaPart1Page: React.FC = () => {
         localStorage.setItem('dopilot_java_part1_finished', 'true');
         localStorage.setItem('dopilot_java_core_last_part', '2');
       } catch {}
+      saveCoursePartCompletion('java-core', 1, 2, user?.email);
       setPostPurchaseDecision('java-core', 'continue_to_part2', studentId);
       // NOTE: Do not automatically redirect to Part 2! Post-purchase redirect returns directly to Course Details.
     } else {
@@ -831,8 +832,7 @@ export const JavaPart1Page: React.FC = () => {
       timeLeft: TIMER_DURATION,
       studentEmail: user?.email,
       levelResult: null,
-      forceImmediate: true
-    });
+          });
   };
 
   // Progress to the next level (after Passing or after confirming Disclaimer)
@@ -888,8 +888,7 @@ export const JavaPart1Page: React.FC = () => {
         timeLeft: TIMER_DURATION,
         studentEmail: user?.email,
         levelResult: null,
-        forceImmediate: true
-      });
+              });
     } else {
       // Finished all sections of Part 1!
       const part1Summary = getPart1OverallScore('java-core', studentId);

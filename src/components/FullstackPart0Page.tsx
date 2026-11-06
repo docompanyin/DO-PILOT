@@ -11,7 +11,7 @@ import { notifyCourseLocked } from '../utils/lockNotificationService';
 import { CoursePurchaseModal } from './checkout/CoursePurchaseModal';
 import { 
   markSectionStartedInTrial, isSectionExemptFromRetest, 
-  isPart1Finished, recordPart1SectionScore, getPart1OverallScore 
+  isPart1Finished, recordPart1SectionScore, getPart1OverallScore, setPostPurchaseDecision 
 } from '../utils/part1ScoreService';
 import { FullstackCompilerLauncherButton, FullstackWebModal, FullstackTaskContext } from './compiler/FullstackWebModal';
 import { useCoursePoints } from '../context/CoursePointsContext';
@@ -20,7 +20,7 @@ import { useUserAuth } from '../context/UserAuthContext';
 import { ContactModal } from './ContactModal';
 import { NeedHelpModal } from './NeedHelpModal';
 import { hasCourseAccess, getCoursePricing, CoursePricing } from '../utils/coursePricingService';
-import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
+import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState, saveCoursePartCompletion } from '../utils/courseProgressSyncService';
 import { 
   FULLSTACK_PART_0_SECTIONS, TheoryBlock, McqQuestion,
   getActiveQuestionsForLevelFullstackPart0, getConsecutiveFailedLevelsFullstackPart0,
@@ -1847,6 +1847,16 @@ export const FullstackPart0Page: React.FC = () => {
         onSuccess={() => {
           setHasPurchased(true);
           setPurchaseModalOpen(false);
+          const isFinished = isPart1Finished('fullstack-open', studentId) || activeIdx === FULLSTACK_PART_0_SECTIONS.length - 1;
+          if (isFinished) {
+            try {
+              localStorage.setItem('dopilot_fullstack_part0_completed', 'true');
+              localStorage.setItem('dopilot_fullstack_part0_finished', 'true');
+              localStorage.setItem('dopilot_fullstack_core_last_part', '1');
+            } catch {}
+            saveCoursePartCompletion('fullstack-open', 0, 1, user?.email);
+            setPostPurchaseDecision('fullstack-open', 'continue_to_part2', studentId);
+          }
         }}
       />
     </div>

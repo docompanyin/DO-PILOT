@@ -320,8 +320,7 @@ export const JavaPart10Page: React.FC = () => {
         timeLeft,
         studentEmail: user?.email,
         levelResult: null,
-        forceImmediate: true
-      });
+              });
     }
 
     try {
@@ -549,8 +548,7 @@ export const JavaPart10Page: React.FC = () => {
         timeLeft: TIMER_DURATION,
         studentEmail: user?.email,
         levelResult: null,
-        forceImmediate: true
-      });
+              });
     } else {
       evaluateLevelScore();
     }
@@ -599,8 +597,7 @@ export const JavaPart10Page: React.FC = () => {
       timeLeft: TIMER_DURATION,
       studentEmail: user?.email,
       levelResult: null,
-      forceImmediate: true
-    });
+          });
   };
 
   const handleProceedToNextLevel = () => {
@@ -649,8 +646,7 @@ export const JavaPart10Page: React.FC = () => {
         timeLeft: TIMER_DURATION,
         studentEmail: user?.email,
         levelResult: null,
-        forceImmediate: true
-      });
+              });
     } else {
       // Finished all sections of Part 10!
       markJavaPartIntroRequired(11);

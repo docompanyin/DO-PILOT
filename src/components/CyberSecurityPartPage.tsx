@@ -20,7 +20,7 @@ import {
   setLevelAttemptCountCyber
 } from '../data/cyberSecurityData';
 import { CyberSecurityPart1Page } from './CyberSecurityPart1Page';
-import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState } from '../utils/courseProgressSyncService';
+import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
 import { logQuestionAttempt } from '../utils/studentTelemetryService';
 import { recordCourseLock, useCourseUnlockedListener } from '../utils/courseResetService';
 import { notifyCourseLocked } from '../utils/lockNotificationService';
@@ -79,8 +79,12 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
   // Persistent Active Section ID
   const [activeSectionId, setActiveSectionId] = useState<string>(() => {
     try {
-      const saved = localStorage.getItem(`dopilot_cyber_part${currentPartNum}_active_section_id`);
+      const rawSaved = localStorage.getItem(`dopilot_cyber_part${currentPartNum}_active_section_id`);
+      const saved = rawSaved?.replace(/^cyber-/, '');
       if (saved && partSections.some(s => s.id === saved)) return saved;
+      const memCourse = typeof memoryCourseState !== 'undefined' ? Object.values(memoryCourseState)[0]?.courses?.['cyber-security'] : null;
+      const memSec = memCourse?.parts?.[String(currentPartNum)]?.activeSectionId?.replace(/^cyber-/, '');
+      if (memSec && partSections.some(s => s.id === memSec)) return memSec;
       return partSections[0].id;
     } catch {
       return partSections[0].id;
@@ -91,7 +95,10 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
   const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(`dopilot_cyber_part${currentPartNum}_active_q_idx`);
-      return saved !== null ? Number(saved) : 0;
+      if (saved !== null) return Number(saved);
+      const memCourse = typeof memoryCourseState !== 'undefined' ? Object.values(memoryCourseState)[0]?.courses?.['cyber-security'] : null;
+      const memIdx = memCourse?.parts?.[String(currentPartNum)]?.activeQuestionIdx;
+      return typeof memIdx === 'number' ? memIdx : 0;
     } catch {
       return 0;
     }
@@ -204,6 +211,8 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     }
   });
 
+  const hasHydratedRef = useRef<boolean>(false);
+
   useCourseQuestionResume({
     courseId: 'cyber-security',
     partNum: currentPartNum,
@@ -220,7 +229,10 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     levelResult,
     setLevelResult,
     setIsCourseComplete: setIsPartComplete,
-    validSectionIds: partSections.map(s => s.id)
+    validSectionIds: partSections.map(s => s.id),
+    onHydrated: () => {
+      hasHydratedRef.current = true;
+    }
   });
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -257,6 +269,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     } catch {}
 
     // Auto-checkpoint active location & notes phase to Supabase so clearing cookies preserves exact step
+    if (!hasHydratedRef.current) return;
     if (user?.email && !levelResult?.isFinished && !isPartComplete) {
       saveQuestionProgressState({
         courseId: 'cyber-security',
@@ -269,8 +282,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
         targetEndTime,
         timeLeft,
         studentEmail: user?.email,
-        levelResult: null,
-        forceImmediate: true
+        levelResult: null
       });
     }
 
@@ -509,8 +521,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
         timeLeft: TIMER_DURATION,
         studentEmail: user?.email,
         levelResult: null,
-        forceImmediate: true
-      });
+              });
     } else {
       evaluateLevelScore();
     }

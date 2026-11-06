@@ -27,7 +27,7 @@ import {
   markTrialAttempted, hasAttemptedTrial, isPart1Finished, markPart1Finished,
   markSectionStartedInTrial, setPurchaseInProgressExemptSection, isSectionExemptFromRetest, clearPurchaseInProgressExemptSection
 } from '../utils/part1ScoreService';
-import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState } from '../utils/courseProgressSyncService';
+import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState, memoryCourseState, saveCoursePartCompletion } from '../utils/courseProgressSyncService';
 import { notifyCourseLocked } from '../utils/lockNotificationService';
 import { useCourseUnlockedListener } from '../utils/courseResetService';
 import { clearPythonPartIntroRequired } from '../utils/pythonPartIntro';
@@ -271,6 +271,7 @@ export const PythonPart1Page: React.FC = () => {
         localStorage.setItem('dopilot_part1_finished', 'true');
         localStorage.setItem('dopilot_python_core_last_part', '2');
       } catch {}
+      saveCoursePartCompletion('python-core', 1, 2, user?.email);
       setPostPurchaseDecision('python-core', 'continue_to_part2', studentId);
       // NOTE: Do not automatically redirect to Part 2! Post-purchase redirect returns directly to Course Details.
     } else {
@@ -826,8 +827,7 @@ export const PythonPart1Page: React.FC = () => {
         timeLeft: TIMER_DURATION,
         studentEmail: user?.email,
         levelResult: null,
-        forceImmediate: true
-      });
+              });
     } else {
       // Finished all questions in current level! Evaluate level exam
       evaluateLevelScore();
