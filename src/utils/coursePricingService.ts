@@ -757,7 +757,10 @@ export const hasCourseAccess = (
 
   // Check global unlock flag if set
   try {
-    if (localStorage.getItem(`dopilot_purchased_${normalizedCourse}_global`) === 'true') {
+    if (
+      localStorage.getItem(`dopilot_purchased_${normalizedCourse}_global`) === 'true' ||
+      localStorage.getItem(`dopilot_purchased_${normalizedCourse}`) === 'true'
+    ) {
       return true;
     }
   } catch {}
@@ -909,10 +912,12 @@ export const recordCoursePurchase = (
       currentList.push(normalizedCourse);
     }
     localStorage.setItem(`dopilot_purchased_courses_${data.studentId}`, JSON.stringify(currentList));
+    localStorage.setItem(`dopilot_purchased_${normalizedCourse}`, 'true');
 
     // Also store by email if different from studentId
-    if (data.studentEmail && data.studentEmail !== data.studentId) {
+    if (data.studentEmail) {
       localStorage.setItem(`dopilot_purchased_courses_${data.studentEmail}`, JSON.stringify(currentList));
+      localStorage.setItem(`dopilot_purchased_courses_${data.studentEmail.toLowerCase().trim()}`, JSON.stringify(currentList));
     }
   } catch (e) {
     console.error('Failed to store student purchased courses key:', e);

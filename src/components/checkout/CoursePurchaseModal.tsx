@@ -876,10 +876,9 @@ export const CoursePurchaseModal: React.FC<CoursePurchaseModalProps> = ({
               onAnimationEnd={() => {
                 if (onSuccess) {
                   onSuccess();
-                } else {
-                  const targetRoute = getCanonicalCourseRoute(courseId);
-                  navigate(targetRoute);
                 }
+                const targetRoute = getCanonicalCourseRoute(courseId);
+                navigate(targetRoute);
                 onClose();
               }}
             />

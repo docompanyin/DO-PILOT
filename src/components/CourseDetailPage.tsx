@@ -63,6 +63,8 @@ const getPythonResumeInfo = (isPurchased = false, studentId?: string): PythonRes
     let targetPart = firstUncompletedPart;
     if (isPurchased && targetPart <= 2) {
       targetPart = getPostPurchaseStartingPart('python-core', targetPart, studentId);
+    } else if (!isPurchased) {
+      targetPart = 1;
     }
 
     const rawLastVisited = Number(localStorage.getItem('dopilot_python_core_last_part'));
@@ -79,8 +81,8 @@ const getPythonResumeInfo = (isPurchased = false, studentId?: string): PythonRes
       status: isProgress ? 'in_progress' : 'not_started',
       completedCount: completedParts.length,
       completedParts,
-      buttonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : (targetPart === 1 ? 'Try Part 1 Free' : `Start Part ${targetPart}`)),
-      heroButtonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : (targetPart === 1 ? 'Try Now — Start Part 1 Free' : `Start Part ${targetPart}`))
+      buttonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : 'Try Part 1 Free'),
+      heroButtonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : 'Try Now — Start Part 1 Free')
     };
   } catch {
     const fallbackTarget = isPurchased ? getPostPurchaseStartingPart('python-core', 1, studentId) : 1;
@@ -134,6 +136,8 @@ const getJavaResumeInfo = (isPurchased = false, studentId?: string): JavaResumeI
     let targetPart = firstUncompletedPart;
     if (isPurchased && targetPart <= 2) {
       targetPart = getPostPurchaseStartingPart('java-core', targetPart, studentId);
+    } else if (!isPurchased) {
+      targetPart = 1;
     }
 
     const rawLastVisited = Number(localStorage.getItem('dopilot_java_core_last_part'));
@@ -150,8 +154,8 @@ const getJavaResumeInfo = (isPurchased = false, studentId?: string): JavaResumeI
       status: isProgress ? 'in_progress' : 'not_started',
       completedCount: completedParts.length,
       completedParts,
-      buttonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : (targetPart === 1 ? 'Try Part 1 Free' : `Start Part ${targetPart}`)),
-      heroButtonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : (targetPart === 1 ? 'Try Now — Start Part 1 Free' : `Start Part ${targetPart}`))
+      buttonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : 'Try Part 1 Free'),
+      heroButtonText: isPurchased ? 'Start Learning' : (isProgress ? progressLabel : 'Try Now — Start Part 1 Free')
     };
   } catch {
     const fallbackTarget = isPurchased ? getPostPurchaseStartingPart('java-core', 1, studentId) : 1;
@@ -510,12 +514,14 @@ export const CourseDetailPage: React.FC = () => {
     if (isCoursePython) {
       let target = currentPurchased 
         ? getPostPurchaseStartingPart('python-core', resumeInfo.targetPart, studentId) 
-        : (resumeInfo.targetPart || 1);
+        : 1;
 
       if (user?.email) {
         const mem = memoryCourseState[user.email.toLowerCase().trim()]?.courses?.['python-core'];
         if (mem && mem.lastPart) {
-          if (!currentPurchased || mem.lastPart >= target) {
+          if (!currentPurchased) {
+            target = 1;
+          } else if (mem.lastPart >= target) {
             target = mem.lastPart;
           }
         }
@@ -530,12 +536,14 @@ export const CourseDetailPage: React.FC = () => {
     } else if (isCourseJava) {
       let target = currentPurchased 
         ? getPostPurchaseStartingPart('java-core', javaResumeInfo.targetPart, studentId) 
-        : (javaResumeInfo.targetPart || 1);
+        : 1;
 
       if (user?.email) {
         const mem = memoryCourseState[user.email.toLowerCase().trim()]?.courses?.['java-core'];
         if (mem && mem.lastPart) {
-          if (!currentPurchased || mem.lastPart >= target) {
+          if (!currentPurchased) {
+            target = 1;
+          } else if (mem.lastPart >= target) {
             target = mem.lastPart;
           }
         }
