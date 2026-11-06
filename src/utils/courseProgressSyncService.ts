@@ -1018,7 +1018,9 @@ export const restoreAllStudentCourseProgressFromCloud = async (
                 // Check if in-memory part is newer than cloud snapshot
                 const memTime = memPart.updatedAt ? new Date(memPart.updatedAt).getTime() : 0;
                 const cloudTime = cPart.updatedAt ? new Date(cPart.updatedAt).getTime() : 0;
-                const isMemoryNewer = memTime > cloudTime;
+                const hasMemRealProgress = (memPart.activeQuestionIdx || 0) > 0 || Object.keys(memPart.selectedAnswers || {}).length > 0;
+                const hasCloudRealProgress = (cPart.activeQuestionIdx || 0) > 0 || Object.keys(cPart.selectedAnswers || {}).length > 0;
+                const isMemoryNewer = memTime > cloudTime && (hasMemRealProgress || !hasCloudRealProgress);
 
                 memPart.selectedAnswers = { ...(cPart.selectedAnswers || {}), ...(memPart.selectedAnswers || {}) };
                 if (!isMemoryNewer) {
@@ -1080,23 +1082,26 @@ export const restoreAllStudentCourseProgressFromCloud = async (
           const curMemPart = memoryCourseState[cleanEmail]?.courses?.[courseId]?.parts?.[pNumStr];
           const memTime = curMemPart?.updatedAt ? new Date(curMemPart.updatedAt).getTime() : 0;
           const cloudTime = partState.updatedAt ? new Date(partState.updatedAt).getTime() : 0;
-          const isMemoryNewer = memTime > cloudTime;
+          const hasMemRealProgress = ((curMemPart?.activeQuestionIdx ?? 0) > 0) || Object.keys(curMemPart?.selectedAnswers || {}).length > 0;
+          const hasCloudRealProgress = (partState.activeQuestionIdx || 0) > 0 || Object.keys(partState.selectedAnswers || {}).length > 0;
+          const isMemoryNewer = memTime > cloudTime && (hasMemRealProgress || !hasCloudRealProgress);
 
           if (!isMemoryNewer && partState.activeSectionId) {
-            localStorage.setItem(partKeys.sectionIdKey, partState.activeSectionId);
+            const cleanSecId = partState.activeSectionId.replace(/^(java|cyber)-/, '');
+            localStorage.setItem(partKeys.sectionIdKey, cleanSecId);
             if (courseId === 'java-core' && pNum === 1) {
-              localStorage.setItem('dopilot_java_active_section_id', partState.activeSectionId);
-              localStorage.setItem('dopilot_java_part1_active_section_id', partState.activeSectionId);
+              localStorage.setItem('dopilot_java_active_section_id', cleanSecId);
+              localStorage.setItem('dopilot_java_part1_active_section_id', cleanSecId);
             }
             if (courseId === 'python-core' && pNum === 1) {
-              localStorage.setItem('dopilot_active_section_id', partState.activeSectionId);
-              localStorage.setItem('dopilot_part1_active_section_id', partState.activeSectionId);
+              localStorage.setItem('dopilot_active_section_id', cleanSecId);
+              localStorage.setItem('dopilot_part1_active_section_id', cleanSecId);
             }
             if (courseId === 'fullstack-open') {
-              localStorage.setItem(`dopilot_fullstack_part${pNum}_active_section_id`, partState.activeSectionId);
+              localStorage.setItem(`dopilot_fullstack_part${pNum}_active_section_id`, cleanSecId);
             }
             if (courseId === 'cyber-security') {
-              localStorage.setItem(`dopilot_cyber_part${pNum}_active_section_id`, partState.activeSectionId);
+              localStorage.setItem(`dopilot_cyber_part${pNum}_active_section_id`, cleanSecId);
             }
           }
 
@@ -1434,9 +1439,20 @@ export function useCourseQuestionResume(params: {
       const p = paramsRef.current;
       const validIds = p.validSectionIds || [];
 
-      if (saved.activeSectionId && validIds.includes(saved.activeSectionId)) {
-        if (p.activeSectionId !== saved.activeSectionId) {
-          p.setActiveSectionId(saved.activeSectionId);
+      let resolvedSecId = saved.activeSectionId;
+      if (resolvedSecId && !validIds.includes(resolvedSecId)) {
+        const clean = resolvedSecId.replace(/^(java|cyber)-/, '');
+        if (validIds.includes(clean)) {
+          resolvedSecId = clean;
+        } else {
+          const matched = validIds.find(id => resolvedSecId === id || resolvedSecId.endsWith(`-${id}`) || id.endsWith(resolvedSecId));
+          if (matched) resolvedSecId = matched;
+        }
+      }
+
+      if (resolvedSecId && validIds.includes(resolvedSecId)) {
+        if (p.activeSectionId !== resolvedSecId) {
+          p.setActiveSectionId(resolvedSecId);
         }
       }
       if (typeof saved.activeQuestionIdx === 'number') {
@@ -1492,8 +1508,9 @@ export function useCourseQuestionResume(params: {
       const answersMap = saved.selectedAnswers || {};
       const hasAnswer = Boolean(
         answersMap[exactKey] ||
-        answersMap[`fullstack-${p.partNum}-${secId}-${qIdxStr}`] ||
+        answersMap[`java-${secId}-${qIdxStr}`] ||
         answersMap[`cyber-p${p.partNum}-${secId}-${qIdxStr}`] ||
+        answersMap[`fullstack-${p.partNum}-${secId}-${qIdxStr}`] ||
         Object.keys(answersMap).some(k =>
           (k === exactKey) ||
           (k.startsWith(`${secId}-`) && k.endsWith(`-${qIdxStr}`)) ||

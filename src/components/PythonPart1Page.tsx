@@ -456,6 +456,9 @@ export const PythonPart1Page: React.FC = () => {
     }
   });
 
+  // Track whether initial mount state has been hydrated from cloud/local storage
+  const hasHydratedRef = useRef<boolean>(false);
+
   useCourseQuestionResume({
     courseId: 'python-core',
     partNum: 1,
@@ -509,15 +512,11 @@ export const PythonPart1Page: React.FC = () => {
   const currentLevelQuestionNumber = activeQuestionIdx + 1;
   const remainingLevelQuestions = Math.max(0, totalLevelQuestions - currentLevelQuestionNumber);
 
-  // Track whether initial mount state has been hydrated from cloud/local storage
-  const hasHydratedRef = useRef<boolean>(false);
   useEffect(() => {
     try {
       const email = user?.email?.toLowerCase().trim();
       const memPart = email ? memoryCourseState[email]?.courses?.['python-core']?.parts?.['1'] : null;
       if (memPart && (memPart.activeQuestionIdx > 0 || Object.keys(memPart.selectedAnswers || {}).length > 0)) {
-        hasHydratedRef.current = true;
-      } else if (localStorage.getItem('dopilot_active_q_idx') !== null) {
         hasHydratedRef.current = true;
       }
     } catch {}
@@ -543,8 +542,7 @@ export const PythonPart1Page: React.FC = () => {
         targetEndTime,
         timeLeft,
         studentEmail: user?.email,
-        levelResult: null,
-        forceImmediate: true
+        levelResult: null
       });
     }
   }, [activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);

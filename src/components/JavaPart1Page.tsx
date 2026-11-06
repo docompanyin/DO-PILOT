@@ -67,13 +67,16 @@ export const JavaPart1Page: React.FC = () => {
     try {
       const email = user?.email?.toLowerCase().trim();
       const memPart = email ? memoryCourseState[email]?.courses?.['java-core']?.parts?.['1'] : null;
-      if (memPart?.activeSectionId && PART_1_SECTIONS.some(s => s.id === memPart.activeSectionId)) {
-        return memPart.activeSectionId;
+      const memSec = memPart?.activeSectionId?.replace(/^java-/, '');
+      if (memSec && PART_1_SECTIONS.some(s => s.id === memSec)) {
+        return memSec;
       }
-      const saved = localStorage.getItem('dopilot_java_active_section_id');
-      return saved || '1-1-getting-started';
+      const rawSaved = localStorage.getItem('dopilot_java_active_section_id');
+      const saved = rawSaved?.replace(/^java-/, '');
+      if (saved && PART_1_SECTIONS.some(s => s.id === saved)) return saved;
+      return PART_1_SECTIONS[0].id;
     } catch {
-      return '1-1-getting-started';
+      return PART_1_SECTIONS[0].id;
     }
   });
 
@@ -348,6 +351,9 @@ export const JavaPart1Page: React.FC = () => {
     }
   });
 
+  // Track whether initial mount state has been hydrated from cloud/local storage
+  const hasHydratedRef = useRef<boolean>(false);
+
   useCourseQuestionResume({
     courseId: 'java-core',
     partNum: 1,
@@ -364,7 +370,10 @@ export const JavaPart1Page: React.FC = () => {
     validSectionIds: PART_1_SECTIONS.map(s => s.id),
     levelResult,
     setLevelResult,
-    setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete)
+    setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete),
+    onHydrated: () => {
+      hasHydratedRef.current = true;
+    }
   });
 
   useCourseUnlockedListener({
@@ -412,15 +421,11 @@ export const JavaPart1Page: React.FC = () => {
   const currentLevelQuestionNumber = activeQuestionIdx + 1;
   const remainingLevelQuestions = Math.max(0, totalLevelQuestions - currentLevelQuestionNumber);
 
-  // Track whether initial mount state has been hydrated from cloud/local storage
-  const hasHydratedRef = useRef<boolean>(false);
   useEffect(() => {
     try {
       const email = user?.email?.toLowerCase().trim();
       const memPart = email ? memoryCourseState[email]?.courses?.['java-core']?.parts?.['1'] : null;
       if (memPart && (memPart.activeQuestionIdx > 0 || Object.keys(memPart.selectedAnswers || {}).length > 0)) {
-        hasHydratedRef.current = true;
-      } else if (localStorage.getItem('dopilot_java_active_q_idx') !== null) {
         hasHydratedRef.current = true;
       }
     } catch {}
@@ -446,8 +451,7 @@ export const JavaPart1Page: React.FC = () => {
         targetEndTime,
         timeLeft,
         studentEmail: user?.email,
-        levelResult: null,
-        forceImmediate: true
+        levelResult: null
       });
     }
 
