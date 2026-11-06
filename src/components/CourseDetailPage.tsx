@@ -257,14 +257,13 @@ const getCyberSecurityResumeInfo = (isPurchased = false, studentId?: string): Cy
   try {
     const completedParts: number[] = [];
     for (let i = 1; i <= 14; i++) {
-      if (localStorage.getItem(`dopilot_cyber_part${i}_completed`) === 'true') {
-        const decision = getPostPurchaseDecision('cyber-security', studentId);
-        if (i === 1 && !getPart1OverallScore('cyber-security', studentId).isAbove50 && decision !== 'continue_to_part2') {
-          // Score is below 50% and user hasn't chosen to continue to Part 2, not completed
-        } else {
-          completedParts.push(i);
-        }
+      let isComp = false;
+      if (i === 1) {
+        isComp = isPart1Finished('cyber-security', studentId);
+      } else {
+        isComp = localStorage.getItem(`dopilot_cyber_part${i}_completed`) === 'true';
       }
+      if (isComp) completedParts.push(i);
     }
 
     const allParts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -284,6 +283,8 @@ const getCyberSecurityResumeInfo = (isPurchased = false, studentId?: string): Cy
     let targetPart = firstUncompletedPart;
     if (isPurchased && targetPart <= 2) {
       targetPart = getPostPurchaseStartingPart('cyber-security', targetPart, studentId);
+    } else if (!isPurchased) {
+      targetPart = 1;
     }
 
     const rawLastVisited = Number(localStorage.getItem('dopilot_cyber_core_last_part'));

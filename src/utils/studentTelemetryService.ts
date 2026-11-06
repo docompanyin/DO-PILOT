@@ -577,10 +577,11 @@ export const getCourseCurriculumQuestions = (courseId: string): CourseCurriculum
           const qId = mcq.id || `${qIdx}`;
           const qNum = qIdx + 1;
           const candidateKeys = [
+            `cyber-p${part}-${sec.id}-${qId}`,
+            `cyber-p${part}-${sec.id}-${qIdx}`,
             `cyber-${sec.id}-${qId}`,
             `cyber-${sec.id}-${qIdx}`,
-            `cyber-p${part}-${sec.id}-${qId}`,
-            `cyber-p${part}-${sec.id}-${qIdx}`
+            qId
           ];
           const correctOpt = mcq.options?.find(o => o.id === mcq.correctAnswer);
 

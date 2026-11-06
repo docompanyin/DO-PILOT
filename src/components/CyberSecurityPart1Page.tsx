@@ -14,7 +14,8 @@ import { ContactModal } from './ContactModal';
 import { NeedHelpModal } from './NeedHelpModal';
 import { hasCourseAccess, getCoursePricing, CoursePricing } from '../utils/coursePricingService';
 import { CoursePurchaseModal } from './checkout/CoursePurchaseModal';
-import { recordCourseLock } from '../utils/courseResetService';
+import { recordCourseLock, useCourseUnlockedListener } from '../utils/courseResetService';
+import { notifyCourseLocked } from '../utils/lockNotificationService';
 import { 
   PART_1_SECTIONS, TheoryBlock, McqQuestion,
   getActiveQuestionsForLevel, getConsecutiveFailedLevels,
@@ -25,7 +26,9 @@ import {
   recordPart1SectionScore, getPart1OverallScore,
   markPart1RestartUsed, clearPart1ScoresOnRestart,
   hasUsedPart1Restart, setPostPurchaseDecision, getPostPurchaseDecision,
-  markTrialAttempted, hasAttemptedTrial
+  markTrialAttempted, hasAttemptedTrial,
+  isPart1Finished, markSectionStartedInTrial,
+  setPurchaseInProgressExemptSection, isSectionExemptFromRetest
 } from '../utils/part1ScoreService';
 import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState } from '../utils/courseProgressSyncService';
 
@@ -90,7 +93,12 @@ export const CyberSecurityPart1Page: React.FC = () => {
     try {
       const keys = getCourseStorageKeys('cyber-security', 1);
       const saved = localStorage.getItem(keys.levelResultKey);
-      return saved ? JSON.parse(saved) : null;
+      if (saved) return JSON.parse(saved);
+
+      const savedFinal = localStorage.getItem(`dopilot_cyber_part1_final_exam_result_${studentId}`) ||
+                         localStorage.getItem('dopilot_cyber_part1_final_exam_result');
+      if (savedFinal) return JSON.parse(savedFinal);
+      return null;
     } catch {
       return null;
     }
@@ -142,6 +150,21 @@ export const CyberSecurityPart1Page: React.FC = () => {
     return () => window.removeEventListener('dopilot_user_logged_out', handleLogout);
   }, [navigate]);
 
+  // Scenario 1: If the student completely finished Part 1 during free trial and has purchased,
+  // redirect them directly to Part 2. Do not send back to Part 1, do not require retest.
+  useEffect(() => {
+    if (!isReviewMode && hasPurchased && isPart1Finished('cyber-security', studentId)) {
+      navigate('/course/cyber-security/part-2', { replace: true });
+    }
+  }, [hasPurchased, isReviewMode, studentId, navigate]);
+
+  // Track section started under free trial to ensure Scenario 3 exemption if purchased mid-section
+  useEffect(() => {
+    if (!hasPurchased && activeSection?.id) {
+      markSectionStartedInTrial('cyber-security', activeSection.id, studentId);
+    }
+  }, [hasPurchased, activeSection?.id, studentId]);
+
   const handlePostPurchaseUnlock = () => {
     setHasPurchased(true);
     resetConsecutiveFailures(studentId);
@@ -151,33 +174,21 @@ export const CyberSecurityPart1Page: React.FC = () => {
       localStorage.removeItem(`dopilot_cyber_locked_${studentId}`);
     } catch {}
 
-    const overallScore = getPart1OverallScore('cyber-security', studentId);
-    const savedDecision = getPostPurchaseDecision('cyber-security', studentId);
-
-    if (savedDecision === 'continue_to_part2') {
+    const isFinished = isPart1Finished('cyber-security', studentId) || activeIdx === PART_1_SECTIONS.length - 1;
+    if (isFinished) {
+      // Scenario 1: Completely finished Part 1 during free trial -> set up Part 2 progression!
       try {
         localStorage.setItem('dopilot_cyber_part1_completed', 'true');
+        localStorage.setItem('dopilot_cyber_part1_finished', 'true');
         localStorage.setItem('dopilot_cyber_core_last_part', '2');
       } catch {}
-      navigate('/course/cyber-security/part-2');
-      return;
-    }
-    if (savedDecision === 'retry_part1') {
-      setIsCourseComplete(false);
-      return;
-    }
-    // Users who passed the free trial (50% or higher) redirect directly to Part 2:
-    if (overallScore.isAbove50) {
-      try {
-        localStorage.setItem('dopilot_cyber_part1_completed', 'true');
-        localStorage.setItem('dopilot_cyber_core_last_part', '2');
-      } catch {}
-      navigate('/course/cyber-security/part-2');
+      setPostPurchaseDecision('cyber-security', 'continue_to_part2', studentId);
     } else {
-      // Below 50% following a failed trial:
-      // Keep isCourseComplete = true and hasPurchased = true so user gets exactly one additional attempt at Part 1
-      setIsCourseComplete(true);
+      // Scenario 3: Partial Part 1 during free trial, purchased mid-way
+      // The current in-progress section remains exempt from retests and consecutive failures!
+      setPurchaseInProgressExemptSection('cyber-security', activeSection.id, studentId);
     }
+    setPurchaseModalOpen(false);
   };
 
   const handleRetryPart1 = () => {
@@ -316,7 +327,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
       }
       const finished = localStorage.getItem('dopilot_cyber_part1_finished') === 'true';
       const saved = localStorage.getItem('dopilot_cyber_part1_completed') === 'true';
-      if (saved || finished) return true;
+      if (saved || finished || isPart1Finished('cyber-security', studentId)) return true;
       return false;
     } catch {
       return false;
@@ -340,6 +351,18 @@ export const CyberSecurityPart1Page: React.FC = () => {
     levelResult,
     setLevelResult,
     setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete)
+  });
+
+  useCourseUnlockedListener({
+    courseId: 'cyber-security',
+    partNum: 1,
+    studentId,
+    studentEmail: user?.email,
+    setLevelResult,
+    setConsecutiveFailures,
+    setActiveSectionId,
+    setActiveQuestionIdx,
+    setIsStudyPhase
   });
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -488,7 +511,8 @@ export const CyberSecurityPart1Page: React.FC = () => {
     }
 
     // Free-trial failure flow: Only track/increment consecutive failures if user has purchased the course!
-    const result = hasPurchased
+    const isExempt = !hasPurchased || isSectionExemptFromRetest('cyber-security', activeSection.id, studentId);
+    const result = !isExempt
       ? recordLevelAttemptResult(activeSection.id, studentId, isPassed)
       : {
           consecutiveFailedLevels: 0,
@@ -506,12 +530,32 @@ export const CyberSecurityPart1Page: React.FC = () => {
         studentEmail: user?.email || `${studentId}@student.dopilot.io`,
         studentPhone: user?.phone,
         collegeOrCompany: user?.collegeOrCompany,
-        courseId: 'cyber',
-        courseName: 'Cyber Security & Ethical Hacking',
+        courseId: 'cyber-security',
+        courseName: 'Cyber Security Course',
         partNum: 1,
-        partTitle: 'Part 1: Networking & Threat Modeling',
+        partTitle: 'Part 1: Cybersecurity Foundations & Computing Architecture',
         consecutiveFailures: result.consecutiveFailedLevels,
         progressSummary: `Part 1: Failed Level ${activeSection.number} • ${points} Points`,
+        earnedPoints: points
+      });
+
+      notifyCourseLocked({
+        courseId: 'cyber-security',
+        courseName: 'Cyber Security Course',
+        partNum: 1,
+        sectionId: activeSection.id,
+        sectionTitle: `Level ${activeSection.number} — ${activeSection.title}`,
+        activeQuestionIdx,
+        totalQuestions: totalCount,
+        score: correctCount,
+        percentage,
+        streak: result.consecutiveFailedLevels,
+        attemptCount: result.attemptCount,
+        studentId,
+        studentEmail: user?.email,
+        studentName: user?.name,
+        studentPhone: user?.phone,
+        collegeOrCompany: user?.collegeOrCompany,
         earnedPoints: points
       });
     }
@@ -535,6 +579,10 @@ export const CyberSecurityPart1Page: React.FC = () => {
     const keys = getCourseStorageKeys('cyber-security', 1);
     try {
       localStorage.setItem(keys.levelResultKey, JSON.stringify(resultState));
+      if (activeIdx === PART_1_SECTIONS.length - 1) {
+        localStorage.setItem(`dopilot_cyber_part1_final_exam_result_${studentId}`, JSON.stringify(resultState));
+        localStorage.setItem('dopilot_cyber_part1_final_exam_result', JSON.stringify(resultState));
+      }
     } catch {}
 
     saveQuestionProgressState({
@@ -706,16 +754,13 @@ export const CyberSecurityPart1Page: React.FC = () => {
         console.error(e);
       }
     } else {
-      const part1Summary = getPart1OverallScore('cyber-security', studentId);
-      const isComp = hasPurchased || part1Summary.isAbove50;
       setIsCourseComplete(true);
       try {
         localStorage.setItem('dopilot_cyber_part1_finished', 'true');
-        localStorage.removeItem('dopilot_cyber_part1_level_result');
-        if (isComp) {
-          localStorage.setItem('dopilot_cyber_part1_completed', 'true');
-        } else {
-          localStorage.removeItem('dopilot_cyber_part1_completed');
+        localStorage.setItem('dopilot_cyber_part1_completed', 'true');
+        if (levelResult) {
+          localStorage.setItem(`dopilot_cyber_part1_final_exam_result_${studentId}`, JSON.stringify(levelResult));
+          localStorage.setItem('dopilot_cyber_part1_final_exam_result', JSON.stringify(levelResult));
         }
       } catch {}
 
@@ -730,7 +775,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
         targetEndTime: 0,
         timeLeft: 30,
         studentEmail: user?.email,
-        isCompleted: isComp,
+        isCompleted: true,
         isFinishedPart: true,
         levelResult: null
       });
@@ -1038,106 +1083,95 @@ export const CyberSecurityPart1Page: React.FC = () => {
       <main className={`flex-1 flex flex-col items-center justify-center ${!isCourseComplete && !levelResult ? 'max-w-7xl' : 'max-w-5xl'} w-full mx-auto px-4 sm:px-6 py-6 relative z-10 my-auto transition-all`}>
         
         {/* SCENARIO 1: Entire Part 1 Course Completed */}
+        {/* SCENARIO 1: Entire Part 1 Course Completed */}
         {isCourseComplete ? (() => {
-          const overall = getPart1OverallScore('cyber-security', studentId);
-          
           if (!hasPurchased) {
-            // FREE TRIAL USER:
-            return overall.isAbove50 ? (
-              /* Free-trial pass: Show "Passed" and "Buy Course" option */
-              <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
+            // FREE TRIAL USER: Always display the preserved final Exam Result page (Screenshot 1)
+            const finalResult = (() => {
+              if (levelResult && levelResult.isFinished) return levelResult;
+              try {
+                const saved = localStorage.getItem(`dopilot_cyber_part1_final_exam_result_${studentId}`) ||
+                              localStorage.getItem('dopilot_cyber_part1_final_exam_result');
+                if (saved) return JSON.parse(saved);
+              } catch {}
+              const finalSec = PART_1_SECTIONS[PART_1_SECTIONS.length - 1];
+              const qList = getActiveQuestionsForLevel(finalSec, studentId, false);
+              let correctCount = 0;
+              const totalCount = qList.length || 6;
+              qList.forEach((q, idx) => {
+                const candKeys = [
+                  `cyber-p1-${finalSec.id}-${q.id || idx}`,
+                  `cyber-p1-${finalSec.id}-${idx}`,
+                  `cyber-${finalSec.id}-${q.id || idx}`,
+                  `cyber-${finalSec.id}-${idx}`,
+                  q.id
+                ].filter((k): k is string => Boolean(k));
+                const ans = candKeys.map(k => selectedAnswers[k]).find(Boolean);
+                if (ans && ans === q.correctAnswer) correctCount++;
+              });
+              const percentage = Math.round((correctCount / totalCount) * 100);
+              return {
+                isFinished: true,
+                sectionId: finalSec.id,
+                isPassed: percentage > 80,
+                correctCount,
+                totalCount,
+                percentage,
+                streak: 0,
+                attemptCount: 1,
+                isSecondFailureInLevel: false,
+                isLocked: false
+              };
+            })();
 
-                <div className="flex items-center justify-center pt-2">
-                  <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Passed</span>
-                  </span>
+            return (
+              <div className="bg-[#0f1117] border border-white/10 rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center space-y-5 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative">
+                <div className="flex items-center justify-center">
+                  {finalResult.isPassed ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-xs font-semibold border bg-emerald-500/10 border-emerald-500/30 text-emerald-300">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Exam Passed</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-xs font-semibold border bg-rose-500/10 border-rose-500/30 text-rose-300">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Exam Result</span>
+                    </span>
+                  )}
                 </div>
 
-                <div className="space-y-2">
-                  <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
-                    Part 1 Passed! 🎉
+                <div className="space-y-1.5">
+                  <h2 className="font-jakarta text-2xl font-bold text-paper tracking-tight">
+                    {finalResult.isPassed ? 'Exam Passed' : 'Exam Not Passed'}
                   </h2>
-                  <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                    Congratulations! You scored {overall.percentage}% ({overall.totalCorrect}/{overall.totalQuestions} correct) and passed all sections of Part 1. Buy the course to continue to Part 2.
+                  <p className="text-slate text-xs sm:text-sm max-w-md mx-auto leading-relaxed">
+                    {finalResult.isPassed
+                      ? `You scored ${finalResult.percentage}%, successfully meeting the passing benchmark of more than 80%.`
+                      : `You scored ${finalResult.percentage}%. The passing benchmark is more than 80%. You can proceed directly to the next level in your free trial.`}
                   </p>
                 </div>
 
-                {/* Scorecard */}
-                <div className="grid grid-cols-3 gap-3 max-w-md mx-auto py-2">
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
-                    <div className="text-[11px] font-mono text-slate">Overall Score</div>
-                    <div className="text-xl font-bold font-mono text-emerald-400 mt-0.5">{overall.percentage}%</div>
+                <div className="grid grid-cols-2 gap-3 pt-1 max-w-xs mx-auto">
+                  <div className={`p-3.5 rounded-xl border flex flex-col items-center justify-center ${
+                    finalResult.isPassed ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-white/[0.03] border-white/10'
+                  }`}>
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Score</span>
+                    <span className={`font-mono text-2xl sm:text-3xl font-bold mt-0.5 ${
+                      finalResult.isPassed ? 'text-emerald-400' : 'text-rose-400'
+                    }`}>
+                      {finalResult.percentage}%
+                    </span>
                   </div>
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
-                    <div className="text-[11px] font-mono text-slate">Questions</div>
-                    <div className="text-xl font-bold font-mono text-paper mt-0.5">{overall.totalCorrect}/{overall.totalQuestions}</div>
-                  </div>
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
-                    <div className="text-[11px] font-mono text-slate">Status</div>
-                    <div className="text-xs font-bold font-mono text-emerald-400 mt-1.5">Passed</div>
-                  </div>
-                </div>
 
-                <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => setPurchaseModalOpen(true)}
-                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
-                  >
-                    <ShoppingBag className="w-4 h-4" />
-                    <span>Buy Course</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => navigate('/course/cyber-security')}
-                    className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <span>Back to Dashboard</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* Free-trial fail: Show "Failed" and "Buy Course" option */
-              <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-500 via-amber-500 to-rose-400" />
-
-                <div className="flex items-center justify-center pt-2">
-                  <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-rose-500/15 border-rose-500/40 text-rose-300 shadow-rose-500/20">
-                    <AlertCircle className="w-4 h-4 text-rose-400" />
-                    <span>Failed</span>
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
-                    Part 1 Failed
-                  </h2>
-                  <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                    You scored {overall.percentage}% ({overall.totalCorrect}/{overall.totalQuestions} correct) across sections 1.1 to 1.5. Buy the course to continue.
-                  </p>
-                </div>
-
-                {/* Scorecard */}
-                <div className="grid grid-cols-3 gap-3 max-w-md mx-auto py-2">
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
-                    <div className="text-[11px] font-mono text-slate">Overall Score</div>
-                    <div className="text-xl font-bold font-mono text-rose-400 mt-0.5">{overall.percentage}%</div>
-                  </div>
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
-                    <div className="text-[11px] font-mono text-slate">Questions</div>
-                    <div className="text-xl font-bold font-mono text-paper mt-0.5">{overall.totalCorrect}/{overall.totalQuestions}</div>
-                  </div>
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
-                    <div className="text-[11px] font-mono text-slate">Status</div>
-                    <div className="text-xs font-bold font-mono text-rose-400 mt-1.5">Failed</div>
+                  <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col items-center justify-center">
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-slate/70">Correct Answers</span>
+                    <span className="font-mono text-2xl sm:text-3xl font-bold text-paper mt-0.5">
+                      {finalResult.correctCount} <span className="text-slate/50 text-base font-normal">/ {finalResult.totalCount}</span>
+                    </span>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                   <button
                     type="button"
                     onClick={() => setPurchaseModalOpen(true)}
@@ -1160,17 +1194,14 @@ export const CyberSecurityPart1Page: React.FC = () => {
             );
           } else {
             // PURCHASED USER:
-            const hasUsedRetry = hasUsedPart1Restart('cyber-security', studentId);
-            const savedDecision = getPostPurchaseDecision('cyber-security', studentId);
-            return (overall.isAbove50 || hasUsedRetry || overall.allSectionsPassed || savedDecision === 'continue_to_part2') ? (
-              /* Passed free trial OR overall score >= 50%: continue directly to Part 2 */
+            return (
               <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
 
                 <div className="flex items-center justify-center pt-2">
                   <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-emerald-500/20">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Passed • Part 1 Complete</span>
+                    <span>Part 1 Fully Certified</span>
                   </span>
                 </div>
 
@@ -1179,14 +1210,14 @@ export const CyberSecurityPart1Page: React.FC = () => {
                     Part 1 Complete! 🎉
                   </h2>
                   <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                    You scored {overall.percentage}% ({overall.totalCorrect}/{overall.totalQuestions} correct) across sections 1.1 to 1.5 and earned {points} course points! Continue to Part 2 to proceed.
+                    You have mastered all foundational levels of Cyber Security Part 1. You scored &gt; 80% across all sections and earned {points} course points!
                   </p>
                 </div>
 
                 <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
                   <button
                     type="button"
-                    onClick={handleContinueToPart2}
+                    onClick={() => navigate('/course/cyber-security/part-2')}
                     className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
                   >
                     <span>Continue to Part 2</span>
@@ -1202,71 +1233,10 @@ export const CyberSecurityPart1Page: React.FC = () => {
                   </button>
                 </div>
               </div>
-            ) : (
-              /* After purchase following a failed trial with < 50%: provide option to retry Part 1 before continuing */
-              <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-primary to-amber-400" />
-
-                <div className="flex items-center justify-center pt-2">
-                  <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-amber-500/20">
-                    <RotateCcw className="w-4 h-4 text-amber-400" />
-                    <span>Option to Retry Part 1</span>
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
-                    Course Unlocked
-                  </h2>
-                  <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                    Your overall score was {overall.percentage}% ({overall.totalCorrect}/{overall.totalQuestions} correct), which is below 50%. You can retry Part 1 with fresh questions under purchased course rules before continuing, or proceed directly to Part 2.
-                  </p>
-                </div>
-
-                {/* Scorecard */}
-                <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto py-2">
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
-                    <div className="text-[11px] font-mono text-slate">Overall Score</div>
-                    <div className="text-xl font-bold font-mono text-rose-400 mt-0.5">{overall.percentage}%</div>
-                  </div>
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
-                    <div className="text-[11px] font-mono text-slate">Questions</div>
-                    <div className="text-xl font-bold font-mono text-paper mt-0.5">{overall.totalCorrect}/{overall.totalQuestions}</div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
-                  <button
-                    type="button"
-                    onClick={handleRetryPart1}
-                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    <span>Retry Part 1</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleContinueToPart2}
-                    className="py-2.5 px-6 rounded-xl bg-white/[0.08] hover:bg-white/15 border border-white/20 text-paper font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer"
-                  >
-                    <span>Continue to Part 2</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => navigate('/course/cyber-security')}
-                    className="py-2.5 px-5 rounded-xl bg-white/[0.04] hover:bg-white/10 border border-white/10 text-white hover:text-white font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <span>Back to Dashboard</span>
-                  </button>
-                </div>
-              </div>
             );
           }
         })() : levelResult?.isFinished ? (
-          !hasPurchased ? (
+          (!hasPurchased || isSectionExemptFromRetest('cyber-security', activeSection.id, studentId)) ? (
             /* SCENARIO 2A: Clean, Minimal Free-Trial Pass & Fail Page */
             <div className="bg-[#0f1117] border border-white/10 rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center space-y-5 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative">
               <div className="flex items-center justify-center">

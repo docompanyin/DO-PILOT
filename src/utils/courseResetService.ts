@@ -18,6 +18,7 @@ import { FULLSTACK_PART_10_SECTIONS } from '../data/fullstackPart10Data';
 import { FULLSTACK_PART_11_SECTIONS } from '../data/fullstackPart11Data';
 import { FULLSTACK_PART_12_SECTIONS } from '../data/fullstackPart12Data';
 import { FULLSTACK_PART_13_SECTIONS } from '../data/fullstackPart13Data';
+import { CYBER_SECURITY_PARTS } from '../data/cyberSecurityData';
 
 export interface LockedCourseRecord {
   id: string;
@@ -540,6 +541,92 @@ export const getNextFullstackSection = (
     nextSectionId: finalSec?.id || '13-1',
     nextSectionNumber: finalSec?.number || '13.1',
     nextSectionTitle: finalSec?.title || 'Relational Databases'
+  };
+};
+
+export const CYBER_SECTIONS_CATALOG: Record<number, { id: string; number: string; title: string }[]> = (() => {
+  const catalog: Record<number, { id: string; number: string; title: string }[]> = {};
+  CYBER_SECURITY_PARTS.forEach((partObj, idx) => {
+    const partNum = partObj.partNumber || (idx + 1);
+    catalog[partNum] = partObj.sections.map((s, sIdx) => ({
+      id: s.id,
+      number: s.number || `${partNum}.${sIdx + 1}`,
+      title: s.title
+    }));
+  });
+  return catalog;
+})();
+
+export const getNextCyberSection = (
+  currentPart: number,
+  currentSectionIdentifier?: string
+): {
+  nextPart: number;
+  nextSectionId: string;
+  nextSectionNumber: string;
+  nextSectionTitle: string;
+} => {
+  const partNum = Math.max(1, Math.min(14, currentPart || 1));
+  const sections = CYBER_SECTIONS_CATALOG[partNum] || [];
+
+  let currentIdx = -1;
+  const rawTarget = String(currentSectionIdentifier || '').trim().toLowerCase();
+
+  if (rawTarget) {
+    currentIdx = sections.findIndex((s) => {
+      const sId = s.id.toLowerCase();
+      const sNum = s.number.toLowerCase();
+      return (
+        sId === rawTarget ||
+        sNum === rawTarget ||
+        rawTarget.includes(sId) ||
+        rawTarget.includes(`section ${sNum}`) ||
+        rawTarget.includes(`level ${sNum}`) ||
+        rawTarget.startsWith(sNum)
+      );
+    });
+  }
+
+  if (currentIdx === -1 && rawTarget) {
+    const matchNum = rawTarget.match(/(\d+\.\d+)/);
+    if (matchNum) {
+      currentIdx = sections.findIndex((s) => s.number === matchNum[1]);
+    }
+  }
+
+  if (currentIdx === -1) {
+    currentIdx = 0;
+  }
+
+  if (currentIdx + 1 < sections.length) {
+    const nextSec = sections[currentIdx + 1];
+    return {
+      nextPart: partNum,
+      nextSectionId: nextSec.id,
+      nextSectionNumber: nextSec.number,
+      nextSectionTitle: nextSec.title
+    };
+  }
+
+  if (partNum < 14) {
+    const nextPartSections = CYBER_SECTIONS_CATALOG[partNum + 1] || [];
+    const firstNextSec = nextPartSections[0];
+    if (firstNextSec) {
+      return {
+        nextPart: partNum + 1,
+        nextSectionId: firstNextSec.id,
+        nextSectionNumber: firstNextSec.number,
+        nextSectionTitle: firstNextSec.title
+      };
+    }
+  }
+
+  const finalSec = sections[currentIdx] || sections[sections.length - 1];
+  return {
+    nextPart: 14,
+    nextSectionId: finalSec?.id || '14-4-capstone-briefing',
+    nextSectionNumber: finalSec?.number || '14.4',
+    nextSectionTitle: finalSec?.title || 'Capstone Briefing'
   };
 };
 
@@ -1734,6 +1821,20 @@ export const clearStudentCourseLockKeys = (
           localStorage.removeItem(`dopilot_cyber_part${p}_level_result`);
         }
       });
+      if (nextSectionId && nextPart !== undefined) {
+        localStorage.setItem(`dopilot_cyber_part${nextPart}_active_section_id`, nextSectionId);
+        localStorage.setItem(`dopilot_cyber_part${nextPart}_active_q_idx`, '0');
+        localStorage.setItem(`dopilot_cyber_part${nextPart}_study_phase`, 'true');
+        localStorage.removeItem(`dopilot_cyber_part${nextPart}_time_up`);
+        localStorage.removeItem(`dopilot_cyber_part${nextPart}_level_result`);
+        localStorage.setItem('dopilot_cyber_core_last_part', String(nextPart));
+      }
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('dopilot_cyber_part') || key.startsWith('dopilot_cyber_attempt_')) && idList.some(id => key.includes(id)) && key.includes('attempt')) {
+          localStorage.setItem(key, '1');
+        }
+      }
     }
   } catch (e) {
     console.error('Error clearing student course lock keys:', e);
@@ -1775,10 +1876,13 @@ export const resetStudentCourse = async (
   const lockedSection = targetRecord.failedSectionId || targetRecord.failedSection;
   const isFullstack = (targetRecord.courseId || '').toLowerCase().includes('fullstack');
   const isJava = (targetRecord.courseId || '').toLowerCase().includes('java');
+  const isCyber = (targetRecord.courseId || '').toLowerCase().includes('cyber');
   const continuation = isFullstack
     ? getNextFullstackSection(lockedPart, lockedSection)
     : isJava
     ? getNextJavaSection(lockedPart, lockedSection)
+    : isCyber
+    ? getNextCyberSection(lockedPart, lockedSection)
     : getNextPythonSection(lockedPart, lockedSection);
 
   const { nextPart, nextSectionId, nextSectionNumber, nextSectionTitle } = continuation;
@@ -2063,6 +2167,7 @@ export function useCourseUnlockedListener(params: {
   const navigate = useNavigate();
   const isFullstack = (params.courseId || '').toLowerCase().includes('fullstack');
   const isJava = (params.courseId || '').toLowerCase().includes('java');
+  const isCyber = (params.courseId || '').toLowerCase().includes('cyber');
 
   useEffect(() => {
     let isDisposed = false;
@@ -2100,6 +2205,16 @@ export function useCourseUnlockedListener(params: {
             localStorage.removeItem(`dopilot_java_part${params.partNum}_locked_${cleanEmail}`);
             localStorage.removeItem(`dopilot_java_locked_${cleanEmail}`);
           }
+        } else if (isCyber) {
+          localStorage.removeItem(`dopilot_cyber_part${params.partNum}_level_result`);
+          localStorage.removeItem('dopilot_cyber_level_result');
+          localStorage.removeItem(`dopilot_cyber_part${params.partNum}_locked_${cleanStudent}`);
+          localStorage.removeItem(`dopilot_cyber_locked_${cleanStudent}`);
+          localStorage.removeItem(`dopilot_cyber_part${params.partNum}_disclaimer_open`);
+          if (cleanEmail) {
+            localStorage.removeItem(`dopilot_cyber_part${params.partNum}_locked_${cleanEmail}`);
+            localStorage.removeItem(`dopilot_cyber_locked_${cleanEmail}`);
+          }
         } else {
           localStorage.removeItem(`dopilot_part${params.partNum}_level_result`);
           localStorage.removeItem('dopilot_level_result');
@@ -2131,6 +2246,8 @@ export function useCourseUnlockedListener(params: {
           ? `/course/fullstack-open/part-${unlockInfo.nextPart}`
           : isJava
           ? `/course/complete-java-programming/part-${unlockInfo.nextPart}`
+          : isCyber
+          ? `/course/cyber-security/part-${unlockInfo.nextPart}`
           : `/course/python-core/part-${unlockInfo.nextPart}`;
         navigate(route, { replace: true });
       }
@@ -2144,6 +2261,8 @@ export function useCourseUnlockedListener(params: {
         ? !eventCourseId || eventCourseId.includes('fullstack') || eventCourseId === 'all'
         : isJava
         ? !eventCourseId || eventCourseId.includes('java') || eventCourseId === 'all'
+        : isCyber
+        ? !eventCourseId || eventCourseId.includes('cyber') || eventCourseId === 'all'
         : !eventCourseId || eventCourseId.includes('python') || eventCourseId === 'all';
 
       const isMatch =
@@ -2183,13 +2302,29 @@ export function useCourseUnlockedListener(params: {
           (r) =>
             (r.studentId === cleanStudent ||
               (cleanEmail && normalizeStudentEmail(r.studentEmail) === cleanEmail)) &&
-            (isJava ? (r.courseId || '').toLowerCase().includes('java') : !(r.courseId || '').toLowerCase().includes('java'))
+            (isFullstack
+              ? (r.courseId || '').toLowerCase().includes('fullstack')
+              : isJava
+              ? (r.courseId || '').toLowerCase().includes('java')
+              : isCyber
+              ? (r.courseId || '').toLowerCase().includes('cyber')
+              : !(r.courseId || '').toLowerCase().includes('java') && !(r.courseId || '').toLowerCase().includes('fullstack') && !(r.courseId || '').toLowerCase().includes('cyber'))
         );
 
         if (myRecord && myRecord.lockStatus === 'unlocked') {
           // Admin unlocked from another device: automatically advance student!
-          const cont = isJava
+          const cont = isFullstack
+            ? getNextFullstackSection(
+                myRecord.partNum || params.partNum,
+                myRecord.failedSectionId || myRecord.failedSection
+              )
+            : isJava
             ? getNextJavaSection(
+                myRecord.partNum || params.partNum,
+                myRecord.failedSectionId || myRecord.failedSection
+              )
+            : isCyber
+            ? getNextCyberSection(
                 myRecord.partNum || params.partNum,
                 myRecord.failedSectionId || myRecord.failedSection
               )

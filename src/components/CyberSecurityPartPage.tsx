@@ -22,6 +22,8 @@ import {
 import { CyberSecurityPart1Page } from './CyberSecurityPart1Page';
 import { useCourseQuestionResume, getCourseStorageKeys, saveQuestionProgressState } from '../utils/courseProgressSyncService';
 import { logQuestionAttempt } from '../utils/studentTelemetryService';
+import { recordCourseLock, useCourseUnlockedListener } from '../utils/courseResetService';
+import { notifyCourseLocked } from '../utils/lockNotificationService';
 
 const TIMER_DURATION = 30; // 30 seconds
 
@@ -327,6 +329,43 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
 
     const result = recordLevelAttemptResultCyber(activeSection.id, studentId, isPassed);
     setConsecutiveFailures(result.consecutiveFailedLevels);
+
+    if (result.isLocked) {
+      recordCourseLock({
+        studentId,
+        studentName: user?.name || user?.email?.split('@')[0] || 'Enrolled Student',
+        studentEmail: user?.email || `${studentId}@student.dopilot.io`,
+        studentPhone: user?.phone,
+        collegeOrCompany: user?.collegeOrCompany,
+        courseId: 'cyber-security',
+        courseName: 'Cyber Security Course',
+        partNum: currentPartNum,
+        partTitle: `Part ${currentPartNum}: ${currentPart.title}`,
+        consecutiveFailures: result.consecutiveFailedLevels,
+        progressSummary: `Part ${currentPartNum}: Failed Level ${activeSection.number} • ${points} Points`,
+        earnedPoints: points
+      });
+
+      notifyCourseLocked({
+        courseId: 'cyber-security',
+        courseName: 'Cyber Security Course',
+        partNum: currentPartNum,
+        sectionId: activeSection.id,
+        sectionTitle: `Level ${activeSection.number} — ${activeSection.title}`,
+        activeQuestionIdx,
+        totalQuestions: totalCount,
+        score: correctCount,
+        percentage,
+        streak: result.consecutiveFailedLevels,
+        attemptCount: result.attemptCount,
+        studentId,
+        studentEmail: user?.email,
+        studentName: user?.name,
+        studentPhone: user?.phone,
+        collegeOrCompany: user?.collegeOrCompany,
+        earnedPoints: points
+      });
+    }
 
     // Save level passed status in localStorage
     if (isPassed) {

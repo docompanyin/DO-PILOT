@@ -1333,6 +1333,7 @@ export function useCourseQuestionResume(params: {
       const hasAnswer = Boolean(
         answersMap[exactKey] ||
         answersMap[`fullstack-${p.partNum}-${secId}-${qIdxStr}`] ||
+        answersMap[`cyber-p${p.partNum}-${secId}-${qIdxStr}`] ||
         Object.keys(answersMap).some(k =>
           (k === exactKey) ||
           (k.startsWith(`${secId}-`) && k.endsWith(`-${qIdxStr}`)) ||

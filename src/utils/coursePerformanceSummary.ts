@@ -229,10 +229,14 @@ export const getCourseOverallSummary = (courseId: string): CourseOverallSummary 
         sec.theoryBlocks.forEach((tb, qIdx) => {
           totalQuestions += 1;
           const q = tb.mcq;
-          const taskId = partNum === 1
-            ? `cyber-${sec.id}-${q?.id || qIdx}`
-            : `cyber-p${partNum}-${sec.id}-${q?.id || qIdx}`;
-          const choice = answers[taskId];
+          const candKeys = [
+            `cyber-p${partNum}-${sec.id}-${q?.id || qIdx}`,
+            `cyber-p${partNum}-${sec.id}-${qIdx}`,
+            `cyber-${sec.id}-${q?.id || qIdx}`,
+            `cyber-${sec.id}-${qIdx}`,
+            q?.id || ''
+          ].filter(Boolean);
+          const choice = candKeys.map(k => answers[k]).find(Boolean);
 
           if (choice) {
             answeredCount += 1;
