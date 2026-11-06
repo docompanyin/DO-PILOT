@@ -152,11 +152,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
 
   // Scenario 1: If the student completely finished Part 1 during free trial and has purchased,
   // redirect them directly to Part 2. Do not send back to Part 1, do not require retest.
-  useEffect(() => {
-    if (!isReviewMode && hasPurchased && isPart1Finished('cyber-security', studentId)) {
-      navigate('/course/cyber-security/part-2', { replace: true });
-    }
-  }, [hasPurchased, isReviewMode, studentId, navigate]);
+  // Scenario 1: Preserved Part 1 completion. Post-purchase navigates directly to Course Details.
 
   // Track section started under free trial to ensure Scenario 3 exemption if purchased mid-section
   useEffect(() => {

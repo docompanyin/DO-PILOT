@@ -254,14 +254,6 @@ export const PythonPart1Page: React.FC = () => {
     }
   }, [hasPurchased, activeSection?.id, studentId]);
 
-  // Scenario 1: If the student completely finished Part 1 during free trial and has purchased,
-  // redirect them directly to Part 2. Do not send back to Part 1, do not require retest.
-  useEffect(() => {
-    if (!isReviewMode && hasPurchased && isPart1Finished('python-core', studentId)) {
-      navigate('/course/python-core/part-2', { replace: true });
-    }
-  }, [hasPurchased, isReviewMode, studentId, navigate]);
-
 
   const handlePostPurchaseUnlock = () => {
     setHasPurchased(true);

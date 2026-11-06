@@ -32,10 +32,56 @@ export const CoursePaidGuard: React.FC<CoursePaidGuardProps> = ({
   /* [DEV_TEST_CERTIFICATE_WORKFLOW] Temporary testing bypass for certificate verification - safe to remove */
   const isDevTestCert = typeof window !== 'undefined' && sessionStorage.getItem('dopilot_dev_test_cert_mode') === 'true';
 
-  const [hasAccess, setHasAccess] = useState<boolean>(() => {
+  const checkHasAccess = (): boolean => {
     if (isDevTestCert) return true;
-    return hasCourseAccess(normalizedCourseId, user?.email || user?.id);
-  });
+    if (user?.email && hasCourseAccess(normalizedCourseId, user.email)) return true;
+    if (user?.id && hasCourseAccess(normalizedCourseId, user.id)) return true;
+    if (hasCourseAccess(normalizedCourseId)) return true;
+    if (typeof window !== 'undefined') {
+      try {
+        if (
+          localStorage.getItem(`dopilot_purchased_${normalizedCourseId}`) === 'true' ||
+          localStorage.getItem(`dopilot_purchased_${normalizedCourseId}_global`) === 'true'
+        ) {
+          return true;
+        }
+        const identifiers = [user?.email, user?.id].filter(Boolean) as string[];
+        for (const ident of identifiers) {
+          const raw = localStorage.getItem(`dopilot_purchased_courses_${ident}`) ||
+                      localStorage.getItem(`dopilot_purchased_courses_${ident.toLowerCase().trim()}`);
+          if (raw) {
+            const list: string[] = JSON.parse(raw);
+            if (Array.isArray(list) && list.some(c => {
+              const lower = String(c).toLowerCase();
+              if (normalizedCourseId === 'python-core' && lower.includes('python')) return true;
+              if (normalizedCourseId === 'java-core' && lower.includes('java')) return true;
+              if (normalizedCourseId === 'fullstack-open' && lower.includes('fullstack')) return true;
+              if (normalizedCourseId === 'cyber-security' && lower.includes('cyber')) return true;
+              return false;
+            })) return true;
+          }
+        }
+        const rawSession = localStorage.getItem('dopilot_student_session_v1');
+        if (rawSession) {
+          const session = JSON.parse(rawSession);
+          if (Array.isArray(session?.enrolledCourses)) {
+            const hasEnrollment = session.enrolledCourses.some((c: string) => {
+              const lower = String(c).toLowerCase();
+              if (normalizedCourseId === 'python-core' && lower.includes('python')) return true;
+              if (normalizedCourseId === 'java-core' && lower.includes('java')) return true;
+              if (normalizedCourseId === 'fullstack-open' && lower.includes('fullstack')) return true;
+              if (normalizedCourseId === 'cyber-security' && lower.includes('cyber')) return true;
+              return false;
+            });
+            if (hasEnrollment) return true;
+          }
+        }
+      } catch {}
+    }
+    return false;
+  };
+
+  const [hasAccess, setHasAccess] = useState<boolean>(() => checkHasAccess());
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
   const [pricing, setPricing] = useState<CoursePricing | undefined>(() => getCoursePricing(normalizedCourseId));
 
@@ -43,8 +89,7 @@ export const CoursePaidGuard: React.FC<CoursePaidGuardProps> = ({
 
   useEffect(() => {
     const check = () => {
-      const isDevTestCertNow = typeof window !== 'undefined' && sessionStorage.getItem('dopilot_dev_test_cert_mode') === 'true';
-      const accessGranted = isDevTestCertNow || hasCourseAccess(normalizedCourseId, user?.email || user?.id);
+      const accessGranted = checkHasAccess();
       setHasAccess(accessGranted);
       setPricing(getCoursePricing(normalizedCourseId));
       if (accessGranted) {
@@ -58,10 +103,12 @@ export const CoursePaidGuard: React.FC<CoursePaidGuardProps> = ({
     };
     check();
     window.addEventListener('dopilot_course_purchased', check);
+    window.addEventListener('dopilot_access_granted', check);
     window.addEventListener('dopilot_pricing_updated', check);
     window.addEventListener('storage', check);
     return () => {
       window.removeEventListener('dopilot_course_purchased', check);
+      window.removeEventListener('dopilot_access_granted', check);
       window.removeEventListener('dopilot_pricing_updated', check);
       window.removeEventListener('storage', check);
     };
@@ -83,7 +130,8 @@ export const CoursePaidGuard: React.FC<CoursePaidGuardProps> = ({
   }, [navigate]);
 
   // If student has full access, render the protected part immediately
-  if (hasAccess) {
+  const effectiveAccess = hasAccess || checkHasAccess();
+  if (effectiveAccess) {
     return <>{children}</>;
   }
 
@@ -159,7 +207,7 @@ export const CoursePaidGuard: React.FC<CoursePaidGuardProps> = ({
 
           <button
             type="button"
-            onClick={() => navigate(`/course/${normalizedCourseId}`)}
+            onClick={() => { if (normalizedCourseId === 'java-core') { navigate('/course/complete-java-programming'); } else { navigate(`/course/${normalizedCourseId}`); } }}
             className="w-full py-2.5 text-slate hover:text-paper font-mono text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />

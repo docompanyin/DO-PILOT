@@ -160,7 +160,7 @@ export const FullstackPart1Page: React.FC = () => {
         localStorage.setItem('dopilot_fullstack_part1_completed', 'true');
         localStorage.setItem('dopilot_fullstack_core_last_part', '2');
       } catch {}
-      navigate('/course/fullstack-open/part-2');
+      // NOTE: Do not automatically redirect to Part 2! Post-purchase redirect returns directly to Course Details.
       return;
     }
     if (savedDecision === 'retry_part1') {
@@ -174,7 +174,7 @@ export const FullstackPart1Page: React.FC = () => {
         localStorage.setItem('dopilot_fullstack_part1_completed', 'true');
         localStorage.setItem('dopilot_fullstack_core_last_part', '2');
       } catch {}
-      navigate('/course/fullstack-open/part-2');
+      // NOTE: Do not automatically redirect to Part 2! Post-purchase redirect returns directly to Course Details.
     } else {
       // Below 50% following a failed trial:
       // Keep isCourseComplete = true and hasPurchased = true so user gets exactly one additional attempt at Part 1

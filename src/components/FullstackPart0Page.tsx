@@ -233,12 +233,7 @@ export const FullstackPart0Page: React.FC = () => {
     }
   }, [hasPurchased, activeSection?.id, studentId]);
 
-  // Scenario 1: If student completely finished Part 0 during free trial and has purchased, redirect directly to Part 1
-  useEffect(() => {
-    if (!isReviewMode && hasPurchased && isPart1Finished('fullstack-open', studentId)) {
-      navigate('/course/fullstack-open/part-1', { replace: true });
-    }
-  }, [hasPurchased, isReviewMode, studentId, navigate]);
+  // Scenario 1: Preserved Part 0 completion. Post-purchase navigates directly to Course Details.
 
   useCourseUnlockedListener({
     partNum: 0,
