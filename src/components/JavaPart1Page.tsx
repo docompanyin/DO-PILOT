@@ -889,16 +889,13 @@ export const JavaPart1Page: React.FC = () => {
     } else {
       // Finished all sections of Part 1!
       const part1Summary = getPart1OverallScore('java-core', studentId);
-      const isComp = hasPurchased || part1Summary.isAbove50;
+      const isComp = true;
       setIsCourseComplete(true);
       try {
         localStorage.setItem('dopilot_java_part1_finished', 'true');
         localStorage.removeItem('dopilot_java_level_result');
-        if (isComp) {
-          localStorage.setItem('dopilot_java_part1_completed', 'true');
-        } else {
-          localStorage.removeItem('dopilot_java_part1_completed');
-        }
+        localStorage.setItem('dopilot_java_part1_completed', 'true');
+        localStorage.setItem('dopilot_java_core_last_part', '2');
       } catch {}
 
       saveQuestionProgressState({

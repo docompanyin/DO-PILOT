@@ -1255,10 +1255,7 @@ export const FullstackPart1Page: React.FC = () => {
             );
           } else {
             // PURCHASED USER:
-            const hasUsedRetry = hasUsedPart1Restart('fullstack-open', studentId);
-            const savedDecision = getPostPurchaseDecision('fullstack-open', studentId);
-            return (overall.isAbove50 || hasUsedRetry || overall.allSectionsPassed || savedDecision === 'continue_to_part2') ? (
-              /* Passed free trial OR overall score >= 50%: continue directly to Part 2 */
+            return (
               <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-primary to-emerald-400" />
 
@@ -1292,67 +1289,6 @@ export const FullstackPart1Page: React.FC = () => {
                     type="button"
                     onClick={() => navigate('/course/fullstack-open')}
                     className="py-2.5 px-5 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-paper font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <span>Back to Overview</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* After purchase following a failed trial with < 50%: provide option to retry Part 1 before continuing */
-              <div className="bg-panel/95 border border-white/10 rounded-3xl p-6 sm:p-10 max-w-2xl w-full text-center space-y-6 shadow-2xl my-6 backdrop-blur-xl animate-fade-in relative overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-primary to-amber-400" />
-
-                <div className="flex items-center justify-center pt-2">
-                  <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-wider border bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-amber-500/20">
-                    <RotateCcw className="w-4 h-4 text-amber-400" />
-                    <span>Option to Retry Part 1</span>
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  <h2 className="font-jakarta text-2xl sm:text-3xl font-black text-paper tracking-tight">
-                    Course Unlocked
-                  </h2>
-                  <p className="text-slate text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-                    Your overall score was {overall.percentage}% ({overall.totalCorrect}/{overall.totalQuestions} correct), which is below 50%. You can retry Part 1 with fresh questions under purchased course rules before continuing, or proceed directly to Part 2.
-                  </p>
-                </div>
-
-                {/* Scorecard */}
-                <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto py-2">
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
-                    <div className="text-[11px] font-mono text-slate">Overall Score</div>
-                    <div className="text-xl font-bold font-mono text-rose-400 mt-0.5">{overall.percentage}%</div>
-                  </div>
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center">
-                    <div className="text-[11px] font-mono text-slate">Questions</div>
-                    <div className="text-xl font-bold font-mono text-paper mt-0.5">{overall.totalCorrect}/{overall.totalQuestions}</div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
-                  <button
-                    type="button"
-                    onClick={handleRetryPart1}
-                    className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    <span>Retry Part 1</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleContinueToPart2}
-                    className="py-2.5 px-6 rounded-xl bg-white/[0.08] hover:bg-white/15 border border-white/20 text-paper font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer"
-                  >
-                    <span>Continue to Part 2</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => navigate('/course/fullstack-open')}
-                    className="py-2.5 px-5 rounded-xl bg-white/[0.04] hover:bg-white/10 border border-white/10 text-white hover:text-white font-jakarta font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>Back to Overview</span>
                   </button>

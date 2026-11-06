@@ -175,6 +175,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
       // Scenario 1: Completely finished Part 1 during free trial -> set up Part 2 progression!
       try {
         localStorage.setItem('dopilot_cyber_part1_completed', 'true');
+        localStorage.setItem('dopilot_cyber_core_last_part', '2');
         localStorage.setItem('dopilot_cyber_part1_finished', 'true');
         localStorage.setItem('dopilot_cyber_core_last_part', '2');
       } catch {}

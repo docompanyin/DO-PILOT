@@ -237,7 +237,8 @@ export const isPart1Finished = (courseId: string, studentId?: string): boolean =
     // 2. Check memoryCourseState / backend student state
     const cleanEmail = normalizeStudentEmail(studentId && studentId.includes('@') ? studentId : undefined);
     if (cleanEmail && memoryCourseState[cleanEmail]) {
-      const p1 = memoryCourseState[cleanEmail].courses?.[track]?.parts?.['1'];
+      const trialPartKey = track === 'fullstack-open' ? '0' : '1';
+      const p1 = memoryCourseState[cleanEmail].courses?.[track]?.parts?.[trialPartKey];
       if (p1?.isFinishedPart || p1?.isCompleted) {
         return true;
       }
@@ -311,20 +312,12 @@ export const getPostPurchaseStartingPart = (
     return currentUncompletedPart;
   }
 
-  // Check if student made an explicit post-purchase choice (retry or continue)
-  const savedDecision = getPostPurchaseDecision(track, studentId);
-  if (savedDecision === 'continue_to_part2') {
-    return 2;
-  }
-  if (savedDecision === 'retry_part1') {
-    return 1;
-  }
-
   // Full Stack Open: Part 0 is trial, Part 1 is first paid part
   if (track === 'fullstack-open') {
     const isPart0Finished =
       localStorage.getItem('dopilot_fullstack_part0_completed') === 'true' ||
-      localStorage.getItem('dopilot_fullstack_part0_finished') === 'true';
+      localStorage.getItem('dopilot_fullstack_part0_finished') === 'true' ||
+      isPart1Finished('fullstack-open', studentId);
     if (isPart0Finished) {
       return Math.max(1, currentUncompletedPart);
     }
@@ -334,7 +327,8 @@ export const getPostPurchaseStartingPart = (
     return 1;
   }
 
-  // Scenario 1: Completely finished Part 1 during free trial -> directly start Part 2!
+  // Free Trial completed (pass or fail) -> goes directly to Part 2!
+  // Does not care whether the user passed or failed the free trial.
   if (isPart1Finished(track, studentId)) {
     return 2;
   }

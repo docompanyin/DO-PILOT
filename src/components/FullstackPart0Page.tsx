@@ -440,6 +440,7 @@ export const FullstackPart0Page: React.FC = () => {
       try {
         localStorage.setItem('dopilot_fullstack_part0_finished', 'true');
         localStorage.setItem('dopilot_fullstack_part0_completed', 'true');
+        localStorage.setItem('dopilot_fullstack_core_last_part', '1');
       } catch {}
     }
 
