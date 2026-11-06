@@ -737,7 +737,7 @@ export const saveQuestionProgressState = (params: {
   const memCourse = cleanEmail ? memoryCourseState[cleanEmail]?.courses?.[courseId] : null;
   const existingPart = memCourse?.parts?.[pKey];
   const hasExistingAnswers = Object.keys(existingPart?.selectedAnswers || {}).length > 0;
-  const hasExistingProgress = Boolean(existingPart && (existingPart.activeQuestionIdx > 0 || hasExistingAnswers || existingPart.isCompleted || existingPart.isFinishedPart));
+  const hasExistingProgress = Boolean(existingPart && (existingPart.activeQuestionIdx > 0 || hasExistingAnswers || existingPart.isCompleted || existingPart.isFinishedPart || (existingPart.activeSectionId && existingPart.activeSectionId !== activeSectionId)));
 
   if (!isExplicitReset && activeQuestionIdx === 0 && Object.keys(selectedAnswers || {}).length === 0 && hasExistingProgress) {
     console.warn(`[SyncGuard] Blocked premature overwrite of ${courseId} Part ${partNum} progress at Q${(existingPart?.activeQuestionIdx ?? 0) + 1}`);
