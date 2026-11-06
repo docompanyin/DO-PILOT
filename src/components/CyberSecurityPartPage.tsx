@@ -255,7 +255,36 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     try {
       localStorage.setItem('dopilot_cyber_core_last_part', String(currentPartNum));
     } catch {}
-  }, [activeSectionId, activeQuestionIdx, currentPartNum]);
+
+    // Auto-checkpoint active location & notes phase to Supabase so clearing cookies preserves exact step
+    if (user?.email && !levelResult?.isFinished && !isPartComplete) {
+      saveQuestionProgressState({
+        courseId: 'cyber-security',
+        partNum: currentPartNum,
+        activeSectionId,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase,
+        isTimeUpWaiting,
+        targetEndTime,
+        timeLeft,
+        studentEmail: user?.email,
+        levelResult: null,
+        forceImmediate: true
+      });
+    }
+
+    try {
+      const curState = window.history.state || {};
+      if (curState.qIdx !== activeQuestionIdx || curState.secId !== activeSectionId) {
+        window.history.pushState(
+          { partNum: currentPartNum, secId: activeSectionId, qIdx: activeQuestionIdx },
+          '',
+          window.location.pathname
+        );
+      }
+    } catch {}
+  }, [activeSectionId, activeQuestionIdx, currentPartNum, isStudyPhase, user?.email]);
 
   // Ref to track latest state inside setInterval
   const stateRef = useRef({
@@ -304,6 +333,20 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'cyber-security',
+      partNum: currentPartNum,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime: freshEnd,
+      timeLeft: TIMER_DURATION,
+      studentEmail: user?.email,
+      levelResult: null
+    });
   };
 
   // Evaluate Level Score after the 6 compulsory questions in a level
@@ -453,6 +496,21 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
       } catch (e) {
         console.error(e);
       }
+
+      saveQuestionProgressState({
+        courseId: 'cyber-security',
+        partNum: currentPartNum,
+        activeSectionId: activeSection.id,
+        activeQuestionIdx: nextQ,
+        selectedAnswers: stateRef.current.selectedAnswers,
+        isStudyPhase: true,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: TIMER_DURATION,
+        studentEmail: user?.email,
+        levelResult: null,
+        forceImmediate: true
+      });
     } else {
       evaluateLevelScore();
     }
@@ -523,6 +581,20 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'cyber-security',
+      partNum: currentPartNum,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers: updated,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime,
+      timeLeft,
+      studentEmail: user?.email,
+      levelResult: null
+    });
 
     // Calculate exact time spent answering
     const timeSpent = (() => {
@@ -649,6 +721,21 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'cyber-security',
+      partNum: currentPartNum,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx: 0,
+      selectedAnswers: updatedAnswers,
+      isStudyPhase: true,
+      isTimeUpWaiting: false,
+      targetEndTime: 0,
+      timeLeft: TIMER_DURATION,
+      studentEmail: user?.email,
+      levelResult: null,
+      forceImmediate: true
+    });
   };
 
   // Progress to the next level (after Passing or after confirming Disclaimer)
@@ -689,6 +776,21 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
       } catch (e) {
         console.error(e);
       }
+
+      saveQuestionProgressState({
+        courseId: 'cyber-security',
+        partNum: currentPartNum,
+        activeSectionId: nextSec.id,
+        activeQuestionIdx: 0,
+        selectedAnswers,
+        isStudyPhase: true,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: TIMER_DURATION,
+        studentEmail: user?.email,
+        levelResult: null,
+        forceImmediate: true
+      });
     } else {
       // Finished all sections of this Part!
       setIsPartComplete(true);
@@ -696,7 +798,24 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
         const keys = getCourseStorageKeys('cyber-security', currentPartNum);
         localStorage.removeItem(keys.levelResultKey);
         localStorage.setItem(`dopilot_cyber_part${currentPartNum}_completed`, 'true');
+        localStorage.setItem('dopilot_cyber_core_last_part', String(currentPartNum + 1));
       } catch {}
+
+      saveQuestionProgressState({
+        courseId: 'cyber-security',
+        partNum: currentPartNum,
+        activeSectionId: activeSection.id,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase: false,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: 30,
+        studentEmail: user?.email,
+        isCompleted: true,
+        isFinishedPart: true,
+        levelResult: null
+      });
     }
   };
 
@@ -886,7 +1005,12 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
               <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
                 <button
                   type="button"
-                  onClick={() => navigate(`/course/cyber-security/part-${currentPartNum + 1}`)}
+                  onClick={() => {
+                    try {
+                      localStorage.setItem('dopilot_cyber_core_last_part', String(currentPartNum + 1));
+                    } catch {}
+                    navigate(`/course/cyber-security/part-${currentPartNum + 1}`);
+                  }}
                   className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
                 >
                   <span>Continue to Part {currentPartNum + 1}</span>

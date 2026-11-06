@@ -399,7 +399,36 @@ export const CyberSecurityPart1Page: React.FC = () => {
     try {
       localStorage.setItem('dopilot_cyber_core_last_part', '1');
     } catch {}
-  }, [activeSectionId, activeQuestionIdx]);
+
+    // Auto-checkpoint active location & notes phase to Supabase so clearing cookies preserves exact step
+    if (user?.email && !levelResult?.isFinished && !isCourseComplete) {
+      saveQuestionProgressState({
+        courseId: 'cyber-security',
+        partNum: 1,
+        activeSectionId,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase,
+        isTimeUpWaiting,
+        targetEndTime,
+        timeLeft,
+        studentEmail: user?.email,
+        levelResult: null,
+        forceImmediate: true
+      });
+    }
+
+    try {
+      const curState = window.history.state || {};
+      if (curState.qIdx !== activeQuestionIdx || curState.secId !== activeSectionId) {
+        window.history.pushState(
+          { partNum: 1, secId: activeSectionId, qIdx: activeQuestionIdx },
+          '',
+          window.location.pathname
+        );
+      }
+    } catch {}
+  }, [activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
 
   // Ref to track latest state inside setInterval
   const stateRef = useRef({
@@ -448,6 +477,20 @@ export const CyberSecurityPart1Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'cyber-security',
+      partNum: 1,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime: freshEnd,
+      timeLeft: TIMER_DURATION,
+      studentEmail: user?.email,
+      levelResult: null
+    });
   };
 
   // Evaluate Level Score after the 6 questions in current level are completed
@@ -718,6 +761,21 @@ export const CyberSecurityPart1Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'cyber-security',
+      partNum: 1,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx: 0,
+      selectedAnswers: updatedAnswers,
+      isStudyPhase: true,
+      isTimeUpWaiting: false,
+      targetEndTime: 0,
+      timeLeft: TIMER_DURATION,
+      studentEmail: user?.email,
+      levelResult: null,
+      forceImmediate: true
+    });
   };
 
   // Progress to next level
@@ -753,6 +811,21 @@ export const CyberSecurityPart1Page: React.FC = () => {
       } catch (e) {
         console.error(e);
       }
+
+      saveQuestionProgressState({
+        courseId: 'cyber-security',
+        partNum: 1,
+        activeSectionId: nextSec.id,
+        activeQuestionIdx: 0,
+        selectedAnswers,
+        isStudyPhase: true,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: TIMER_DURATION,
+        studentEmail: user?.email,
+        levelResult: null,
+        forceImmediate: true
+      });
     } else {
       setIsCourseComplete(true);
       try {
@@ -877,6 +950,20 @@ export const CyberSecurityPart1Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'cyber-security',
+      partNum: 1,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers: updated,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime,
+      timeLeft,
+      studentEmail: user?.email,
+      levelResult: null
+    });
 
     const timeSpent = (() => {
       if (targetEndTime) {
