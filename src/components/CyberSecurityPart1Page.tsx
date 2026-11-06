@@ -246,6 +246,11 @@ export const CyberSecurityPart1Page: React.FC = () => {
   // Persistent MCQ selected answers
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>(() => {
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['cyber-security']?.parts?.['1'] : null;
+      if (memPart?.selectedAnswers && Object.keys(memPart.selectedAnswers).length > 0) {
+        return memPart.selectedAnswers;
+      }
       const saved = localStorage.getItem('dopilot_cyber_part1_mcq_answers');
       return saved ? JSON.parse(saved) : {};
     } catch {
@@ -284,6 +289,11 @@ export const CyberSecurityPart1Page: React.FC = () => {
   const [isStudyPhase, setIsStudyPhase] = useState<boolean>(() => {
     if (isReviewMode) return false;
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['cyber-security']?.parts?.['1'] : null;
+      if (typeof memPart?.isStudyPhase === 'boolean') {
+        return memPart.isStudyPhase;
+      }
       const answers = JSON.parse(localStorage.getItem('dopilot_cyber_part1_mcq_answers') || '{}');
       if (candidateCurrentKeys.some(k => Boolean(answers[k]))) return false; // Already answered, show unblurred
       const savedPhase = localStorage.getItem('dopilot_cyber_part1_study_phase');
@@ -346,7 +356,11 @@ export const CyberSecurityPart1Page: React.FC = () => {
   });
 
   // Track whether initial mount state has been hydrated from cloud/local storage
-  const hasHydratedRef = useRef<boolean>(false);
+  const [isHydrated, setIsHydrated] = useState<boolean>(() => {
+    const email = user?.email?.toLowerCase().trim();
+    const memPart = email ? memoryCourseState[email]?.courses?.['cyber-security']?.parts?.['1'] : null;
+    return Boolean(memPart && memPart.activeSectionId);
+  });
 
   useCourseQuestionResume({
     courseId: 'cyber-security',
@@ -366,7 +380,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
     setLevelResult,
     setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete),
     onHydrated: () => {
-      hasHydratedRef.current = true;
+      setIsHydrated(true);
     }
   });
 
@@ -414,8 +428,8 @@ export const CyberSecurityPart1Page: React.FC = () => {
     try {
       const email = user?.email?.toLowerCase().trim();
       const memPart = email ? memoryCourseState[email]?.courses?.['cyber-security']?.parts?.['1'] : null;
-      if (memPart && (memPart.activeQuestionIdx > 0 || Object.keys(memPart.selectedAnswers || {}).length > 0)) {
-        hasHydratedRef.current = true;
+      if (memPart && memPart.activeSectionId) {
+        setIsHydrated(true);
       }
     } catch {}
   }, [user?.email]);
@@ -428,7 +442,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
     } catch {}
 
     // Auto-checkpoint active location & notes phase to Supabase once hydrated
-    if (hasHydratedRef.current && user?.email && !levelResult?.isFinished && !isCourseComplete) {
+    if (isHydrated && user?.email && !levelResult?.isFinished && !isCourseComplete) {
       saveQuestionProgressState({
         courseId: 'cyber-security',
         partNum: 1,
@@ -440,7 +454,8 @@ export const CyberSecurityPart1Page: React.FC = () => {
         targetEndTime,
         timeLeft,
         studentEmail: user?.email,
-        levelResult: null
+        levelResult: null,
+        forceImmediate: true
       });
     }
 
@@ -454,7 +469,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
         );
       }
     } catch {}
-  }, [activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
+  }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
 
   // Ref to track latest state inside setInterval
   const stateRef = useRef({

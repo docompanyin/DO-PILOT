@@ -328,6 +328,11 @@ export const PythonPart1Page: React.FC = () => {
   // Persistent MCQ selected answers
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>(() => {
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['python-core']?.parts?.['1'] : null;
+      if (memPart?.selectedAnswers && Object.keys(memPart.selectedAnswers).length > 0) {
+        return memPart.selectedAnswers;
+      }
       const saved = localStorage.getItem('dopilot_mcq_answers_v2');
       return saved ? JSON.parse(saved) : {};
     } catch {
@@ -459,7 +464,11 @@ export const PythonPart1Page: React.FC = () => {
   });
 
   // Track whether initial mount state has been hydrated from cloud/local storage
-  const hasHydratedRef = useRef<boolean>(false);
+  const [isHydrated, setIsHydrated] = useState<boolean>(() => {
+    const email = user?.email?.toLowerCase().trim();
+    const memPart = email ? memoryCourseState[email]?.courses?.['python-core']?.parts?.['1'] : null;
+    return Boolean(memPart && memPart.activeSectionId);
+  });
 
   useCourseQuestionResume({
     courseId: 'python-core',
@@ -479,7 +488,7 @@ export const PythonPart1Page: React.FC = () => {
     setLevelResult,
     setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete),
     onHydrated: () => {
-      hasHydratedRef.current = true;
+      setIsHydrated(true);
     }
   });
 
@@ -518,8 +527,8 @@ export const PythonPart1Page: React.FC = () => {
     try {
       const email = user?.email?.toLowerCase().trim();
       const memPart = email ? memoryCourseState[email]?.courses?.['python-core']?.parts?.['1'] : null;
-      if (memPart && (memPart.activeQuestionIdx > 0 || Object.keys(memPart.selectedAnswers || {}).length > 0)) {
-        hasHydratedRef.current = true;
+      if (memPart && memPart.activeSectionId) {
+        setIsHydrated(true);
       }
     } catch {}
   }, [user?.email]);
@@ -532,7 +541,7 @@ export const PythonPart1Page: React.FC = () => {
     } catch {}
 
     // Auto-checkpoint active location & notes phase to Supabase once hydrated
-    if (hasHydratedRef.current && user?.email && !levelResult?.isFinished && !isCourseComplete) {
+    if (isHydrated && user?.email && !levelResult?.isFinished && !isCourseComplete) {
       saveQuestionProgressState({
         courseId: 'python-core',
         partNum: 1,
@@ -544,10 +553,11 @@ export const PythonPart1Page: React.FC = () => {
         targetEndTime,
         timeLeft,
         studentEmail: user?.email,
-        levelResult: null
+        levelResult: null,
+        forceImmediate: true
       });
     }
-  }, [activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
+  }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
 
   // Ref to track latest state inside setInterval
   const stateRef = useRef({

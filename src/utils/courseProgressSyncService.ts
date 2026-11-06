@@ -255,22 +255,28 @@ export function mergeStudentProgressDocs(
             return;
           }
 
-          const inAnswersCount = Object.keys(inPart.selectedAnswers || {}).length;
-          const exAnswersCount = Object.keys(exPart.selectedAnswers || {}).length;
-          const inHasProgress = inPart.activeQuestionIdx > 0 || inAnswersCount > 0 || inPart.isCompleted || inPart.isFinishedPart;
-          const exHasProgress = exPart.activeQuestionIdx > 0 || exAnswersCount > 0 || exPart.isCompleted || exPart.isFinishedPart;
+          const mergedAnswers = {
+            ...(exPart.selectedAnswers || {}),
+            ...(inPart.selectedAnswers || {})
+          };
 
-          if (!inHasProgress && exHasProgress) {
+          const inHasValidLocation = Boolean(inPart.activeSectionId) || (typeof inPart.activeQuestionIdx === 'number');
+          const exHasValidLocation = Boolean(exPart.activeSectionId) || (typeof exPart.activeQuestionIdx === 'number');
+
+          if (!inHasValidLocation && exHasValidLocation) {
+            mergedParts[pStr] = {
+              ...exPart,
+              selectedAnswers: mergedAnswers
+            };
             return;
           }
 
           mergedParts[pStr] = {
             ...exPart,
             ...inPart,
-            selectedAnswers: {
-              ...(exPart.selectedAnswers || {}),
-              ...(inPart.selectedAnswers || {})
-            }
+            selectedAnswers: mergedAnswers,
+            isCompleted: exPart.isCompleted || inPart.isCompleted,
+            isFinishedPart: exPart.isFinishedPart || inPart.isFinishedPart
           };
         });
       }
@@ -739,7 +745,7 @@ export const saveQuestionProgressState = (params: {
     isCompleted = false,
     isFinishedPart = false,
     levelResult = null,
-    forceImmediate = false,
+    forceImmediate = true,
     isExplicitReset = false
   } = params;
 
@@ -773,11 +779,7 @@ export const saveQuestionProgressState = (params: {
   // BLOCK IT from overwriting localStorage and Supabase!
   const isInitialSec = !activeSectionId || activeSectionId === '1-1-getting-started' || activeSectionId === '0-1-http-protocol' || activeSectionId === '1-1-overview' || activeSectionId.endsWith('-1') || activeSectionId.endsWith('.1');
   if (!isExplicitReset && !isHydrated && activeQuestionIdx === 0 && Object.keys(selectedAnswers || {}).length === 0 && isInitialSec && hasExistingProgress) {
-    return;
-  }
-
-  if (!isExplicitReset && activeQuestionIdx === 0 && Object.keys(selectedAnswers || {}).length === 0 && isInitialSec && hasExistingProgress) {
-    console.warn(`[SyncGuard] Blocked premature overwrite of ${courseId} Part ${partNum} progress at Q${(existingPart?.activeQuestionIdx ?? 0) + 1}`);
+    console.warn(`[SyncGuard] Blocked premature overwrite of unhydrated ${courseId} Part ${partNum} progress at Q${(existingPart?.activeQuestionIdx ?? 0) + 1}`);
     return;
   }
 
@@ -1146,8 +1148,8 @@ export const restoreAllStudentCourseProgressFromCloud = async (
           const curMemPart = memoryCourseState[cleanEmail]?.courses?.[courseId]?.parts?.[pNumStr];
           const memTime = curMemPart?.updatedAt ? new Date(curMemPart.updatedAt).getTime() : 0;
           const cloudTime = partState.updatedAt ? new Date(partState.updatedAt).getTime() : 0;
-          const hasMemRealProgress = ((curMemPart?.activeQuestionIdx ?? 0) > 0) || Object.keys(curMemPart?.selectedAnswers || {}).length > 0;
-          const hasCloudRealProgress = (partState.activeQuestionIdx || 0) > 0 || Object.keys(partState.selectedAnswers || {}).length > 0;
+          const hasMemRealProgress = Boolean(curMemPart?.activeSectionId) || ((curMemPart?.activeQuestionIdx ?? 0) > 0) || Object.keys(curMemPart?.selectedAnswers || {}).length > 0;
+          const hasCloudRealProgress = Boolean(partState?.activeSectionId) || ((partState?.activeQuestionIdx ?? 0) > 0) || Object.keys(partState?.selectedAnswers || {}).length > 0;
           const isMemoryNewer = memTime > cloudTime && (hasMemRealProgress || !hasCloudRealProgress);
 
           if (!isMemoryNewer && partState.activeSectionId) {
@@ -1458,7 +1460,7 @@ export const getCloudPartQuestionState = async (
 
   // Check memory cache first
   const cached = memoryCourseState[cleanEmail]?.courses?.[courseId]?.parts?.[String(partNum)];
-  if (cached && (cached.activeQuestionIdx > 0 || Object.keys(cached.selectedAnswers || {}).length > 0)) {
+  if (cached && (cached.activeSectionId || typeof cached.activeQuestionIdx === 'number')) {
     return cached;
   }
 
@@ -1582,9 +1584,10 @@ export function useCourseQuestionResume(params: {
         )
       );
 
-      if (curLocalStudy === 'false' || hasAnswer) {
+      if (hasAnswer) {
         p.setIsStudyPhase(false);
-      } else if (saved.isStudyPhase) {
+        p.setIsTimeUpWaiting(false);
+      } else if (saved.isStudyPhase !== false) {
         p.setIsStudyPhase(true);
         p.setIsTimeUpWaiting(false);
         p.setTimeLeft(30);
@@ -1645,4 +1648,26 @@ export function useCourseQuestionResume(params: {
       window.removeEventListener('dopilot_progress_restored', handleRestored);
     };
   }, [params.courseId, params.partNum, cleanEmail]);
+}
+
+
+if (typeof window !== 'undefined') {
+  const flushOnExit = () => {
+    try {
+      const sessionRaw = window.localStorage.getItem('dopilot_student_session_v1');
+      if (!sessionRaw) return;
+      const session = JSON.parse(sessionRaw);
+      const email = normalizeStudentEmail(session?.email);
+      if (email) {
+        flushCloudSync(email);
+      }
+    } catch {}
+  };
+
+  window.addEventListener('pagehide', flushOnExit);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      flushOnExit();
+    }
+  });
 }

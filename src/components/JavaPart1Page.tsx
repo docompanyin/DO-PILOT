@@ -254,6 +254,11 @@ export const JavaPart1Page: React.FC = () => {
   // Persistent MCQ selected answers
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>(() => {
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['java-core']?.parts?.['1'] : null;
+      if (memPart?.selectedAnswers && Object.keys(memPart.selectedAnswers).length > 0) {
+        return memPart.selectedAnswers;
+      }
       const saved = localStorage.getItem('dopilot_java_mcq_answers');
       return saved ? JSON.parse(saved) : {};
     } catch {
@@ -290,6 +295,11 @@ export const JavaPart1Page: React.FC = () => {
   const [isStudyPhase, setIsStudyPhase] = useState<boolean>(() => {
     if (isReviewMode) return false;
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['java-core']?.parts?.['1'] : null;
+      if (typeof memPart?.isStudyPhase === 'boolean') {
+        return memPart.isStudyPhase;
+      }
       const answers = JSON.parse(localStorage.getItem('dopilot_java_mcq_answers') || '{}');
       if (candidateCurrentKeys.some(k => Boolean(answers[k]))) return false; // Already answered, show unblurred
       const savedPhase = localStorage.getItem('dopilot_java_study_phase');
@@ -354,7 +364,11 @@ export const JavaPart1Page: React.FC = () => {
   });
 
   // Track whether initial mount state has been hydrated from cloud/local storage
-  const hasHydratedRef = useRef<boolean>(false);
+  const [isHydrated, setIsHydrated] = useState<boolean>(() => {
+    const email = user?.email?.toLowerCase().trim();
+    const memPart = email ? memoryCourseState[email]?.courses?.['java-core']?.parts?.['1'] : null;
+    return Boolean(memPart && memPart.activeSectionId);
+  });
 
   useCourseQuestionResume({
     courseId: 'java-core',
@@ -374,7 +388,7 @@ export const JavaPart1Page: React.FC = () => {
     setLevelResult,
     setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete),
     onHydrated: () => {
-      hasHydratedRef.current = true;
+      setIsHydrated(true);
     }
   });
 
@@ -427,8 +441,8 @@ export const JavaPart1Page: React.FC = () => {
     try {
       const email = user?.email?.toLowerCase().trim();
       const memPart = email ? memoryCourseState[email]?.courses?.['java-core']?.parts?.['1'] : null;
-      if (memPart && (memPart.activeQuestionIdx > 0 || Object.keys(memPart.selectedAnswers || {}).length > 0)) {
-        hasHydratedRef.current = true;
+      if (memPart && memPart.activeSectionId) {
+        setIsHydrated(true);
       }
     } catch {}
   }, [user?.email]);
@@ -441,7 +455,7 @@ export const JavaPart1Page: React.FC = () => {
     } catch {}
 
     // Auto-checkpoint active location & notes phase to Supabase once hydrated
-    if (hasHydratedRef.current && user?.email && !levelResult?.isFinished && !isCourseComplete) {
+    if (isHydrated && user?.email && !levelResult?.isFinished && !isCourseComplete) {
       saveQuestionProgressState({
         courseId: 'java-core',
         partNum: 1,
@@ -453,7 +467,8 @@ export const JavaPart1Page: React.FC = () => {
         targetEndTime,
         timeLeft,
         studentEmail: user?.email,
-        levelResult: null
+        levelResult: null,
+        forceImmediate: true
       });
     }
 
@@ -467,7 +482,7 @@ export const JavaPart1Page: React.FC = () => {
         );
       }
     } catch {}
-  }, [activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
+  }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
 
   // Ref to track latest state inside setInterval
   const stateRef = useRef({

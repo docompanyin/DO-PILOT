@@ -198,23 +198,29 @@ export default async function handler(req, res) {
                     return;
                   }
 
-                  const inAnswersCount = Object.keys(inPart.selectedAnswers || {}).length;
-                  const exAnswersCount = Object.keys(exPart.selectedAnswers || {}).length;
-                  const inHasProgress = inPart.activeQuestionIdx > 0 || inAnswersCount > 0 || inPart.isCompleted || inPart.isFinishedPart;
-                  const exHasProgress = exPart.activeQuestionIdx > 0 || exAnswersCount > 0 || exPart.isCompleted || exPart.isFinishedPart;
+                  const mergedAnswers = {
+                    ...(exPart.selectedAnswers || {}),
+                    ...(inPart.selectedAnswers || {})
+                  };
 
-                  // Never overwrite real progress with empty mount default
-                  if (!inHasProgress && exHasProgress) {
+                  const inHasValidLocation = Boolean(inPart.activeSectionId) || (typeof inPart.activeQuestionIdx === 'number');
+                  const exHasValidLocation = Boolean(exPart.activeSectionId) || (typeof exPart.activeQuestionIdx === 'number');
+
+                  // If incoming part lacks any valid section/question location but existing has one, retain existing location
+                  if (!inHasValidLocation && exHasValidLocation) {
+                    mergedParts[pStr] = {
+                      ...exPart,
+                      selectedAnswers: mergedAnswers
+                    };
                     return;
                   }
 
                   mergedParts[pStr] = {
                     ...exPart,
                     ...inPart,
-                    selectedAnswers: {
-                      ...(exPart.selectedAnswers || {}),
-                      ...(inPart.selectedAnswers || {})
-                    }
+                    selectedAnswers: mergedAnswers,
+                    isCompleted: exPart.isCompleted || inPart.isCompleted,
+                    isFinishedPart: exPart.isFinishedPart || inPart.isFinishedPart
                   };
                 });
               }

@@ -94,16 +94,29 @@ export const FullstackPart0Page: React.FC = () => {
   // Persistent Active Section ID (Defaults to Section 0.1)
   const [activeSectionId, setActiveSectionId] = useState<string>(() => {
     try {
-      const saved = localStorage.getItem('dopilot_fullstack_part0_active_section_id');
-      return saved || '0-1-http-protocol';
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['fullstack-open']?.parts?.['0'] : null;
+      const memSec = memPart?.activeSectionId?.replace(/^fullstack-/, '');
+      if (memSec && FULLSTACK_PART_0_SECTIONS.some(s => s.id === memSec)) {
+        return memSec;
+      }
+      const rawSaved = localStorage.getItem('dopilot_fullstack_part0_active_section_id');
+      const saved = rawSaved?.replace(/^fullstack-/, '');
+      if (saved && FULLSTACK_PART_0_SECTIONS.some(s => s.id === saved)) return saved;
+      return FULLSTACK_PART_0_SECTIONS[0].id;
     } catch {
-      return '0-1-http-protocol';
+      return FULLSTACK_PART_0_SECTIONS[0].id;
     }
   });
 
   // Persistent Question Index
   const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(() => {
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['fullstack-open']?.parts?.['0'] : null;
+      if (typeof memPart?.activeQuestionIdx === 'number') {
+        return memPart.activeQuestionIdx;
+      }
       const saved = localStorage.getItem('dopilot_fullstack_part0_active_q_idx');
       return saved !== null ? Number(saved) : 0;
     } catch {
@@ -148,6 +161,11 @@ export const FullstackPart0Page: React.FC = () => {
   // Persistent MCQ selected answers
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>(() => {
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['fullstack-open']?.parts?.['0'] : null;
+      if (memPart?.selectedAnswers && Object.keys(memPart.selectedAnswers).length > 0) {
+        return memPart.selectedAnswers;
+      }
       const saved = localStorage.getItem('dopilot_fullstack_part0_mcq_answers');
       return saved ? JSON.parse(saved) : {};
     } catch {
@@ -178,6 +196,11 @@ export const FullstackPart0Page: React.FC = () => {
   const [isStudyPhase, setIsStudyPhase] = useState<boolean>(() => {
     if (isReviewMode) return false;
     try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['fullstack-open']?.parts?.['0'] : null;
+      if (typeof memPart?.isStudyPhase === 'boolean') {
+        return memPart.isStudyPhase;
+      }
       const answers = JSON.parse(localStorage.getItem('dopilot_fullstack_part0_mcq_answers') || '{}');
       if (answers[taskId]) return false; // Already answered
       const savedPhase = localStorage.getItem('dopilot_fullstack_part0_study_phase');
@@ -250,37 +273,11 @@ export const FullstackPart0Page: React.FC = () => {
   });
 
   // Track whether initial mount state has been hydrated from cloud/local storage
-  const hasHydratedRef = useRef<boolean>(false);
-  useEffect(() => {
-    try {
-      const email = user?.email?.toLowerCase().trim();
-      const memPart = email ? memoryCourseState[email]?.courses?.['fullstack-open']?.parts?.['0'] : null;
-      if (memPart && (memPart.activeQuestionIdx > 0 || Object.keys(memPart.selectedAnswers || {}).length > 0)) {
-        hasHydratedRef.current = true;
-      } else if (localStorage.getItem('dopilot_fullstack_part0_active_q_idx') !== null) {
-        hasHydratedRef.current = true;
-      }
-    } catch {}
-  }, [user?.email]);
-
-  // Auto-checkpoint active location & notes phase to Supabase once hydrated
-  useEffect(() => {
-    if (hasHydratedRef.current && user?.email && !levelResult?.isFinished && !isCourseComplete) {
-      saveQuestionProgressState({
-        courseId: 'fullstack-open',
-        partNum: 0,
-        activeSectionId,
-        activeQuestionIdx,
-        selectedAnswers,
-        isStudyPhase,
-        isTimeUpWaiting,
-        targetEndTime,
-        timeLeft,
-        studentEmail: user?.email,
-        levelResult: null
-      });
-    }
-  }, [activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
+  const [isHydrated, setIsHydrated] = useState<boolean>(() => {
+    const email = user?.email?.toLowerCase().trim();
+    const memPart = email ? memoryCourseState[email]?.courses?.['fullstack-open']?.parts?.['0'] : null;
+    return Boolean(memPart && memPart.activeSectionId);
+  });
 
   useCourseQuestionResume({
     courseId: 'fullstack-open',
@@ -300,9 +297,39 @@ export const FullstackPart0Page: React.FC = () => {
     setLevelResult,
     setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete),
     onHydrated: () => {
-      hasHydratedRef.current = true;
+      setIsHydrated(true);
     }
   });
+
+  useEffect(() => {
+    try {
+      const email = user?.email?.toLowerCase().trim();
+      const memPart = email ? memoryCourseState[email]?.courses?.['fullstack-open']?.parts?.['0'] : null;
+      if (memPart && memPart.activeSectionId) {
+        setIsHydrated(true);
+      }
+    } catch {}
+  }, [user?.email]);
+
+  // Auto-checkpoint active location & notes phase to Supabase once hydrated
+  useEffect(() => {
+    if (isHydrated && user?.email && !levelResult?.isFinished && !isCourseComplete) {
+      saveQuestionProgressState({
+        courseId: 'fullstack-open',
+        partNum: 0,
+        activeSectionId,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase,
+        isTimeUpWaiting,
+        targetEndTime,
+        timeLeft,
+        studentEmail: user?.email,
+        levelResult: null,
+        forceImmediate: true
+      });
+    }
+  }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
