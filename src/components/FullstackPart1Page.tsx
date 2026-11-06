@@ -398,7 +398,36 @@ export const FullstackPart1Page: React.FC = () => {
     try {
       localStorage.setItem('dopilot_fullstack_core_last_part', '1');
     } catch {}
-  }, [activeSectionId, activeQuestionIdx]);
+
+    // Auto-checkpoint active location & notes phase to Supabase so clearing cookies preserves exact step
+    if (user?.email && !levelResult?.isFinished && !isCourseComplete) {
+      saveQuestionProgressState({
+        courseId: 'fullstack-open',
+        partNum: 1,
+        activeSectionId,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase,
+        isTimeUpWaiting,
+        targetEndTime,
+        timeLeft,
+        studentEmail: user?.email,
+        levelResult: null,
+        forceImmediate: true
+      });
+    }
+
+    try {
+      const curState = window.history.state || {};
+      if (curState.qIdx !== activeQuestionIdx || curState.secId !== activeSectionId) {
+        window.history.pushState(
+          { partNum: 1, secId: activeSectionId, qIdx: activeQuestionIdx },
+          '',
+          window.location.pathname
+        );
+      }
+    } catch {}
+  }, [activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
 
   // Ref to track latest state inside setInterval
   const stateRef = useRef({
@@ -447,6 +476,20 @@ export const FullstackPart1Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'fullstack-open',
+      partNum: 1,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime: freshEnd,
+      timeLeft: TIMER_DURATION,
+      studentEmail: user?.email,
+      levelResult: null
+    });
   };
 
   // Evaluate Level Score after the 6 compulsory questions in a level
@@ -697,6 +740,21 @@ export const FullstackPart1Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'fullstack-open',
+      partNum: 1,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx: 0,
+      selectedAnswers: updatedAnswers,
+      isStudyPhase: true,
+      isTimeUpWaiting: false,
+      targetEndTime: 0,
+      timeLeft: TIMER_DURATION,
+      studentEmail: user?.email,
+      levelResult: null,
+      forceImmediate: true
+    });
   };
 
   // Progress to the next level
@@ -733,6 +791,21 @@ export const FullstackPart1Page: React.FC = () => {
       } catch (e) {
         console.error(e);
       }
+
+      saveQuestionProgressState({
+        courseId: 'fullstack-open',
+        partNum: 1,
+        activeSectionId: nextSec.id,
+        activeQuestionIdx: 0,
+        selectedAnswers,
+        isStudyPhase: true,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: TIMER_DURATION,
+        studentEmail: user?.email,
+        levelResult: null,
+        forceImmediate: true
+      });
     } else {
       const part1Summary = getPart1OverallScore('fullstack-open', studentId);
       const isComp = hasPurchased || part1Summary.isAbove50;
@@ -833,6 +906,20 @@ export const FullstackPart1Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'fullstack-open',
+      partNum: 1,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers: updated,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime,
+      timeLeft,
+      studentEmail: user?.email,
+      levelResult: null
+    });
 
     const timeSpent = (() => {
       if (targetEndTime) {

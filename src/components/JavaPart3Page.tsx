@@ -588,6 +588,21 @@ export const JavaPart3Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'java-core',
+      partNum: 3,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx: 0,
+      selectedAnswers: updatedAnswers,
+      isStudyPhase: true,
+      isTimeUpWaiting: false,
+      targetEndTime: 0,
+      timeLeft: TIMER_DURATION,
+      studentEmail: user?.email,
+      levelResult: null,
+      forceImmediate: true
+    });
   };
 
   const handleProceedToNextLevel = () => {
@@ -645,6 +660,7 @@ export const JavaPart3Page: React.FC = () => {
       setIsCourseComplete(true);
       try {
         localStorage.setItem('dopilot_java_part3_completed', 'true');
+        localStorage.setItem('dopilot_java_core_last_part', '4');
       } catch {}
 
       saveQuestionProgressState({

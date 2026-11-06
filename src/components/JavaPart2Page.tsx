@@ -606,6 +606,21 @@ export const JavaPart2Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'java-core',
+      partNum: 2,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx: 0,
+      selectedAnswers: updatedAnswers,
+      isStudyPhase: true,
+      isTimeUpWaiting: false,
+      targetEndTime: 0,
+      timeLeft: TIMER_DURATION,
+      studentEmail: user?.email,
+      levelResult: null,
+      forceImmediate: true
+    });
   };
 
   // Progress to the next level (after Passing or after confirming Disclaimer)
@@ -664,6 +679,7 @@ export const JavaPart2Page: React.FC = () => {
       setIsCourseComplete(true);
       try {
         localStorage.setItem('dopilot_java_part2_completed', 'true');
+        localStorage.setItem('dopilot_java_core_last_part', '3');
       } catch {}
 
       saveQuestionProgressState({

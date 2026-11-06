@@ -558,15 +558,39 @@ export const CourseDetailPage: React.FC = () => {
       localStorage.setItem('dopilot_java_core_last_part', String(target));
       navigate(`/course/complete-java-programming/part-${target}`);
     } else if (isCourseFullstack) {
-      const target = isPurchased 
+      let target = isPurchased 
         ? getPostPurchaseStartingPart('fullstack-open', fullstackResumeInfo.targetPart ?? 1, studentId) 
         : (fullstackResumeInfo.targetPart ?? 0);
+
+      if (user?.email) {
+        const mem = memoryCourseState[user.email.toLowerCase().trim()]?.courses?.['fullstack-open'];
+        if (mem && mem.lastPart !== undefined) {
+          if (!isPurchased) {
+            target = 0;
+          } else if (mem.lastPart >= target) {
+            target = mem.lastPart;
+          }
+        }
+      }
+
       localStorage.setItem('dopilot_fullstack_core_last_part', String(target));
       navigate(`/course/fullstack-open/part-${target}`);
     } else if (isCourseCyber) {
-      const target = isPurchased 
+      let target = isPurchased 
         ? getPostPurchaseStartingPart('cyber-security', cyberResumeInfo.targetPart, studentId) 
         : (cyberResumeInfo.targetPart || 1);
+
+      if (user?.email) {
+        const mem = memoryCourseState[user.email.toLowerCase().trim()]?.courses?.['cyber-security'];
+        if (mem && mem.lastPart) {
+          if (!isPurchased) {
+            target = 1;
+          } else if (mem.lastPart >= target) {
+            target = mem.lastPart;
+          }
+        }
+      }
+
       localStorage.setItem('dopilot_cyber_core_last_part', String(target));
       navigate(`/course/cyber-security/part-${target}`);
     } else {

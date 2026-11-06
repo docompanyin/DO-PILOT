@@ -229,7 +229,35 @@ export const FullstackPart5Page: React.FC = () => {
     try {
       localStorage.setItem('dopilot_fullstack_core_last_part', '5');
     } catch {}
-  }, [activeSectionId, activeQuestionIdx]);
+
+    if (user?.email && !levelResult?.isFinished && !isCourseComplete) {
+      saveQuestionProgressState({
+        courseId: 'fullstack-open',
+        partNum: 5,
+        activeSectionId,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase,
+        isTimeUpWaiting,
+        targetEndTime,
+        timeLeft,
+        studentEmail: user?.email,
+        levelResult: null,
+        forceImmediate: true
+      });
+    }
+
+    try {
+      const curState = window.history.state || {};
+      if (curState.qIdx !== activeQuestionIdx || curState.secId !== activeSectionId) {
+        window.history.pushState(
+          { partNum: 5, secId: activeSectionId, qIdx: activeQuestionIdx },
+          '',
+          window.location.pathname
+        );
+      }
+    } catch {}
+  }, [activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
 
   // Ref to track latest state inside setInterval
   const stateRef = useRef({
@@ -279,6 +307,20 @@ export const FullstackPart5Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'fullstack-open',
+      partNum: 5,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime: freshEnd,
+      timeLeft: TIMER_DURATION,
+      studentEmail: user?.email,
+      levelResult: null
+    });
   };
 
   // Evaluate Level Score after the 6 compulsory questions in a level
@@ -450,6 +492,21 @@ export const FullstackPart5Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'fullstack-open',
+      partNum: 5,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx: 0,
+      selectedAnswers: updatedAnswers,
+      isStudyPhase: true,
+      isTimeUpWaiting: false,
+      targetEndTime: 0,
+      timeLeft: TIMER_DURATION,
+      studentEmail: user?.email,
+      levelResult: null,
+      forceImmediate: true
+    });
   };
 
   // Progress to the next level
@@ -486,12 +543,44 @@ export const FullstackPart5Page: React.FC = () => {
       } catch (e) {
         console.error(e);
       }
+
+      saveQuestionProgressState({
+        courseId: 'fullstack-open',
+        partNum: 5,
+        activeSectionId: nextSec.id,
+        activeQuestionIdx: 0,
+        selectedAnswers,
+        isStudyPhase: true,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: TIMER_DURATION,
+        studentEmail: user?.email,
+        levelResult: null,
+        forceImmediate: true
+      });
     } else {
       setIsCourseComplete(true);
       playTwinkleSound();
       try {
         localStorage.setItem('dopilot_fullstack_part5_completed', 'true');
+        localStorage.setItem('dopilot_fullstack_core_last_part', '6');
       } catch {}
+
+      saveQuestionProgressState({
+        courseId: 'fullstack-open',
+        partNum: 5,
+        activeSectionId: activeSection.id,
+        activeQuestionIdx,
+        selectedAnswers,
+        isStudyPhase: false,
+        isTimeUpWaiting: false,
+        targetEndTime: 0,
+        timeLeft: 30,
+        studentEmail: user?.email,
+        isCompleted: true,
+        isFinishedPart: true,
+        levelResult: null
+      });
     }
   };
 
@@ -562,6 +651,20 @@ export const FullstackPart5Page: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+
+    saveQuestionProgressState({
+      courseId: 'fullstack-open',
+      partNum: 5,
+      activeSectionId: activeSection.id,
+      activeQuestionIdx,
+      selectedAnswers: updated,
+      isStudyPhase: false,
+      isTimeUpWaiting: false,
+      targetEndTime,
+      timeLeft,
+      studentEmail: user?.email,
+      levelResult: null
+    });
     const timeSpent = (() => {
       if (targetEndTime && targetEndTime > 0) {
         const elapsed = (TIMER_DURATION * 1000 - Math.max(0, targetEndTime - Date.now())) / 1000;
@@ -780,7 +883,12 @@ export const FullstackPart5Page: React.FC = () => {
             <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
               <button
                 type="button"
-                onClick={() => navigate('/course/fullstack-open/part-6')}
+                onClick={() => {
+                try {
+                  localStorage.setItem('dopilot_fullstack_core_last_part', '6');
+                } catch {}
+                navigate('/course/fullstack-open/part-6');
+              }}
                 className="py-2.5 px-6 rounded-xl bg-primary hover:bg-white text-ink font-jakarta font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
               >
                 <span>Continue to Part 6: Redux &amp; State</span>
