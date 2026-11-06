@@ -524,16 +524,6 @@ export const PythonPart1Page: React.FC = () => {
   const remainingLevelQuestions = Math.max(0, totalLevelQuestions - currentLevelQuestionNumber);
 
   useEffect(() => {
-    try {
-      const email = user?.email?.toLowerCase().trim();
-      const memPart = email ? memoryCourseState[email]?.courses?.['python-core']?.parts?.['1'] : null;
-      if (memPart && memPart.activeSectionId) {
-        setIsHydrated(true);
-      }
-    } catch {}
-  }, [user?.email]);
-
-  useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     document.title = `Do Pilot - ${activeSection.title}`;
     try {
@@ -558,6 +548,29 @@ export const PythonPart1Page: React.FC = () => {
       });
     }
   }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
+
+  // Unmount checkpoint: flush progress immediately when student navigates away or presses Back
+  useEffect(() => {
+    return () => {
+      const email = user?.email;
+      if (email && isHydrated && !levelResult?.isFinished && !isCourseComplete) {
+        saveQuestionProgressState({
+          courseId: 'python-core',
+          partNum: 1,
+          activeSectionId,
+          activeQuestionIdx,
+          selectedAnswers,
+          isStudyPhase,
+          isTimeUpWaiting,
+          targetEndTime,
+          timeLeft,
+          studentEmail: email,
+          levelResult: null,
+          forceImmediate: true
+        });
+      }
+    };
+  }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, selectedAnswers, user?.email]);
 
   // Ref to track latest state inside setInterval
   const stateRef = useRef({

@@ -301,16 +301,6 @@ export const FullstackPart0Page: React.FC = () => {
     }
   });
 
-  useEffect(() => {
-    try {
-      const email = user?.email?.toLowerCase().trim();
-      const memPart = email ? memoryCourseState[email]?.courses?.['fullstack-open']?.parts?.['0'] : null;
-      if (memPart && memPart.activeSectionId) {
-        setIsHydrated(true);
-      }
-    } catch {}
-  }, [user?.email]);
-
   // Auto-checkpoint active location & notes phase to Supabase once hydrated
   useEffect(() => {
     if (isHydrated && user?.email && !levelResult?.isFinished && !isCourseComplete) {
@@ -330,6 +320,29 @@ export const FullstackPart0Page: React.FC = () => {
       });
     }
   }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
+
+  // Unmount checkpoint: flush progress immediately when student navigates away or presses Back
+  useEffect(() => {
+    return () => {
+      const email = user?.email;
+      if (email && isHydrated && !levelResult?.isFinished && !isCourseComplete) {
+        saveQuestionProgressState({
+          courseId: 'fullstack-open',
+          partNum: 0,
+          activeSectionId,
+          activeQuestionIdx,
+          selectedAnswers,
+          isStudyPhase,
+          isTimeUpWaiting,
+          targetEndTime,
+          timeLeft,
+          studentEmail: email,
+          levelResult: null,
+          forceImmediate: true
+        });
+      }
+    };
+  }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, selectedAnswers, user?.email]);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);

@@ -203,11 +203,17 @@ export default async function handler(req, res) {
                     ...(inPart.selectedAnswers || {})
                   };
 
-                  const inHasValidLocation = Boolean(inPart.activeSectionId) || (typeof inPart.activeQuestionIdx === 'number');
-                  const exHasValidLocation = Boolean(exPart.activeSectionId) || (typeof exPart.activeQuestionIdx === 'number');
+                  const inAnswersCount = Object.keys(inPart.selectedAnswers || {}).length;
+                  const exAnswersCount = Object.keys(exPart.selectedAnswers || {}).length;
 
-                  // If incoming part lacks any valid section/question location but existing has one, retain existing location
-                  if (!inHasValidLocation && exHasValidLocation) {
+                  const inIsInitialSec = !inPart.activeSectionId || inPart.activeSectionId === '1-1-getting-started' || inPart.activeSectionId === '0-1-http-protocol' || inPart.activeSectionId === '1-1-overview' || inPart.activeSectionId.endsWith('-1') || inPart.activeSectionId.endsWith('.1');
+                  const inHasRealProgress = !inIsInitialSec || (inPart.activeQuestionIdx || 0) > 0 || inAnswersCount > 0 || inPart.isCompleted || inPart.isFinishedPart;
+
+                  const exIsInitialSec = !exPart.activeSectionId || exPart.activeSectionId === '1-1-getting-started' || exPart.activeSectionId === '0-1-http-protocol' || exPart.activeSectionId === '1-1-overview' || exPart.activeSectionId.endsWith('-1') || exPart.activeSectionId.endsWith('.1');
+                  const exHasRealProgress = !exIsInitialSec || (exPart.activeQuestionIdx || 0) > 0 || exAnswersCount > 0 || exPart.isCompleted || exPart.isFinishedPart;
+
+                  // Never overwrite real saved progress with an unhydrated mount default
+                  if (!inHasRealProgress && exHasRealProgress) {
                     mergedParts[pStr] = {
                       ...exPart,
                       selectedAnswers: mergedAnswers

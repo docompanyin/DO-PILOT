@@ -260,10 +260,17 @@ export function mergeStudentProgressDocs(
             ...(inPart.selectedAnswers || {})
           };
 
-          const inHasValidLocation = Boolean(inPart.activeSectionId) || (typeof inPart.activeQuestionIdx === 'number');
-          const exHasValidLocation = Boolean(exPart.activeSectionId) || (typeof exPart.activeQuestionIdx === 'number');
+          const inAnswersCount = Object.keys(inPart.selectedAnswers || {}).length;
+          const exAnswersCount = Object.keys(exPart.selectedAnswers || {}).length;
 
-          if (!inHasValidLocation && exHasValidLocation) {
+          const inIsInitialSec = !inPart.activeSectionId || inPart.activeSectionId === '1-1-getting-started' || inPart.activeSectionId === '0-1-http-protocol' || inPart.activeSectionId === '1-1-overview' || inPart.activeSectionId.endsWith('-1') || inPart.activeSectionId.endsWith('.1');
+          const inHasRealProgress = !inIsInitialSec || (inPart.activeQuestionIdx || 0) > 0 || inAnswersCount > 0 || inPart.isCompleted || inPart.isFinishedPart;
+
+          const exIsInitialSec = !exPart.activeSectionId || exPart.activeSectionId === '1-1-getting-started' || exPart.activeSectionId === '0-1-http-protocol' || exPart.activeSectionId === '1-1-overview' || exPart.activeSectionId.endsWith('-1') || exPart.activeSectionId.endsWith('.1');
+          const exHasRealProgress = !exIsInitialSec || (exPart.activeQuestionIdx || 0) > 0 || exAnswersCount > 0 || exPart.isCompleted || exPart.isFinishedPart;
+
+          // Never overwrite real saved progress with an unhydrated mount default
+          if (!inHasRealProgress && exHasRealProgress) {
             mergedParts[pStr] = {
               ...exPart,
               selectedAnswers: mergedAnswers
@@ -319,24 +326,7 @@ export const flushCloudSync = async (email: string) => {
   hydrateFailureAndLockState(state);
 
   try {
-    // 1. Primary: Save via authenticated server-side sync endpoint with keepalive
-    try {
-      const resp = await fetch('/api/student-sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: cleanEmail,
-          type: 'progress',
-          content: state
-        }),
-        keepalive: true
-      });
-      if (resp.ok) return;
-    } catch (netErr) {
-      // Fallback for offline dev
-    }
-
-    // 2. Direct fallback with authoritative merge
+    // 1. Primary: Save directly to Supabase with authoritative merge to guarantee zero loss
     const docId = getStudentDocId(cleanEmail);
     let finalPayload = state;
     try {
@@ -355,6 +345,21 @@ export const flushCloudSync = async (email: string) => {
       content: finalPayload,
       updated_at: new Date().toISOString()
     });
+
+    // 2. Secondary: Also broadcast to server endpoint if available
+    try {
+      const syncEndpoint = typeof window !== 'undefined' ? `${window.location.origin}/api/student-sync` : '/api/student-sync';
+      await fetch(syncEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: cleanEmail,
+          type: 'progress',
+          content: finalPayload
+        }),
+        keepalive: true
+      });
+    } catch {}
   } catch (e) {
     console.warn('Background course progress cloud sync error:', e);
   }
@@ -778,8 +783,11 @@ export const saveQuestionProgressState = (params: {
   // Any save with 0 index and empty answers on the INITIAL section is an unhydrated component mount effect.
   // BLOCK IT from overwriting localStorage and Supabase!
   const isInitialSec = !activeSectionId || activeSectionId === '1-1-getting-started' || activeSectionId === '0-1-http-protocol' || activeSectionId === '1-1-overview' || activeSectionId.endsWith('-1') || activeSectionId.endsWith('.1');
-  if (!isExplicitReset && !isHydrated && activeQuestionIdx === 0 && Object.keys(selectedAnswers || {}).length === 0 && isInitialSec && hasExistingProgress) {
-    console.warn(`[SyncGuard] Blocked premature overwrite of unhydrated ${courseId} Part ${partNum} progress at Q${(existingPart?.activeQuestionIdx ?? 0) + 1}`);
+  const exIsInitialSec = !existingPart?.activeSectionId || existingPart.activeSectionId === '1-1-getting-started' || existingPart.activeSectionId === '0-1-http-protocol' || existingPart.activeSectionId === '1-1-overview' || existingPart.activeSectionId.endsWith('-1') || existingPart.activeSectionId.endsWith('.1');
+  const hasExistingRealProgress = Boolean(existingPart && (!exIsInitialSec || existingPart.activeQuestionIdx > 0 || hasExistingAnswers || existingPart.isCompleted || existingPart.isFinishedPart));
+
+  if (!isExplicitReset && isInitialSec && activeQuestionIdx === 0 && Object.keys(selectedAnswers || {}).length === 0 && hasExistingRealProgress) {
+    console.warn(`[SyncGuard] Blocked premature overwrite of ${courseId} Part ${partNum} saved progress (${existingPart?.activeSectionId} Q${(existingPart?.activeQuestionIdx ?? 0) + 1}) with initial default`);
     return;
   }
 
@@ -1084,15 +1092,22 @@ export const restoreAllStudentCourseProgressFromCloud = async (
                 // Check if in-memory part is newer than cloud snapshot
                 const memTime = memPart.updatedAt ? new Date(memPart.updatedAt).getTime() : 0;
                 const cloudTime = cPart.updatedAt ? new Date(cPart.updatedAt).getTime() : 0;
-                const hasMemRealProgress = (memPart.activeQuestionIdx || 0) > 0 || Object.keys(memPart.selectedAnswers || {}).length > 0;
-                const hasCloudRealProgress = (cPart.activeQuestionIdx || 0) > 0 || Object.keys(cPart.selectedAnswers || {}).length > 0;
+                const memIsInit = !memPart.activeSectionId || memPart.activeSectionId === '1-1-getting-started' || memPart.activeSectionId === '0-1-http-protocol' || memPart.activeSectionId === '1-1-overview' || memPart.activeSectionId.endsWith('-1') || memPart.activeSectionId.endsWith('.1');
+                const cloudIsInit = !cPart.activeSectionId || cPart.activeSectionId === '1-1-getting-started' || cPart.activeSectionId === '0-1-http-protocol' || cPart.activeSectionId === '1-1-overview' || cPart.activeSectionId.endsWith('-1') || cPart.activeSectionId.endsWith('.1');
+                const hasMemRealProgress = !memIsInit || (memPart.activeQuestionIdx || 0) > 0 || Object.keys(memPart.selectedAnswers || {}).length > 0;
+                const hasCloudRealProgress = !cloudIsInit || (cPart.activeQuestionIdx || 0) > 0 || Object.keys(cPart.selectedAnswers || {}).length > 0;
                 const isMemoryNewer = memTime > cloudTime && (hasMemRealProgress || !hasCloudRealProgress);
 
                 memPart.selectedAnswers = { ...(cPart.selectedAnswers || {}), ...(memPart.selectedAnswers || {}) };
                 if (!isMemoryNewer) {
-                  memPart.activeQuestionIdx = Math.max(memPart.activeQuestionIdx || 0, cPart.activeQuestionIdx || 0);
-                  if (!memPart.activeSectionId && cPart.activeSectionId) {
+                  if (cPart.activeSectionId) {
                     memPart.activeSectionId = cPart.activeSectionId;
+                  }
+                  if (typeof cPart.activeQuestionIdx === 'number') {
+                    memPart.activeQuestionIdx = cPart.activeQuestionIdx;
+                  }
+                  if (typeof cPart.isStudyPhase === 'boolean') {
+                    memPart.isStudyPhase = cPart.isStudyPhase;
                   }
                   // Only restore levelResult if section matches active section
                   if (!memPart.levelResult && cPart.levelResult) {
