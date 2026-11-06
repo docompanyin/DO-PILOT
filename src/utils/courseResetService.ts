@@ -1711,6 +1711,13 @@ export const clearStudentCourseLockKeys = (
         localStorage.setItem(`dopilot_fullstack_part${nextPart}_study_phase`, 'true');
         localStorage.removeItem(`dopilot_fullstack_part${nextPart}_time_up`);
         localStorage.removeItem(`dopilot_fullstack_part${nextPart}_level_result`);
+        localStorage.setItem('dopilot_fullstack_core_last_part', String(nextPart));
+      }
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('dopilot_fullstack_part') || key.startsWith('dopilot_fullstack_attempt_')) && idList.some(id => key.includes(id)) && key.includes('attempt')) {
+          localStorage.setItem(key, '1');
+        }
       }
     } else if (normCourse.includes('cyber')) {
       idList.forEach(id => {

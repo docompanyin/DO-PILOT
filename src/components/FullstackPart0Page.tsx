@@ -219,7 +219,8 @@ export const FullstackPart0Page: React.FC = () => {
   const [isCourseComplete, setIsCourseComplete] = useState<boolean>(() => {
     try {
       return localStorage.getItem('dopilot_fullstack_part0_completed') === 'true' ||
-             localStorage.getItem('dopilot_fullstack_part0_finished') === 'true';
+             localStorage.getItem('dopilot_fullstack_part0_finished') === 'true' ||
+             isPart1Finished('fullstack-open', studentId);
     } catch {
       return false;
     }

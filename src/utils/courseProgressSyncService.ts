@@ -1332,7 +1332,12 @@ export function useCourseQuestionResume(params: {
       const answersMap = saved.selectedAnswers || {};
       const hasAnswer = Boolean(
         answersMap[exactKey] ||
-        Object.keys(answersMap).some(k => k.startsWith(`${secId}-`) && (k.endsWith(`-${qIdxStr}`) || k === exactKey))
+        answersMap[`fullstack-${p.partNum}-${secId}-${qIdxStr}`] ||
+        Object.keys(answersMap).some(k =>
+          (k === exactKey) ||
+          (k.startsWith(`${secId}-`) && k.endsWith(`-${qIdxStr}`)) ||
+          (k.includes(secId) && (k.endsWith(`-${qIdxStr}`) || k.includes(`-${qIdxStr}-v`)))
+        )
       );
 
       if (curLocalStudy === 'false' || hasAnswer) {

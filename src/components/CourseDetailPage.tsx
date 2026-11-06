@@ -183,14 +183,13 @@ const getFullStackResumeInfo = (isPurchased = false, studentId?: string): FullSt
   try {
     const completedParts: number[] = [];
     for (let i = 0; i <= 13; i++) {
-      if (localStorage.getItem(`dopilot_fullstack_part${i}_completed`) === 'true') {
-        const decision = getPostPurchaseDecision('fullstack-open', studentId);
-        if (i === 1 && !getPart1OverallScore('fullstack-open', studentId).isAbove50 && decision !== 'continue_to_part2') {
-          // Score is below 50% and user hasn't chosen to continue to Part 2, not completed
-        } else {
-          completedParts.push(i);
-        }
+      let isComp = false;
+      if (i === 0) {
+        isComp = isPart1Finished('fullstack-open', studentId);
+      } else {
+        isComp = localStorage.getItem(`dopilot_fullstack_part${i}_completed`) === 'true';
       }
+      if (isComp) completedParts.push(i);
     }
 
     const allParts = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -208,8 +207,10 @@ const getFullStackResumeInfo = (isPurchased = false, studentId?: string): FullSt
     }
 
     let targetPart = firstUncompletedPart;
-    if (isPurchased && targetPart <= 2) {
+    if (isPurchased && targetPart <= 1) {
       targetPart = getPostPurchaseStartingPart('fullstack-open', targetPart, studentId);
+    } else if (!isPurchased) {
+      targetPart = 0;
     }
 
     const rawLastVisited = localStorage.getItem('dopilot_fullstack_core_last_part');
@@ -237,8 +238,8 @@ const getFullStackResumeInfo = (isPurchased = false, studentId?: string): FullSt
       status: 'not_started',
       completedCount: 0,
       completedParts: [],
-      buttonText: isPurchased ? 'Start Learning' : (fallbackTarget === 0 ? 'Try Part 0 Free' : 'Start Part 2'),
-      heroButtonText: isPurchased ? 'Start Learning' : (fallbackTarget === 0 ? 'Try Now — Start Part 0 Free' : 'Start Part 2')
+      buttonText: isPurchased ? 'Start Learning' : (fallbackTarget === 0 ? 'Try Part 0 Free' : 'Start Part 1'),
+      heroButtonText: isPurchased ? 'Start Learning' : (fallbackTarget === 0 ? 'Try Now — Start Part 0 Free' : 'Start Part 1')
     };
   }
 };
@@ -557,7 +558,7 @@ export const CourseDetailPage: React.FC = () => {
       navigate(`/course/complete-java-programming/part-${target}`);
     } else if (isCourseFullstack) {
       const target = isPurchased 
-        ? getPostPurchaseStartingPart('fullstack-open', fullstackResumeInfo.targetPart ?? 2, studentId) 
+        ? getPostPurchaseStartingPart('fullstack-open', fullstackResumeInfo.targetPart ?? 1, studentId) 
         : (fullstackResumeInfo.targetPart ?? 0);
       localStorage.setItem('dopilot_fullstack_core_last_part', String(target));
       navigate(`/course/fullstack-open/part-${target}`);
