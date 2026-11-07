@@ -69,6 +69,7 @@ import { CyberSecurityPartPage } from './components/CyberSecurityPartPage';
 import { CyberSecurityPart1Page } from './components/CyberSecurityPart1Page';
 import { CoursePaidGuard } from './components/checkout/CoursePaidGuard';
 import { CourseAuthGuard } from './components/auth/CourseAuthGuard';
+import { CourseResumeGate } from './components/CourseResumeGate';
 import { ScrollManager } from './components/ScrollManager';
 import { NavigationManager } from './components/NavigationManager';
 import { SessionReplacedModal } from './components/auth/SessionReplacedModal';
@@ -145,26 +146,47 @@ const MainHome: React.FC = () => {
   );
 };
 
+const getCanonicalCourseId = (courseId?: string) => {
+  if (!courseId) return 'python-core';
+  if (courseId.includes('fullstack') || courseId === 'fullstack-open') return 'fullstack-open';
+  if (courseId.includes('java') || courseId === 'complete-java-programming' || courseId === 'java-core') return 'java-core';
+  if (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core') return 'cyber-security';
+  return 'python-core';
+};
+
 const Part0RouteWrapper: React.FC = () => {
-  return <FullstackPart0Page />;
+  return (
+    <CourseResumeGate courseId="fullstack-open" partNum={0}>
+      <FullstackPart0Page />
+    </CourseResumeGate>
+  );
 };
 
 const Part1RouteWrapper: React.FC = () => {
   const { courseId } = useParams<{ courseId: string }>();
+  let cid = 'python-core';
+  let content = <PythonPart1Page />;
+
   if (courseId && (courseId.includes('fullstack') || courseId === 'fullstack-open')) {
-    return (
+    cid = 'fullstack-open';
+    content = (
       <CoursePaidGuard partNum={1} courseId="fullstack-open">
         <FullstackPart1Page />
       </CoursePaidGuard>
     );
+  } else if (courseId && (courseId.includes('java') || courseId === 'complete-java-programming' || courseId === 'java-core')) {
+    cid = 'java-core';
+    content = <JavaPart1Page />;
+  } else if (courseId && (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core')) {
+    cid = 'cyber-security';
+    content = <CyberSecurityPart1Page />;
   }
-  if (courseId && (courseId.includes('java') || courseId === 'complete-java-programming' || courseId === 'java-core')) {
-    return <JavaPart1Page />;
-  }
-  if (courseId && (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core')) {
-    return <CyberSecurityPart1Page />;
-  }
-  return <PythonPart1Page />;
+
+  return (
+    <CourseResumeGate courseId={cid} partNum={1}>
+      {content}
+    </CourseResumeGate>
+  );
 };
 
 const Part2RouteWrapper: React.FC = () => {
@@ -177,7 +199,11 @@ const Part2RouteWrapper: React.FC = () => {
   } else if (courseId && (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core')) {
     content = <CyberSecurityPartPage partNumber={2} />;
   }
-  return <CoursePaidGuard partNum={2} courseId={courseId}>{content}</CoursePaidGuard>;
+  return (
+    <CourseResumeGate courseId={getCanonicalCourseId(courseId)} partNum={2}>
+      <CoursePaidGuard partNum={2} courseId={courseId}>{content}</CoursePaidGuard>
+    </CourseResumeGate>
+  );
 };
 
 const Part3RouteWrapper: React.FC = () => {
@@ -190,7 +216,11 @@ const Part3RouteWrapper: React.FC = () => {
   } else if (courseId && (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core')) {
     content = <CyberSecurityPartPage partNumber={3} />;
   }
-  return <CoursePaidGuard partNum={3} courseId={courseId}>{content}</CoursePaidGuard>;
+  return (
+    <CourseResumeGate courseId={getCanonicalCourseId(courseId)} partNum={3}>
+      <CoursePaidGuard partNum={3} courseId={courseId}>{content}</CoursePaidGuard>
+    </CourseResumeGate>
+  );
 };
 
 const Part4RouteWrapper: React.FC = () => {
@@ -203,7 +233,11 @@ const Part4RouteWrapper: React.FC = () => {
   } else if (courseId && (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core')) {
     content = <CyberSecurityPartPage partNumber={4} />;
   }
-  return <CoursePaidGuard partNum={4} courseId={courseId}>{content}</CoursePaidGuard>;
+  return (
+    <CourseResumeGate courseId={getCanonicalCourseId(courseId)} partNum={4}>
+      <CoursePaidGuard partNum={4} courseId={courseId}>{content}</CoursePaidGuard>
+    </CourseResumeGate>
+  );
 };
 
 const Part5RouteWrapper: React.FC = () => {
@@ -216,7 +250,11 @@ const Part5RouteWrapper: React.FC = () => {
   } else if (courseId && (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core')) {
     content = <CyberSecurityPartPage partNumber={5} />;
   }
-  return <CoursePaidGuard partNum={5} courseId={courseId}>{content}</CoursePaidGuard>;
+  return (
+    <CourseResumeGate courseId={getCanonicalCourseId(courseId)} partNum={5}>
+      <CoursePaidGuard partNum={5} courseId={courseId}>{content}</CoursePaidGuard>
+    </CourseResumeGate>
+  );
 };
 
 const Part6RouteWrapper: React.FC = () => {
@@ -229,7 +267,11 @@ const Part6RouteWrapper: React.FC = () => {
   } else if (courseId && (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core')) {
     content = <CyberSecurityPartPage partNumber={6} />;
   }
-  return <CoursePaidGuard partNum={6} courseId={courseId}>{content}</CoursePaidGuard>;
+  return (
+    <CourseResumeGate courseId={getCanonicalCourseId(courseId)} partNum={6}>
+      <CoursePaidGuard partNum={6} courseId={courseId}>{content}</CoursePaidGuard>
+    </CourseResumeGate>
+  );
 };
 
 const Part7RouteWrapper: React.FC = () => {
@@ -242,7 +284,11 @@ const Part7RouteWrapper: React.FC = () => {
   } else if (courseId && (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core')) {
     content = <CyberSecurityPartPage partNumber={7} />;
   }
-  return <CoursePaidGuard partNum={7} courseId={courseId}>{content}</CoursePaidGuard>;
+  return (
+    <CourseResumeGate courseId={getCanonicalCourseId(courseId)} partNum={7}>
+      <CoursePaidGuard partNum={7} courseId={courseId}>{content}</CoursePaidGuard>
+    </CourseResumeGate>
+  );
 };
 
 const Part8RouteWrapper: React.FC = () => {
@@ -255,7 +301,11 @@ const Part8RouteWrapper: React.FC = () => {
   } else if (courseId && (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core')) {
     content = <CyberSecurityPartPage partNumber={8} />;
   }
-  return <CoursePaidGuard partNum={8} courseId={courseId}>{content}</CoursePaidGuard>;
+  return (
+    <CourseResumeGate courseId={getCanonicalCourseId(courseId)} partNum={8}>
+      <CoursePaidGuard partNum={8} courseId={courseId}>{content}</CoursePaidGuard>
+    </CourseResumeGate>
+  );
 };
 
 const Part9RouteWrapper: React.FC = () => {
@@ -268,7 +318,11 @@ const Part9RouteWrapper: React.FC = () => {
   } else if (courseId && (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core')) {
     content = <CyberSecurityPartPage partNumber={9} />;
   }
-  return <CoursePaidGuard partNum={9} courseId={courseId}>{content}</CoursePaidGuard>;
+  return (
+    <CourseResumeGate courseId={getCanonicalCourseId(courseId)} partNum={9}>
+      <CoursePaidGuard partNum={9} courseId={courseId}>{content}</CoursePaidGuard>
+    </CourseResumeGate>
+  );
 };
 
 const Part10RouteWrapper: React.FC = () => {
@@ -281,7 +335,11 @@ const Part10RouteWrapper: React.FC = () => {
   } else if (courseId && (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core')) {
     content = <CyberSecurityPartPage partNumber={10} />;
   }
-  return <CoursePaidGuard partNum={10} courseId={courseId}>{content}</CoursePaidGuard>;
+  return (
+    <CourseResumeGate courseId={getCanonicalCourseId(courseId)} partNum={10}>
+      <CoursePaidGuard partNum={10} courseId={courseId}>{content}</CoursePaidGuard>
+    </CourseResumeGate>
+  );
 };
 
 const Part11RouteWrapper: React.FC = () => {
@@ -294,7 +352,11 @@ const Part11RouteWrapper: React.FC = () => {
   } else if (courseId && (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core')) {
     content = <CyberSecurityPartPage partNumber={11} />;
   }
-  return <CoursePaidGuard partNum={11} courseId={courseId}>{content}</CoursePaidGuard>;
+  return (
+    <CourseResumeGate courseId={getCanonicalCourseId(courseId)} partNum={11}>
+      <CoursePaidGuard partNum={11} courseId={courseId}>{content}</CoursePaidGuard>
+    </CourseResumeGate>
+  );
 };
 
 const Part12RouteWrapper: React.FC = () => {
@@ -307,7 +369,11 @@ const Part12RouteWrapper: React.FC = () => {
   } else if (courseId && (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core')) {
     content = <CyberSecurityPartPage partNumber={12} />;
   }
-  return <CoursePaidGuard partNum={12} courseId={courseId}>{content}</CoursePaidGuard>;
+  return (
+    <CourseResumeGate courseId={getCanonicalCourseId(courseId)} partNum={12}>
+      <CoursePaidGuard partNum={12} courseId={courseId}>{content}</CoursePaidGuard>
+    </CourseResumeGate>
+  );
 };
 
 const Part13RouteWrapper: React.FC = () => {
@@ -320,7 +386,11 @@ const Part13RouteWrapper: React.FC = () => {
   } else if (courseId && (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core')) {
     content = <CyberSecurityPartPage partNumber={13} />;
   }
-  return <CoursePaidGuard partNum={13} courseId={courseId}>{content}</CoursePaidGuard>;
+  return (
+    <CourseResumeGate courseId={getCanonicalCourseId(courseId)} partNum={13}>
+      <CoursePaidGuard partNum={13} courseId={courseId}>{content}</CoursePaidGuard>
+    </CourseResumeGate>
+  );
 };
 
 const Part14RouteWrapper: React.FC = () => {
@@ -331,7 +401,11 @@ const Part14RouteWrapper: React.FC = () => {
   } else if (courseId && (courseId.includes('cyber') || courseId === 'cyber-security' || courseId === 'cyber-security-core')) {
     content = <CyberSecurityPartPage partNumber={14} />;
   }
-  return <CoursePaidGuard partNum={14} courseId={courseId}>{content}</CoursePaidGuard>;
+  return (
+    <CourseResumeGate courseId={getCanonicalCourseId(courseId)} partNum={14}>
+      <CoursePaidGuard partNum={14} courseId={courseId}>{content}</CoursePaidGuard>
+    </CourseResumeGate>
+  );
 };
 
 const SessionReplacedModalHost: React.FC = () => {
@@ -363,8 +437,8 @@ export const App: React.FC = () => {
             <Route path="/admin/dashboard" element={<AdminPanel />} />
             <Route path="/admin/emergency-recovery" element={<EmergencyRecoveryPage />} />
             {/* Java Core Question Routes (Protected by CourseAuthGuard) */}
-            <Route path="/course/complete-java-programming/part-1" element={<CourseAuthGuard><JavaPart1Page /></CourseAuthGuard>} />
-            <Route path="/course/java-core/part-1" element={<CourseAuthGuard><JavaPart1Page /></CourseAuthGuard>} />
+            <Route path="/course/complete-java-programming/part-1" element={<CourseAuthGuard><CourseResumeGate courseId="java-core" partNum={1}><JavaPart1Page /></CourseResumeGate></CourseAuthGuard>} />
+            <Route path="/course/java-core/part-1" element={<CourseAuthGuard><CourseResumeGate courseId="java-core" partNum={1}><JavaPart1Page /></CourseResumeGate></CourseAuthGuard>} />
             <Route path="/course/complete-java-programming/part-2" element={<CourseAuthGuard><CoursePaidGuard partNum={2} courseId="java-core"><JavaPart2Page /></CoursePaidGuard></CourseAuthGuard>} />
             <Route path="/course/java-core/part-2" element={<CourseAuthGuard><CoursePaidGuard partNum={2} courseId="java-core"><JavaPart2Page /></CoursePaidGuard></CourseAuthGuard>} />
             <Route path="/course/complete-java-programming/part-3" element={<CourseAuthGuard><CoursePaidGuard partNum={3} courseId="java-core"><JavaPart3Page /></CoursePaidGuard></CourseAuthGuard>} />
@@ -393,7 +467,7 @@ export const App: React.FC = () => {
             <Route path="/course/java-core/part-14" element={<CourseAuthGuard><CoursePaidGuard partNum={14} courseId="java-core"><JavaPart14Page /></CoursePaidGuard></CourseAuthGuard>} />
 
             {/* Full Stack Open Question Routes (Protected by CourseAuthGuard) */}
-            <Route path="/course/fullstack-open/part-0" element={<CourseAuthGuard><FullstackPart0Page /></CourseAuthGuard>} />
+            <Route path="/course/fullstack-open/part-0" element={<CourseAuthGuard><CourseResumeGate courseId="fullstack-open" partNum={0}><FullstackPart0Page /></CourseResumeGate></CourseAuthGuard>} />
             <Route path="/course/fullstack-open/part-1" element={<CourseAuthGuard><CoursePaidGuard partNum={1} courseId="fullstack-open"><FullstackPart1Page /></CoursePaidGuard></CourseAuthGuard>} />
             <Route path="/course/fullstack-open/part-2" element={<CourseAuthGuard><CoursePaidGuard partNum={2} courseId="fullstack-open"><FullstackPart2Page /></CoursePaidGuard></CourseAuthGuard>} />
             <Route path="/course/fullstack-open/part-3" element={<CourseAuthGuard><CoursePaidGuard partNum={3} courseId="fullstack-open"><FullstackPart3Page /></CoursePaidGuard></CourseAuthGuard>} />
@@ -409,13 +483,13 @@ export const App: React.FC = () => {
             <Route path="/course/fullstack-open/part-13" element={<CourseAuthGuard><CoursePaidGuard partNum={13} courseId="fullstack-open"><FullstackPart13Page /></CoursePaidGuard></CourseAuthGuard>} />
 
             {/* Cyber Security Question Routes (Protected by CourseAuthGuard) */}
-            <Route path="/course/cyber-security/part-1" element={<CourseAuthGuard><CyberSecurityPart1Page /></CourseAuthGuard>} />
-            <Route path="/course/cyber-security-core/part-1" element={<CourseAuthGuard><CyberSecurityPart1Page /></CourseAuthGuard>} />
+            <Route path="/course/cyber-security/part-1" element={<CourseAuthGuard><CourseResumeGate courseId="cyber-security" partNum={1}><CyberSecurityPart1Page /></CourseResumeGate></CourseAuthGuard>} />
+            <Route path="/course/cyber-security-core/part-1" element={<CourseAuthGuard><CourseResumeGate courseId="cyber-security" partNum={1}><CyberSecurityPart1Page /></CourseResumeGate></CourseAuthGuard>} />
             <Route path="/course/cyber-security/part-:partNum" element={<CourseAuthGuard><CoursePaidGuard partNum={2} courseId="cyber-security"><CyberSecurityPartPage /></CoursePaidGuard></CourseAuthGuard>} />
             <Route path="/course/cyber-security-core/part-:partNum" element={<CourseAuthGuard><CoursePaidGuard partNum={2} courseId="cyber-security"><CyberSecurityPartPage /></CoursePaidGuard></CourseAuthGuard>} />
 
             {/* Python Core Direct Question Routes (Protected by CourseAuthGuard) */}
-            <Route path="/course/python-core/part-1" element={<CourseAuthGuard><PythonPart1Page /></CourseAuthGuard>} />
+            <Route path="/course/python-core/part-1" element={<CourseAuthGuard><CourseResumeGate courseId="python-core" partNum={1}><PythonPart1Page /></CourseResumeGate></CourseAuthGuard>} />
             <Route path="/course/python-core/part-2" element={<CourseAuthGuard><CoursePaidGuard partNum={2} courseId="python-core"><PythonPart2Page /></CoursePaidGuard></CourseAuthGuard>} />
             <Route path="/course/python-core/part-3" element={<CourseAuthGuard><CoursePaidGuard partNum={3} courseId="python-core"><PythonPart3Page /></CoursePaidGuard></CourseAuthGuard>} />
             <Route path="/course/python-core/part-4" element={<CourseAuthGuard><CoursePaidGuard partNum={4} courseId="python-core"><PythonPart4Page /></CoursePaidGuard></CourseAuthGuard>} />

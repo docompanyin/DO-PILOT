@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { restoreStudentTelemetryFromCloud } from './studentTelemetryService';
+import { saveCheckpointActive } from './courseCheckpointService';
 
 export interface LevelResultRecord {
   isFinished: boolean;
@@ -892,6 +893,29 @@ export const saveQuestionProgressState = (params: {
 
   studentState.updatedAt = new Date().toISOString();
   queueCloudSync(cleanEmail, forceImmediate);
+
+  // Centralized Cloud Checkpoint: Active awaited save with atomic revision & idempotency
+  saveCheckpointActive(cleanEmail, {
+    courseId,
+    partNum,
+    activeSectionId,
+    activeQuestionIdx,
+    isStudyPhase,
+    isTimeUpWaiting,
+    targetEndTime,
+    timeLeft,
+    selectedAnswers: { ...selectedAnswers },
+    levelResult: levelResult || null,
+    attemptCounts: {},
+    consecutiveFailures: studentState.consecutiveFailures || {},
+    disclaimerConfirmed: true,
+    exemptSections: studentState.exemptSections || {},
+    isCompleted: Boolean(isCompleted),
+    isFinishedPart: Boolean(isFinishedPart),
+    certificates: studentState.certificates || {},
+    postPurchaseDecisions: studentState.postPurchaseDecisions || {},
+    lastPart: courseRec.lastPart || partNum
+  });
 };
 
 /**
@@ -968,6 +992,29 @@ export const saveCoursePartCompletion = (
 
   studentState.updatedAt = new Date().toISOString();
   queueCloudSync(cleanEmail, true);
+
+  // Centralized Cloud Checkpoint: Active awaited save with atomic revision
+  saveCheckpointActive(cleanEmail, {
+    courseId,
+    partNum,
+    activeSectionId: studentState.courses[courseId]?.parts?.[pKey]?.activeSectionId || '',
+    activeQuestionIdx: studentState.courses[courseId]?.parts?.[pKey]?.activeQuestionIdx || 0,
+    isStudyPhase: studentState.courses[courseId]?.parts?.[pKey]?.isStudyPhase ?? true,
+    isTimeUpWaiting: false,
+    targetEndTime: 0,
+    timeLeft: 30,
+    selectedAnswers: studentState.courses[courseId]?.parts?.[pKey]?.selectedAnswers || {},
+    levelResult: studentState.courses[courseId]?.parts?.[pKey]?.levelResult || null,
+    attemptCounts: {},
+    consecutiveFailures: studentState.consecutiveFailures || {},
+    disclaimerConfirmed: true,
+    exemptSections: studentState.exemptSections || {},
+    isCompleted: true,
+    isFinishedPart: true,
+    certificates: studentState.certificates || {},
+    postPurchaseDecisions: studentState.postPurchaseDecisions || {},
+    lastPart: nextPart
+  });
 };
 
 /**
