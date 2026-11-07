@@ -281,38 +281,63 @@ export default async function handler(req, res) {
       });
     }
 
-    // B. Concurrency / Stale Request Detection across devices
+    // B. Server Overwrite Guard: Prevent unhydrated mount default from erasing saved progress
+    const incomingAnswersCount = Object.keys(checkpoint.selectedAnswers || {}).length;
+    const existingCp = currentDoc?.checkpoint || {};
+    const existingAnswersCount = Object.keys(existingCp.selectedAnswers || {}).length;
+    const existingHasProgress = existingAnswersCount > 0 || Boolean(existingCp.isCompleted) || Boolean(existingCp.isFinishedPart) || (existingCp.activeQuestionIdx || 0) > 0;
+
+    const isIncomingMountDefault = (checkpoint.activeQuestionIdx === 0 || checkpoint.activeQuestionIdx === undefined) &&
+      (!checkpoint.activeSectionId || checkpoint.activeSectionId.endsWith('-1') || checkpoint.activeSectionId.endsWith('.1') || checkpoint.activeSectionId.includes('1-1') || checkpoint.activeSectionId.includes('0-1')) &&
+      incomingAnswersCount === 0 &&
+      checkpoint.isStudyPhase !== false;
+
+    if (currentDoc && isIncomingMountDefault && existingHasProgress) {
+      console.warn(`[CheckpointGuard] Blocked premature overwrite of ${checkpointDocId} saved progress with unhydrated mount default.`);
+      return res.status(200).json({
+        success: true,
+        status: 'preserved',
+        revision: currentRev,
+        checkpoint: existingCp,
+        message: 'Existing cloud checkpoint preserved against unhydrated mount default.'
+      });
+    }
+
+    // C. Concurrency / Stale Request Detection across devices
     const expRev = typeof expectedRevision === 'number' ? expectedRevision : currentRev;
     let safeMergedCheckpoint = { ...checkpoint };
 
     if (currentDoc && expRev < currentRev) {
       // Incoming request is behind the server revision.
-      // Merge answers and progress non-destructively rather than overwriting
+      // Merge answers union-style so answered questions/points are never lost
       const existingCp = currentDoc.checkpoint || {};
       const mergedAnswers = {
         ...(existingCp.selectedAnswers || {}),
         ...(checkpoint.selectedAnswers || {})
       };
 
-      const existingAnswersCount = Object.keys(existingCp.selectedAnswers || {}).length;
-      const incomingAnswersCount = Object.keys(checkpoint.selectedAnswers || {}).length;
+      // Compare client-provided action timestamp vs server's existing checkpoint timestamp
+      const incomingTime = checkpoint.updatedAt ? new Date(checkpoint.updatedAt).getTime() : 0;
+      const existingTime = existingCp.updatedAt ? new Date(existingCp.updatedAt).getTime() :
+        (currentDoc.updatedAt ? new Date(currentDoc.updatedAt).getTime() : 0);
 
-      // Keep the further-advanced active question and phase
-      const keepExistingPosition = existingAnswersCount > incomingAnswersCount ||
-        (existingAnswersCount === incomingAnswersCount && (existingCp.activeQuestionIdx || 0) > (checkpoint.activeQuestionIdx || 0));
+      // If incoming save has a newer timestamp, it represents a newer intentional user action
+      // (e.g. intentionally navigating backward to review notes or previous questions).
+      const incomingIsNewerAction = incomingTime > existingTime;
 
       safeMergedCheckpoint = {
         ...checkpoint,
-        activeSectionId: keepExistingPosition ? existingCp.activeSectionId : checkpoint.activeSectionId,
-        activeQuestionIdx: keepExistingPosition ? existingCp.activeQuestionIdx : checkpoint.activeQuestionIdx,
-        isStudyPhase: keepExistingPosition ? existingCp.isStudyPhase : checkpoint.isStudyPhase,
+        activeSectionId: incomingIsNewerAction ? checkpoint.activeSectionId : (existingCp.activeSectionId || checkpoint.activeSectionId),
+        activeQuestionIdx: incomingIsNewerAction ? checkpoint.activeQuestionIdx : (typeof existingCp.activeQuestionIdx === 'number' ? existingCp.activeQuestionIdx : checkpoint.activeQuestionIdx),
+        isStudyPhase: incomingIsNewerAction ? checkpoint.isStudyPhase : (existingCp.isStudyPhase ?? checkpoint.isStudyPhase),
         selectedAnswers: mergedAnswers,
         levelResult: existingCp.levelResult?.isPassed ? existingCp.levelResult : (checkpoint.levelResult || existingCp.levelResult),
         isCompleted: existingCp.isCompleted || checkpoint.isCompleted,
-        isFinishedPart: existingCp.isFinishedPart || checkpoint.isFinishedPart
+        isFinishedPart: existingCp.isFinishedPart || checkpoint.isFinishedPart,
+        updatedAt: incomingIsNewerAction ? checkpoint.updatedAt : (existingCp.updatedAt || currentDoc.updatedAt)
       };
 
-      console.warn(`Concurrency collision for ${checkpointDocId}: expected rev ${expRev} < current rev ${currentRev}. Merged non-destructively.`);
+      console.warn(`Concurrency collision for ${checkpointDocId}: expected rev ${expRev} < current rev ${currentRev}. Resolved using action timestamps (incomingIsNewer: ${incomingIsNewerAction}).`);
     }
 
     const nextRevision = currentRev + 1;

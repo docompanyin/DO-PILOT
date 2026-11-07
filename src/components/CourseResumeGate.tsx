@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchAuthoritativeCheckpoint } from '../utils/courseCheckpointService';
-import { normalizeStudentEmail } from '../utils/courseProgressSyncService';
+import { normalizeStudentEmail, markPartHydrated } from '../utils/courseProgressSyncService';
 import { supabase } from '../lib/supabase';
 
 interface CourseResumeGateProps {
@@ -78,6 +78,7 @@ export const CourseResumeGate: React.FC<CourseResumeGateProps> = ({
         console.warn('Resume gate fetch non-fatal error:', err);
       } finally {
         GATED_HYDRATIONS[gateKey] = true;
+        markPartHydrated(email, courseId, partNum);
         if (isMounted) {
           setIsHydrated(true);
         }
