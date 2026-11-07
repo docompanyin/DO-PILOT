@@ -31,6 +31,11 @@ export interface PartQuestionState {
   pageType?: CoursePageType;
   disclaimerModalOpen?: boolean;
   consecutiveFailureModalOpen?: boolean;
+  partIntroModalOpen?: boolean;
+  certificateModalOpen?: boolean;
+  isCertificateConfirmed?: boolean;
+  decisionModalOpen?: boolean;
+  helpModalOpen?: boolean;
   updatedAt: string;
 }
 
@@ -744,6 +749,11 @@ export const saveQuestionProgressState = (params: {
   pageType?: CoursePageType;
   disclaimerModalOpen?: boolean;
   consecutiveFailureModalOpen?: boolean;
+  partIntroModalOpen?: boolean;
+  certificateModalOpen?: boolean;
+  isCertificateConfirmed?: boolean;
+  decisionModalOpen?: boolean;
+  helpModalOpen?: boolean;
   forceImmediate?: boolean;
   isExplicitReset?: boolean;
 }) => {
@@ -764,24 +774,47 @@ export const saveQuestionProgressState = (params: {
     pageType,
     disclaimerModalOpen = false,
     consecutiveFailureModalOpen = false,
+    partIntroModalOpen = false,
+    certificateModalOpen = false,
+    isCertificateConfirmed = false,
+    decisionModalOpen = false,
+    helpModalOpen = false,
     forceImmediate = true,
     isExplicitReset = false
   } = params;
 
   let effectivePageType = pageType;
   if (!effectivePageType) {
-    if (levelResult?.isFinished) {
-      effectivePageType = levelResult.isPassed ? 'passed_result' : 'failed_result';
-    } else if (isCompleted || isFinishedPart) {
-      effectivePageType = 'part_completion';
+    if (helpModalOpen) {
+      effectivePageType = 'help_modal';
+    } else if (certificateModalOpen) {
+      effectivePageType = isCertificateConfirmed ? 'certificate_display' : 'certificate_claim';
+    } else if (decisionModalOpen) {
+      effectivePageType = 'purchase_decision';
     } else if (disclaimerModalOpen) {
       effectivePageType = 'disclaimer_guidelines';
     } else if (consecutiveFailureModalOpen) {
       effectivePageType = 'failure_warning';
+    } else if (partIntroModalOpen) {
+      effectivePageType = 'part_intro';
+    } else if (isCompleted || isFinishedPart) {
+      effectivePageType = 'part_completion';
+    } else if (levelResult?.isFinished) {
+      const isRetest = (levelResult.attemptCount || 1) >= 2;
+      effectivePageType = isRetest ? 'retest_result' : (levelResult.isPassed ? 'passed_result' : 'failed_result');
+    } else if (isTimeUpWaiting || levelResult?.isLocked) {
+      effectivePageType = 'locked_question';
     } else if (isStudyPhase) {
-      effectivePageType = 'study_notes';
+      effectivePageType = (activeQuestionIdx === 0) ? 'section_intro' : 'study_notes';
     } else {
-      effectivePageType = 'incomplete_question';
+      const qIdxStr = String(activeQuestionIdx);
+      const answersMap = selectedAnswers || {};
+      const hasAnswer = Boolean(
+        answersMap[`${activeSectionId}-${qIdxStr}`] ||
+        answersMap[`${activeSectionId}-${activeQuestionIdx}`] ||
+        Object.keys(answersMap).some(k => k.includes(activeSectionId) && k.endsWith(`-${qIdxStr}`))
+      );
+      effectivePageType = hasAnswer ? 'answered_question' : 'incomplete_question';
     }
   }
 
@@ -917,6 +950,11 @@ export const saveQuestionProgressState = (params: {
     pageType: effectivePageType,
     disclaimerModalOpen,
     consecutiveFailureModalOpen,
+    partIntroModalOpen,
+    certificateModalOpen,
+    isCertificateConfirmed,
+    decisionModalOpen,
+    helpModalOpen,
     updatedAt: new Date().toISOString()
   };
 
@@ -962,6 +1000,11 @@ export const saveQuestionProgressState = (params: {
     pageType: effectivePageType,
     disclaimerModalOpen,
     consecutiveFailureModalOpen,
+    partIntroModalOpen,
+    certificateModalOpen,
+    isCertificateConfirmed,
+    decisionModalOpen,
+    helpModalOpen,
     attemptCounts: {},
     consecutiveFailures: studentState.consecutiveFailures || {},
     disclaimerConfirmed: true,
@@ -1612,6 +1655,8 @@ export function useCourseQuestionResume(params: {
   setIsCourseComplete?: (complete: boolean) => void;
   setDisclaimerModalOpen?: (open: boolean) => void;
   setConsecutiveFailureModalOpen?: (open: boolean) => void;
+  setHelpModalOpen?: (open: boolean) => void;
+  setPartModalOpen?: (open: boolean) => void;
   onHydrated?: () => void;
 }) {
   const paramsRef = useRef(params);
@@ -1670,6 +1715,7 @@ export function useCourseQuestionResume(params: {
       const resultSec = saved.levelResult?.sectionId || targetSec;
       const isResultPage = saved.pageType === 'passed_result' ||
                            saved.pageType === 'failed_result' ||
+                           saved.pageType === 'retest_result' ||
                            Boolean(saved.levelResult && saved.levelResult.isFinished);
 
       if (isResultPage && (saved.levelResult || saved.pageType)) {
@@ -1705,6 +1751,12 @@ export function useCourseQuestionResume(params: {
       }
       if (saved.pageType === 'failure_warning' || saved.consecutiveFailureModalOpen) {
         p.setConsecutiveFailureModalOpen?.(true);
+      }
+      if (saved.pageType === 'part_intro' || saved.partIntroModalOpen) {
+        p.setPartModalOpen?.(true);
+      }
+      if (saved.pageType === 'help_modal' || saved.helpModalOpen) {
+        p.setHelpModalOpen?.(true);
       }
 
       // 2. Study Phase: Check if user already unlocked locally or already answered this specific question

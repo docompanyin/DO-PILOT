@@ -21,20 +21,27 @@ export interface LevelResultRecord {
 }
 
 export type CoursePageType =
-  | 'part_intro'
-  | 'section_intro'
-  | 'study_notes'
-  | 'locked_question'
-  | 'unlocked_question'
-  | 'incomplete_question'
-  | 'answered_question'
-  | 'passed_result'
-  | 'failed_result'
-  | 'retest_page'
-  | 'failure_warning'
-  | 'disclaimer_guidelines'
-  | 'part_completion'
-  | 'certificate_claim';
+  | 'course_intro'             // 1. Course Introduction Page (/course/:courseId)
+  | 'part_intro'               // 2. Part Introduction Page (Part intro modal / screen)
+  | 'section_intro'            // 3. Section Introduction Page
+  | 'study_notes'              // 4. Theory / Study Notes Page
+  | 'locked_question'          // 5. Locked Question Page (locked due to 3 failures / timer)
+  | 'unlocked_question'        // 6. Unlocked Question Page (30s timer running)
+  | 'incomplete_question'      // 7. Incomplete Question Page (in progress, no answer chosen)
+  | 'answered_question'        // 8. Answered Question Page (option chosen, feedback shown)
+  | 'passed_result'            // 9. Passed Result Page (score > 80%, attempt 1)
+  | 'failed_result'            // 10. Failed Result Page (score <= 80%, attempt 1)
+  | 'retest_intro'             // 11. Retest Introduction Page (retest started with fresh questions)
+  | 'retest_page'              // Retest alias
+  | 'retest_question'          // 12. Retest Question Pages (attempt >= 2)
+  | 'retest_result'            // 13. Retest Result Pages (passed or failed after retest)
+  | 'failure_warning'          // 14. Consecutive Failure Warning Page (2nd failure warning before lock)
+  | 'disclaimer_guidelines'    // 15. Disclaimer / Test Guidelines Page (disclaimer modal open)
+  | 'part_completion'          // 16. Part Completion Page (all levels passed)
+  | 'certificate_claim'        // 17. Certificate Claim Page (claim modal name confirmation)
+  | 'certificate_display'      // 18. Certificate Display Page (certificate PDF view / download)
+  | 'purchase_decision'        // 19. Purchase Continuation / Decision Page (post-purchase choice)
+  | 'help_modal';              // 20. Help / Contact Advisor modal screens
 
 export interface CourseCheckpoint {
   courseId: string;
@@ -50,6 +57,11 @@ export interface CourseCheckpoint {
   pageType?: CoursePageType;
   disclaimerModalOpen?: boolean;
   consecutiveFailureModalOpen?: boolean;
+  partIntroModalOpen?: boolean;
+  certificateModalOpen?: boolean;
+  isCertificateConfirmed?: boolean;
+  decisionModalOpen?: boolean;
+  helpModalOpen?: boolean;
   attemptCounts?: Record<string, number>;
   consecutiveFailures?: Record<string, number>;
   disclaimerConfirmed?: boolean;
@@ -485,6 +497,46 @@ export function populateLocalStorageFromCheckpoint(cp: CourseCheckpoint): void {
       } else {
         localStorage.removeItem(`${partPrefix}consecutive_failure_modal_open`);
       }
+    }
+
+    // Part intro modal
+    if (cp.pageType === 'part_intro' || cp.partIntroModalOpen) {
+      if (isPython) {
+        localStorage.setItem(`dopilot_part_intro_required_${partNum}`, 'true');
+        localStorage.removeItem(`dopilot_part_intro_started_${partNum}`);
+      } else if (isJava) {
+        localStorage.setItem(`dopilot_java_part_intro_required_${partNum}`, 'true');
+        localStorage.removeItem(`dopilot_java_part_intro_started_${partNum}`);
+      }
+      localStorage.setItem(`${partPrefix}part_intro_open`, 'true');
+    } else if (cp.pageType && cp.pageType !== 'part_intro') {
+      localStorage.removeItem(`${partPrefix}part_intro_open`);
+    }
+
+    // Help / Advisor modal
+    if (cp.pageType === 'help_modal' || cp.helpModalOpen) {
+      localStorage.setItem(`${partPrefix}help_modal_open`, 'true');
+    } else {
+      localStorage.removeItem(`${partPrefix}help_modal_open`);
+    }
+
+    // Certificate modal (Claim vs Display)
+    const certPrefix = isJava ? 'java' : (isFullstack ? 'fullstack' : (courseId.includes('cyber') ? 'cyber' : 'python'));
+    if (cp.pageType === 'certificate_claim' || cp.pageType === 'certificate_display' || cp.certificateModalOpen) {
+      localStorage.setItem(`dopilot_${certPrefix}_certificate_modal_open`, 'true');
+      if (cp.pageType === 'certificate_display' || cp.isCertificateConfirmed) {
+        localStorage.setItem(`dopilot_${certPrefix}_certificate_confirmed`, 'true');
+      }
+    }
+
+    // Purchase Decision modal
+    if (cp.pageType === 'purchase_decision' || cp.decisionModalOpen) {
+      localStorage.setItem(`dopilot_${certPrefix}_post_purchase_modal_open`, 'true');
+    }
+
+    // Retest states
+    if (cp.pageType === 'retest_intro' || cp.pageType === 'retest_question' || cp.pageType === 'retest_result' || cp.pageType === 'retest_page' || (cp.levelResult && (cp.levelResult.attemptCount || 1) >= 2)) {
+      localStorage.setItem(`${partPrefix}retest_mode`, 'true');
     }
 
     if (cp.isCompleted || cp.pageType === 'part_completion') {

@@ -230,6 +230,11 @@ export default async function handler(req, res) {
           pageType: synPageType,
           disclaimerModalOpen: Boolean(partState.disclaimerModalOpen),
           consecutiveFailureModalOpen: Boolean(partState.consecutiveFailureModalOpen),
+          partIntroModalOpen: Boolean(partState.partIntroModalOpen),
+          certificateModalOpen: Boolean(partState.certificateModalOpen),
+          isCertificateConfirmed: Boolean(partState.isCertificateConfirmed),
+          decisionModalOpen: Boolean(partState.decisionModalOpen),
+          helpModalOpen: Boolean(partState.helpModalOpen),
           attemptCounts: {},
           consecutiveFailures: legacyContent.consecutiveFailures || {},
           disclaimerConfirmed: true,
@@ -353,18 +358,34 @@ export default async function handler(req, res) {
 
     let incomingPageType = checkpoint.pageType;
     if (!incomingPageType) {
-      if (checkpoint.levelResult && checkpoint.levelResult.isFinished) {
-        incomingPageType = checkpoint.levelResult.isPassed ? 'passed_result' : 'failed_result';
-      } else if (checkpoint.isCompleted || checkpoint.isFinishedPart) {
-        incomingPageType = 'part_completion';
+      if (checkpoint.helpModalOpen) {
+        incomingPageType = 'help_modal';
+      } else if (checkpoint.certificateModalOpen) {
+        incomingPageType = checkpoint.isCertificateConfirmed ? 'certificate_display' : 'certificate_claim';
+      } else if (checkpoint.decisionModalOpen) {
+        incomingPageType = 'purchase_decision';
       } else if (checkpoint.disclaimerModalOpen) {
         incomingPageType = 'disclaimer_guidelines';
       } else if (checkpoint.consecutiveFailureModalOpen) {
         incomingPageType = 'failure_warning';
+      } else if (checkpoint.partIntroModalOpen) {
+        incomingPageType = 'part_intro';
+      } else if (checkpoint.isCompleted || checkpoint.isFinishedPart) {
+        incomingPageType = 'part_completion';
+      } else if (checkpoint.levelResult && checkpoint.levelResult.isFinished) {
+        const isRetest = (checkpoint.levelResult.attemptCount || 1) >= 2;
+        incomingPageType = isRetest ? 'retest_result' : (checkpoint.levelResult.isPassed ? 'passed_result' : 'failed_result');
+      } else if (checkpoint.isTimeUpWaiting || checkpoint.levelResult?.isLocked) {
+        incomingPageType = 'locked_question';
       } else if (checkpoint.isStudyPhase) {
-        incomingPageType = 'study_notes';
+        incomingPageType = (checkpoint.activeQuestionIdx === 0) ? 'section_intro' : 'study_notes';
       } else {
-        incomingPageType = 'incomplete_question';
+        const hasAns = Object.keys(checkpoint.selectedAnswers || {}).some(k => k.includes(String(checkpoint.activeQuestionIdx || 0)));
+        if (hasAns) {
+          incomingPageType = 'answered_question';
+        } else {
+          incomingPageType = 'incomplete_question';
+        }
       }
     }
 
@@ -380,7 +401,12 @@ export default async function handler(req, res) {
       pageType: incomingPageType,
       levelResult: safeLevelResult,
       disclaimerModalOpen: Boolean(checkpoint.disclaimerModalOpen),
-      consecutiveFailureModalOpen: Boolean(checkpoint.consecutiveFailureModalOpen)
+      consecutiveFailureModalOpen: Boolean(checkpoint.consecutiveFailureModalOpen),
+      partIntroModalOpen: Boolean(checkpoint.partIntroModalOpen),
+      certificateModalOpen: Boolean(checkpoint.certificateModalOpen),
+      isCertificateConfirmed: Boolean(checkpoint.isCertificateConfirmed),
+      decisionModalOpen: Boolean(checkpoint.decisionModalOpen),
+      helpModalOpen: Boolean(checkpoint.helpModalOpen)
     };
 
     if (currentDoc && expRev < currentRev) {
@@ -476,6 +502,11 @@ export default async function handler(req, res) {
         pageType: safeMergedCheckpoint.pageType,
         disclaimerModalOpen: safeMergedCheckpoint.disclaimerModalOpen,
         consecutiveFailureModalOpen: safeMergedCheckpoint.consecutiveFailureModalOpen,
+        partIntroModalOpen: safeMergedCheckpoint.partIntroModalOpen,
+        certificateModalOpen: safeMergedCheckpoint.certificateModalOpen,
+        isCertificateConfirmed: safeMergedCheckpoint.isCertificateConfirmed,
+        decisionModalOpen: safeMergedCheckpoint.decisionModalOpen,
+        helpModalOpen: safeMergedCheckpoint.helpModalOpen,
         updatedAt: nowIso
       };
 
