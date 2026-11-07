@@ -18,6 +18,7 @@ export interface LevelResultRecord {
   isSecondFailureInLevel?: boolean;
   isLocked?: boolean;
   sectionId?: string;
+  hadPriorStreak?: boolean;
 }
 
 export type CoursePageType =
@@ -418,8 +419,12 @@ export function populateLocalStorageFromCheckpoint(cp: CourseCheckpoint): void {
     localStorage.setItem(`${partPrefix}active_q_idx`, String(cp.activeQuestionIdx || 0));
     localStorage.setItem(`${partPrefix}study_phase`, String(cp.isStudyPhase ?? true));
     localStorage.setItem(`${partPrefix}mcq_answers`, JSON.stringify(cp.selectedAnswers || {}));
-    if (isPython && partNum === 1) {
-      localStorage.setItem('dopilot_mcq_answers_v2', JSON.stringify(cp.selectedAnswers || {}));
+    if (isPython) {
+      if (partNum === 1) {
+        localStorage.setItem('dopilot_mcq_answers_v2', JSON.stringify(cp.selectedAnswers || {}));
+      } else {
+        localStorage.setItem(`${partPrefix}mcq_answers_v2`, JSON.stringify(cp.selectedAnswers || {}));
+      }
     }
 
     if (cp.targetEndTime) {
@@ -431,14 +436,25 @@ export function populateLocalStorageFromCheckpoint(cp: CourseCheckpoint): void {
       localStorage.removeItem(`${partPrefix}time_up`);
     }
 
-    const isResultPage = cp.pageType === 'passed_result' || cp.pageType === 'failed_result' || Boolean(cp.levelResult && cp.levelResult.isFinished);
+    const isResultPage = cp.pageType === 'passed_result' ||
+                         cp.pageType === 'failed_result' ||
+                         cp.pageType === 'retest_result' ||
+                         Boolean(cp.levelResult && cp.levelResult.isFinished);
 
-    if (isResultPage && cp.levelResult) {
+    if (isResultPage) {
+      const isPassed = cp.pageType === 'failed_result' ? false : (cp.levelResult?.isPassed ?? true);
       const fixedResult: LevelResultRecord = {
-        ...cp.levelResult,
         isFinished: true,
-        isPassed: cp.pageType === 'failed_result' ? false : (cp.levelResult.isPassed ?? true),
-        sectionId: cp.levelResult.sectionId || cp.activeSectionId
+        isPassed,
+        sectionId: cp.levelResult?.sectionId || cp.activeSectionId,
+        correctCount: cp.levelResult?.correctCount ?? (isPassed ? 5 : 0),
+        totalCount: cp.levelResult?.totalCount ?? 6,
+        percentage: cp.levelResult?.percentage ?? (isPassed ? 100 : 0),
+        streak: cp.levelResult?.streak ?? (isPassed ? 0 : 1),
+        attemptCount: cp.levelResult?.attemptCount ?? (cp.pageType === 'retest_result' ? 2 : 1),
+        isSecondFailureInLevel: Boolean(cp.levelResult?.isSecondFailureInLevel),
+        isLocked: Boolean(cp.levelResult?.isLocked),
+        hadPriorStreak: Boolean(cp.levelResult?.hadPriorStreak)
       };
       localStorage.setItem(`${partPrefix}level_result`, JSON.stringify(fixedResult));
       if (isPython && partNum === 1) localStorage.setItem('dopilot_level_result', JSON.stringify(fixedResult));
@@ -449,7 +465,7 @@ export function populateLocalStorageFromCheckpoint(cp: CourseCheckpoint): void {
       }
     } else if (cp.levelResult) {
       localStorage.setItem(`${partPrefix}level_result`, JSON.stringify(cp.levelResult));
-    } else if (!isResultPage) {
+    } else {
       localStorage.removeItem(`${partPrefix}level_result`);
       if (isPython && partNum === 1) localStorage.removeItem('dopilot_level_result');
       if (isJava && partNum === 1) localStorage.removeItem('dopilot_java_level_result');

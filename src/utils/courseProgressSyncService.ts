@@ -15,6 +15,7 @@ export interface LevelResultRecord {
   isLocked?: boolean;
   /** Section this result belongs to, so a restored result page is not cleared. */
   sectionId?: string;
+  hadPriorStreak?: boolean;
 }
 
 export interface PartQuestionState {
@@ -856,6 +857,22 @@ export const saveQuestionProgressState = (params: {
     inAnswersCount === 0 &&
     isStudyPhase !== false;
 
+  const exIsResultPage = existingPart?.pageType === 'passed_result' ||
+                         existingPart?.pageType === 'failed_result' ||
+                         existingPart?.pageType === 'retest_result' ||
+                         Boolean(existingPart?.levelResult && existingPart?.levelResult.isFinished);
+  const inIsQuestionState = effectivePageType === 'answered_question' ||
+                            effectivePageType === 'incomplete_question' ||
+                            effectivePageType === 'study_notes' ||
+                            effectivePageType === 'section_intro' ||
+                            effectivePageType === 'locked_question';
+  const isSameSection = Boolean(existingPart?.activeSectionId && activeSectionId && existingPart.activeSectionId === activeSectionId);
+
+  if (!isExplicitReset && exIsResultPage && inIsQuestionState && isSameSection) {
+    console.warn(`[SyncGuard] Blocked question save (${effectivePageType}) from overwriting authoritative Result Page (${existingPart?.pageType}) for ${courseId} Part ${partNum} section ${activeSectionId}`);
+    return;
+  }
+
   if (!isExplicitReset && isDefaultMount && exHasAnswersOrExam) {
     console.warn(`[SyncGuard] Blocked premature overwrite of ${courseId} Part ${partNum} saved progress (${existingPart?.activeSectionId} Q${(existingPart?.activeQuestionIdx ?? 0) + 1}) with initial default`);
     return;
@@ -882,7 +899,18 @@ export const saveQuestionProgressState = (params: {
     }
     if (fixedLevelResult) {
       localStorage.setItem(keys.levelResultKey, JSON.stringify(fixedLevelResult));
-    } else if (effectivePageType !== 'passed_result' && effectivePageType !== 'failed_result') {
+    } else if (effectivePageType === 'passed_result' || effectivePageType === 'failed_result' || effectivePageType === 'retest_result') {
+      const synthesizedResult: LevelResultRecord = {
+        isFinished: true,
+        isPassed: effectivePageType !== 'failed_result',
+        sectionId: activeSectionId,
+        correctCount: effectivePageType === 'failed_result' ? 0 : 5,
+        totalCount: 6,
+        percentage: effectivePageType === 'failed_result' ? 0 : 100,
+        attemptCount: effectivePageType === 'retest_result' ? 2 : 1
+      };
+      localStorage.setItem(keys.levelResultKey, JSON.stringify(synthesizedResult));
+    } else {
       localStorage.removeItem(keys.levelResultKey);
     }
 

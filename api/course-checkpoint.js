@@ -173,6 +173,19 @@ export default async function handler(req, res) {
         if (cp.levelResult && !cp.levelResult.sectionId) {
           cp.levelResult = { ...cp.levelResult, sectionId: cp.activeSectionId };
         }
+        if ((cp.pageType === 'passed_result' || cp.pageType === 'failed_result' || cp.pageType === 'retest_result') && !cp.levelResult) {
+          const isPassed = cp.pageType !== 'failed_result';
+          cp.levelResult = {
+            isFinished: true,
+            isPassed,
+            sectionId: cp.activeSectionId,
+            correctCount: isPassed ? 5 : 0,
+            totalCount: 6,
+            percentage: isPassed ? 100 : 0,
+            streak: isPassed ? 0 : 1,
+            attemptCount: cp.pageType === 'retest_result' ? 2 : 1
+          };
+        }
 
         return res.status(200).json({
           success: true,
@@ -211,10 +224,24 @@ export default async function handler(req, res) {
           }
         }
 
-        const fixedLevelResult = partState.levelResult ? {
+        let fixedLevelResult = partState.levelResult ? {
           ...partState.levelResult,
+          isFinished: true,
           sectionId: partState.levelResult.sectionId || partState.activeSectionId
         } : null;
+        if (!fixedLevelResult && (synPageType === 'passed_result' || synPageType === 'failed_result' || synPageType === 'retest_result')) {
+          const isPassed = synPageType !== 'failed_result';
+          fixedLevelResult = {
+            isFinished: true,
+            isPassed,
+            sectionId: partState.activeSectionId,
+            correctCount: isPassed ? 5 : 0,
+            totalCount: 6,
+            percentage: isPassed ? 100 : 0,
+            streak: isPassed ? 0 : 1,
+            attemptCount: synPageType === 'retest_result' ? 2 : 1
+          };
+        }
 
         const synthesizedCheckpoint = {
           courseId: course,
@@ -389,12 +416,53 @@ export default async function handler(req, res) {
       }
     }
 
-    const safeLevelResult = checkpoint.levelResult ? {
+    let safeLevelResult = checkpoint.levelResult ? {
       ...checkpoint.levelResult,
       isFinished: true,
       isPassed: incomingPageType === 'failed_result' ? false : (checkpoint.levelResult.isPassed ?? true),
       sectionId: checkpoint.levelResult.sectionId || checkpoint.activeSectionId
     } : null;
+
+    if (!safeLevelResult && (incomingPageType === 'passed_result' || incomingPageType === 'failed_result' || incomingPageType === 'retest_result')) {
+      const isPassed = incomingPageType !== 'failed_result';
+      safeLevelResult = {
+        isFinished: true,
+        isPassed,
+        sectionId: checkpoint.activeSectionId,
+        correctCount: isPassed ? 5 : 0,
+        totalCount: 6,
+        percentage: isPassed ? 100 : 0,
+        streak: isPassed ? 0 : 1,
+        attemptCount: incomingPageType === 'retest_result' ? 2 : 1
+      };
+    }
+
+    // Result Page Overwrite Guard:
+    // A stale question save (incomplete_question, answered_question, study_notes, section_intro, locked_question)
+    // for the SAME section must NEVER overwrite an existing Result Page checkpoint!
+    const isExistingResultPage = existingCp.pageType === 'passed_result' ||
+                                 existingCp.pageType === 'failed_result' ||
+                                 existingCp.pageType === 'retest_result' ||
+                                 Boolean(existingCp.levelResult && existingCp.levelResult.isFinished);
+
+    const isIncomingQuestionSave = incomingPageType === 'answered_question' ||
+                                   incomingPageType === 'incomplete_question' ||
+                                   incomingPageType === 'study_notes' ||
+                                   incomingPageType === 'section_intro' ||
+                                   incomingPageType === 'locked_question';
+
+    const isSameSection = Boolean(existingCp.activeSectionId && checkpoint.activeSectionId && existingCp.activeSectionId === checkpoint.activeSectionId);
+
+    if (currentDoc && isExistingResultPage && isIncomingQuestionSave && isSameSection && !checkpoint.isExplicitReset) {
+      console.warn(`[CheckpointGuard] Preserved authoritative Result Page (${existingCp.pageType}) against incoming question save (${incomingPageType}) for section ${existingCp.activeSectionId}.`);
+      return res.status(200).json({
+        success: true,
+        status: 'preserved',
+        revision: currentRev,
+        checkpoint: existingCp,
+        message: 'Authoritative Result Page preserved against stale question save.'
+      });
+    }
 
     let safeMergedCheckpoint = {
       ...checkpoint,

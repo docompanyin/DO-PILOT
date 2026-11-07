@@ -523,6 +523,11 @@ export const PythonPart1Page: React.FC = () => {
   const currentLevelQuestionNumber = activeQuestionIdx + 1;
   const remainingLevelQuestions = Math.max(0, totalLevelQuestions - currentLevelQuestionNumber);
 
+  const latestLevelResultRef = useRef(levelResult);
+  latestLevelResultRef.current = levelResult;
+  const isCourseCompleteRef = useRef(isCourseComplete);
+  isCourseCompleteRef.current = isCourseComplete;
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     document.title = `Do Pilot - ${activeSection.title}`;
@@ -531,7 +536,7 @@ export const PythonPart1Page: React.FC = () => {
     } catch {}
 
     // Auto-checkpoint active location & notes phase to Supabase once hydrated
-    if (isHydrated && user?.email && !levelResult?.isFinished && !isCourseComplete) {
+    if (isHydrated && user?.email && !levelResult?.isFinished && !latestLevelResultRef.current?.isFinished && !isCourseComplete) {
       saveQuestionProgressState({
         courseId: 'python-core',
         partNum: 1,
@@ -547,13 +552,15 @@ export const PythonPart1Page: React.FC = () => {
         forceImmediate: true
       });
     }
-  }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
+  }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, user?.email, levelResult?.isFinished, isCourseComplete]);
 
   // Unmount checkpoint: flush progress immediately when student navigates away or presses Back
   useEffect(() => {
     return () => {
       const email = user?.email;
-      if (email && isHydrated && !levelResult?.isFinished && !isCourseComplete) {
+      const curResult = latestLevelResultRef.current;
+      const curComplete = isCourseCompleteRef.current;
+      if (email && isHydrated && !curResult?.isFinished && !curComplete) {
         saveQuestionProgressState({
           courseId: 'python-core',
           partNum: 1,
@@ -1204,7 +1211,11 @@ export const PythonPart1Page: React.FC = () => {
   // After key normalization above, selectedAnswers[taskId] is the single source of truth.
   // currentChoice uses only taskId. isLocked uses only taskId.
   // candidateCurrentKeys is kept only for evaluateLevelScore (score calculation).
-  const currentChoice = selectedAnswers[taskId];
+  const currentChoice = selectedAnswers[taskId] ||
+    selectedAnswers[`${activeSection.id}-${activeQuestionIdx}`] ||
+    (currentMcq?.id ? selectedAnswers[`${activeSection.id}-${currentMcq.id}`] : undefined) ||
+    selectedAnswers[`python-${activeSection.id}-${activeQuestionIdx}`] ||
+    selectedAnswers[`python-${activeSection.id}-${currentMcq?.id || activeQuestionIdx}`];
   const isLocked = Boolean(currentChoice);
   const isUserWrongAnswer = Boolean(currentChoice && currentChoice !== currentMcq.correctAnswer);
 
