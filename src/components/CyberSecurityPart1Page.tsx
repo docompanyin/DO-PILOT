@@ -287,7 +287,9 @@ export const CyberSecurityPart1Page: React.FC = () => {
     `cyber-p1-${activeSection.id}-${activeQuestionIdx}`,
     currentMcq.id ? `cyber-p1-${activeSection.id}-${currentMcq.id}` : '',
     `${activeSection.id}-${currentMcq.id || activeQuestionIdx}`,
-    `${activeSection.id}-${activeQuestionIdx}`
+    `${activeSection.id}-${activeQuestionIdx}`,
+    `cyber-${activeSection.id}-${activeQuestionIdx}`,
+    currentMcq.id ? `cyber-${activeSection.id}-${currentMcq.id}` : ''
   ].filter(Boolean);
 
   // Study Phase vs Question Phase (Study phase by default, no timer pressure until user clicks continue)
@@ -359,6 +361,15 @@ export const CyberSecurityPart1Page: React.FC = () => {
       return false;
     }
   });
+
+  const latestLevelResultRef = useRef(levelResult);
+  useEffect(() => {
+    latestLevelResultRef.current = levelResult;
+  }, [levelResult]);
+  const isCourseCompleteRef = useRef(isCourseComplete);
+  useEffect(() => {
+    isCourseCompleteRef.current = isCourseComplete;
+  }, [isCourseComplete]);
 
   // Track whether initial mount state has been hydrated from cloud/local storage
   const [isHydrated, setIsHydrated] = useState<boolean>(() => {
@@ -438,7 +449,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
     } catch {}
 
     // Auto-checkpoint active location & notes phase to Supabase once hydrated
-    if (isHydrated && user?.email && !levelResult?.isFinished && !isCourseComplete) {
+    if (isHydrated && user?.email && !levelResult?.isFinished && !latestLevelResultRef.current?.isFinished && !isCourseComplete) {
       saveQuestionProgressState({
         courseId: 'cyber-security',
         partNum: 1,
@@ -456,13 +467,15 @@ export const CyberSecurityPart1Page: React.FC = () => {
     }
 
 
-  }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
+  }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, user?.email, levelResult?.isFinished, isCourseComplete]);
 
   // Unmount checkpoint: flush progress immediately when student navigates away or presses Back
   useEffect(() => {
     return () => {
       const email = user?.email;
-      if (email && isHydrated && !levelResult?.isFinished && !isCourseComplete) {
+      const curResult = latestLevelResultRef.current;
+      const curComplete = isCourseCompleteRef.current;
+      if (email && isHydrated && !curResult?.isFinished && !curComplete) {
         saveQuestionProgressState({
           courseId: 'cyber-security',
           partNum: 1,
@@ -822,11 +835,13 @@ export const CyberSecurityPart1Page: React.FC = () => {
       selectedAnswers: updatedAnswers,
       isStudyPhase: true,
       isTimeUpWaiting: false,
-      targetEndTime: 0,
+      targetEndTime: fresh,
       timeLeft: TIMER_DURATION,
       studentEmail: user?.email,
       levelResult: null,
-          });
+      forceImmediate: true,
+      isExplicitReset: true
+    });
   };
 
   // Progress to next level
@@ -871,7 +886,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
         selectedAnswers,
         isStudyPhase: true,
         isTimeUpWaiting: false,
-        targetEndTime: 0,
+        targetEndTime: fresh,
         timeLeft: TIMER_DURATION,
         studentEmail: user?.email,
         levelResult: null,
@@ -901,6 +916,7 @@ export const CyberSecurityPart1Page: React.FC = () => {
         studentEmail: user?.email,
         isCompleted: true,
         isFinishedPart: true,
+        forceImmediate: true,
         levelResult: null
       });
     }
@@ -1113,6 +1129,15 @@ export const CyberSecurityPart1Page: React.FC = () => {
       currentChoice = selectedAnswers[k];
       break;
     }
+  }
+  if (!currentChoice) {
+    currentChoice = selectedAnswers[taskId] ||
+      selectedAnswers[`${activeSection.id}-${activeQuestionIdx}`] ||
+      (currentMcq?.id ? selectedAnswers[`${activeSection.id}-${currentMcq.id}`] : undefined) ||
+      selectedAnswers[`cyber-${activeSection.id}-${activeQuestionIdx}`] ||
+      selectedAnswers[`cyber-${activeSection.id}-${currentMcq?.id || activeQuestionIdx}`] ||
+      selectedAnswers[`cyber-p1-${activeSection.id}-${activeQuestionIdx}`] ||
+      selectedAnswers[`cyber-p1-${activeSection.id}-${currentMcq?.id || activeQuestionIdx}`];
   }
   if (!currentChoice && isSolved) {
     currentChoice = currentMcq.correctAnswer;

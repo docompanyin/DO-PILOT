@@ -167,12 +167,22 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
   const currentMcq: McqQuestion = levelQuestions[activeQuestionIdx] || currentBlock.mcq!;
   const taskId = `cyber-p${currentPartNum}-${activeSection.id}-${currentMcq.id || activeQuestionIdx}`;
 
+  const candidateCurrentKeys = [
+    taskId,
+    `cyber-p${currentPartNum}-${activeSection.id}-${activeQuestionIdx}`,
+    currentMcq?.id ? `cyber-p${currentPartNum}-${activeSection.id}-${currentMcq.id}` : '',
+    `${activeSection.id}-${currentMcq?.id || activeQuestionIdx}`,
+    `${activeSection.id}-${activeQuestionIdx}`,
+    `cyber-${activeSection.id}-${activeQuestionIdx}`,
+    currentMcq?.id ? `cyber-${activeSection.id}-${currentMcq.id}` : ''
+  ].filter(Boolean);
+
   // Study Phase vs Question Phase
   const [isStudyPhase, setIsStudyPhase] = useState<boolean>(() => {
     if (isReviewMode) return false;
     try {
       const answers = JSON.parse(localStorage.getItem(`dopilot_cyber_part${currentPartNum}_mcq_answers`) || '{}');
-      if (answers[taskId]) return false; // Already answered, show unblurred
+      if (candidateCurrentKeys.some(k => Boolean(answers[k]))) return false; // Already answered, show unblurred
       const savedPhase = localStorage.getItem(`dopilot_cyber_part${currentPartNum}_study_phase`);
       if (savedPhase !== null) return savedPhase === 'true';
     } catch {}
@@ -202,7 +212,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
       if (savedPhase === 'true') return false;
       const savedEnd = Number(localStorage.getItem(`dopilot_cyber_part${currentPartNum}_q_target_end_time`));
       const answers = JSON.parse(localStorage.getItem(`dopilot_cyber_part${currentPartNum}_mcq_answers`) || '{}');
-      if (savedEnd && savedEnd <= Date.now() && !answers[taskId]) {
+      if (savedEnd && savedEnd <= Date.now() && !candidateCurrentKeys.some(k => Boolean(answers[k]))) {
         return true;
       }
     } catch {}
@@ -216,6 +226,15 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
       return false;
     }
   });
+
+  const latestLevelResultRef = useRef(levelResult);
+  useEffect(() => {
+    latestLevelResultRef.current = levelResult;
+  }, [levelResult]);
+  const isPartCompleteRef = useRef(isPartComplete);
+  useEffect(() => {
+    isPartCompleteRef.current = isPartComplete;
+  }, [isPartComplete]);
 
   const hasHydratedRef = useRef<boolean>(false);
 
@@ -277,7 +296,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
 
     // Auto-checkpoint active location & notes phase to Supabase so clearing cookies preserves exact step
     if (!hasHydratedRef.current) return;
-    if (user?.email && !levelResult?.isFinished && !isPartComplete) {
+    if (user?.email && !levelResult?.isFinished && !latestLevelResultRef.current?.isFinished && !isPartComplete) {
       saveQuestionProgressState({
         courseId: 'cyber-security',
         partNum: currentPartNum,
@@ -303,7 +322,32 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
         );
       }
     } catch {}
-  }, [activeSectionId, activeQuestionIdx, currentPartNum, isStudyPhase, user?.email]);
+  }, [activeSectionId, activeQuestionIdx, currentPartNum, isStudyPhase, user?.email, levelResult?.isFinished, isPartComplete]);
+
+  // Unmount checkpoint: flush progress immediately when student navigates away or presses Back
+  useEffect(() => {
+    return () => {
+      const email = user?.email;
+      const curResult = latestLevelResultRef.current;
+      const curComplete = isPartCompleteRef.current;
+      if (email && hasHydratedRef.current && !curResult?.isFinished && !curComplete) {
+        saveQuestionProgressState({
+          courseId: 'cyber-security',
+          partNum: currentPartNum,
+          activeSectionId,
+          activeQuestionIdx,
+          selectedAnswers,
+          isStudyPhase,
+          isTimeUpWaiting,
+          targetEndTime,
+          timeLeft,
+          studentEmail: email,
+          levelResult: null,
+          forceImmediate: true
+        });
+      }
+    };
+  }, [activeSectionId, activeQuestionIdx, currentPartNum, isStudyPhase, selectedAnswers, user?.email]);
 
   // Ref to track latest state inside setInterval
   const stateRef = useRef({
@@ -372,14 +416,36 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
   const evaluateLevelScore = () => {
     const qList = stateRef.current.levelQuestions;
     const secId = stateRef.current.activeSectionId;
-    const currentAnswers = stateRef.current.selectedAnswers;
+    let localAnswers: Record<string, string> = {};
+    try {
+      const saved = localStorage.getItem(`dopilot_cyber_part${currentPartNum}_mcq_answers`);
+      if (saved) localAnswers = JSON.parse(saved);
+    } catch {}
+    const answers = { ...localAnswers, ...stateRef.current.selectedAnswers };
 
     let correctCount = 0;
     const totalCount = qList.length;
 
     qList.forEach((q, idx) => {
-      const qTaskId = `cyber-p${currentPartNum}-${secId}-${q.id || idx}`;
-      const chosen = currentAnswers[qTaskId];
+      const candidateKeys = [
+        `cyber-p${currentPartNum}-${secId}-${q.id}`,
+        `cyber-p${currentPartNum}-${secId}-${idx}`,
+        `cyber-p${currentPartNum}-${secId}-${q.id || idx}`,
+        `${secId}-${q.id}`,
+        `${secId}-${idx}`,
+        q.id ? `${secId}-${q.id || idx}` : '',
+        `cyber-${secId}-${idx}`,
+        q.id ? `cyber-${secId}-${q.id || idx}` : ''
+      ].filter(Boolean);
+
+      let chosen: string | undefined = undefined;
+      for (const k of candidateKeys) {
+        if (answers[k]) {
+          chosen = answers[k];
+          break;
+        }
+      }
+
       if (chosen === q.correctAnswer) {
         correctCount += 1;
       }
@@ -460,7 +526,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
       partNum: currentPartNum,
       activeSectionId: activeSection.id,
       activeQuestionIdx,
-      selectedAnswers,
+      selectedAnswers: answers,
       isStudyPhase: false,
       isTimeUpWaiting: false,
       targetEndTime,
@@ -749,11 +815,12 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
       selectedAnswers: updatedAnswers,
       isStudyPhase: true,
       isTimeUpWaiting: false,
-      targetEndTime: 0,
+      targetEndTime: fresh,
       timeLeft: TIMER_DURATION,
       studentEmail: user?.email,
       levelResult: null,
-      forceImmediate: true
+      forceImmediate: true,
+      isExplicitReset: true
     });
   };
 
@@ -804,7 +871,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
         selectedAnswers,
         isStudyPhase: true,
         isTimeUpWaiting: false,
-        targetEndTime: 0,
+        targetEndTime: fresh,
         timeLeft: TIMER_DURATION,
         studentEmail: user?.email,
         levelResult: null,
@@ -833,6 +900,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
         studentEmail: user?.email,
         isCompleted: true,
         isFinishedPart: true,
+        forceImmediate: true,
         levelResult: null
       });
     }
@@ -900,10 +968,36 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
   };
 
   const remainingLevelQuestions = Math.max(0, totalLevelQuestions - currentLevelQuestionNumber);
-  const isSolved = Boolean(selectedAnswers[taskId] === currentMcq.correctAnswer);
-  const currentChoice = selectedAnswers[taskId] || (isSolved ? currentMcq.correctAnswer : undefined);
+  let currentChoice: string | undefined = undefined;
+  for (const k of candidateCurrentKeys) {
+    if (selectedAnswers[k]) {
+      currentChoice = selectedAnswers[k];
+      break;
+    }
+  }
+  if (!currentChoice) {
+    currentChoice = selectedAnswers[taskId] ||
+      selectedAnswers[`${activeSection.id}-${activeQuestionIdx}`] ||
+      (currentMcq?.id ? selectedAnswers[`${activeSection.id}-${currentMcq.id}`] : undefined) ||
+      selectedAnswers[`cyber-${activeSection.id}-${activeQuestionIdx}`] ||
+      selectedAnswers[`cyber-${activeSection.id}-${currentMcq?.id || activeQuestionIdx}`] ||
+      selectedAnswers[`cyber-p${currentPartNum}-${activeSection.id}-${activeQuestionIdx}`] ||
+      selectedAnswers[`cyber-p${currentPartNum}-${activeSection.id}-${currentMcq?.id || activeQuestionIdx}`];
+  }
+  const isSolved = Boolean(currentChoice === currentMcq.correctAnswer) || isTaskSolved(taskId);
+  if (!currentChoice && isSolved) {
+    currentChoice = currentMcq.correctAnswer;
+  }
   const isLocked = Boolean(currentChoice);
   const isUserWrongAnswer = Boolean(currentChoice && currentChoice !== currentMcq.correctAnswer);
+
+  // When viewing an already answered question, ensure it remains unblurred and timer is inactive
+  useEffect(() => {
+    if (currentChoice) {
+      setIsStudyPhase(false);
+      setIsTimeUpWaiting(false);
+    }
+  }, [activeSectionId, activeQuestionIdx, currentChoice]);
 
   return (
     <div className="min-h-screen bg-black text-paper selection:bg-primary selection:text-ink relative overflow-x-hidden font-sans flex flex-col">
