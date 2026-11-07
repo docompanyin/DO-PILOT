@@ -509,7 +509,7 @@ export function populateLocalStorageFromCheckpoint(cp: CourseCheckpoint): void {
         localStorage.removeItem(`dopilot_java_part_intro_started_${partNum}`);
       }
       localStorage.setItem(`${partPrefix}part_intro_open`, 'true');
-    } else if (cp.pageType && cp.pageType !== 'part_intro') {
+    } else {
       localStorage.removeItem(`${partPrefix}part_intro_open`);
     }
 
