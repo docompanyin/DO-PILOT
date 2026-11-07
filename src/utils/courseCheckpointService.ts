@@ -20,6 +20,22 @@ export interface LevelResultRecord {
   sectionId?: string;
 }
 
+export type CoursePageType =
+  | 'part_intro'
+  | 'section_intro'
+  | 'study_notes'
+  | 'locked_question'
+  | 'unlocked_question'
+  | 'incomplete_question'
+  | 'answered_question'
+  | 'passed_result'
+  | 'failed_result'
+  | 'retest_page'
+  | 'failure_warning'
+  | 'disclaimer_guidelines'
+  | 'part_completion'
+  | 'certificate_claim';
+
 export interface CourseCheckpoint {
   courseId: string;
   partNum: number;
@@ -31,6 +47,9 @@ export interface CourseCheckpoint {
   timeLeft: number;
   selectedAnswers: Record<string, string>;
   levelResult: LevelResultRecord | null;
+  pageType?: CoursePageType;
+  disclaimerModalOpen?: boolean;
+  consecutiveFailureModalOpen?: boolean;
   attemptCounts?: Record<string, number>;
   consecutiveFailures?: Record<string, number>;
   disclaimerConfirmed?: boolean;
@@ -400,16 +419,78 @@ export function populateLocalStorageFromCheckpoint(cp: CourseCheckpoint): void {
       localStorage.removeItem(`${partPrefix}time_up`);
     }
 
-    if (cp.levelResult) {
+    const isResultPage = cp.pageType === 'passed_result' || cp.pageType === 'failed_result' || Boolean(cp.levelResult && cp.levelResult.isFinished);
+
+    if (isResultPage && cp.levelResult) {
+      const fixedResult: LevelResultRecord = {
+        ...cp.levelResult,
+        isFinished: true,
+        isPassed: cp.pageType === 'failed_result' ? false : (cp.levelResult.isPassed ?? true),
+        sectionId: cp.levelResult.sectionId || cp.activeSectionId
+      };
+      localStorage.setItem(`${partPrefix}level_result`, JSON.stringify(fixedResult));
+      if (isPython && partNum === 1) localStorage.setItem('dopilot_level_result', JSON.stringify(fixedResult));
+      if (isJava && partNum === 1) localStorage.setItem('dopilot_java_level_result', JSON.stringify(fixedResult));
+      if (courseId.includes('cyber') && partNum === 1) {
+        localStorage.setItem('dopilot_cyber_level_result', JSON.stringify(fixedResult));
+        localStorage.setItem('dopilot_cyber_part1_level_result', JSON.stringify(fixedResult));
+      }
+    } else if (cp.levelResult) {
       localStorage.setItem(`${partPrefix}level_result`, JSON.stringify(cp.levelResult));
-    } else {
+    } else if (!isResultPage) {
       localStorage.removeItem(`${partPrefix}level_result`);
+      if (isPython && partNum === 1) localStorage.removeItem('dopilot_level_result');
+      if (isJava && partNum === 1) localStorage.removeItem('dopilot_java_level_result');
+      if (courseId.includes('cyber') && partNum === 1) {
+        localStorage.removeItem('dopilot_cyber_level_result');
+        localStorage.removeItem('dopilot_cyber_part1_level_result');
+      }
     }
 
-    if (cp.isCompleted) {
+    if (cp.pageType) {
+      localStorage.setItem(`${partPrefix}page_type`, cp.pageType);
+      if (isPython && partNum === 1) localStorage.setItem('dopilot_page_type', cp.pageType);
+      if (isJava && partNum === 1) localStorage.setItem('dopilot_java_page_type', cp.pageType);
+      if (courseId.includes('cyber') && partNum === 1) {
+        localStorage.setItem('dopilot_cyber_page_type', cp.pageType);
+        localStorage.setItem('dopilot_cyber_part1_page_type', cp.pageType);
+      }
+    }
+
+    if (cp.disclaimerModalOpen !== undefined) {
+      if (cp.disclaimerModalOpen) {
+        localStorage.setItem(`${partPrefix}disclaimer_open`, 'true');
+        localStorage.setItem(`${partPrefix}disclaimer_modal_open`, 'true');
+        if (isPython && partNum === 1) localStorage.setItem('dopilot_disclaimer_open', 'true');
+        if (isJava && partNum === 1) localStorage.setItem('dopilot_java_disclaimer_open', 'true');
+        if (courseId.includes('cyber') && partNum === 1) {
+          localStorage.setItem('dopilot_cyber_disclaimer_open', 'true');
+          localStorage.setItem('dopilot_cyber_part1_disclaimer_open', 'true');
+        }
+      } else {
+        localStorage.removeItem(`${partPrefix}disclaimer_open`);
+        localStorage.removeItem(`${partPrefix}disclaimer_modal_open`);
+        if (isPython && partNum === 1) localStorage.removeItem('dopilot_disclaimer_open');
+        if (isJava && partNum === 1) localStorage.removeItem('dopilot_java_disclaimer_open');
+        if (courseId.includes('cyber') && partNum === 1) {
+          localStorage.removeItem('dopilot_cyber_disclaimer_open');
+          localStorage.removeItem('dopilot_cyber_part1_disclaimer_open');
+        }
+      }
+    }
+
+    if (cp.consecutiveFailureModalOpen !== undefined) {
+      if (cp.consecutiveFailureModalOpen) {
+        localStorage.setItem(`${partPrefix}consecutive_failure_modal_open`, 'true');
+      } else {
+        localStorage.removeItem(`${partPrefix}consecutive_failure_modal_open`);
+      }
+    }
+
+    if (cp.isCompleted || cp.pageType === 'part_completion') {
       localStorage.setItem(`${prefix}part${partNum}_completed`, 'true');
     }
-    if (cp.isFinishedPart) {
+    if (cp.isFinishedPart || cp.pageType === 'part_completion') {
       const finKey = (isPython && partNum === 1) || (isJava && partNum === 1) || (courseId.includes('cyber') && partNum === 1)
         ? `${prefix}part1_finished`
         : `${prefix}part${partNum}_finished`;

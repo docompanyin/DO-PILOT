@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { restoreStudentTelemetryFromCloud } from './studentTelemetryService';
-import { saveCheckpointActive } from './courseCheckpointService';
+import { CoursePageType, saveCheckpointActive } from './courseCheckpointService';
 
 export interface LevelResultRecord {
   isFinished: boolean;
@@ -28,6 +28,9 @@ export interface PartQuestionState {
   isCompleted?: boolean;
   isFinishedPart?: boolean;
   levelResult?: LevelResultRecord | null;
+  pageType?: CoursePageType;
+  disclaimerModalOpen?: boolean;
+  consecutiveFailureModalOpen?: boolean;
   updatedAt: string;
 }
 
@@ -738,6 +741,9 @@ export const saveQuestionProgressState = (params: {
   isCompleted?: boolean;
   isFinishedPart?: boolean;
   levelResult?: LevelResultRecord | null;
+  pageType?: CoursePageType;
+  disclaimerModalOpen?: boolean;
+  consecutiveFailureModalOpen?: boolean;
   forceImmediate?: boolean;
   isExplicitReset?: boolean;
 }) => {
@@ -755,9 +761,36 @@ export const saveQuestionProgressState = (params: {
     isCompleted = false,
     isFinishedPart = false,
     levelResult = null,
+    pageType,
+    disclaimerModalOpen = false,
+    consecutiveFailureModalOpen = false,
     forceImmediate = true,
     isExplicitReset = false
   } = params;
+
+  let effectivePageType = pageType;
+  if (!effectivePageType) {
+    if (levelResult?.isFinished) {
+      effectivePageType = levelResult.isPassed ? 'passed_result' : 'failed_result';
+    } else if (isCompleted || isFinishedPart) {
+      effectivePageType = 'part_completion';
+    } else if (disclaimerModalOpen) {
+      effectivePageType = 'disclaimer_guidelines';
+    } else if (consecutiveFailureModalOpen) {
+      effectivePageType = 'failure_warning';
+    } else if (isStudyPhase) {
+      effectivePageType = 'study_notes';
+    } else {
+      effectivePageType = 'incomplete_question';
+    }
+  }
+
+  const fixedLevelResult: LevelResultRecord | null = levelResult ? {
+    ...levelResult,
+    isFinished: true,
+    isPassed: effectivePageType === 'failed_result' ? false : (levelResult.isPassed ?? true),
+    sectionId: levelResult.sectionId || activeSectionId
+  } : null;
 
   const cleanEmail = normalizeStudentEmail(studentEmail);
 
@@ -814,10 +847,27 @@ export const saveQuestionProgressState = (params: {
     if (isFinishedPart) {
       localStorage.setItem(keys.finishedKey, 'true');
     }
-    if (levelResult) {
-      localStorage.setItem(keys.levelResultKey, JSON.stringify(levelResult));
-    } else {
+    if (fixedLevelResult) {
+      localStorage.setItem(keys.levelResultKey, JSON.stringify(fixedLevelResult));
+    } else if (effectivePageType !== 'passed_result' && effectivePageType !== 'failed_result') {
       localStorage.removeItem(keys.levelResultKey);
+    }
+
+    const isPython = courseId.includes('python');
+    const isJava = courseId.includes('java');
+    const isFullstack = courseId.includes('fullstack');
+    let prefix = 'dopilot_';
+    if (isJava) prefix = 'dopilot_java_';
+    else if (isFullstack) prefix = 'dopilot_fullstack_';
+    else if (courseId.includes('cyber')) prefix = 'dopilot_cyber_';
+    const partPrefix = (isPython && partNum === 1) || (isJava && partNum === 1) || (courseId.includes('cyber') && partNum === 1) ? prefix : `${prefix}part${partNum}_`;
+    localStorage.setItem(`${partPrefix}page_type`, effectivePageType);
+    if (disclaimerModalOpen) {
+      localStorage.setItem(`${partPrefix}disclaimer_open`, 'true');
+      localStorage.setItem(`${partPrefix}disclaimer_modal_open`, 'true');
+    }
+    if (consecutiveFailureModalOpen) {
+      localStorage.setItem(`${partPrefix}consecutive_failure_modal_open`, 'true');
     }
   } catch (e) {
     console.error('Failed writing course progress to localStorage:', e);
@@ -863,7 +913,10 @@ export const saveQuestionProgressState = (params: {
     timeLeft,
     isCompleted,
     isFinishedPart,
-    levelResult: levelResult || null,
+    levelResult: fixedLevelResult,
+    pageType: effectivePageType,
+    disclaimerModalOpen,
+    consecutiveFailureModalOpen,
     updatedAt: new Date().toISOString()
   };
 
@@ -905,7 +958,10 @@ export const saveQuestionProgressState = (params: {
     targetEndTime,
     timeLeft,
     selectedAnswers: { ...selectedAnswers },
-    levelResult: levelResult || null,
+    levelResult: fixedLevelResult,
+    pageType: effectivePageType,
+    disclaimerModalOpen,
+    consecutiveFailureModalOpen,
     attemptCounts: {},
     consecutiveFailures: studentState.consecutiveFailures || {},
     disclaimerConfirmed: true,
@@ -1554,6 +1610,8 @@ export function useCourseQuestionResume(params: {
   levelResult?: any;
   setLevelResult?: (res: any) => void;
   setIsCourseComplete?: (complete: boolean) => void;
+  setDisclaimerModalOpen?: (open: boolean) => void;
+  setConsecutiveFailureModalOpen?: (open: boolean) => void;
   onHydrated?: () => void;
 }) {
   const paramsRef = useRef(params);
@@ -1609,24 +1667,44 @@ export function useCourseQuestionResume(params: {
       // 1. Result page state: ONLY restore levelResult if it matches the current/saved section!
       // Stale levelResult from a previous level must NEVER be restored to a new section!
       const targetSec = saved.activeSectionId || p.activeSectionId;
-      const resultSec = saved.levelResult?.sectionId;
-      if (
-        saved.levelResult &&
-        saved.levelResult.isFinished &&
-        resultSec &&
-        targetSec &&
-        resultSec === targetSec
-      ) {
-        p.setLevelResult?.({
-          ...saved.levelResult,
+      const resultSec = saved.levelResult?.sectionId || targetSec;
+      const isResultPage = saved.pageType === 'passed_result' ||
+                           saved.pageType === 'failed_result' ||
+                           Boolean(saved.levelResult && saved.levelResult.isFinished);
+
+      if (isResultPage && (saved.levelResult || saved.pageType)) {
+        const resultIsPassed = saved.pageType === 'failed_result'
+          ? false
+          : (saved.levelResult?.isPassed ?? true);
+
+        const restoredResult = {
+          ...(saved.levelResult || {}),
+          isFinished: true,
+          isPassed: resultIsPassed,
           sectionId: resultSec
-        });
+        };
+
+        p.setLevelResult?.(restoredResult);
         p.setIsStudyPhase(false);
         p.setIsTimeUpWaiting(false);
         p.setTimeLeft(30);
+
+        if (saved.pageType === 'disclaimer_guidelines' || saved.disclaimerModalOpen) {
+          p.setDisclaimerModalOpen?.(true);
+        }
+        if (saved.pageType === 'failure_warning' || saved.consecutiveFailureModalOpen) {
+          p.setConsecutiveFailureModalOpen?.(true);
+        }
         return;
-      } else {
+      } else if (!isResultPage) {
         p.setLevelResult?.(null);
+      }
+
+      if (saved.pageType === 'disclaimer_guidelines' || saved.disclaimerModalOpen) {
+        p.setDisclaimerModalOpen?.(true);
+      }
+      if (saved.pageType === 'failure_warning' || saved.consecutiveFailureModalOpen) {
+        p.setConsecutiveFailureModalOpen?.(true);
       }
 
       // 2. Study Phase: Check if user already unlocked locally or already answered this specific question

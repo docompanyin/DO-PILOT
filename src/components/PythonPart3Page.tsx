@@ -311,6 +311,7 @@ export const PythonPart3Page: React.FC = () => {
     validSectionIds: PART_3_SECTIONS.map(s => s.id),
     levelResult,
     setLevelResult,
+    setDisclaimerModalOpen,
     setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete)
   });
 

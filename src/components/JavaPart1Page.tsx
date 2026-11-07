@@ -273,11 +273,16 @@ export const JavaPart1Page: React.FC = () => {
     setLevelQuestions(qList);
     if (prevSectionIdRef.current !== activeSectionId) {
       prevSectionIdRef.current = activeSectionId;
-      setLevelResult(null);
-      try {
-        const keys = getCourseStorageKeys('java-core', 1);
+      setLevelResult(prev => {
+        if (prev && prev.isFinished && (!prev.sectionId || prev.sectionId === activeSectionId)) {
+          return { ...prev, sectionId: activeSectionId };
+        }
+        try {
+          const keys = getCourseStorageKeys('java-core', 1);
         localStorage.removeItem(keys.levelResultKey);
-      } catch {}
+        } catch {}
+        return null;
+      });
     }
   }, [activeSectionId, studentId]);
 
@@ -386,6 +391,7 @@ export const JavaPart1Page: React.FC = () => {
     validSectionIds: PART_1_SECTIONS.map(s => s.id),
     levelResult,
     setLevelResult,
+    setDisclaimerModalOpen,
     setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete),
     onHydrated: () => {
       setIsHydrated(true);

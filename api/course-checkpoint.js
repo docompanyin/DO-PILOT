@@ -154,12 +154,32 @@ export default async function handler(req, res) {
         .maybeSingle();
 
       if (discreteDoc?.content) {
+        const cp = { ...(discreteDoc.content.checkpoint || {}) };
+        if (!cp.pageType) {
+          if (cp.levelResult && cp.levelResult.isFinished) {
+            cp.pageType = cp.levelResult.isPassed ? 'passed_result' : 'failed_result';
+          } else if (cp.isCompleted || cp.isFinishedPart) {
+            cp.pageType = 'part_completion';
+          } else if (cp.disclaimerModalOpen) {
+            cp.pageType = 'disclaimer_guidelines';
+          } else if (cp.consecutiveFailureModalOpen) {
+            cp.pageType = 'failure_warning';
+          } else if (cp.isStudyPhase) {
+            cp.pageType = 'study_notes';
+          } else {
+            cp.pageType = 'incomplete_question';
+          }
+        }
+        if (cp.levelResult && !cp.levelResult.sectionId) {
+          cp.levelResult = { ...cp.levelResult, sectionId: cp.activeSectionId };
+        }
+
         return res.status(200).json({
           success: true,
           source: 'discrete_checkpoint',
           revision: discreteDoc.content.revision || 1,
           lastIdempotencyKey: discreteDoc.content.lastIdempotencyKey || null,
-          checkpoint: discreteDoc.content.checkpoint,
+          checkpoint: cp,
           updatedAt: discreteDoc.updated_at || discreteDoc.content.updatedAt
         });
       }
@@ -174,6 +194,28 @@ export default async function handler(req, res) {
       const legacyContent = legacyDoc?.content;
       if (legacyContent?.courses?.[course]?.parts?.[String(partNumber)]) {
         const partState = legacyContent.courses[course].parts[String(partNumber)];
+        let synPageType = partState.pageType;
+        if (!synPageType) {
+          if (partState.levelResult && partState.levelResult.isFinished) {
+            synPageType = partState.levelResult.isPassed ? 'passed_result' : 'failed_result';
+          } else if (partState.isCompleted || partState.isFinishedPart) {
+            synPageType = 'part_completion';
+          } else if (partState.disclaimerModalOpen) {
+            synPageType = 'disclaimer_guidelines';
+          } else if (partState.consecutiveFailureModalOpen) {
+            synPageType = 'failure_warning';
+          } else if (partState.isStudyPhase) {
+            synPageType = 'study_notes';
+          } else {
+            synPageType = 'incomplete_question';
+          }
+        }
+
+        const fixedLevelResult = partState.levelResult ? {
+          ...partState.levelResult,
+          sectionId: partState.levelResult.sectionId || partState.activeSectionId
+        } : null;
+
         const synthesizedCheckpoint = {
           courseId: course,
           partNum: partNumber,
@@ -184,7 +226,10 @@ export default async function handler(req, res) {
           targetEndTime: partState.targetEndTime || 0,
           timeLeft: partState.timeLeft || 0,
           selectedAnswers: partState.selectedAnswers || {},
-          levelResult: partState.levelResult || null,
+          levelResult: fixedLevelResult,
+          pageType: synPageType,
+          disclaimerModalOpen: Boolean(partState.disclaimerModalOpen),
+          consecutiveFailureModalOpen: Boolean(partState.consecutiveFailureModalOpen),
           attemptCounts: {},
           consecutiveFailures: legacyContent.consecutiveFailures || {},
           disclaimerConfirmed: true,
@@ -305,7 +350,38 @@ export default async function handler(req, res) {
 
     // C. Concurrency / Stale Request Detection across devices
     const expRev = typeof expectedRevision === 'number' ? expectedRevision : currentRev;
-    let safeMergedCheckpoint = { ...checkpoint };
+
+    let incomingPageType = checkpoint.pageType;
+    if (!incomingPageType) {
+      if (checkpoint.levelResult && checkpoint.levelResult.isFinished) {
+        incomingPageType = checkpoint.levelResult.isPassed ? 'passed_result' : 'failed_result';
+      } else if (checkpoint.isCompleted || checkpoint.isFinishedPart) {
+        incomingPageType = 'part_completion';
+      } else if (checkpoint.disclaimerModalOpen) {
+        incomingPageType = 'disclaimer_guidelines';
+      } else if (checkpoint.consecutiveFailureModalOpen) {
+        incomingPageType = 'failure_warning';
+      } else if (checkpoint.isStudyPhase) {
+        incomingPageType = 'study_notes';
+      } else {
+        incomingPageType = 'incomplete_question';
+      }
+    }
+
+    const safeLevelResult = checkpoint.levelResult ? {
+      ...checkpoint.levelResult,
+      isFinished: true,
+      isPassed: incomingPageType === 'failed_result' ? false : (checkpoint.levelResult.isPassed ?? true),
+      sectionId: checkpoint.levelResult.sectionId || checkpoint.activeSectionId
+    } : null;
+
+    let safeMergedCheckpoint = {
+      ...checkpoint,
+      pageType: incomingPageType,
+      levelResult: safeLevelResult,
+      disclaimerModalOpen: Boolean(checkpoint.disclaimerModalOpen),
+      consecutiveFailureModalOpen: Boolean(checkpoint.consecutiveFailureModalOpen)
+    };
 
     if (currentDoc && expRev < currentRev) {
       // Incoming request is behind the server revision.
@@ -327,11 +403,16 @@ export default async function handler(req, res) {
 
       safeMergedCheckpoint = {
         ...checkpoint,
+        pageType: incomingIsNewerAction ? incomingPageType : (existingCp.pageType || incomingPageType),
+        disclaimerModalOpen: incomingIsNewerAction ? Boolean(checkpoint.disclaimerModalOpen) : (existingCp.disclaimerModalOpen ?? Boolean(checkpoint.disclaimerModalOpen)),
+        consecutiveFailureModalOpen: incomingIsNewerAction ? Boolean(checkpoint.consecutiveFailureModalOpen) : (existingCp.consecutiveFailureModalOpen ?? Boolean(checkpoint.consecutiveFailureModalOpen)),
         activeSectionId: incomingIsNewerAction ? checkpoint.activeSectionId : (existingCp.activeSectionId || checkpoint.activeSectionId),
         activeQuestionIdx: incomingIsNewerAction ? checkpoint.activeQuestionIdx : (typeof existingCp.activeQuestionIdx === 'number' ? existingCp.activeQuestionIdx : checkpoint.activeQuestionIdx),
         isStudyPhase: incomingIsNewerAction ? checkpoint.isStudyPhase : (existingCp.isStudyPhase ?? checkpoint.isStudyPhase),
         selectedAnswers: mergedAnswers,
-        levelResult: existingCp.levelResult?.isPassed ? existingCp.levelResult : (checkpoint.levelResult || existingCp.levelResult),
+        levelResult: incomingIsNewerAction
+          ? safeLevelResult
+          : (existingCp.levelResult ? { ...existingCp.levelResult, sectionId: existingCp.levelResult.sectionId || existingCp.activeSectionId } : safeLevelResult),
         isCompleted: existingCp.isCompleted || checkpoint.isCompleted,
         isFinishedPart: existingCp.isFinishedPart || checkpoint.isFinishedPart,
         updatedAt: incomingIsNewerAction ? checkpoint.updatedAt : (existingCp.updatedAt || currentDoc.updatedAt)
@@ -392,6 +473,9 @@ export default async function handler(req, res) {
         isCompleted: safeMergedCheckpoint.isCompleted,
         isFinishedPart: safeMergedCheckpoint.isFinishedPart,
         levelResult: safeMergedCheckpoint.levelResult,
+        pageType: safeMergedCheckpoint.pageType,
+        disclaimerModalOpen: safeMergedCheckpoint.disclaimerModalOpen,
+        consecutiveFailureModalOpen: safeMergedCheckpoint.consecutiveFailureModalOpen,
         updatedAt: nowIso
       };
 

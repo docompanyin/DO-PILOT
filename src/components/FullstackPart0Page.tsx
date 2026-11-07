@@ -180,10 +180,15 @@ export const FullstackPart0Page: React.FC = () => {
     setLevelQuestions(qList);
     if (prevSectionIdRef.current !== activeSectionId) {
       prevSectionIdRef.current = activeSectionId;
-      setLevelResult(null);
-      try {
-        localStorage.removeItem('dopilot_fullstack_part0_level_result');
-      } catch {}
+      setLevelResult(prev => {
+        if (prev && prev.isFinished && (!prev.sectionId || prev.sectionId === activeSectionId)) {
+          return { ...prev, sectionId: activeSectionId };
+        }
+        try {
+          localStorage.removeItem('dopilot_fullstack_part0_level_result');
+        } catch {}
+        return null;
+      });
     }
   }, [activeSectionId, studentId]);
 

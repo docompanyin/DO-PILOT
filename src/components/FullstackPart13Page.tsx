@@ -28,6 +28,7 @@ import { useCourseUnlockedListener } from '../utils/courseResetService';
 const TIMER_DURATION = 30; // 30 seconds
 
 interface LevelResultState {
+  sectionId?: string;
   isFinished: boolean;
   isPassed: boolean;
   correctCount: number;
@@ -112,10 +113,15 @@ export const FullstackPart13Page: React.FC = () => {
     setLevelQuestions(qList);
     if (prevSectionIdRef.current !== activeSectionId) {
       prevSectionIdRef.current = activeSectionId;
-      setLevelResult(null);
-      try {
-        localStorage.removeItem('dopilot_fullstack_part13_level_result');
-      } catch {}
+      setLevelResult(prev => {
+        if (prev && prev.isFinished && (!prev.sectionId || prev.sectionId === activeSectionId)) {
+          return { ...prev, sectionId: activeSectionId };
+        }
+        try {
+          localStorage.removeItem('dopilot_fullstack_part13_level_result');
+        } catch {}
+        return null;
+      });
     }
   }, [activeSectionId, studentId]);
 
@@ -192,6 +198,7 @@ export const FullstackPart13Page: React.FC = () => {
     validSectionIds: FULLSTACK_PART_13_SECTIONS.map(s => s.id),
     levelResult,
     setLevelResult,
+    setDisclaimerModalOpen,
     setIsCourseComplete: (complete: boolean) => setIsCourseComplete(complete)
   });
 

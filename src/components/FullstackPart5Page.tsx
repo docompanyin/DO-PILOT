@@ -26,6 +26,7 @@ import { playTwinkleSound } from '../utils/audioEffects';
 const TIMER_DURATION = 30; // 30 seconds
 
 interface LevelResultState {
+  sectionId?: string;
   isFinished: boolean;
   isPassed: boolean;
   correctCount: number;
@@ -110,10 +111,15 @@ export const FullstackPart5Page: React.FC = () => {
     setLevelQuestions(qList);
     if (prevSectionIdRef.current !== activeSectionId) {
       prevSectionIdRef.current = activeSectionId;
-      setLevelResult(null);
-      try {
-        localStorage.removeItem('dopilot_fullstack_part5_level_result');
-      } catch {}
+      setLevelResult(prev => {
+        if (prev && prev.isFinished && (!prev.sectionId || prev.sectionId === activeSectionId)) {
+          return { ...prev, sectionId: activeSectionId };
+        }
+        try {
+          localStorage.removeItem('dopilot_fullstack_part5_level_result');
+        } catch {}
+        return null;
+      });
     }
   }, [activeSectionId, studentId]);
 
@@ -347,6 +353,7 @@ export const FullstackPart5Page: React.FC = () => {
 
     const resultState = {
       isFinished: true,
+      sectionId: activeSection.id,
       isPassed,
       correctCount,
       totalCount,

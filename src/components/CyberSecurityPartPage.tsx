@@ -28,6 +28,7 @@ import { notifyCourseLocked } from '../utils/lockNotificationService';
 const TIMER_DURATION = 30; // 30 seconds
 
 interface LevelResultState {
+  sectionId?: string;
   isFinished: boolean;
   isPassed: boolean;
   correctCount: number;
@@ -149,11 +150,16 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     setLevelQuestions(qList);
     if (prevSectionIdRef.current !== activeSectionId) {
       prevSectionIdRef.current = activeSectionId;
-      setLevelResult(null);
-      try {
-        const keys = getCourseStorageKeys('cyber-security', currentPartNum);
+      setLevelResult(prev => {
+        if (prev && prev.isFinished && (!prev.sectionId || prev.sectionId === activeSectionId)) {
+          return { ...prev, sectionId: activeSectionId };
+        }
+        try {
+          const keys = getCourseStorageKeys('cyber-security', currentPartNum);
         localStorage.removeItem(keys.levelResultKey);
-      } catch {}
+        } catch {}
+        return null;
+      });
     }
   }, [activeSectionId, studentId, currentPartNum]);
 
@@ -228,6 +234,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
     setTargetEndTime,
     levelResult,
     setLevelResult,
+    setDisclaimerModalOpen,
     setIsCourseComplete: setIsPartComplete,
     validSectionIds: partSections.map(s => s.id),
     onHydrated: () => {
@@ -431,6 +438,7 @@ export const CyberSecurityPartPage: React.FC<{ partNumber?: number }> = ({ partN
 
     const resultState = {
       isFinished: true,
+      sectionId: activeSection.id,
       isPassed,
       correctCount,
       totalCount,
