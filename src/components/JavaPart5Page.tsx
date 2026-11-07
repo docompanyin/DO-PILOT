@@ -307,6 +307,11 @@ export const JavaPart5Page: React.FC = () => {
   const currentLevelQuestionNumber = activeQuestionIdx + 1;
   const remainingLevelQuestions = Math.max(0, totalLevelQuestions - currentLevelQuestionNumber);
 
+  const latestLevelResultRef = useRef(levelResult);
+  latestLevelResultRef.current = levelResult;
+  const isCourseCompleteRef = useRef(isCourseComplete);
+  isCourseCompleteRef.current = isCourseComplete;
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     try {
@@ -314,7 +319,7 @@ export const JavaPart5Page: React.FC = () => {
     } catch {}
     document.title = `Do Pilot - ${activeSection.title}`;
 
-    if (user?.email && !levelResult?.isFinished && !isCourseComplete) {
+    if (user?.email && !levelResult?.isFinished && !latestLevelResultRef.current?.isFinished && !isCourseComplete) {
       saveQuestionProgressState({
         courseId: 'java-core',
         partNum: 5,
@@ -340,7 +345,32 @@ export const JavaPart5Page: React.FC = () => {
         );
       }
     } catch {}
-  }, [activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
+  }, [activeSectionId, activeQuestionIdx, isStudyPhase, user?.email, levelResult?.isFinished, isCourseComplete]);
+
+  // Unmount checkpoint: flush progress immediately when student navigates away or presses Back
+  useEffect(() => {
+    return () => {
+      const email = user?.email;
+      const curResult = latestLevelResultRef.current;
+      const curComplete = isCourseCompleteRef.current;
+      if (email && !curResult?.isFinished && !curComplete) {
+        saveQuestionProgressState({
+          courseId: 'java-core',
+          partNum: 5,
+          activeSectionId,
+          activeQuestionIdx,
+          selectedAnswers,
+          isStudyPhase,
+          isTimeUpWaiting,
+          targetEndTime,
+          timeLeft,
+          studentEmail: email,
+          levelResult: null,
+          forceImmediate: true
+        });
+      }
+    };
+  }, [activeSectionId, activeQuestionIdx, isStudyPhase, selectedAnswers, user?.email]);
 
   const stateRef = useRef({
     activeSectionId,
@@ -600,11 +630,13 @@ export const JavaPart5Page: React.FC = () => {
       selectedAnswers: updatedAnswers,
       isStudyPhase: true,
       isTimeUpWaiting: false,
-      targetEndTime: 0,
+      targetEndTime: fresh,
       timeLeft: TIMER_DURATION,
       studentEmail: user?.email,
       levelResult: null,
-          });
+      forceImmediate: true,
+      isExplicitReset: true
+    });
   };
 
   const handleProceedToNextLevel = () => {
@@ -849,8 +881,15 @@ export const JavaPart5Page: React.FC = () => {
   };
 
   const isSolved = isTaskSolved(taskId);
-  const currentChoice = selectedAnswers[taskId];
-  const isLocked = Boolean(isSolved);
+  const currentChoice = selectedAnswers[taskId] ||
+    selectedAnswers[`${activeSection.id}-${activeQuestionIdx}`] ||
+    (currentMcq?.id ? selectedAnswers[`${activeSection.id}-${currentMcq.id}`] : undefined) ||
+    selectedAnswers[`java-${activeSection.id}-${activeQuestionIdx}`] ||
+    selectedAnswers[`java-${activeSection.id}-${currentMcq?.id || activeQuestionIdx}`] ||
+    selectedAnswers[`java-part5-${activeSection.id}-${activeQuestionIdx}`] ||
+    selectedAnswers[`java-part5-${activeSection.id}-${currentMcq?.id || activeQuestionIdx}`] ||
+    (isSolved ? currentMcq.correctAnswer : undefined);
+  const isLocked = Boolean(currentChoice);
   const isUserWrongAnswer = Boolean(currentChoice && currentChoice !== currentMcq.correctAnswer);
 
   return (

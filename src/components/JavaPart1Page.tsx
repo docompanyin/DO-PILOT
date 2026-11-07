@@ -293,7 +293,9 @@ export const JavaPart1Page: React.FC = () => {
   const candidateCurrentKeys = [
     taskId,
     `java-${activeSection.id}-${activeQuestionIdx}`,
-    currentMcq.id ? `java-${activeSection.id}-${currentMcq.id}` : ''
+    currentMcq.id ? `java-${activeSection.id}-${currentMcq.id}` : '',
+    `${activeSection.id}-${activeQuestionIdx}`,
+    currentMcq.id ? `${activeSection.id}-${currentMcq.id}` : ''
   ].filter(Boolean);
 
   // Whether user is currently in Study Phase (reading note with no timer pressure) or Question Phase (30s timer)
@@ -443,6 +445,11 @@ export const JavaPart1Page: React.FC = () => {
   const currentLevelQuestionNumber = activeQuestionIdx + 1;
   const remainingLevelQuestions = Math.max(0, totalLevelQuestions - currentLevelQuestionNumber);
 
+  const latestLevelResultRef = useRef(levelResult);
+  latestLevelResultRef.current = levelResult;
+  const isCourseCompleteRef = useRef(isCourseComplete);
+  isCourseCompleteRef.current = isCourseComplete;
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     document.title = `Do Pilot - ${activeSection.title}`;
@@ -451,7 +458,7 @@ export const JavaPart1Page: React.FC = () => {
     } catch {}
 
     // Auto-checkpoint active location & notes phase to Supabase once hydrated
-    if (isHydrated && user?.email && !levelResult?.isFinished && !isCourseComplete) {
+    if (isHydrated && user?.email && !levelResult?.isFinished && !latestLevelResultRef.current?.isFinished && !isCourseComplete) {
       saveQuestionProgressState({
         courseId: 'java-core',
         partNum: 1,
@@ -469,13 +476,15 @@ export const JavaPart1Page: React.FC = () => {
     }
 
 
-  }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
+  }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, user?.email, levelResult?.isFinished, isCourseComplete]);
 
   // Unmount checkpoint: flush progress immediately when student navigates away or presses Back
   useEffect(() => {
     return () => {
       const email = user?.email;
-      if (email && isHydrated && !levelResult?.isFinished && !isCourseComplete) {
+      const curResult = latestLevelResultRef.current;
+      const curComplete = isCourseCompleteRef.current;
+      if (email && isHydrated && !curResult?.isFinished && !curComplete) {
         saveQuestionProgressState({
           courseId: 'java-core',
           partNum: 1,
@@ -855,11 +864,13 @@ export const JavaPart1Page: React.FC = () => {
       selectedAnswers: updatedAnswers,
       isStudyPhase: true,
       isTimeUpWaiting: false,
-      targetEndTime: 0,
+      targetEndTime: fresh,
       timeLeft: TIMER_DURATION,
       studentEmail: user?.email,
       levelResult: null,
-          });
+      forceImmediate: true,
+      isExplicitReset: true
+    });
   };
 
   // Progress to the next level (after Passing or after confirming Disclaimer)
@@ -1154,6 +1165,13 @@ export const JavaPart1Page: React.FC = () => {
       currentChoice = selectedAnswers[k];
       break;
     }
+  }
+  if (!currentChoice) {
+    currentChoice = selectedAnswers[taskId] ||
+      selectedAnswers[`${activeSection.id}-${activeQuestionIdx}`] ||
+      (currentMcq?.id ? selectedAnswers[`${activeSection.id}-${currentMcq.id}`] : undefined) ||
+      selectedAnswers[`java-${activeSection.id}-${activeQuestionIdx}`] ||
+      selectedAnswers[`java-${activeSection.id}-${currentMcq?.id || activeQuestionIdx}`];
   }
   if (!currentChoice && isSolved) {
     currentChoice = currentMcq.correctAnswer;
