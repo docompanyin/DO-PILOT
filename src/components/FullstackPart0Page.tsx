@@ -306,9 +306,14 @@ export const FullstackPart0Page: React.FC = () => {
     }
   });
 
+  const latestLevelResultRef = useRef(levelResult);
+  latestLevelResultRef.current = levelResult;
+  const isCourseCompleteRef = useRef(isCourseComplete);
+  isCourseCompleteRef.current = isCourseComplete;
+
   // Auto-checkpoint active location & notes phase to Supabase once hydrated
   useEffect(() => {
-    if (isHydrated && user?.email && !levelResult?.isFinished && !isCourseComplete) {
+    if (isHydrated && user?.email && !levelResult?.isFinished && !latestLevelResultRef.current?.isFinished && !isCourseComplete) {
       saveQuestionProgressState({
         courseId: 'fullstack-open',
         partNum: 0,
@@ -324,13 +329,15 @@ export const FullstackPart0Page: React.FC = () => {
         forceImmediate: true
       });
     }
-  }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, user?.email]);
+  }, [isHydrated, activeSectionId, activeQuestionIdx, isStudyPhase, user?.email, levelResult?.isFinished, isCourseComplete]);
 
   // Unmount checkpoint: flush progress immediately when student navigates away or presses Back
   useEffect(() => {
     return () => {
       const email = user?.email;
-      if (email && isHydrated && !levelResult?.isFinished && !isCourseComplete) {
+      const curResult = latestLevelResultRef.current;
+      const curComplete = isCourseCompleteRef.current;
+      if (email && isHydrated && !curResult?.isFinished && !curComplete) {
         saveQuestionProgressState({
           courseId: 'fullstack-open',
           partNum: 0,
@@ -670,7 +677,9 @@ export const FullstackPart0Page: React.FC = () => {
       targetEndTime: fresh,
       timeLeft: TIMER_DURATION,
       studentEmail: user?.email,
-      levelResult: null
+      levelResult: null,
+      forceImmediate: true,
+      isExplicitReset: true
     });
   };
 
@@ -918,7 +927,14 @@ export const FullstackPart0Page: React.FC = () => {
   };
 
   const isSolved = isTaskSolved(taskId);
-  const currentChoice = selectedAnswers[taskId] || (isSolved ? currentMcq.correctAnswer : undefined);
+  const currentChoice = selectedAnswers[taskId] ||
+    selectedAnswers[`${activeSection.id}-${activeQuestionIdx}`] ||
+    (currentMcq?.id ? selectedAnswers[`${activeSection.id}-${currentMcq.id}`] : undefined) ||
+    selectedAnswers[`fullstack-${activeSection.id}-${activeQuestionIdx}`] ||
+    selectedAnswers[`fullstack-${activeSection.id}-${currentMcq?.id || activeQuestionIdx}`] ||
+    selectedAnswers[`fullstack-0-${activeSection.id}-${activeQuestionIdx}`] ||
+    selectedAnswers[`fullstack-0-${activeSection.id}-${currentMcq?.id || activeQuestionIdx}`] ||
+    (isSolved ? currentMcq.correctAnswer : undefined);
   const isLocked = Boolean(currentChoice);
   const isUserWrongAnswer = Boolean(currentChoice && currentChoice !== currentMcq.correctAnswer);
 
